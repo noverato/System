@@ -2,297 +2,300 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>Isekai Nest V3</title>
+<title>Isekai Nest V4</title>
 
 <style>
-/* ========== CORE ========== */
 body{
     margin:0;
-    background:#050a05 !important;
+    background:#050b05;
     overflow:hidden;
-    font-family: "Segoe UI", sans-serif;
+    font-family:Segoe UI, sans-serif;
     color:white;
 }
 
-/* ========== LAYOUT ========== */
-#uiLeft,#uiRight{
-    position:fixed;
-    top:0;
-    bottom:0;
-    width:260px;
-    padding:15px;
-    background:rgba(20,30,20,.55);
-    backdrop-filter: blur(12px);
-    border:2px solid gold;
-    z-index:9999;
-}
-#uiLeft{ left:0; }
-#uiRight{ right:0; }
-
-#world{
-    position:absolute;
-    left:260px;
-    right:260px;
-    top:0;
-    bottom:0;
-    overflow:hidden;
-}
-
-/* ========== FOREST ========== */
+/* Forest mit Bild-Hintergrund */
 #forest{
     position:absolute;
-    width:100%;
-    height:100%;
-    background: radial-gradient(circle at center,#1c2c1c,#050a05);
-    z-index:0;
+    inset:0;
+    background-image: url('DEIN_BILD_LINK'); /* Platzhalter */
+    background-size: cover;
+    background-position: center;
+    z-index:1;
 }
 
-/* trees */
-.tree{
+/* Nest */
+#nest{
     position:absolute;
-    z-index:0;
-    filter:brightness(0.8);
-}
-
-/* ========== VILLAGE ========== */
-#village{
-    position:absolute;
-    width:520px;
-    height:520px;
-    border-radius:50%;
     left:50%;
     top:50%;
-    transform:translate(-50%,-50%);
-    background: radial-gradient(circle,#3b2a18,#1a120a);
-    box-shadow:0 0 50px rgba(255,215,120,.6);
+    width:260px;
+    height:260px;
+    margin:-130px;
+    border-radius:50%;
+    background:radial-gradient(circle,#1c3f1c,#050b05);
+    box-shadow:0 0 40px #5eff5e55;
     z-index:10;
 }
 
-/* light paths */
-.path{
+/* Creatures */
+.creature{
     position:absolute;
-    background:linear-gradient(to center,#ffd27d,#6b4a2a);
-    opacity:.8;
-    z-index:9;
-}
-#pN{ width:80px;height:200px;left:50%;top:-200px;transform:translateX(-50%);}
-#pS{ width:80px;height:200px;left:50%;bottom:-200px;transform:translateX(-50%);}
-#pW{ height:80px;width:200px;left:-200px;top:50%;transform:translateY(-50%);}
-#pE{ height:80px;width:200px;right:-200px;top:50%;transform:translateY(-50%);}
-
-/* buildings */
-.building{
-    position:absolute;
-    width:90px;height:90px;
-    background:rgba(50,30,10,.9);
-    border:3px solid gold;
-    border-radius:10px;
     text-align:center;
-    line-height:90px;
-    font-size:42px;
-    cursor:pointer;
-    z-index:20;
+    font-size:32px;
+    z-index:100; /* Immer über dem Boss-Fenster */
+    animation: wusel 1.5s ease-in-out infinite alternate;
 }
-#forge{left:90px;top:210px;}
-#market{right:90px;top:210px;}
+.name{
+    font-size:12px;
+    color:#ffe7a3;
+    text-shadow:0 0 4px black;
+    z-index:101; /* Namen immer ganz oben */
+    position:relative;
+}
 
-/* ========== EGGS ========== */
-.egg{
-    position:absolute;
-    font-size:26px;
-    z-index:50;
-    transition:left 6s linear, top 6s linear;
-    text-shadow:0 5px 10px rgba(0,0,0,.8);
+/* Wusel-Animation */
+@keyframes wusel {
+    0% { transform: translate(0px,0px); }
+    25% { transform: translate(2px,-2px); }
+    50% { transform: translate(-2px,2px); }
+    75% { transform: translate(2px,1px); }
+    100% { transform: translate(-1px,-2px); }
 }
-.nameTag{
+
+/* UI Panels */
+.ui{
     position:absolute;
-    top:-18px;
+    top:10px;
+    width:220px;
+    background:rgba(40,40,60,.4);
+    backdrop-filter: blur(6px);
+    border:2px solid gold;
+    border-radius:10px;
+    padding:10px;
+    z-index:9999;
+}
+
+#leftUI{left:10px;}
+#rightUI{right:10px;}
+
+/* Close Buttons */
+.closeBtn{
+    position:absolute;
+    top:5px;
+    right:5px;
+    background:red;
+    color:white;
+    border:none;
+    border-radius:50%;
+    width:20px;
+    height:20px;
+    text-align:center;
+    line-height:18px;
+    font-weight:bold;
+    cursor:pointer;
+    z-index:10000;
+}
+
+button{
+    background:#333;
+    color:white;
+    border:1px solid gold;
+    border-radius:6px;
+    padding:6px;
+    margin-top:5px;
+    cursor:pointer;
+}
+
+button:disabled{
+    background:#555;
+    cursor:not-allowed;
+}
+
+/* Boss Window */
+#bossWindow{
+    position:absolute;
+    bottom:10px;
     left:50%;
     transform:translateX(-50%);
-    background:rgba(0,0,0,.7);
-    padding:2px 6px;
-    border-radius:6px;
-    font-size:11px;
-    z-index:60;
-}
-
-/* ========== BOSS ========== */
-#boss{
-    position:absolute;
-    font-size:120px;
-    z-index:100;
+    width:500px;
+    background:rgba(20,20,30,.85);
+    border:2px solid crimson;
+    padding:10px;
     display:none;
-    cursor:pointer;
+    z-index:99; /* Unter den Creatures */
 }
-#bossBar{
-    position:absolute;
-    width:120px;height:8px;
-    background:#400;
-    border:1px solid #fff;
-    top:-15px;left:0;
-}
-#bossHP{
-    height:100%;
-    background:red;
-}
-
-/* ========== OVERLAYS ========== */
-.overlay{
-    position:absolute;
-    width:400px;height:300px;
-    background:rgba(20,30,20,.7);
-    backdrop-filter:blur(12px);
-    border:3px solid gold;
-    left:50%;top:50%;
-    transform:translate(-50%,-50%);
-    z-index:9999;
-    display:none;
-    padding:15px;
-}
-.overlay .close{
-    position:absolute;
-    right:10px;top:5px;
-    cursor:pointer;
-    color:red;
-    font-size:22px;
-}
-
-/* Dev button */
-#devBtn{
-    position:fixed;
-    bottom:10px;
-    right:280px;
-    z-index:9999;
+#battleLog{
+    height:120px;
+    overflow-y:auto;
+    background:black;
+    padding:5px;
+    font-size:12px;
 }
 </style>
 </head>
 
 <body>
 
-<div id="uiLeft">
-    <h3>🧬 Status</h3>
-    Inventar:<div id="inventory"></div>
+<div id="forest"></div>
+<div id="nest"></div>
+
+<div id="leftUI" class="ui">
+    <button class="closeBtn" onclick="document.getElementById('leftUI').style.display='none'">X</button>
+    <b>Dorf</b><br>
+    <div id="stats"></div>
 </div>
 
-<div id="uiRight">
-    <h3>🏰 Dorf</h3>
-    Bosse besiegt: <span id="bossKills">0</span>
+<div id="rightUI" class="ui">
+    <button class="closeBtn" onclick="document.getElementById('rightUI').style.display='none'">X</button>
+    <b>Shop</b><br>
+    <button onclick="buyXP('DevUser')">+10 XP (10 LXP)</button>
+    <button onclick="spawnBoss()">Boss rufen</button>
 </div>
 
-<div id="world">
-    <div id="forest"></div>
-
-    <div id="village">
-        <div id="pN" class="path"></div>
-        <div id="pS" class="path"></div>
-        <div id="pW" class="path"></div>
-        <div id="pE" class="path"></div>
-
-        <div id="forge" class="building">⚒️</div>
-        <div id="market" class="building">🏪</div>
-    </div>
-
-    <div id="boss">👾<div id="bossBar"><div id="bossHP"></div></div></div>
+<div id="bossWindow">
+    <button class="closeBtn" onclick="document.getElementById('bossWindow').style.display='none'">X</button>
+    <b>👾 Boss</b> <span id="bossHP"></span><br>
+    <div id="party"></div>
+    <button id="attackButton" onclick="attackBoss()">ANGREIFEN</button>
+    <div id="battleLog"></div>
 </div>
 
-<div id="forgeUI" class="overlay"><span class="close" onclick="closeUI()">✖</span>
-<h3>Schmiede</h3>
-<button onclick="addItem('🗡️')">Schwert</button>
-<button onclick="addItem('🛡️')">Rüstung</button>
-</div>
-
-<div id="marketUI" class="overlay"><span class="close" onclick="closeUI()">✖</span>
-<h3>Markt</h3>
-<button onclick="addItem('🧪')">Trank</button>
-</div>
-
-<button id="devBtn" onclick="spawnEgg('TestUser'+Math.floor(Math.random()*999))">DEV +1</button>
+<button style="position:absolute;bottom:10px;right:10px;z-index:9999" onclick="spawnEgg('DevUser')">DEV SPAWN</button>
 
 <script>
-const forest=document.getElementById("forest");
-const boss=document.getElementById("boss");
-const bossHP=document.getElementById("bossHP");
-const inventory=document.getElementById("inventory");
-let eggs={};
-let bossHealth=100;
-let kills=0;
+// Admin-Funktion: Start-Datum für treue Follower setzen (in Millisekunden seit 1970)
+const FAKE_JOIN_DATES = {
+    "Follower1": Date.now() - (86400000 * 30), // 30 Tage alt
+    "Follower2": Date.now() - (86400000 * 45), // 45 Tage alt
+    "Follower3": Date.now() - (86400000 * 60), // 60 Tage alt
+    "Follower4": Date.now() - (86400000 * 75), // 75 Tage alt
+    "Follower5": Date.now() - (86400000 * 90), // 90 Tage alt
+    "Follower6": Date.now() - (86400000 * 105), // 105 Tage alt
+    "Follower7": Date.now() - (86400000 * 120), // 120 Tage alt
+    "Follower8": Date.now() - (86400000 * 135), // 135 Tage alt
+};
 
-/* Trees */
-for(let i=0;i<200;i++){
-  let t=document.createElement("div");
-  t.className="tree";
-  t.textContent=Math.random()>0.5?"🌲":"🌳";
-  t.style.fontSize=20+Math.random()*20+"px";
-  t.style.left=Math.random()*window.innerWidth+"px";
-  t.style.top=Math.random()*window.innerHeight+"px";
-  forest.appendChild(t);
+let creatures = JSON.parse(localStorage.getItem("creatures")||"{}");
+let boss=null;
+let attackCooldown = false;
+
+function save(){localStorage.setItem("creatures",JSON.stringify(creatures));}
+
+// Evolution für Follower
+function getFollowerStage(ep) {
+    if(ep >= 90) return "🌳"; // Waldwächter
+    if(ep >= 30) return "🏺"; // Golem
+    return "🥚"; // Ei
 }
 
-/* Spawn egg */
-function spawnEgg(name){
-  if(eggs[name]) return;
-  let e=document.createElement("div");
-  e.className="egg";
-  e.textContent="🥚";
-  e.xp=0;
-  let tag=document.createElement("div");
-  tag.className="nameTag";
-  tag.textContent=name;
-  e.appendChild(tag);
-  forest.appendChild(e);
-  eggs[name]=e;
-  moveEgg(e);
-  setInterval(()=>{
-    e.xp++;
-    if(e.xp>100) e.textContent="💀";
-    else if(e.xp>50) e.textContent="💧";
-    e.appendChild(tag);
-  },1000);
+// Evolution für Subs
+function getSubStage(ep) {
+    if(ep >= 180) return "👽"; // Höheres Wesen
+    if(ep >= 150) return "💀"; // Lich
+    if(ep >= 120) return "👹"; // Oger
+    if(ep >= 90) return "🎃"; // Goblin
+    if(ep >= 60) return "💧"; // Skelett
+    if(ep >= 30) return "🟢"; // Schleim
+    return "🥚"; // Ei
 }
 
-/* Move */
-function moveEgg(e){
-  setInterval(()=>{
-    let x=Math.random()*window.innerWidth;
-    let y=Math.random()*window.innerHeight;
-    e.style.left=x+"px";
-    e.style.top=y+"px";
-  },6000);
+function spawnEgg(name,type="follower"){
+    if(creatures[name]) return;
+    creatures[name]={
+        name,type,
+        ep:0, // Evolutions-Punkte
+        lxp:type=="sub"?50:10,
+        joined:FAKE_JOIN_DATES[name] || Date.now()
+    };
+    save();
 }
+
+function tick(){
+    for(let c of Object.values(creatures)){
+        let days = (Date.now() - c.joined) / (1000 * 60 * 60 * 24);
+        c.ep = Math.floor(days); // 1 EP pro Tag
+        c.lxp += 1/1440; // 1 LXP pro Minute
+    }
+    save();
+    render();
+}
+setInterval(tick, 60000); // Alle 60 Sekunden aktualisieren
+
+function render(){
+    document.querySelectorAll(".creature").forEach(e=>e.remove());
+    for(let c of Object.values(creatures)){
+        let d=document.createElement("div");
+        d.className="creature";
+        // Zufällige Position im Dorfbereich (40%-60% der Bildschirmgröße)
+        d.style.left = (40 + Math.random() * 20) + "%";
+        d.style.top = (40 + Math.random() * 20) + "%";
+        d.innerHTML=`<div class="name">${c.name}</div>${c.type=="sub" ? getSubStage(c.ep) : getFollowerStage(c.ep)}`;
+        document.body.appendChild(d);
+    }
+    document.getElementById("stats").innerText=
+        "Bewohner: "+Object.keys(creatures).length;
+}
+render();
 
 /* Boss */
-setInterval(()=>{
-  boss.style.display="block";
-  bossHealth=100;
-  bossHP.style.width="100%";
-  boss.style.left=Math.random()*window.innerWidth+"px";
-  boss.style.top=Math.random()*window.innerHeight+"px";
-},30000);
+function spawnBoss(){
+    boss={hp:1000};
+    document.getElementById("bossWindow").style.display="block";
+    updateBoss();
+}
+function updateBoss(){
+    document.getElementById("bossHP").innerText="HP "+boss.hp;
+    document.getElementById("party").innerHTML=
+        Object.values(creatures).map(c=>(c.type=="sub" ? getSubStage(c.ep) : getFollowerStage(c.ep))+" "+c.name).join("<br>");
+}
+function attackBoss(){
+    if (attackCooldown) return;
+    attackCooldown = true;
+    document.getElementById("attackButton").disabled = true;
 
-boss.onclick=()=>{
-  bossHealth-=20;
-  bossHP.style.width=bossHealth+"%";
-  if(bossHealth<=0){
-    boss.style.display="none";
-    kills++;
-    document.getElementById("bossKills").textContent=kills;
-  }
-};
+    let log="";
+    let dmg=0;
+    for(let c of Object.values(creatures)){
+        let stage = c.type=="sub" ? getSubStage(c.ep) : getFollowerStage(c.ep);
+        if(stage=="🌳" || stage=="👽") dmg+=100;
+        else if(stage=="🏺" || stage=="👹" || stage=="💀") dmg+=40;
+        else if(stage=="💧" || stage=="🎃") dmg+=10;
+    }
+    boss.hp-=dmg;
+    log+="Gruppe verursacht "+dmg+" Schaden<br>";
+    if(boss.hp<=0){
+        log+="Boss besiegt!";
+        document.getElementById("bossWindow").style.display="none";
+    }
+    document.getElementById("battleLog").innerHTML+=log;
+    updateBoss();
 
-/* UI */
-document.getElementById("forge").onclick=()=>document.getElementById("forgeUI").style.display="block";
-document.getElementById("market").onclick=()=>document.getElementById("marketUI").style.display="block";
-function closeUI(){document.querySelectorAll(".overlay").forEach(o=>o.style.display="none");}
-function addItem(i){inventory.innerHTML+=" "+i;}
+    setTimeout(() => {
+        attackCooldown = false;
+        document.getElementById("attackButton").disabled = false;
+    }, 1000);
+}
 
-/* Websocket */
-const ws=new WebSocket("ws://localhost:8080");
+/* Shop */
+function buyXP(userName){
+    let user = creatures[userName];
+    if(user && user.lxp >= 10){
+        user.lxp -= 10;
+        user.ep += 10; // 10 EP für 10 LXP
+        save();
+        render();
+    }
+}
+
+/* WebSocket */
+let ws=new WebSocket("ws://localhost:8080");
 ws.onmessage=e=>{
- try{
-  const d=JSON.parse(e.data);
-  if(d.data?.displayName) spawnEgg(d.data.displayName);
- }catch{}
+    let data=JSON.parse(e.data);
+    if(data.displayName){
+        spawnEgg(data.displayName,data.isSub?"sub":"follower");
+    }
 };
 </script>
+
 </body>
 </html>
