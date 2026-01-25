@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Isekai Village - Secure Twitch RPG</title>
+<title>Isekai Village - The Nest Edition</title>
 <style>
 /* ===== BASE STYLES ===== */
 body {
@@ -18,7 +18,7 @@ body {
     position: relative;
 }
 
-/* ===== WATERMARK LAYER ===== */
+/* ===== WATERMARK LAYER (Z-INDEX 5) ===== */
 #watermark {
     position: fixed;
     top: 0;
@@ -28,12 +28,12 @@ body {
     background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="600" viewBox="0 0 1000 600"><text x="50%" y="50%" font-family="Arial" font-size="40" fill="%23ffffff" fill-opacity="0.15" text-anchor="middle" transform="rotate(-15 500 300)">Property of Spawn2909 - The Nest</text></svg>');
     background-repeat: repeat;
     background-position: center;
-    z-index: 5; /* Über Hintergrund, unter UI */
+    z-index: 5;
     pointer-events: none;
     user-select: none;
 }
 
-/* ===== BACKGROUND SYSTEM ===== */
+/* ===== BACKGROUND SYSTEM (Z-INDEX 1) ===== */
 #gameWorld {
     position: absolute;
     width: 100%;
@@ -44,302 +44,309 @@ body {
     z-index: 1;
 }
 
-/* ===== BUILDING SYSTEM ===== */
+/* ===== BUILDING SYSTEM (Z-INDEX 2) ===== */
 .building {
     position: absolute;
     display: none;
-    z-index: 2;
+    z-index: 2; 
     transition: opacity 0.5s;
 }
-#schmiede { left: 15%; top: 60%; width: 120px; height: 100px; }
+#schmiede { left: 15%; top: 60%; width: 200px; height: 200px; filter: drop-shadow(0 0 5px rgba(255, 100, 0, 0.7)); }
 #marktplatz { left: 40%; top: 55%; width: 150px; height: 120px; }
 #heiligeSchmiede { left: 65%; top: 60%; width: 130px; height: 110px; }
 #rathaus { left: 45%; top: 20%; width: 180px; height: 150px; }
 
-/* ===== CREATURE SYSTEM ===== */
+/* ===== CREATURE SYSTEM (Z-INDEX 10) ===== */
 .creature {
     position: absolute;
     width: 60px;
     height: 60px;
-    z-index: 10;
+    z-index: 10; /* Über Gebäuden, hinter UI */
     transition: all 0.3s ease;
     pointer-events: none;
 }
-/* ... (Rest des CSS bleibt gleich) ... */
+.creature-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+.creature-base {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.name-tag {
+    position: absolute;
+    bottom: -20px;
+    width: 140%;
+    left: -20%;
+    text-align: center;
+    font-size: 10px;
+    font-weight: bold;
+    color: #ffeb3b;
+    text-shadow: 2px 2px 2px black;
+    pointer-events: none;
+    z-index: 11;
+}
+
+/* ===== UI SYSTEM (Z-INDEX 100+) ===== */
+.ui-panel {
+    position: absolute;
+    background: rgba(18, 22, 30, 0.9);
+    border: 1px solid rgba(184, 134, 11, 0.7);
+    border-radius: 8px;
+    padding: 12px;
+    z-index: 100;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(5px);
+}
+#villageStats { left: 10px; top: 10px; width: 220px; }
+#craftingMenu { right: 10px; top: 10px; width: 250px; display: none; }
+#bossArena { bottom: 20px; left: 50%; transform: translateX(-50%); width: 600px; display: none; background: rgba(30, 15, 15, 0.95); border: 2px solid #8B0000; }
+#tradeMenu { right: 10px; bottom: 10px; width: 240px; display: none; }
+
+.button {
+    background: rgba(40, 45, 60, 0.8);
+    color: #e0d8b0;
+    border: 1px solid rgba(184, 134, 11, 0.6);
+    border-radius: 5px;
+    padding: 6px 10px;
+    margin: 4px 0;
+    cursor: pointer;
+    width: 100%;
+}
+
+.progress-container { width: 100%; height: 15px; background: rgba(50, 50, 70, 0.6); border-radius: 7px; margin: 8px 0; overflow: hidden; }
+.progress-bar { height: 100%; background: linear-gradient(90deg, #4CAF50, #8BC34A); width: 0%; transition: width 0.5s; }
+
+#connectionStatus {
+    position: fixed;
+    bottom: 5px;
+    left: 5px;
+    font-size: 9px;
+    z-index: 1000;
+    color: #ff4444;
+}
 </style>
 </head>
 <body>
-<!-- WATERMARK LAYER -->
-<div id="watermark"></div>
 
-<!-- Welt Container -->
+<div id="watermark"></div>
+<div id="connectionStatus">WebSocket: Disconnected</div>
+
 <div id="gameWorld">
-    <!-- Gebäude -->
-    <img id="schmiede" class="building" src="schmiede.png" alt="Schmiede">
-    <img id="marktplatz" class="building" src="marktplatz.png" alt="Marktplatz">
-    <img id="heiligeSchmiede" class="building" src="heilige_schmiede.png" alt="Heilige Schmiede">
-    <img id="rathaus" class="building" src="rathaus.png" alt="Rathaus">
+    <img id="schmiede" class="building" src="schmiede.png">
+    <img id="marktplatz" class="building" src="marktplatz.png">
+    <img id="heiligeSchmiede" class="building" src="heilige_schmiede.png">
+    <img id="rathaus" class="building" src="rathaus.png">
     <div id="creaturesContainer"></div>
 </div>
 
-<!-- UI Panels (unverändert) -->
-<div id="villageStats" class="ui-panel">...</div>
-<div id="craftingMenu" class="ui-panel">...</div>
-<div id="bossArena" class="ui-panel">...</div>
-<div id="tradeMenu" class="ui-panel">...</div>
+<div id="villageStats" class="ui-panel">
+    <h3>🏡 Dorf-Status</h3>
+    <div class="progress-container"><div id="villageProgressBar" class="progress-bar"></div></div>
+    <div>Fortschritt: <span id="progressText">0%</span></div>
+    <div>Bewohner: <span id="residentCount">0</span></div>
+    <div>Gesammelte LXP: <span id="totalLXP">0</span></div>
+    <hr style="border: 0.5px solid rgba(184,134,11,0.3)">
+    <div id="buildingStatus" style="font-size: 0.9em;">
+        <div>⛏ Schmiede: <span id="schmiedeStatus">🔒</span></div>
+        <div>🏪 Markt: <span id="marktplatzStatus">🔒</span></div>
+        <div>⚔ Heilige Schmiede: <span id="heiligeSchmiedeStatus">🔒</span></div>
+        <div>🏛 Rathaus: <span id="rathausStatus">🔒</span></div>
+    </div>
+</div>
 
-<!-- Toggle Buttons -->
-<button onclick="togglePanel('craftingMenu')" style="...">⚒</button>
-<button onclick="togglePanel('tradeMenu')" style="...">🏪</button>
+<div id="craftingMenu" class="ui-panel">
+    <h3>⚒ Crafting</h3>
+    <button class="button" onclick="craftItem('holzbrett')">🪵 Holzbrett (3x Holz)</button>
+    <div id="heiligeCraftingSection" style="display: none;">
+        <button class="button" onclick="craftItem('magischer_bogen')">🏹 Magischer Bogen (Subs)</button>
+    </div>
+    <h4>📦 Ressourcen:</h4>
+    <div id="grasCount">Gras: 0</div>
+    <div id="holzCount">Holz: 0</div>
+    <div id="steinCount">Stein: 0</div>
+</div>
 
-<!-- SECURITY TOKEN (wird serverseitig generiert) -->
+<button onclick="togglePanel('craftingMenu')" style="position: absolute; right: 10px; top: 10px; z-index: 1000; background: rgba(80, 80, 120, 0.7); border-radius: 50%; width: 40px; height: 40px; border: none; color: white; cursor: pointer;">⚒</button>
+
 <input type="hidden" id="securityToken" value="">
 
 <script>
-// ===== SECURITY CONFIG =====
+// ===== CONFIG =====
 const SECURITY = {
-    // Serverseitig generierter Schlüssel (wird von streamer.bot gesetzt)
     HMAC_SECRET: 'NestWächter2026!',
-
-    // Whitelist für erlaubte WebSocket-Nachrichten-Typen
-    ALLOWED_MESSAGE_TYPES: ['follow', 'sub', 'command', 'verify'],
-
-    // WebSocket Origin Check
+    ALLOWED_TYPES: ['follow', 'sub', 'command', 'verify', 'stage_update'],
     WS_ORIGIN: 'ws://127.0.0.1:8080'
 };
 
-// ===== OBFUSCATED GAME STATE =====
-const _0x3d4b = ['creatures', 'resources', 'village', 'inventory', 'getItem', 'setItem', 'log'];
 const gameState = {
-    [_0x3d4b[0]]: JSON.parse(localStorage[_0x3d4b[4]](_0x3d4b[0])) || {},
-    [_0x3d4b[1]]: JSON.parse(localStorage[_0x3d4b[4]](_0x3d4b[1])) || {gras: 0, holz: 0, stein: 0, erz: 0},
-    [_0x3d4b[2]]: JSON.parse(localStorage[_0x3d4b[4]](_0x3d4b[2])) || {
-        progress: 0, totalLXP: 0,
+    creatures: JSON.parse(localStorage.getItem('creatures')) || {},
+    resources: JSON.parse(localStorage.getItem('resources')) || {gras: 0, holz: 0, stein: 0},
+    village: JSON.parse(localStorage.getItem('village')) || {
+        totalLXP: 0, progress: 0,
         buildings: {
             schmiede: {unlocked: false, requiredLXP: 5000},
             marktplatz: {unlocked: false, requiredLXP: 10000},
             heiligeSchmiede: {unlocked: false, requiredLXP: 20000},
             rathaus: {unlocked: false, requiredLXP: 50000}
-        },
-        boss: null, health: 100
-    },
-    [_0x3d4b[3]]: JSON.parse(localStorage[_0x3d4b[4]](_0x3d4b[3])) || {}
+        }
+    }
 };
 
-// ===== SECURITY HELPERS =====
-/**
- * Generiert eine HMAC-Signatur für Daten
- */
+let socket;
+let reconnectInterval;
+
+// ===== SECURITY =====
 function generateSignature(data) {
-    // In einer echten Implementierung würdest du hier crypto.subtle verwenden
-    // Dies ist eine vereinfachte Version für Demonstrationszwecke
-    const hmac = CryptoJS.HmacSHA256(JSON.stringify(data), SECURITY.HMAC_SECRET);
-    return hmac.toString(CryptoJS.enc.Base64);
+    if (typeof CryptoJS !== 'undefined') {
+        return CryptoJS.HmacSHA256(JSON.stringify(data), SECURITY.HMAC_SECRET).toString(CryptoJS.enc.Base64);
+    }
+    return "DEBUG_MODE";
 }
 
-/**
- * Überprüft die Signatur von empfangenen Daten
- */
 function verifySignature(data, signature) {
-    const expectedSig = generateSignature(data);
-    return signature === expectedSig;
+    return generateSignature(data) === signature;
 }
 
-/**
- * Verschlüsselt Spielerdaten für die Speicherung
- */
-function encryptGameData(data) {
-    // In einer Produktionsumgebung würdest du hier echte Verschlüsselung verwenden
-    return btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+// ===== GAME LOGIC =====
+function getEvolutionStage(creature) {
+    const ep = Math.floor((Date.now() - creature.joinDate) / (1000 * 60 * 60 * 24));
+    
+    if (creature.type === 'sub') {
+        if (ep >= 365) return { name: 'Höheres Wesen', image: 'wesen.png' };
+        if (ep >= 270) return { name: 'Lich', image: 'lich.png' };
+        if (ep >= 180) return { name: 'Oger', image: 'oger.png' };
+        if (ep >= 90)  return { name: 'Goblin', image: 'goblin.png' };
+        if (ep >= 60)  return { name: 'Skelett', image: 'skelett.png' };
+        if (ep >= 30)  return { name: 'Schleim', image: 'schleim.png' };
+        return { name: 'Ei', image: 'ei.png' };
+    } 
+    // Follower Gleichberechtigung: Nutzen alle das hochwertige follower.png
+    return { name: 'Bewohner', image: 'follower.png' };
 }
 
-/**
- * Entschlüsselt Spielerdaten
- */
-function decryptGameData(encrypted) {
-    try {
-        return JSON.parse(decodeURIComponent(escape(atob(encrypted))));
-    } catch (e) {
-        console.error("Datenmanipulation erkannt!");
-        return null;
-    }
-}
+function renderCreatures() {
+    const container = document.getElementById('creaturesContainer');
+    container.innerHTML = '';
 
-// ===== INITIALIZATION =====
-function initGame() {
-    // Lade verschlüsselte Daten
-    loadEncryptedGameState();
-    renderCreatures();
-    updateUI();
-    checkVillageProgress();
+    Object.values(gameState.creatures).forEach(creature => {
+        const stage = getEvolutionStage(creature);
+        const el = document.createElement('div');
+        el.className = 'creature';
+        el.style.left = creature.posX || `${20 + Math.random() * 60}%`;
+        el.style.top = creature.posY || `${30 + Math.random() * 50}%`;
 
-    // Demo-Daten nur wenn leer
-    if (Object.keys(gameState[_0x3d4b[0]]).length === 0) {
-        addCreature('Streamer', 'sub', Date.now() - (86400000 * 120));
-        addCreature('Moderator', 'sub', Date.now() - (86400000 * 60));
-        addCreature('Follower1', 'follower', Date.now() - (86400000 * 45));
-    }
-
-    // Ressourcen-Sammeln
-    setInterval(collectResources, 30000);
-    // Auto-Save alle Minute
-    setInterval(saveEncryptedGameState, 60000);
-
-    // Setze Security Token (wird von streamer.bot gesetzt)
-    document.getElementById('securityToken').value = generateToken();
-}
-
-// ===== SECURE DATA HANDLING =====
-function saveEncryptedGameState() {
-    const encrypted = encryptGameData({
-        [_0x3d4b[0]]: gameState[_0x3d4b[0]],
-        [_0x3d4b[1]]: gameState[_0x3d4b[1]],
-        [_0x3d4b[2]]: gameState[_0x3d4b[2]],
-        [_0x3d4b[3]]: gameState[_0x3d4b[3]],
-        signature: generateSignature(gameState)
+        el.innerHTML = `
+            <div class="creature-container">
+                <div class="creature-base" style="background-image: url('${stage.image}');"></div>
+                <div class="name-tag">${creature.name}<br><span style="font-size:8px; opacity:0.8;">${stage.name}</span></div>
+            </div>
+        `;
+        container.appendChild(el);
     });
-    localStorage[_0x3d4b[5]](_0x3d4b[0], encrypted);
 }
 
-function loadEncryptedGameState() {
-    const encrypted = localStorage[_0x3d4b[4]](_0x3d4b[0]);
-    if (encrypted) {
-        const decrypted = decryptGameData(encrypted);
-        if (decrypted && verifySignature(
-            {creatures: decrypted[_0x3d4b[0]], resources: decrypted[_0x3d4b[1]],
-             village: decrypted[_0x3d4b[2]], inventory: decrypted[_0x3d4b[3]]},
-            decrypted.signature
-        )) {
-            gameState[_0x3d4b[0]] = decrypted[_0x3d4b[0]];
-            gameState[_0x3d4b[1]] = decrypted[_0x3d4b[1]];
-            gameState[_0x3d4b[2]] = decrypted[_0x3d4b[2]];
-            gameState[_0x3d4b[3]] = decrypted[_0x3d4b[3]];
-        } else {
-            console.error("Datenmanipulation erkannt! Setze Standardwerte.");
-            localStorage.removeItem(_0x3d4b[0]);
-        }
+function addCreature(name, type, joinDate) {
+    if (!gameState.creatures[name]) {
+        gameState.creatures[name] = {
+            name, type, 
+            joinDate: joinDate || Date.now(),
+            lxp: type === 'sub' ? 100 : 50,
+            posX: `${20 + Math.random() * 60}%`,
+            posY: `${30 + Math.random() * 50}%`
+        };
+        saveGameState();
+        renderCreatures();
+        checkVillageProgress();
     }
 }
 
-// ===== SECURE WEBSOCKET =====
+// ===== STABLE WEBSOCKET (5G OPTIMIZED) =====
 function setupSecureWebSocket() {
-    // Überprüfe ob die WebSocket-URL erlaubt ist
-    if (!window.location.hostname.includes('127.0.0.1') &&
-        !window.location.hostname.includes('localhost')) {
-        console.error("WebSocket-Verbindung nur von lokaler Domain erlaubt!");
-        return;
-    }
+    socket = new WebSocket(SECURITY.WS_ORIGIN);
+    const statusEl = document.getElementById('connectionStatus');
 
-    const ws = new WebSocket(SECURITY.WS_ORIGIN);
+    socket.onopen = () => {
+        console.log("✅ Nest-Link Established");
+        statusEl.textContent = "WebSocket: Connected";
+        statusEl.style.color = "#44ff44";
+        clearInterval(reconnectInterval);
+        socket.send(JSON.stringify({ type: 'auth', token: generateSignature({auth: 'nest'}) }));
+    };
 
-    ws.onmessage = function(e) {
+    socket.onmessage = (e) => {
         try {
             const data = JSON.parse(e.data);
+            if (!SECURITY.ALLOWED_TYPES.includes(data.type)) return;
+            if (data.signature && !verifySignature(data.payload, data.signature)) return;
 
-            // 1. Überprüfe den Nachrichtentyp
-            if (!SECURITY.ALLOWED_MESSAGE_TYPES.includes(data.type)) {
-                console.warn("Unerlaubter Nachrichtentyp:", data.type);
-                return;
+            const p = data.payload;
+            if (data.type === 'follow' || data.type === 'sub') {
+                addCreature(p.username, data.type === 'sub' ? 'sub' : 'follower', p.timestamp);
             }
+        } catch (err) { console.error("Data Error", err); }
+    };
 
-            // 2. Überprüfe die Signatur (wird von streamer.bot hinzugefügt)
-            if (!data.signature || !verifySignature(data.payload, data.signature)) {
-                console.warn("Ungültige Signatur in WebSocket-Nachricht!");
-                return;
-            }
-
-            // 3. Verarbeite die Daten
-            const payload = data.payload;
-
-            if (payload.type === 'follow' || payload.type === 'sub') {
-                const userType = payload.type === 'sub' ? 'sub' : 'follower';
-                if (payload.username && payload.timestamp) {
-                    addCreature(payload.username, userType, payload.timestamp);
-                }
-            }
-            else if (payload.type === 'command') {
-                handleSecureCommand(payload.username, payload.command, payload.args);
-            }
-
-        } catch (error) {
-            console.error("Fehler bei WebSocket-Nachricht:", error);
+    socket.onclose = () => {
+        statusEl.textContent = "WebSocket: Disconnected (Retrying...)";
+        statusEl.style.color = "#ff4444";
+        if (!reconnectInterval) {
+            reconnectInterval = setInterval(setupSecureWebSocket, 5000);
         }
     };
 
-    // Authentifizierung mit Token
-    ws.onopen = function() {
-        ws.send(JSON.stringify({
-            type: 'auth',
-            token: document.getElementById('securityToken').value
-        }));
-    };
+    socket.onerror = (err) => { socket.close(); };
 }
 
-// ===== SECURE COMMAND HANDLING =====
-function handleSecureCommand(username, command, args) {
-    // 1. Überprüfe ob der User existiert
-    if (!gameState[_0x3d4b[0]][username]) {
-        console.warn("Ungültiger Benutzer:", username);
-        return;
-    }
-
-    // 2. Führe den Befehl sicher aus
-    switch (command) {
-        case 'path':
-            if (calculateEP(gameState[_0x3d4b[0]][username].joinDate) >= 30 &&
-                !gameState[_0x3d4b[0]][username].path) {
-                gameState[_0x3d4b[0]][username].path = args[0];
-                addLog(`🔄 ${username} hat den Pfad ${args[0]} gewählt!`);
-                saveEncryptedGameState();
-                renderCreatures();
-            }
-            break;
-        // ... (weitere Befehle ähnlich absichern)
-    }
-}
-
-// ===== OBFUSCATED CORE FUNCTIONS =====
-function _0x4f3a(_0x5a2b, _0x1c4d) {
-    gameState[_0x3d4b[0]][_0x5a2b] = {
-        name: _0x5a2b, type: _0x1c4d,
-        joinDate: Date.now(), ep: 0,
-        lxp: _0x1c4d === 'sub' ? 100 : 50,
-        path: null, equipment: {head: null, hand: null, body: null},
-        resources: {gras: 0, holz: 0, stein: 0, erz: 0},
-        inventory: {}, battleRole: null, lastAction: Date.now()
-    };
-    saveEncryptedGameState();
-    renderCreatures();
-    updateUI();
-}
-
-function _0x1a2b() {
-    const _0x3c4d = {};
-    Object.values(gameState[_0x3d4b[0]]).forEach(_0x5e6f => {
-        const _0x1b2c = calculateEP(_0x5e6f.joinDate);
-        _0x5e6f.ep = _0x1b2c;
-        _0x5e6f.lxp += 1/1440;
-        _0x3c4d.gras = (_0x3c4d.gras || 0) + Math.floor(Math.random()*2);
-        _0x3c4d.holz = (_0x3c4d.holz || 0) + Math.floor(Math.random());
+// ===== UTILS =====
+function checkVillageProgress() {
+    const total = Object.values(gameState.creatures).reduce((s, c) => s + c.lxp, 0);
+    gameState.village.totalLXP = total;
+    gameState.village.progress = Math.min(100, total / 500);
+    
+    Object.keys(gameState.village.buildings).forEach(b => {
+        if (!gameState.village.buildings[b].unlocked && total >= gameState.village.buildings[b].requiredLXP) {
+            gameState.village.buildings[b].unlocked = true;
+            document.getElementById(b).style.display = 'block';
+        }
     });
-    gameState[_0x3d4b[1]].gras += _0x3c4d.gras || 0;
-    gameState[_0x3d4b[1]].holz += _0x3c4d.holz || 0;
     updateUI();
-    saveEncryptedGameState();
 }
 
-// ===== START THE GAME =====
-window.onload = function() {
-    // Lade CryptoJS für HMAC (in Produktion von CDN oder lokal)
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js';
-    script.onload = function() {
-        initGame();
+function updateUI() {
+    document.getElementById('residentCount').textContent = Object.keys(gameState.creatures).length;
+    document.getElementById('totalLXP').textContent = gameState.village.totalLXP;
+    document.getElementById('villageProgressBar').style.width = `${gameState.village.progress}%`;
+    document.getElementById('progressText').textContent = `${Math.floor(gameState.village.progress)}%`;
+    
+    ['schmiede', 'marktplatz', 'heiligeSchmiede', 'rathaus'].forEach(id => {
+        document.getElementById(id + 'Status').textContent = gameState.village.buildings[id].unlocked ? '🔓' : '🔒';
+    });
+}
+
+function saveGameState() { localStorage.setItem('creatures', JSON.stringify(gameState.creatures)); }
+function togglePanel(id) { const p = document.getElementById(id); p.style.display = p.style.display === 'none' ? 'block' : 'none'; }
+
+// ===== INIT =====
+window.onload = () => {
+    const scr = document.createElement('script');
+    scr.src = 'https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js';
+    scr.onload = () => {
+        renderCreatures();
+        checkVillageProgress();
         setupSecureWebSocket();
-        document.getElementById('attackButton').addEventListener('click', () => attackBoss('attack'));
-        document.getElementById('healButton').addEventListener('click', () => attackBoss('heal'));
+        // Fallback für Streamer-Test
+        if (Object.keys(gameState.creatures).length === 0) addCreature('Spawn2909', 'sub');
     };
-    document.head.appendChild(script);
+    document.head.appendChild(scr);
 };
 </script>
 </body>
