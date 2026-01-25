@@ -2,141 +2,150 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>Spawn2909 | Follower System</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
+<title>Spawn2909 Loyalty System</title>
 <style>
-body {
+body{
     margin:0;
     background:#050b12;
-    font-family: "Segoe UI", sans-serif;
     color:white;
+    font-family:Segoe UI;
     display:flex;
     justify-content:center;
     align-items:center;
     min-height:100vh;
 }
-
-.panel {
-    width:360px;
-    background:linear-gradient(180deg,#021a30,#000);
+.card{
+    width:380px;
+    background:linear-gradient(180deg,#021b30,#000);
     border:2px solid #00c3ff;
-    border-radius:12px;
-    box-shadow:0 0 25px #00c3ff;
+    border-radius:14px;
     padding:20px;
+    box-shadow:0 0 25px #00c3ff;
     text-align:center;
 }
-
-.title {
-    color:#00c3ff;
-    font-size:22px;
-    margin-bottom:10px;
-}
-
-.user {
-    font-size:16px;
-    margin-bottom:5px;
-}
-
-.status {
-    color:#00c3ff;
-    font-weight:bold;
-    margin-bottom:15px;
-}
-
-.grid {
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:8px;
-}
-
-.stage {
-    border:1px solid #444;
-    border-radius:6px;
-    padding:8px;
-    font-size:13px;
-    color:#777;
-}
-
-.stage.active {
-    border-color:#00c3ff;
-    color:white;
-    box-shadow:0 0 10px #00c3ff;
-    background:rgba(0,195,255,0.15);
-}
-
-.bar {
-    background:#111;
+.title{color:#00c3ff;font-size:22px;margin-bottom:10px;}
+.bar{background:#111;border:1px solid #00c3ff;border-radius:20px;height:18px;overflow:hidden;}
+.fill{height:100%;background:#00c3ff;width:0%;transition:1s;}
+.box{
     border:1px solid #00c3ff;
-    border-radius:20px;
-    overflow:hidden;
-    height:20px;
-    margin-top:10px;
+    padding:10px;
+    border-radius:8px;
+    background:rgba(0,195,255,.1);
+    margin:10px 0;
 }
-
-.fill {
-    height:100%;
+button{
     background:#00c3ff;
-    width:0%;
-    transition:1s;
+    border:none;
+    padding:8px 12px;
+    font-weight:bold;
+    cursor:pointer;
+    border-radius:6px;
 }
-
-.xptext {
-    font-size:12px;
-    margin-top:5px;
-}
+.hidden{display:none;}
 </style>
 </head>
 
 <body>
 
-<div class="panel">
+<div class="card">
     <div class="title">SPAWN2909</div>
-    <div class="user" id="user">Follower</div>
-    <div class="status" id="status">EI</div>
 
-    <div class="grid">
-        <div class="stage" id="s0">🥚 EI</div>
-        <div class="stage" id="s1">💧 SCHLEIM</div>
-        <div class="stage" id="s2">💀 SKELETT</div>
-        <div class="stage" id="s3">👺 GOBLIN</div>
-        <div class="stage" id="s4">👹 OGER</div>
-        <div class="stage" id="s5">🧙‍♂️ LICH</div>
-        <div class="stage" id="s6">✨ WESEN</div>
+    <div class="box">
+        JÄGER: <span id="user"></span><br>
+        STATUS: <span id="stage"></span>
     </div>
 
-    <div class="bar"><div class="fill" id="fill"></div></div>
-    <div class="xptext"><span id="xp">0</span> / <span id="next">60</span> XP</div>
+    <div class="box">
+        NÄCHSTE STUFE: <span id="nextStage"></span><br>
+        BELohnung: <span id="rewards"></span>
+    </div>
+
+    <div class="box">
+        XP: <span id="xp"></span> / <span id="nextXp"></span>
+        <div class="bar"><div class="fill" id="fill"></div></div>
+    </div>
+
+    <div id="dailyBox" class="box hidden">
+        <div id="question"></div><br>
+        <input id="answer" placeholder="Antwort..." style="width:90%;padding:5px;"><br><br>
+        <button onclick="checkAnswer()">XP verdienen</button>
+    </div>
+
+    <div id="doneBox" class="box hidden">
+        Heute hast du bereits XP erhalten.<br>
+        Komm morgen wieder 🐲
+    </div>
 </div>
 
 <script>
 const params = new URLSearchParams(window.location.search);
-const name = params.get("user") || "Gast";
-const xp = parseInt(params.get("xp")) || 0;
+const user = params.get("user") || "Gast";
+document.getElementById("user").innerText = user;
 
-document.getElementById("user").innerText = "JÄGER: " + name;
+// ----- Fake Datenbank (Browser) -----
+const key = "spawn_"+user;
+let save = JSON.parse(localStorage.getItem(key)) || {xp:0,last:""};
 
-let stage = 0;
-let next = 60;
-let prev = 0;
+// ----- Stufen -----
+const stages=[
+ {n:"🥚 EI",x:0,r:[]},
+ {n:"💧 SCHLEIM",x:60,r:["💧"]},
+ {n:"💀 SKELETT",x:90,r:["💀","🦴"]},
+ {n:"👺 GOBLIN",x:180,r:["👺","🗡️"]},
+ {n:"👹 OGER",x:270,r:["👹","🔨"]},
+ {n:"🧙‍♂️ LICH",x:360,r:["🧙‍♂️","🔮","💀"]},
+ {n:"✨ WESEN",x:720,r:["✨","👑","🌌"]}
+];
 
-if(xp >= 720){stage=6; prev=720; next=720;}
-else if(xp >= 360){stage=5; prev=360; next=720;}
-else if(xp >= 270){stage=4; prev=270; next=360;}
-else if(xp >= 180){stage=3; prev=180; next=270;}
-else if(xp >= 90){stage=2; prev=90; next=180;}
-else if(xp >= 60){stage=1; prev=60; next=90;}
+// ----- Aktuelle Stufe -----
+let cur=stages[0];
+let next=stages[1];
+for(let i=0;i<stages.length;i++){
+ if(save.xp>=stages[i].x){
+    cur=stages[i];
+    next=stages[i+1]||stages[i];
+ }
+}
 
-document.getElementById("status").innerText =
-["EI","SCHLEIM","SKELETT","GOBLIN","OGER","LICH","WESEN"][stage];
+document.getElementById("stage").innerText=cur.n;
+document.getElementById("nextStage").innerText=next.n;
+document.getElementById("rewards").innerText=next.r.join(" ");
 
-document.getElementById("s"+stage).classList.add("active");
+document.getElementById("xp").innerText=save.xp;
+document.getElementById("nextXp").innerText=next.x;
 
-let percent = ((xp-prev)/(next-prev))*100;
-document.getElementById("fill").style.width = Math.min(100,Math.max(0,percent))+"%";
+let pct=((save.xp-cur.x)/(next.x-cur.x))*100;
+document.getElementById("fill").style.width=Math.min(100,pct)+"%";
 
-document.getElementById("xp").innerText = xp;
-document.getElementById("next").innerText = next;
+// ----- Daily Frage -----
+const today=new Date().toDateString();
+
+const questions=[
+ {q:"Wie viele Eier sind heute im Nest?",a:"3"},
+ {q:"Welches Spiel hat Spawn2909 heute gespielt?",a:"minecraft"},
+ {q:"Welche Kreatur bewacht das Nest?",a:"drache"}
+];
+
+let q=questions[Math.floor(Math.random()*questions.length)];
+
+if(save.last!==today){
+ document.getElementById("dailyBox").classList.remove("hidden");
+ document.getElementById("question").innerText=q.q;
+}else{
+ document.getElementById("doneBox").classList.remove("hidden");
+}
+
+function checkAnswer(){
+ let a=document.getElementById("answer").value.toLowerCase();
+ if(a===q.a){
+    save.xp++;
+    save.last=today;
+    localStorage.setItem(key,JSON.stringify(save));
+    location.reload();
+ }else{
+    alert("Falsch. Nur echte Zuschauer kennen die Antwort 😈");
+ }
+}
 </script>
 
 </body>
