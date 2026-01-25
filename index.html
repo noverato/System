@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Isekai Village - The Nest: Blacksmith Edition</title>
+<title>Isekai Village - The Nest: Admin Edition</title>
 <style>
     /* ===== BASE & PROTECTION ===== */
     body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', sans-serif; color: #e0d8b0; background: #0a0a12; }
@@ -15,32 +15,27 @@
         position: absolute; 
         width: 80px; height: 80px; 
         z-index: 10; 
-        transition: left 1.5s ease-in-out, top 1.5s ease-in-out; /* Schnellere Transition für "Schritte" */
+        transition: left 2.5s ease-in-out, top 2.5s ease-in-out;
+        cursor: pointer; /* Zeigt an, dass man klicken kann (für Admin) */
     }
     .creature-base { width: 100%; height: 100%; background-size: contain; background-repeat: no-repeat; background-position: center; position: relative; display: block; }
-    .name-tag { position: absolute; bottom: -20px; width: 100%; text-align: center; font-size: 12px; font-weight: bold; color: #ffeb3b; text-shadow: 2px 2px 4px black; }
+    .name-tag { position: absolute; bottom: -20px; width: 100%; text-align: center; font-size: 12px; font-weight: bold; color: #ffeb3b; text-shadow: 2px 2px 4px black; pointer-events: none; }
     
     /* STAT BARS */
-    .stat-bars { position: absolute; top: -15px; left: 10%; width: 80%; z-index: 11; }
+    .stat-bars { position: absolute; top: -15px; left: 10%; width: 80%; z-index: 11; pointer-events: none; }
     .bar-bg { height: 4px; background: rgba(0,0,0,0.6); border-radius: 2px; margin-bottom: 2px; width: 100%; overflow: hidden; }
     .bar-ep { height: 100%; background: #4caf50; width: 0%; transition: width 0.5s; }
     .bar-lxp { height: 100%; background: #ff9800; width: 0%; transition: width 0.5s; }
 
     /* ===== UI PANELS ===== */
-    .ui-panel { position: absolute; background: rgba(18, 22, 30, 0.95); border: 1px solid rgba(184, 134, 11, 0.7); border-radius: 8px; padding: 12px; z-index: 100; backdrop-filter: blur(5px); box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+    .ui-panel { position: absolute; background: rgba(18, 22, 30, 0.95); border: 1px solid rgba(184, 134, 11, 0.7); border-radius: 8px; padding: 12px; z-index: 100; backdrop-filter: blur(5px); }
     #villageStats { left: 10px; top: 10px; width: 220px; }
-    #inventoryPanel { right: 10px; top: 10px; width: 240px; cursor: pointer; transition: all 0.3s; }
+    #inventoryPanel { right: 10px; top: 10px; width: 240px; cursor: pointer; }
+    
+    .admin-note { color: #ff4444; font-size: 10px; margin-top: 5px; font-weight: bold; }
 
-    /* SCHMIEDE BUTTON */
-    .craft-btn {
-        width: 100%; background: #5d4037; color: white; border: 1px solid #8d6e63;
-        padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 10px;
-        transition: background 0.2s;
-    }
-    .craft-btn:hover:not(:disabled) { background: #795548; }
+    .craft-btn { width: 100%; background: #5d4037; color: white; border: 1px solid #8d6e63; padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 10px; }
     .craft-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-    .online-indicator { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
 </style>
 </head>
 <body>
@@ -53,31 +48,27 @@
 
 <div id="villageStats" class="ui-panel">
     <h3>🏡 Dorf-Status</h3>
-    <div id="statusIndicator"><span class="online-indicator" id="liveDot" style="background:gray;"></span> <span id="liveText">Initialisiere...</span></div>
+    <div id="adminIndicator"></div>
     <hr style="border-color: rgba(184,134,11,0.3)">
     <div>Bewohner: <span id="resCount">0</span></div>
     <div>Dorf-Gold: <span id="resGold">0</span> 💰</div>
 </div>
 
 <div id="inventoryPanel" class="ui-panel" onclick="handleInventoryClick(event)">
-    <h3 style="margin:0; font-size: 14px;">🎒 Inventar <small>(Klick zum Öffnen)</small></h3>
+    <h3 style="margin:0; font-size: 14px;">🎒 Inventar <small>(Klick)</small></h3>
     <div id="invContent" style="display:none; margin-top:10px; font-size:13px;">
         <div style="display:flex; justify-content:space-between;"><span>🪵 Holz:</span> <span id="invHolz">0</span></div>
         <div style="display:flex; justify-content:space-between;"><span>🪨 Stein:</span> <span id="invStein">0</span></div>
         <div style="display:flex; justify-content:space-between; color:#ff9800;"><span>✨ LXP:</span> <span id="invLXP">0</span></div>
-        <div style="display:flex; justify-content:space-between; color:#4caf50;"><span>📈 EP:</span> <span id="invEP">0</span></div>
         <hr style="border-color: rgba(184,134,11,0.2)">
         <div style="text-align:center;"><b>Ausrüstung:</b><br><span id="invGear" style="color:#ffd700;">Keine</span></div>
-        
-        <button id="btnSchmieden" class="craft-btn" onclick="craftSword(event)" disabled>
-            ⚔ Holzschwert schmieden<br>
-            <small>(50 Holz, 20 Stein)</small>
-        </button>
+        <button id="btnSchmieden" class="craft-btn" onclick="craftSword(event)" disabled>⚔ Holzschwert schmieden</button>
     </div>
 </div>
 
 <script>
 const SECURITY = { HMAC_SECRET: 'NestWächter2026!', WS_ORIGIN: 'ws://127.0.0.1:8080' };
+const BROADCASTER_NAME = "spawn2909"; // Dein Broadcaster-Name
 
 const gameState = {
     creatures: JSON.parse(localStorage.getItem('creatures')) || {},
@@ -85,104 +76,46 @@ const gameState = {
     playerName: null
 };
 
-const EVO_DAYS = 30;
-
-// ===== IDENTITY =====
+// ===== ADMIN & IDENTITY =====
 function checkIdentity() {
     const urlParams = new URLSearchParams(window.location.search);
     const urlUser = urlParams.get('user');
-    gameState.playerName = urlUser || localStorage.getItem('nestPlayerName') || "Held";
+    gameState.playerName = (urlUser || localStorage.getItem('nestPlayerName') || "Held").toLowerCase();
     localStorage.setItem('nestPlayerName', gameState.playerName);
+
+    if (gameState.playerName === BROADCASTER_NAME) {
+        document.getElementById('adminIndicator').innerHTML = '<span class="admin-note">🛡 BROADCASTER MODUS AKTIV<br>(Klick auf Ei zum Löschen)</span>';
+    }
 
     if (!gameState.creatures[gameState.playerName]) {
         gameState.creatures[gameState.playerName] = { 
-            name: gameState.playerName, type: 'sub', 
-            xp: 0, lxp: 10, joinDate: Date.now(), 
-            wood: 0, stone: 0, gear: "Anfänger-Gewand" 
+            name: gameState.playerName, type: 'sub', xp: 0, lxp: 10, joinDate: Date.now(), wood: 0, stone: 0, gear: "Anfänger-Gewand" 
         };
     }
 }
 
-// ===== BLACKSMITH LOGIC =====
-function craftSword(event) {
-    event.stopPropagation(); // Verhindert das Schließen des Inventars
-    const player = gameState.creatures[gameState.playerName];
-    
-    if (player.wood >= 50 && player.stone >= 20) {
-        player.wood -= 50;
-        player.stone -= 20;
-        player.gear = "Holzschwert";
-        
-        saveGameState();
-        updateUI();
-        alert("Glückwunsch! Du hast ein Holzschwert geschmiedet! ⚔");
+// ===== CREATURE REMOVAL (ONLY FOR BROADCASTER) =====
+function handleCreatureClick(name) {
+    if (gameState.playerName === BROADCASTER_NAME) {
+        if (confirm(`Möchtest du '${name}' wirklich aus dem Dorf entfernen?`)) {
+            delete gameState.creatures[name];
+            saveGameState();
+            renderCreatures();
+            updateUI();
+        }
     }
 }
 
-// ===== MOVEMENT (SCHRITT-LOGIK STATT FLIEGEN) =====
+// ===== MOVEMENT & ENGINE =====
 function moveCreatures() {
     Object.values(gameState.creatures).forEach(c => {
         const el = document.getElementById(`creature-${c.name}`);
         if (!el) return;
-        
-        // Kleinere Schritte für natürlicheres Laufen
-        const currentLeft = parseFloat(el.style.left) || 50;
-        const currentTop = parseFloat(el.style.top) || 50;
-        
-        const moveX = (Math.random() - 0.5) * 15; // Schrittweite max 15%
-        const moveY = (Math.random() - 0.5) * 15;
-        
-        let nextLeft = currentLeft + moveX;
-        let nextTop = currentTop + moveY;
-
-        // Map-Grenzen prüfen
-        if (nextLeft < 10) nextLeft = 15;
-        if (nextLeft > 90) nextLeft = 85;
-        if (nextTop < 20) nextTop = 25;
-        if (nextTop > 80) nextTop = 75;
-
+        const nextLeft = 15 + Math.random() * 70;
+        const nextTop = 25 + Math.random() * 55;
         el.style.left = nextLeft + "%";
         el.style.top = nextTop + "%";
     });
-}
-
-// ===== SYSTEM =====
-function updateVisuals(c) {
-    const imgEl = document.getElementById(`img-${c.name}`);
-    const days = Math.floor((Date.now() - c.joinDate) / 86400000);
-    const imgSrc = (c.type === 'sub') ? (days >= EVO_DAYS ? 'schleim.png' : 'ei.png') : 'follower.png';
-    if (imgEl) imgEl.style.backgroundImage = `url('${imgSrc}')`;
-}
-
-function handleInventoryClick(event) {
-    if (event.target.tagName !== 'BUTTON') {
-        toggleInventory();
-    }
-}
-
-function toggleInventory() {
-    const content = document.getElementById('invContent');
-    content.style.display = content.style.display === 'none' ? 'block' : 'none';
-}
-
-function updateUI() {
-    const me = gameState.creatures[gameState.playerName];
-    if (me) {
-        document.getElementById('invHolz').textContent = Math.floor(me.wood);
-        document.getElementById('invStein').textContent = Math.floor(me.stone);
-        document.getElementById('invLXP').textContent = Math.floor(me.lxp);
-        document.getElementById('invEP').textContent = Math.floor((Date.now() - me.joinDate) / 86400000);
-        document.getElementById('invGear').textContent = me.gear;
-
-        // Schmiede Button aktivieren/deaktivieren
-        const btn = document.getElementById('btnSchmieden');
-        if (me.wood >= 50 && me.stone >= 20 && me.gear !== "Holzschwert") {
-            btn.disabled = false;
-        } else {
-            btn.disabled = true;
-        }
-    }
-    document.getElementById('resCount').textContent = Object.keys(gameState.creatures).length;
 }
 
 function renderCreatures() {
@@ -192,19 +125,45 @@ function renderCreatures() {
         const el = document.createElement('div');
         el.className = 'creature';
         el.id = `creature-${c.name}`;
-        el.style.left = "50%"; el.style.top = "50%";
+        // Admin-Funktion anhängen
+        el.onclick = () => handleCreatureClick(c.name);
+        
         el.innerHTML = `
             <div class="stat-bars">
                 <div class="bar-bg"><div class="bar-ep" id="ep-bar-${c.name}"></div></div>
                 <div class="bar-bg"><div class="bar-lxp" id="lxp-bar-${c.name}"></div></div>
             </div>
-            <div class="creature-base" id="img-${c.name}">
+            <div class="creature-base" style="background-image: url('${c.type==='sub'?'ei.png':'follower.png'}')">
                 <div class="name-tag">${c.name}</div>
             </div>
         `;
         container.appendChild(el);
-        updateVisuals(c);
     });
+}
+
+// ===== RESTLICHE LOGIK =====
+function craftSword(event) {
+    event.stopPropagation();
+    const player = gameState.creatures[gameState.playerName];
+    if (player.wood >= 50 && player.stone >= 20) {
+        player.wood -= 50; player.stone -= 20; player.gear = "Holzschwert";
+        saveGameState(); updateUI();
+    }
+}
+
+function handleInventoryClick(event) { if (event.target.tagName !== 'BUTTON') toggleInventory(); }
+function toggleInventory() { const c = document.getElementById('invContent'); c.style.display = c.style.display === 'none' ? 'block' : 'none'; }
+
+function updateUI() {
+    const me = gameState.creatures[gameState.playerName];
+    if (me) {
+        document.getElementById('invHolz').textContent = Math.floor(me.wood);
+        document.getElementById('invStein').textContent = Math.floor(me.stone);
+        document.getElementById('invLXP').textContent = Math.floor(me.lxp);
+        document.getElementById('invGear').textContent = me.gear;
+        document.getElementById('btnSchmieden').disabled = !(me.wood >= 50 && me.stone >= 20 && me.gear !== "Holzschwert");
+    }
+    document.getElementById('resCount').textContent = Object.keys(gameState.creatures).length;
 }
 
 function saveGameState() { 
@@ -217,13 +176,13 @@ window.onload = () => {
     renderCreatures();
     setInterval(() => {
         Object.values(gameState.creatures).forEach(c => {
-            c.wood = (c.wood || 0) + 1; // 1 Holz alle 5 Sek zum Testen beschleunigt
-            c.stone = (c.stone || 0) + 0.5;
+            c.wood = (c.wood || 0) + 0.5;
+            c.stone = (c.stone || 0) + 0.2;
         });
         updateUI();
         saveGameState();
     }, 5000);
-    setInterval(moveCreatures, 4000); // Bewohner machen alle 4 Sek einen Schritt
+    setInterval(moveCreatures, 4000);
     updateUI();
 };
 </script>
