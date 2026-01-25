@@ -2,221 +2,243 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Spawn2909 Nest RPG Isekai</title>
+<title>Spawn2909 – Nest RPG (Release)</title>
+
 <style>
-/* © 2026 Spawn2909 - Nest System. Alle Rechte vorbehalten */
-body{
-    margin:0; padding:0;
-    font-family:'Segoe UI', sans-serif;
-    background: linear-gradient(to bottom, #0a1f0a, #163316);
+body,html{
+    margin:0;
+    padding:0;
+    width:100%;
+    height:100%;
+    background-color:#050a05 !important;
     color:#fff;
-    display:flex; height:100vh; overflow:hidden;
+    font-family:Arial, Helvetica, sans-serif;
+    overflow:hidden;
+    display:flex;
 }
 
-/* 3-Spalten Layout */
-#statusColumn, #worldColumn, #infoColumn{display:flex;flex-direction:column;padding:10px;}
-#statusColumn{width:200px;background: rgba(0,0,0,0.5);backdrop-filter: blur(5px);border-right:1px solid rgba(255,255,255,0.2);}
-#worldColumn{flex:1;position:relative;background:#0f2a0f;}
-#infoColumn{width:250px;background: rgba(0,0,0,0.5);backdrop-filter: blur(5px);border-left:1px solid rgba(255,255,255,0.2);}
+/* Layout */
+#statusColumn,#worldColumn,#infoColumn{
+    padding:10px;
+    box-sizing:border-box;
+    display:flex;
+    flex-direction:column;
+}
+#statusColumn{width:240px;background:rgba(0,0,0,.55);border-right:1px solid #444}
+#worldColumn{flex:1;position:relative;overflow:hidden}
+#infoColumn{width:260px;background:rgba(0,0,0,.55);border-left:1px solid #444}
 
-/* Status & Inventar */
-#playerEgg{font-size:40px;text-align:center;position:relative;}
-#headLayer{position:absolute;top:-20px;left:0;right:0;margin:auto;z-index:2;text-align:center;}
-#weaponLayer{position:absolute;top:20px;left:0;right:0;margin:auto;z-index:3;text-align:center;}
-#xpBar{height:20px;background: rgba(255,255,0,0.3);border-radius:5px;margin:10px 0;position:relative;}
-#xpProgress{height:100%; width:0%; background:#ff0; border-radius:5px;}
+/* Dorf */
+.village-ground{
+    position:absolute;
+    left:50%;top:50%;
+    transform:translate(-50%,-50%);
+    width:600px;
+    height:400px;
+    border-radius:50%;
+    background:#3d2b1f;
+    border:10px solid #5d4037;
+    box-shadow:inset 0 0 20px #2a1b10;
+    z-index:1;
+    transition:0.5s;
+}
+.village-ground.stone{
+    border-color:#777;
+    box-shadow:inset 0 0 25px #333;
+}
 
-/* Inventar Grid */
-#inventory{display:grid;grid-template-columns: repeat(4, 50px);grid-template-rows: repeat(2, 50px);gap:5px;margin-top:10px;}
-.inventory-slot{border:1px solid rgba(255,255,255,0.3);background: rgba(255,255,255,0.1);border-radius:5px;display:flex;justify-content:center;align-items:center;font-size:24px;}
-
-/* Dorf-Zentrum */
-.village-ground{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:600px;height:400px;background:#3d2b1f;border-radius:20px;z-index:1;}
-
-/* Welt-Bäume & Hütten */
-.tree, .hut{position:absolute;user-select:none;}
-.tree{font-size:16px;}
-.hut{font-size:32px;}
+/* Wald */
+.tree{
+    position:absolute;
+    z-index:0;
+    user-select:none;
+}
 
 /* Eier */
-.eggAvatar{position:absolute;font-size:32px;transition: all 5s linear;text-align:center;}
-.avatarName{display:block;font-size:12px;text-align:center;margin-top:2px;}
+.eggAvatar{
+    position:absolute;
+    font-size:32px;
+    transition:all 5s linear;
+    z-index:5;
+    text-align:center;
+}
+.avatarName{display:block;font-size:11px}
 
 /* Gebäude */
-.building{font-size:40px;position:absolute;cursor:pointer;transition: transform 0.2s;z-index:10;}
-.building:hover{transform:scale(1.2) rotate(5deg);filter: drop-shadow(0 0 10px gold);}
-
-/* Gebäude-Overlays */
-#marketUI, #forgeUI, #hofUI{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background: rgba(0,0,0,0.8);backdrop-filter: blur(5px);padding:20px;border-radius:10px;display:none;z-index:20;}
-
-/* Boss / Arena */
-#bossArea{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;z-index:15;display:none;}
-#bossEmoji{font-size:64px;transition: transform 0.1s;}
-#attackBtn{margin-top:10px;padding:5px 10px;cursor:pointer;}
-
-/* News-Ticker */
-#newsTicker{position:absolute;bottom:0;width:100%;background: rgba(0,0,0,0.6);padding:5px;text-align:center;font-size:16px;}
-
-/* Shake Animation */
-@keyframes shake{
- 0%{transform:translate(1px,1px) rotate(0deg);}
- 20%{transform:translate(-1px,-2px) rotate(-1deg);}
- 40%{transform:translate(-3px,0px) rotate(1deg);}
- 60%{transform:translate(3px,2px) rotate(0deg);}
- 80%{transform:translate(1px,-1px) rotate(1deg);}
- 100%{transform:translate(-1px,2px) rotate(-1deg);}
+.building{
+    position:absolute;
+    font-size:40px;
+    z-index:10;
+    cursor:pointer;
 }
+
+/* UI Overlay */
+.uiBackdrop{
+    position:absolute;
+    left:0;top:0;
+    width:100%;
+    height:100%;
+    background:rgba(0,0,0,.6);
+    z-index:99;
+    display:none;
+}
+.overlayUI{
+    position:absolute;
+    width:400px;
+    height:300px;
+    left:50%;top:50%;
+    transform:translate(-50%,-50%);
+    background:rgba(0,0,0,.9);
+    border:3px solid gold;
+    z-index:100;
+    padding:20px;
+    display:none;
+}
+.overlayUI button{
+    position:absolute;
+    right:8px;
+    top:8px;
+}
+
+/* Player */
+#playerEgg{font-size:48px;text-align:center}
+#xpBar{height:16px;background:#222;border-radius:8px;overflow:hidden}
+#xpProgress{height:100%;background:gold;width:0%}
+
+/* News */
+#newsTicker{margin-top:auto;padding:6px;background:rgba(0,0,0,.6)}
+#newsHistory{font-size:13px;margin-top:10px}
 </style>
 </head>
+
 <body>
 
-<!-- Status -->
 <div id="statusColumn">
-    <div id="playerEgg">🥚
-        <div id="headLayer"></div>
-        <div id="weaponLayer"></div>
-    </div>
+    <div id="playerEgg">🥚</div>
+    <div id="playerName">Spawn2909</div>
+    <div id="playerRank">Rang: Ei</div>
     <div id="xpBar"><div id="xpProgress"></div></div>
-    <div id="inventory">
-        <div class="inventory-slot"></div><div class="inventory-slot"></div>
-        <div class="inventory-slot"></div><div class="inventory-slot"></div>
-        <div class="inventory-slot"></div><div class="inventory-slot"></div>
-        <div class="inventory-slot"></div><div class="inventory-slot"></div>
-    </div>
 </div>
 
-<!-- Welt / Dorf -->
 <div id="worldColumn">
-    <div class="village-ground" id="villageCenter"></div>
+    <div id="villageCenter" class="village-ground"></div>
     <div id="villageMap"></div>
 
-    <div id="forgeUI">Schmiede-UI <button onclick="closeUI('forgeUI')">Schließen</button></div>
-    <div id="marketUI">Marktplatz-UI <button onclick="closeUI('marketUI')">Schließen</button></div>
-    <div id="hofUI">Hall of Fame <button onclick="closeUI('hofUI')">Schließen</button></div>
+    <div id="uiBackdrop" class="uiBackdrop"></div>
 
-    <div id="bossArea">
-        <div id="bossEmoji">👹</div>
-        <div id="bossHP">HP: 1000</div>
-        <button id="attackBtn">ANGREIFEN</button>
+    <div id="marketUI" class="overlayUI">
+        Marktplatz
+        <button onclick="closeUI()">X</button>
     </div>
-    <div id="newsTicker">Das Dorf ist friedlich...</div>
+    <div id="forgeUI" class="overlayUI">
+        Schmiede
+        <button onclick="closeUI()">X</button>
+    </div>
 </div>
 
-<!-- Info -->
 <div id="infoColumn">
-    <div id="followerStats">Follower: 0</div>
-    <div id="hallOfFame">Hall of Fame</div>
+    <div id="followerStats">Dorf-Level: 0</div>
+    <div id="newsHistory"></div>
 </div>
 
 <script>
-/* Copyright (c) 2026 Spawn2909 */
-console.log("NEST SYSTEM BY SPAWN2909 - STOP STEALING!");
-
-const villageMap=document.getElementById('villageMap');
-const villageCenter=document.getElementById('villageCenter');
-const followers={};
-const player={id:1,name:'Spieler1',inventory:[],xp:0,xpLimit:10};
+const villageMap=document.getElementById("villageMap");
+const village=document.getElementById("villageCenter");
+const stats=document.getElementById("followerStats");
+const eggs={};
 let followerCount=0;
+let xp=0, xpLimit=10;
+let news=[];
 
-// Spawn Egg
-function spawnEgg(user){
-    if(followers[user.id]) return;
-    const egg=document.createElement('div');
-    egg.classList.add('eggAvatar');
-    egg.id='egg-'+user.id;
-    egg.innerHTML=`🥚<span class="avatarName">${user.name}</span>`;
-    villageMap.appendChild(egg);
-    followers[user.id]=egg;
-    moveAvatar(user.id);
-}
-
-// Move / Wuseln
-function moveAvatar(id){
-    const egg=followers[id];
-    if(!egg) return;
-    const maxX=villageMap.clientWidth-40;
-    const maxY=villageMap.clientHeight-40;
-
-    let randX=Math.random()*maxX;
-    let randY=Math.random()*maxY;
-    // Eier dürfen auch ins Dorf-Zentrum wandern
-    egg.style.left=randX+'px';
-    egg.style.top=randY+'px';
-
-    // Mini-Event XP
-    if(Math.random()<0.1){
-        updateXP(0.5);
-        document.getElementById('newsTicker').textContent=`${egg.querySelector('.avatarName').textContent} hat eine wilde Beere gefunden (+0.5 XP)`;
-    }
-    setTimeout(()=>moveAvatar(id),5000+Math.random()*3000);
-}
-
-// Update XP
-function updateXP(amount){
-    player.xp+=amount;
-    if(player.xp>=player.xpLimit){
-        if(document.getElementById('playerEgg').textContent.includes('🥚')){
-            document.getElementById('playerEgg').textContent='💧';
-            player.xpLimit=50; // neues XP-Limit für Schleim->Skelett
-        } else {
-            player.xp=0;
-        }
-    }
-    document.getElementById('xpProgress').style.width=(player.xp/player.xpLimit*100)+'%';
-}
-
-// Wachsendes Dorf
-function updateVillageSize(count){
-    const huts=Math.floor(count/5);
-    const existing=villageCenter.querySelectorAll('.hut').length;
-    for(let i=existing;i<huts;i++){
-        const hut=document.createElement('div');
-        hut.className='hut';
-        hut.textContent='🏠';
-        hut.style.left=(villageCenter.offsetLeft+Math.random()*(villageCenter.clientWidth-32))+'px';
-        hut.style.top=(villageCenter.offsetTop+Math.random()*(villageCenter.clientHeight-32))+'px';
-        villageMap.appendChild(hut);
+/* --------- FOREST FIX --------- */
+function createForest(){
+    villageMap.innerHTML="";
+    for(let i=0;i<150;i++){
+        const t=document.createElement("div");
+        t.className="tree";
+        t.textContent=Math.random()<.5?"🌲":"🌳";
+        t.style.left=Math.random()*villageMap.clientWidth+"px";
+        t.style.top=Math.random()*villageMap.clientHeight+"px";
+        t.style.fontSize=12+Math.random()*20+"px";
+        villageMap.appendChild(t);
     }
 }
+window.addEventListener("load",createForest);
+window.addEventListener("resize",createForest);
 
-// Gebäude
-function addBuilding(emoji,left,top,id,ui){
-    const b=document.createElement('div');
-    b.className='building';
-    b.textContent=emoji;
-    b.style.left=left;
-    b.style.top=top;
-    b.addEventListener('click',()=>{ document.getElementById(ui).style.display='block'; });
-    villageMap.appendChild(b);
-}
-addBuilding('⚒️','40%','50%','forge','forgeUI');
-addBuilding('🏪','60%','50%','market','marketUI');
-
-// Wald-Bäume
-for(let i=0;i<200;i++){
-    const tree=document.createElement('div');
-    tree.className='tree';
-    tree.textContent=Math.random()<0.5?'🌲':'🌳';
-    let x=Math.random()*villageMap.clientWidth;
-    let y=Math.random()*villageMap.clientHeight;
-    tree.style.left=x+'px';
-    tree.style.top=y+'px';
-    tree.style.fontSize=(12+Math.random()*16)+'px';
-    villageMap.appendChild(tree);
-}
-
-// Websocket-ready
-function processBotEvent(data){
-    if(!data.name) return;
-    spawnEgg({id:data.id,name:data.name});
+/* --------- SPAWN EGG --------- */
+function spawnEgg(name){
+    const e=document.createElement("div");
+    e.className="eggAvatar";
+    e.innerHTML="🥚<span class='avatarName'>"+name+"</span>";
+    villageMap.appendChild(e);
+    eggs[name]=e;
     followerCount++;
-    document.getElementById('followerStats').textContent='Follower: '+followerCount;
-    updateVillageSize(followerCount);
+    updateVillage();
+    moveEgg(name);
 }
 
-// Test-Spieler
-spawnEgg(player);
+/* --------- MOVEMENT (70% Dorf) --------- */
+function moveEgg(name){
+    const e=eggs[name];
+    const map=villageMap.getBoundingClientRect();
+    const v=village.getBoundingClientRect();
+    let x,y;
+
+    if(Math.random()<0.7){
+        x=v.left-map.left+Math.random()*v.width;
+        y=v.top-map.top+Math.random()*v.height;
+    }else{
+        x=Math.random()*map.width;
+        y=Math.random()*map.height;
+    }
+
+    e.style.left=x+"px";
+    e.style.top=y+"px";
+
+    setTimeout(()=>moveEgg(name),5000);
+}
+
+/* --------- UI --------- */
+function openUI(id){
+    document.getElementById("uiBackdrop").style.display="block";
+    document.getElementById(id).style.display="block";
+}
+function closeUI(){
+    document.getElementById("uiBackdrop").style.display="none";
+    document.querySelectorAll(".overlayUI").forEach(e=>e.style.display="none");
+}
+
+/* --------- Village Evolution --------- */
+function updateVillage(){
+    stats.textContent="Dorf-Level: "+followerCount;
+    if(followerCount>=10) village.classList.add("stone");
+}
+
+/* --------- XP & Rank --------- */
+function addXP(v){
+    xp+=v;
+    if(xp>=xpLimit){
+        document.getElementById("playerEgg").textContent="💧";
+        document.getElementById("playerRank").textContent="Rang: Schleim";
+        xpLimit=50;
+        xp=0;
+    }
+    document.getElementById("xpProgress").style.width=(xp/xpLimit*100)+"%";
+}
+
+/* --------- NEWS --------- */
+function addNews(t){
+    news.unshift(t);
+    if(news.length>3)news.pop();
+    document.getElementById("newsHistory").innerHTML=news.join("<br>");
+}
+
+/* TEST USERS */
+spawnEgg("Raphael");
+spawnEgg("Luna");
+spawnEgg("Kai");
 </script>
+
 </body>
 </html>
