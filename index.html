@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Spawn2909 RPG Nest-System</title>
+<title>Spawn2909 Nest-System</title>
 <style>
-/* © 2026 Spawn2909 - Nest System. Alle Rechte vorbehalten. Unerlaubtes Kopieren oder Nutzen dieses Codes wird strafrechtlich verfolgt. */
+/* Copyright (c) 2026 Spawn2909 - Alle Rechte vorbehalten */
 
 /* Basis Reset */
-body, html { margin:0; padding:0; width:100%; height:100%; font-family:'Segoe UI',sans-serif; background:#0b0f0c; overflow:hidden; user-select:none; }
+body, html {margin:0; padding:0; width:100%; height:100%; font-family:'Segoe UI',sans-serif; background:#0b0f0c; overflow:hidden; user-select:none;}
 
 /* Scanline Effekt */
 body::before {
@@ -21,30 +21,35 @@ body::before {
 #main { display:flex; width:100%; height:100%; }
 /* Charakter Menü */
 #charMenu {
-  width:28%; padding:20px; box-sizing:border-box; display:flex; flex-direction:column; backdrop-filter:blur(10px); background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.2); border-radius:15px; margin:10px;
+  width:28%; padding:20px; box-sizing:border-box; display:flex; flex-direction:column;
+  backdrop-filter:blur(10px); background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.2);
+  border-radius:15px; margin:10px;
 }
-#avatarPodest { width:220px; height:60px; margin:auto; background:rgba(30,30,60,0.5); border-radius:30px 30px 0 0; box-shadow:0 0 20px #00c3ff inset; animation: floatPodest 2s ease-in-out infinite alternate;}
+#avatarPodest {
+  width:220px; height:60px; margin:auto; background:rgba(30,30,60,0.5); border-radius:30px 30px 0 0;
+  box-shadow:0 0 20px #00c3ff inset; animation: floatPodest 2s ease-in-out infinite alternate;
+}
 @keyframes floatPodest {0%{transform:translateY(0px);}100%{transform:translateY(-10px);}}
 #avatarContainer { width:200px;height:200px;margin:-100px auto 0 auto; position:relative;border-radius:20px;background:rgba(0,0,0,0.4);box-shadow:0 0 20px #ffd700; display:flex; justify-content:center; align-items:center; overflow:hidden;}
-.avatar-layer { position:absolute; top:0; left:0; width:100%; height:100%; display:flex; justify-content:center; align-items:center; font-size:60px; pointer-events:none; }
-#baseLayer { z-index:1; font-size:60px; }
-#headLayer { z-index:2; font-size:60px; }
-#weaponLayer { z-index:3; font-size:60px; }
+.avatar-layer { position:absolute; display:flex; justify-content:center; align-items:center; pointer-events:none; font-size:60px; }
+#baseLayer { z-index:2; top:0; left:0; width:100%; height:100%; }
+#headLayer { z-index:3; top:-20px; left:0; width:100%; height:100%; }
+#weaponLayer { z-index:4; top:0; left:-10px; width:100%; height:100%; }
 /* Status */
 #statusLine { text-align:center; margin-top:10px; font-size:14px; color:#ccc; }
 /* Inventar */
 #inventory { margin-top:20px; flex:1; overflow-y:auto; }
 #invGrid, #backpackGrid { display:grid; grid-template-columns: repeat(4,1fr); gap:10px; margin-top:5px; }
-.slot { width:60px; height:60px; border:1px solid #444; border-radius:10px; background:rgba(0,0,0,0.3); display:flex; justify-content:center; align-items:center; cursor:pointer; position:relative; }
-.slot img { max-width:80%; max-height:80%; filter:grayscale(100%); opacity:0.3; }
-.slot.unlocked img { filter:none; opacity:1; }
-.slot.rare { border-color:#ffd700; box-shadow:0 0 10px #ffd700; }
+.inventory-slot { width:60px; height:60px; border:1px solid #444; border-radius:10px; background:rgba(0,0,0,0.3); display:flex; justify-content:center; align-items:center; position:relative; cursor:pointer; }
+.inventory-slot span { position:absolute; bottom:2px; font-size:12px; color:#fff; }
+
 /* Tabs */
 #tabs { width:72%; display:flex; flex-direction:column; margin:10px;}
 .tabButtons { display:flex; border-bottom:2px solid #ffd700;}
 .tabButtons button { flex:1; padding:10px; background:rgba(0,0,0,0.4); border:none; color:#fff; cursor:pointer; font-weight:bold; }
 .tabButtons button.active { background:rgba(30,30,60,0.6); border-bottom:3px solid #ffd700;}
 .tabContent { flex:1; padding:0; overflow:hidden; display:flex; flex-wrap:wrap; position:relative; }
+
 /* Dorf */
 #villageMap { width:100%; height:100%; position:relative; border-radius:15px; background:linear-gradient(to bottom,#1a472a,#2d5a27); overflow:hidden; }
 /* Bäume */
@@ -83,17 +88,13 @@ body::before {
 #lastHitContainer { margin-top:20px; }
 .podium { width:100px; height:100px; background:#ffd700; border-radius:10px; display:flex; justify-content:center; align-items:center; font-size:60px; box-shadow:0 0 10px #ffd700; }
 
-/* Ticker */
+/* Ticker & Watermark */
 #newsTicker { position:absolute; bottom:0; width:100%; background:rgba(0,0,0,0.6); padding:5px; text-align:center; font-weight:bold; color:#ffd700; font-size:18px; }
+#watermark { position:absolute; bottom:5px; right:5px; font-size:12px; color:#888; z-index:1000; }
 </style>
 </head>
 <body>
-<script>
-/* © 2026 Spawn2909 - Nest System. Alle Rechte vorbehalten. Unerlaubtes Kopieren oder Nutzen dieses Codes wird strafrechtlich verfolgt. */
-console.log('%cNEST SYSTEM BY SPAWN2909 - STOP STEALING!', 'color:red;font-size:24px;font-weight:bold;');
-const NEST_OWNER='Spawn2909';
-</script>
-
+<div id="watermark">© Spawn2909</div>
 <div id="main">
   <div id="charMenu">
     <div id="avatarPodest"></div>
@@ -141,26 +142,34 @@ const NEST_OWNER='Spawn2909';
 
 <div id="lootPopup">
   <div id="lootItem">🧪</div>
+  <div id="lootDesc"></div>
   <button id="collectBtn">EINSAMMELN</button>
   <div id="lootNotice" style="margin-top:10px;font-size:12px;color:#ccc;"></div>
 </div>
 
-<div id="newsTicker">+++ EILMELDUNG: Ein wilder Oger nähert sich dem Dorf! +++</div>
-
 <script>
-// Sicherheitsblock
+console.log('%cNEST SYSTEM BY SPAWN2909 - STOP STEALING!', 'color:red;font-size:24px;font-weight:bold;');
 document.addEventListener('contextmenu', e=>e.preventDefault());
 document.addEventListener('keydown', e=>{ if(e.key==="F12"|| (e.ctrlKey&&e.shiftKey)) e.preventDefault(); });
 
-// Engine
 let spawn2909_save=JSON.parse(localStorage.getItem('save'))||{inventory:[],weapons:[]};
 let spawn2909_follower=true, spawn2909_prime=false, spawn2909_sub=false;
-let spawn2909_villageAvatars=[], spawn2909_boss={hp:0,maxHp:100,emoji:'🐀'}, spawn2909_activeViewers=1;
+let spawn2909_activeViewers=5;
 
-// Loot
-const spawn2909_followerLoot=[{emoji:'🧪',name:'Heiltrank'},{emoji:'⚔️',name:'Giftschwert'}];
-const spawn2909_primeLoot=[{emoji:'💎',name:'Kristall'},{emoji:'⚔️',name:'Giftklinge'}];
-const spawn2909_subLoot=[{emoji:'👑',name:'Krone'},{emoji:'🧙‍♂️',name:'Lichstab'}];
+// Boss-Pool
+let spawn2909_bossPool=[
+  {emoji:'👹',name:'Oger',hp:100},
+  {emoji:'🐉',name:'Drache',hp:200},
+  {emoji:'🐺',name:'Schattenwolf',hp:80},
+  {emoji:'🕷️',name:'Riesenspinne',hp:60},
+  {emoji:'⚔️',name:'Abtrünniger Ritter',hp:120}
+];
+let spawn2909_boss={};
+
+// Loot-Pools
+let spawn2909_followerLoot=[{emoji:'🧪',name:'Heiltrank',damage:0},{emoji:'⚔️',name:'Giftschwert',damage:5}];
+let spawn2909_primeLoot=[{emoji:'💎',name:'Kristall',damage:7},{emoji:'⚔️',name:'Giftklinge',damage:10}];
+let spawn2909_subLoot=[{emoji:'👑',name:'Krone',damage:15},{emoji:'🧙‍♂️',name:'Lichstab',damage:12}];
 
 function spawn2909_getLootPool(){
   if(spawn2909_sub) return spawn2909_subLoot;
@@ -168,7 +177,20 @@ function spawn2909_getLootPool(){
   return spawn2909_followerLoot;
 }
 
-// Tabwechsel
+// Inventar Slots
+function spawn2909_renderInventory(){
+  ['invGrid','backpackGrid'].forEach(id=>{
+    const grid=document.getElementById(id);
+    grid.innerHTML='';
+    for(let i=0;i<8;i++){
+      let slot=document.createElement('div'); slot.className='inventory-slot';
+      grid.appendChild(slot);
+    }
+  });
+}
+spawn2909_renderInventory();
+
+// Tabs
 function spawn2909_switchTab(tabId){
   document.querySelectorAll('.tabPane').forEach(t=>t.style.display='none');
   document.getElementById(tabId).style.display='flex';
@@ -176,12 +198,11 @@ function spawn2909_switchTab(tabId){
   document.querySelector(`.tabButtons button[onclick*="${tabId}"]`).classList.add('active');
 }
 
-// Dorf rendern
+// Dorf Render
 function spawn2909_renderVillage(){
   const map=document.getElementById('villageMap'); map.innerHTML='';
-  // Bäume
   for(let i=0;i<300;i++){
-    let tree=document.createElement('div'); tree.className='tree'; 
+    let tree=document.createElement('div'); tree.className='tree';
     tree.innerText=Math.random()>0.5?'🌲':'🌳';
     tree.style.fontSize=(12+Math.random()*18)+'px';
     tree.style.color=`rgb(0,${80+Math.random()*100},0)`;
@@ -189,16 +210,13 @@ function spawn2909_renderVillage(){
     tree.style.top=Math.random()*map.offsetHeight+'px';
     map.appendChild(tree);
   }
-  // Nest
   let nest=document.createElement('div'); nest.id='nest'; nest.innerText='🥚'; map.appendChild(nest);
 
-  // Gebäude
   let forge=document.createElement('div'); forge.className='building visible'; forge.id='forge'; forge.style.left='20%'; forge.style.top='40%'; forge.innerText='⚒️';
   forge.addEventListener('click',()=>spawn2909_switchTab('premiumTab')); map.appendChild(forge);
-  let arena=document.createElement('div'); arena.className='building visible'; arena.id='arena'; arena.style.right='20%'; arena.style.top='40%'; arena.innerText='🏟️';
+  let arena=document.createElement('div'); arena.className='building visible'; arena.id='arena'; arena.style.left='60%'; arena.style.top='40%'; arena.innerText='🏟️';
   arena.addEventListener('click',()=>spawn2909_switchTab('liveQuest')); map.appendChild(arena);
 
-  // Test-Zuschauer
   for(let i=0;i<5;i++){
     let avatar=document.createElement('div'); avatar.className='avatarTile'; avatar.innerText='🥚';
     avatar.style.left=Math.random()*(map.offsetWidth-40)+'px';
@@ -208,36 +226,68 @@ function spawn2909_renderVillage(){
 }
 setTimeout(spawn2909_renderVillage,100);
 
-// Boss & Attack
-function spawn2909_updateBossHP(){document.getElementById('bossHPFill').style.width=(spawn2909_boss.hp/spawn2909_boss.maxHp*100)+'%';}
+// Boss-Spawn Logik (Scheduler)
+function spawn2909_scheduleBoss(){
+  const now=new Date();
+  let day=now.getDay(); // 0=Sonntag
+  let firstHour=(day==0||day==6)?7:14;
+  let nextSpawn=new Date(now.getFullYear(),now.getMonth(),now.getDate(),firstHour,0,0);
+  if(now>nextSpawn) nextSpawn.setHours(nextSpawn.getHours()+Math.floor((now-firstHour*3600000)/3600000)+1);
+  setTimeout(spawn2909_spawnBoss,nextSpawn-now);
+}
+function spawn2909_spawnBoss(){
+  spawn2909_boss=spawn2909_bossPool[Math.floor(Math.random()*spawn2909_bossPool.length)];
+  spawn2909_boss.maxHp=spawn2909_boss.hp + spawn2909_activeViewers*10;
+  spawn2909_boss.hp=spawn2909_boss.maxHp;
+  document.getElementById('bossEmoji').innerText=spawn2909_boss.emoji;
+  document.getElementById('bossContainer').style.display='block';
+  document.getElementById('questStatus').innerText='Ein Boss erscheint!';
+  document.getElementById('bossHPFill').style.width='100%';
+  spawn2909_scheduleBoss(); // Nächster Spawn
+}
+
+// Boss Attack
 document.getElementById('attackBtn').addEventListener('click',()=>{
-  let dmg=10; spawn2909_boss.hp-=dmg; if(spawn2909_boss.hp<0) spawn2909_boss.hp=0; spawn2909_updateBossHP();
+  let dmg=0;
+  spawn2909_save.inventory.forEach(i=>dmg+=i.damage||0);
+  if(dmg===0) dmg=5;
+  spawn2909_boss.hp-=dmg; if(spawn2909_boss.hp<0) spawn2909_boss.hp=0;
+  document.getElementById('bossHPFill').style.width=(spawn2909_boss.hp/spawn2909_boss.maxHp*100)+'%';
   let log=document.getElementById('questLog'); log.innerHTML+=`Du hast ${dmg} Schaden gemacht.<br>`;
-  let bossEl=document.getElementById('bossEmoji'); bossEl.style.animation='shake 0.3s'; setTimeout(()=>{bossEl.style.animation='breathe 2s ease-in-out infinite alternate';},300);
-  if(spawn2909_boss.hp===0) spawn2909_showLootPopup();
+  let bossEl=document.getElementById('bossEmoji'); bossEl.style.animation='shake 0.3s';
+  setTimeout(()=>{bossEl.style.animation='breathe 2s ease-in-out infinite alternate';},300);
+  if(spawn2909_boss.hp<=0){spawn2909_endBoss();}
 });
 
+function spawn2909_endBoss(){
+  document.getElementById('questLog').innerHTML+='<b>Boss besiegt!</b><br>';
+  spawn2909_showLoot();
+  document.getElementById('bossContainer').style.display='none';
+}
+
 // Loot Popup
-function spawn2909_showLootPopup(){ 
-  let pool=spawn2909_getLootPool(); 
-  let loot=pool[Math.floor(Math.random()*pool.length)]; 
-  document.getElementById('lootItem').innerText=loot.emoji; 
-  let btn=document.getElementById('collectBtn'); 
-  btn.disabled=false; btn.classList.remove('disabled'); 
-  if(!spawn2909_follower){btn.disabled=true; btn.classList.add('disabled'); document.getElementById('lootNotice').innerText='Nur für Nest-Follower!';} else document.getElementById('lootNotice').innerText='';
-  document.getElementById('lootPopup').style.display='block'; 
-  btn.onclick=()=>{
-    spawn2909_save.inventory.push(loot); 
-    localStorage.setItem('save',JSON.stringify(spawn2909_save)); 
-    document.getElementById('weaponLayer').innerText=loot.emoji;
-    document.getElementById('lootPopup').style.display='none';
+function spawn2909_showLoot(){
+  let lootPool=spawn2909_getLootPool();
+  let item=lootPool[Math.floor(Math.random()*lootPool.length)];
+  let popup=document.getElementById('lootPopup');
+  popup.style.display='block';
+  document.getElementById('lootItem').innerText=item.emoji;
+  document.getElementById('lootDesc').innerText=`${item.name} [+${item.damage} DMG]`;
+  let collectBtn=document.getElementById('collectBtn');
+  collectBtn.classList.remove('disabled');
+  document.getElementById('lootNotice').innerText='';
+  if(!spawn2909_follower){collectBtn.classList.add('disabled'); document.getElementById('lootNotice').innerText='Nur für Nest-Follower!';}
+  collectBtn.onclick=function(){
+    if(!spawn2909_follower) return;
+    spawn2909_save.inventory.push(item);
+    localStorage.setItem('save',JSON.stringify(spawn2909_save));
+    document.getElementById('weaponLayer').innerText=item.emoji;
+    popup.style.display='none';
+    spawn2909_renderInventory();
   }
 }
 
-// Test: Item Layer beim Laden
-window.addEventListener('load',()=>{
-  if(spawn2909_save.inventory.length>0){ document.getElementById('weaponLayer').innerText=spawn2909_save.inventory[0].emoji; }
-});
+spawn2909_scheduleBoss();
 </script>
 </body>
 </html>
