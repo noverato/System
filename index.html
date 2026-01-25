@@ -3,218 +3,181 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>The Nest: Solo Leveling Master Fix</title>
+<title>The Nest: Evolution & Zoom</title>
 <style>
-    body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #05070a; color: #e0d8b0; }
-    #gameWorld { position: absolute; width: 100%; height: 100%; background: url('wald.png') center/cover; z-index: 1; cursor: crosshair; }
-
-    /* CHARAKTER & HP BARS */
-    .creature { position: absolute; width: 80px; height: 80px; z-index: 10; transition: left 2s linear, top 2s linear; text-align: center; }
-    .creature-img { width: 60px; height: 60px; background-size: contain; background-repeat: no-repeat; background-position: center; margin: 0 auto; position: relative; }
+    body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #05070a; color: #e0d8b0; touch-action: none; }
     
-    /* Balken System */
-    .bar-container { width: 50px; height: 5px; background: rgba(0,0,0,0.8); margin: 2px auto; border-radius: 2px; border: 1px solid #1e293b; overflow: hidden; }
-    .hp-fill { height: 100%; background: #ef4444; width: 100%; transition: width 0.3s; }
-    .ep-fill { height: 100%; background: #22c55e; width: 0%; transition: width 0.5s; }
+    /* KAMERA & WELT */
+    #viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; cursor: grab; }
+    #world { 
+        width: 3000px; height: 2000px; 
+        background: url('wald.png') repeat; 
+        background-size: 1200px auto;
+        position: absolute; transform-origin: 0 0;
+        transition: transform 0.1s ease-out;
+    }
 
-    /* BATTLE LOG */
-    #battleLog { position: fixed; bottom: 90px; left: 15px; width: 240px; height: 130px; background: rgba(10,15,25,0.95); border: 2px solid #3b82f6; border-radius: 10px; font-size: 11px; padding: 12px; overflow-y: auto; z-index: 100; display: none; box-shadow: 0 0 20px rgba(59,130,246,0.3); color: #fff; }
+    /* CHARAKTER */
+    .creature { position: absolute; width: 100px; height: 100px; z-index: 10; transition: left 2s linear, top 2s linear; text-align: center; pointer-events: none; }
+    .avatar-emoji { font-size: 60px; display: block; filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.5)); }
+    .weapon-layer { position: absolute; right: 0; top: 10px; font-size: 30px; transform: rotate(15deg); }
 
-    /* HUD */
-    #hud { position: fixed; top: 15px; left: 15px; z-index: 100; background: rgba(15, 23, 42, 0.9); padding: 15px; border-radius: 12px; border: 1px solid #3b82f6; backdrop-filter: blur(8px); }
-
-    /* ADMIN PANEL */
-    #adminPanel { position: fixed; bottom: 15px; left: 15px; z-index: 1000; background: rgba(153, 27, 27, 0.9); border: 2px solid #ef4444; padding: 12px; border-radius: 10px; display: none; }
-    .admin-btn { background: #000; color: #fff; border: 1px solid #ef4444; padding: 6px; cursor: pointer; margin: 2px; font-size: 10px; border-radius: 4px; }
-
-    /* SOLO LEVELING INVENTAR */
-    .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: none; z-index: 500; align-items: center; justify-content: center; }
-    .inv-box { width: 90%; max-width: 400px; background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%); border: 2px solid #3b82f6; border-radius: 20px; padding: 30px; text-align: center; box-shadow: 0 0 40px rgba(37, 99, 235, 0.4); }
-    .inv-grid { display: flex; justify-content: center; gap: 20px; margin-bottom: 30px; }
-    .inv-slot { width: 80px; height: 80px; background: #020617; border: 2px solid #334155; border-radius: 15px; display: flex; align-items: center; justify-content: center; font-size: 35px; cursor: pointer; transition: 0.3s; position: relative; }
-    .inv-slot.active { border-color: #3b82f6; box-shadow: 0 0 15px #3b82f6; }
-    .inv-slot::after { content: "HAND"; position: absolute; bottom: -20px; font-size: 10px; color: #64748b; }
+    /* UI LAYERS */
+    .ui { position: fixed; z-index: 1000; pointer-events: auto; }
+    #hud { top: 15px; left: 15px; background: rgba(15, 23, 42, 0.95); padding: 15px; border-radius: 12px; border: 1px solid #3b82f6; backdrop-filter: blur(8px); }
+    #battleLog { bottom: 90px; left: 15px; width: 240px; height: 120px; background: rgba(10,15,25,0.95); border: 1px solid #3b82f6; border-radius: 10px; padding: 10px; font-size: 11px; overflow-y: auto; display: none; }
     
-    .btn-craft { background: #2563eb; color: white; border: none; padding: 15px 25px; border-radius: 10px; font-weight: bold; cursor: pointer; width: 100%; font-size: 14px; letter-spacing: 1px; }
-    .btn-craft:disabled { background: #334155; cursor: not-allowed; }
+    .inv-btn { bottom: 25px; right: 25px; padding: 18px 35px; background: #2563eb; color: white; border: none; border-radius: 15px; font-weight: bold; cursor: pointer; }
+
+    /* MODAL */
+    .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: none; z-index: 2000; align-items: center; justify-content: center; }
+    .inv-box { width: 90%; max-width: 450px; background: #1e293b; border: 2px solid #3b82f6; border-radius: 20px; padding: 30px; text-align: center; }
+    .class-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
+    .class-card { background: #0f172a; border: 1px solid #334155; padding: 10px; border-radius: 8px; cursor: pointer; }
 </style>
 </head>
 <body>
 
-<div id="gameWorld" onclick="handleWorldClick(event)">
-    <div id="charLayer"></div>
-    <div id="monsterLayer"></div>
-</div>
-
-<div id="battleLog"></div>
-
-<div id="hud">
-    <div style="font-weight: bold; color: #3b82f6; font-size: 18px; letter-spacing: 1px;"><span id="playerName">PLAYER</span></div>
-    <div id="subInfo" style="font-size: 11px; color: #94a3b8; margin-bottom: 8px;">Wesen: Ei</div>
-    <div style="font-size: 12px;">
-        ✨ LXP: <span id="lxpVal" style="color:#facc15">0</span><br>
-        📈 EP: <span id="epVal" style="color:#22c55e">0</span>
+<div id="viewport">
+    <div id="world" onclick="handleWorldClick(event)">
+        <div id="charLayer"></div>
+        <div id="monsterLayer"></div>
     </div>
 </div>
 
-<div id="adminPanel">
-    <strong style="color:white; display:block; margin-bottom:5px; font-size:12px;">SYSTEM ADMIN</strong>
-    <button class="admin-btn" onclick="addRes('ep', 20)">+20 EP</button>
-    <button class="admin-btn" onclick="addRes('lxp', 50)">+50 LXP</button>
-    <button class="admin-btn" onclick="addMonths(1)">+1 Sub-Monat</button>
-    <button class="admin-btn" style="background:#450a0a;" onclick="resetSystem()">RESET</button>
+<div class="ui" id="hud">
+    <div style="font-weight: bold; color: #3b82f6; font-size: 18px;"><span id="playerName">PLAYER</span></div>
+    <div id="classInfo" style="font-size: 11px; color: #94a3b8;">Klasse: Ei</div>
+    <div style="font-size: 12px; margin-top:5px;">✨ LXP: <span id="lxpVal" style="color:#facc15">0</span> | 📈 EP: <span id="epVal" style="color:#22c55e">0</span></div>
 </div>
 
-<button style="position:fixed; bottom:25px; right:25px; z-index:100; padding:18px 35px; background:#2563eb; color:white; border:none; border-radius:15px; font-weight:bold; box-shadow: 0 10px 20px rgba(0,0,0,0.5);" onclick="toggleInv(true)">🎒 INVENTAR</button>
+<div class="ui" id="battleLog"></div>
+
+<button class="ui inv-btn" onclick="toggleInv(true)">🎒 INVENTAR</button>
 
 <div id="invModal" class="modal">
     <div class="inv-box">
-        <h2 style="color:#fff; margin-top:0; letter-spacing: 3px; font-size: 20px;">GEGENSTÄNDE</h2>
-        <div class="inv-grid">
-            <div class="inv-slot" id="slot-hand" onclick="equipHand()">🌑</div>
+        <h2 id="invTitle">CHARAKTER STATUS</h2>
+        <div style="font-size: 60px; margin-bottom: 20px;" id="invAvatar">🥚</div>
+        
+        <div id="classSelection" style="display:none;">
+            <p style="color:#facc15; font-size:12px;">WÄHLE DEINE KLASSE:</p>
+            <div class="class-grid">
+                <div class="class-card" onclick="chooseClass('Krieger', '🗡️')">🗡️ Krieger</div>
+                <div class="class-card" onclick="chooseClass('Waldläufer', '🏹')">🏹 Waldläufer</div>
+                <div class="class-card" onclick="chooseClass('Magier', '🪄')">🪄 Magier</div>
+                <div class="class-card" onclick="chooseClass('Dunkel-Elf', '🌑')">🌑 Dunkel-Elf</div>
+            </div>
         </div>
-        <div id="craftingArea">
-            <p id="swordInfo" style="font-size: 12px; color: #94a3b8; margin-bottom: 15px;">Kein Schwert geschmiedet</p>
-            <button id="craftBtn" class="btn-craft" onclick="tryCraft()">⚒️ SCHWERT SCHMIEDEN (20 LXP)</button>
-        </div>
-        <br>
-        <button onclick="toggleInv(false)" style="background:transparent; color:#64748b; border:none; cursor:pointer;">Schließen</button>
+
+        <button id="craftBtn" onclick="tryCraft()" style="width:100%; padding:15px; background:#eab308; border:none; border-radius:10px; font-weight:bold; margin-bottom:10px;">🗡️ SCHWERT SCHMIEDEN (20 LXP)</button>
+        <button onclick="toggleInv(false)" style="width:100%; padding:10px; background:#475569; color:white; border:none; border-radius:10px;">Zurück</button>
     </div>
 </div>
 
 <script>
-// --- INITIALISIERUNG ---
+// --- STATE ---
 let data = JSON.parse(localStorage.getItem('nestData')) || {
-    name: "Gast", lxp: 0, ep: 0, gras: 0, stock: 0,
-    subMonths: 0, hasSword: false, equippedHand: null
+    name: "Gast", lxp: 0, ep: 0, x: 500, y: 500,
+    currentClass: "Ei", emoji: "🥚", hasSword: false, equipped: false
 };
+
+let zoom = 1.0;
+const world = document.getElementById('world');
+
+// --- ZOOM LOGIK ---
+window.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    zoom = Math.min(Math.max(zoom + delta, 0.4), 2.5);
+    world.style.transform = `scale(${zoom})`;
+}, { passive: false });
 
 function init() {
     const p = new URLSearchParams(window.location.search);
     if (p.get('user')) data.name = p.get('user');
-    if (p.get('admin') === 'true' && data.name.toLowerCase() === "spawn2909") {
-        document.getElementById('adminPanel').style.display = 'block';
-    }
     updateUI();
     setInterval(spawnMonster, 20000);
 }
 
-// --- DIE EVOLUTION LOGIK (KOMBINIERT) ---
-function getEvolution() {
-    const m = data.subMonths;
-    const e = data.ep;
-
-    // Subs haben Vorrang bei der Form
-    if (m >= 24) return { img: 'wesen.png', label: 'Höheres Wesen' };
-    if (m >= 12) return { img: 'lich.png', label: 'Lich' };
-    if (m >= 9)  return { img: 'oger.png', label: 'Oger' };
-    if (m >= 6)  return { img: 'goblin.png', label: 'Goblin' };
-    
-    // EP-basierte Evolution (für alle)
-    if (e >= 100 || m >= 3) return { img: 'skelett.png', label: 'Skelett' };
-    if (e >= 30 || m >= 2)  return { img: 'schleim.png', label: 'Schleim' };
-    
-    return { img: 'ei.png', label: 'Ei' };
-}
-
 function updateUI() {
-    const evo = getEvolution();
-    document.getElementById('playerName').textContent = data.name.toUpperCase();
-    document.getElementById('subInfo').textContent = "Wesen: " + evo.label + (data.subMonths > 0 ? ` (${data.subMonths}M)` : "");
+    // Evolutions-Check
+    if (data.currentClass === "Ei" && data.ep >= 20) { data.currentClass = "Gras-Wesen"; data.emoji = "🌱"; }
+    if (data.ep >= 50 && data.currentClass === "Gras-Wesen") { document.getElementById('classSelection').style.display = "grid"; }
+
+    document.getElementById('playerName').textContent = data.name;
     document.getElementById('lxpVal').textContent = Math.floor(data.lxp);
     document.getElementById('epVal').textContent = Math.floor(data.ep);
-    
-    const sHand = document.getElementById('slot-hand');
-    sHand.textContent = data.equippedHand || "🌑";
-    sHand.classList.toggle('active', !!data.equippedHand);
-    
-    document.getElementById('swordInfo').textContent = data.hasSword ? "Schwert bereit zum Ausrüsten" : "Kosten: 20 LXP";
+    document.getElementById('classInfo').textContent = "Klasse: " + data.currentClass;
+    document.getElementById('invAvatar').textContent = data.emoji;
     document.getElementById('craftBtn').style.display = data.hasSword ? "none" : "block";
 
-    renderChar(evo.img);
+    renderChar();
 }
 
-function renderChar(img) {
+function renderChar() {
     const layer = document.getElementById('charLayer');
     layer.innerHTML = '';
     const char = document.createElement('div');
     char.className = 'creature';
     char.id = "myChar";
-    char.style.left = "50%"; char.style.top = "50%";
+    char.style.left = data.x + "px"; char.style.top = data.y + "px";
     
     char.innerHTML = `
-        <div class="bar-container"><div class="ep-fill" style="width:${Math.min(100, data.ep)}%"></div></div>
-        <div class="creature-img" style="background-image:url('${img}')">
-            ${data.equippedHand ? '<div style="position:absolute; right:-15px; top:10px; font-size:25px; filter:drop-shadow(0 0 5px #3b82f6);">' + data.equippedHand + '</div>' : ''}
-        </div>
-        <div style="font-size:10px; font-weight:bold; background:rgba(0,0,0,0.6); padding:2px 5px; border-radius:4px;">${data.name}</div>
+        <span class="avatar-emoji">${data.emoji}</span>
+        ${data.equipped ? '<span class="weapon-layer">🗡️</span>' : ''}
+        <div style="font-size:12px; font-weight:bold; background:rgba(0,0,0,0.6); border-radius:5px; padding:2px;">${data.name}</div>
     `;
     layer.appendChild(char);
 }
 
-// --- KAMPF SYSTEM ---
-function spawnMonster() {
-    const layer = document.getElementById('monsterLayer');
-    const m = document.createElement('div');
-    m.style.position = 'absolute';
-    m.style.left = (20 + Math.random() * 60) + "%";
-    m.style.top = (25 + Math.random() * 50) + "%";
-    m.style.fontSize = "40px";
-    m.style.cursor = "pointer";
-    m.innerHTML = `<div class="bar-container" style="width:40px;"><div class="hp-fill" id="m-hp-fill"></div></div>👾`;
-    
-    let mHP = 30;
-    m.onclick = (e) => {
-        e.stopPropagation();
-        startBattle(m, mHP);
-    };
-    layer.appendChild(m);
+function handleWorldClick(e) {
+    const rect = world.getBoundingClientRect();
+    data.x = (e.clientX - rect.left) / zoom - 50;
+    data.y = (e.clientY - rect.top) / zoom - 50;
+    save();
+    renderChar();
 }
 
-function startBattle(mEl, mHP) {
+function spawnMonster() {
+    const m = document.createElement('div');
+    m.style.position = 'absolute';
+    m.style.left = (Math.random() * 2000) + "px";
+    m.style.top = (Math.random() * 1500) + "px";
+    m.style.fontSize = "40px";
+    m.innerHTML = "👾";
+    m.onclick = (e) => { e.stopPropagation(); startBattle(m); };
+    document.getElementById('monsterLayer').appendChild(m);
+}
+
+function startBattle(mEl) {
     const log = document.getElementById('battleLog');
-    log.style.display = 'block';
-    log.innerHTML = "<b>KAMPF LOG</b><br>";
-    
-    const hpBar = mEl.querySelector('.hp-fill');
-    
-    const interval = setInterval(() => {
-        const dmg = data.equippedHand ? 10 : 3;
+    log.style.display = "block";
+    let mHP = 30;
+    const i = setInterval(() => {
+        const dmg = data.equipped ? 10 : 3;
         mHP -= dmg;
-        if(hpBar) hpBar.style.width = (mHP / 30 * 100) + "%";
-        
-        log.innerHTML += `<div>> Treffer: <span style="color:#ef4444">-${dmg} HP</span></div>`;
+        log.innerHTML += `<div>> Treffer: ${dmg} DMG</div>`;
         log.scrollTop = log.scrollHeight;
-        
         if(mHP <= 0) {
-            clearInterval(interval);
-            data.lxp += 5;
-            data.ep += 2; // EP Gewinn durch Kampf!
-            save();
+            clearInterval(i);
+            data.lxp += 10; data.ep += 5; save();
             mEl.remove();
-            log.innerHTML += "<b style='color:#22c55e'>SIEG! +5 LXP, +2 EP</b>";
-            setTimeout(() => log.style.display = 'none', 3000);
+            log.innerHTML = "SIEG!";
+            setTimeout(() => log.style.display="none", 2000);
         }
     }, 1000);
 }
 
-// --- HELPER ---
-function tryCraft() {
-    if(data.lxp >= 20) { data.lxp -= 20; data.hasSword = true; data.equippedHand = "⚔️"; save(); }
-    else alert("Nicht genug LXP!");
+function chooseClass(name, emoji) {
+    data.currentClass = name; data.emoji = emoji;
+    document.getElementById('classSelection').style.display = "none";
+    save();
 }
-function equipHand() { if(data.hasSword) { data.equippedHand = data.equippedHand ? null : "⚔️"; save(); } }
-function handleWorldClick(e) {
-    const el = document.getElementById('myChar');
-    if(!el) return;
-    el.style.left = ((e.clientX / window.innerWidth) * 100 - 4) + "%";
-    el.style.top = ((e.clientY / window.innerHeight) * 100 - 4) + "%";
-}
+
+function tryCraft() { if(data.lxp >= 20) { data.lxp -= 20; data.hasSword = true; data.equipped = true; save(); } }
 function toggleInv(s) { document.getElementById('invModal').style.display = s ? 'flex' : 'none'; }
 function save() { localStorage.setItem('nestData', JSON.stringify(data)); updateUI(); }
-function addMonths(v) { data.subMonths += v; save(); }
-function addRes(t, v) { data[t] += v; save(); }
-function resetSystem() { if(confirm("Daten löschen?")) { localStorage.clear(); location.reload(); } }
 
 window.onload = init;
 </script>
