@@ -2,212 +2,210 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Nest: Solo Leveling Final</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>The Nest - Mobile RPG Edition</title>
 <style>
-    body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', sans-serif; color: #e0d8b0; background: #0a0a12; }
-    #watermark { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="600"><text x="50%" y="50%" font-family="Arial" font-size="36" fill="%23ffffff" fill-opacity="0.05" text-anchor="middle" transform="rotate(-15 500 300)">Property of Spawn2909 - The Nest</text></svg>'); z-index: 5; pointer-events: none; }
-    #gameWorld { position: absolute; width: 100%; height: 100%; background-image: url('wald.png'); background-size: 100% 100%; z-index: 1; }
-
-    /* BEWOHNER */
-    .creature { position: absolute; width: 80px; height: 80px; z-index: 10; transition: left 3s ease-in-out, top 3s ease-in-out; }
-    .creature-base { width: 100%; height: 100%; background-size: contain; background-repeat: no-repeat; background-position: center; position: relative; display: block; min-width: 80px; min-height: 80px; }
+    /* BASE SETUP */
+    body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #0a0a12; color: #e0d8b0; }
+    #gameWorld { position: absolute; width: 100%; height: 100%; background: url('wald.png') center/cover; z-index: 1; }
     
-    /* GEAR LAYERS */
-    .visual-gear-png { position: absolute; width: 50px; height: 50px; right: -15px; top: 10px; background-image: url('schwert.png'); background-size: contain; background-repeat: no-repeat; z-index: 15; image-rendering: pixelated; }
-    .emoji-layer { position: absolute; width: 100%; text-align: center; pointer-events: none; z-index: 16; font-size: 30px; }
-    .head-gear { top: -15px; }
-    .body-gear { top: 20px; font-size: 35px; opacity: 0.8; }
-    .feet-gear { bottom: -5px; font-size: 18px; }
-
-    .name-tag { position: absolute; bottom: -22px; width: 100%; text-align: center; font-size: 11px; font-weight: bold; color: #ffeb3b; text-shadow: 2px 2px 2px #000; }
+    /* CREATURES & BARS */
+    .creature { position: absolute; width: 80px; height: 80px; z-index: 10; transition: all 3s ease-in-out; text-align: center; }
+    .creature-img { width: 60px; height: 60px; background-size: contain; background-repeat: no-repeat; background-position: center; margin: 0 auto; position: relative; }
     
-    /* BARS */
-    .bar-container { position: absolute; left: 10%; width: 80%; height: 5px; background: rgba(0,0,0,0.7); border-radius: 3px; overflow: hidden; z-index: 12; }
-    .bar-fill-ep { height: 100%; background: #4caf50; transition: width 0.5s; }
-    .bar-fill-lxp { height: 100%; background: #2196f3; transition: width 0.5s; }
+    .bar-wrap { width: 60px; height: 4px; background: rgba(0,0,0,0.8); margin: 2px auto; border-radius: 2px; overflow: hidden; }
+    .bar-ep { height: 100%; background: #4caf50; width: 0%; transition: width 0.3s; }
+    .bar-lxp { height: 100%; background: #2196f3; width: 0%; transition: width 0.3s; }
+    .name-tag { font-size: 10px; font-weight: bold; text-shadow: 1px 1px 2px #000; }
 
-    /* INVENTAR UI */
-    #invOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 200; display: none; align-items: center; justify-content: center; backdrop-filter: blur(10px); }
-    .inv-window { width: 800px; height: 500px; background: #0f172a; border: 2px solid #334155; border-radius: 20px; display: flex; padding: 25px; box-shadow: 0 0 30px rgba(33, 150, 243, 0.3); position: relative; }
+    /* BOSS & BATTLE LOG */
+    #bossArea { position: absolute; top: 15%; left: 50%; transform: translateX(-50%); text-align: center; z-index: 50; display: none; }
+    #bossImg { width: 150px; height: 150px; filter: drop-shadow(0 0 15px red); }
+    #attackBtn { background: linear-gradient(#ff4444, #990000); color: white; border: 2px solid #fff; padding: 15px 30px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
     
-    .inv-left { width: 200px; display: flex; flex-direction: column; gap: 10px; }
-    .inv-center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border-left: 1px solid #334155; border-right: 1px solid #334155; }
-    .inv-right { width: 250px; padding: 0 20px; }
+    #battleLog { position: absolute; bottom: 20px; left: 20px; width: 250px; height: 120px; background: rgba(0,0,0,0.7); border: 1px solid #334155; border-radius: 5px; padding: 10px; font-size: 12px; overflow-y: hidden; z-index: 100; pointer-events: none; }
 
-    .slot { width: 60px; height: 60px; background: rgba(255,255,255,0.05); border: 2px solid #334155; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 25px; cursor: pointer; }
-    .slot.active { border-color: #ffd700; color: #ffd700; box-shadow: 0 0 10px #ffd700; }
+    /* MARKT & SCHMIEDE (HUD) */
+    #mainHUD { position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; gap: 10px; z-index: 100; }
+    .hud-btn { background: rgba(15, 23, 42, 0.9); border: 1px solid #3b82f6; color: white; padding: 10px; border-radius: 8px; cursor: pointer; font-size: 14px; text-align: center; }
+    .hud-btn:hover { background: #1e293b; }
 
-    .char-prev { width: 150px; height: 150px; background-size: contain; background-repeat: no-repeat; background-position: center; position: relative; }
-    .btn-action { width: 100%; padding: 12px; margin-top: 10px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; background: #eab308; }
+    /* OVERLAYS */
+    .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; z-index: 200; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+    .modal-content { background: #1a1c2c; border: 2px solid #3d4a5d; padding: 25px; border-radius: 15px; width: 300px; text-align: center; }
+
+    /* GEAR VISUAL */
+    .gear-sword { position: absolute; width: 40px; height: 40px; right: -15px; top: 0; background: url('schwert.png') no-repeat center/contain; image-rendering: pixelated; }
 </style>
 </head>
 <body>
 
-<div id="watermark"></div>
-
-<button onclick="toggleInventory(true)" style="position:fixed; top:20px; right:20px; z-index:100; padding:12px 24px; background: #2563eb; color:white; border:none; border-radius:10px; cursor:pointer; font-weight:bold;">🎒 STATUS & INVENTAR</button>
-
-<div id="invOverlay">
-    <div class="inv-window">
-        <button style="position:absolute; top:10px; right:10px; background:red; color:white; border:none; border-radius:50%; width:30px; height:30px; cursor:pointer;" onclick="toggleInventory(false)">X</button>
-        
-        <div class="inv-left">
-            <h3 style="color:#3b82f6;">EQUIPMENT</h3>
-            <div class="slot" id="slot-head" onclick="toggleGear('head')">🪖</div>
-            <div class="slot" id="slot-hand" onclick="toggleGear('hand')">👊</div>
-            <div class="slot" id="slot-body" onclick="toggleGear('body')">👕</div>
-            <div class="slot" id="slot-feet" onclick="toggleGear('feet')">👞</div>
+<div id="gameWorld">
+    <div id="creatureLayer"></div>
+    
+    <div id="bossArea">
+        <h2 id="bossName" style="color:red; text-shadow: 0 0 10px black;">BOSS ERSCHIENEN!</h2>
+        <div id="bossHpBar" style="width:200px; height:15px; background:black; border:1px solid white; margin: 10px auto;">
+            <div id="bossHpFill" style="width:100%; height:100%; background:red;"></div>
         </div>
+        <img src="https://i.imgur.com/6M6oVvP.png" id="bossImg" alt="Boss"> <br><br>
+        <button id="attackBtn" onclick="doAttack()">⚔️ ATTACK!</button>
+    </div>
 
-        <div class="inv-center">
-            <h2 id="invPlayerName" style="color:#facc15;">NAME</h2>
-            <div class="char-prev" id="charPreview">
-                <div id="prev-head" class="emoji-layer head-gear"></div>
-                <div id="prev-hand" class="visual-gear-png" style="display:none; transform: scale(1.5); right:-40px;"></div>
-                <div id="prev-body" class="emoji-layer body-gear"></div>
-                <div id="prev-feet" class="emoji-layer feet-gear"></div>
-            </div>
-            <p style="color:#64748b; font-weight:bold;">KLASSE: SCHATTEN-MONARCH</p>
-        </div>
+    <div id="battleLog"></div>
 
-        <div class="inv-right">
-            <h3 style="color:#3b82f6;">STATS</h3>
-            <p>📈 EP: <span id="statEP">0</span></p>
-            <p>✨ LXP: <span id="statLXP">0</span></p>
-            <p>🪵 Holz: <span id="statWood">0</span></p>
-            <hr style="border:0.5px solid #334155;">
-            <button id="btnSchmieden" class="btn-action" onclick="craftSet()">⚒ ALLES SCHMIEDEN (100 Holz)</button>
+    <div id="mainHUD">
+        <div class="hud-btn" onclick="openMenu('inv')">🎒 INVENTAR</div>
+        <div class="hud-btn" onclick="openMenu('shop')" style="border-color:#eab308;">⚖️ MARKTPLATZ</div>
+        <div class="hud-btn" onclick="openMenu('forge')" style="border-color:#ef4444;">⚒️ SCHMIEDE</div>
+        <div style="background:rgba(0,0,0,0.5); padding:5px; border-radius:5px; font-size:12px;">
+            🪵: <span id="resWood">0</span> | ✨: <span id="resLXP">0</span>
         </div>
     </div>
 </div>
 
-<div id="gameWorld"><div id="creaturesContainer"></div></div>
+<div id="menuModal" class="modal" onclick="closeMenu(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <h2 id="menuTitle">Menü</h2>
+        <div id="menuBody"></div>
+        <br>
+        <button onclick="document.getElementById('menuModal').style.display='none'">Schließen</button>
+    </div>
+</div>
 
 <script>
-const BROADCASTER_NAME = "spawn2909";
-const gameState = {
-    creatures: JSON.parse(localStorage.getItem('creatures')) || {},
-    playerName: null
+const BROADCASTER = "spawn2909";
+let player = JSON.parse(localStorage.getItem('nestPlayer')) || {
+    name: "spawn2909", wood: 0, lxp: 0, ep: 0, gear: null, ownsSword: false
 };
 
-// Items Definition
-const GEAR_DATA = { head: "👑", body: "🛡️", feet: "👞", hand: "schwert.png" };
+let boss = { active: false, hp: 100, maxHp: 100 };
 
-function initGame() {
-    const params = new URLSearchParams(window.location.search);
-    gameState.playerName = (params.get('user') || localStorage.getItem('nestPlayerName') || "Abenteurer").toLowerCase();
-    localStorage.setItem('nestPlayerName', gameState.playerName);
+// INITIALISIERUNG
+function init() {
+    renderPlayer();
+    updateHUD();
+    startLoops();
+    // Test-Boss alle 5 Minuten
+    setInterval(spawnBoss, 300000);
+}
 
-    if (!gameState.creatures[gameState.playerName]) {
-        gameState.creatures[gameState.playerName] = { 
-            name: gameState.playerName, type: 'sub', xp: 0, lxp: 10, joinDate: Date.now(), 
-            wood: 0, ownsGear: false, equipped: { head: null, hand: null, body: null, feet: null }
-        };
+function updateHUD() {
+    document.getElementById('resWood').textContent = Math.floor(player.wood);
+    document.getElementById('resLXP').textContent = Math.floor(player.lxp);
+}
+
+function renderPlayer() {
+    const layer = document.getElementById('creatureLayer');
+    layer.innerHTML = '';
+    
+    const div = document.createElement('div');
+    div.className = 'creature';
+    div.style.left = "50%"; div.style.top = "50%";
+    
+    // EP/LXP BARS FIX
+    const epWidth = Math.min(100, (player.ep / 30) * 100);
+    const lxpWidth = Math.min(100, player.lxp);
+
+    div.innerHTML = `
+        <div class="bar-wrap"><div class="bar-ep" style="width:${epWidth}%"></div></div>
+        <div class="bar-wrap"><div class="bar-lxp" style="width:${lxpWidth}%"></div></div>
+        <div class="creature-img" style="background-image:url('ei.png')">
+            ${player.gear === 'sword' ? '<div class="gear-sword"></div>' : ''}
+        </div>
+        <div class="name-tag">${player.name}</div>
+    `;
+    layer.appendChild(div);
+}
+
+// BATTLE SYSTEM
+function spawnBoss() {
+    boss.active = true;
+    boss.hp = 100;
+    document.getElementById('bossArea').style.display = 'block';
+    addLog("Ein wildes Monster greift an!");
+}
+
+function doAttack() {
+    if(!boss.active) return;
+    const dmg = player.gear === 'sword' ? 10 : 2;
+    boss.hp -= dmg;
+    
+    document.getElementById('bossHpFill').style.width = boss.hp + "%";
+    addLog(`Du triffst für ${dmg} Schaden!`);
+
+    if(boss.hp <= 0) {
+        boss.active = false;
+        document.getElementById('bossArea').style.display = 'none';
+        player.lxp += 20;
+        player.wood += 10;
+        addLog("SIEG! +20 LXP, +10 Holz erhalten.");
+        save();
     }
-    renderCreatures();
 }
 
-function toggleInventory(show) {
-    document.getElementById('invOverlay').style.display = show ? 'flex' : 'none';
-    if (show) updateInventoryUI();
+function addLog(txt) {
+    const log = document.getElementById('battleLog');
+    log.innerHTML += `<div>> ${txt}</div>`;
+    log.scrollTop = log.scrollHeight;
 }
 
-function craftSet() {
-    const p = gameState.creatures[gameState.playerName];
-    if (p.wood >= 100 || p.name === BROADCASTER_NAME) {
-        if (p.name !== BROADCASTER_NAME) p.wood -= 100;
-        p.ownsGear = true;
-        saveGameState();
-        updateInventoryUI();
-        alert("Set geschmiedet! Klicke jetzt auf die Slots links zum Anziehen.");
-    } else { alert("Zu wenig Holz!"); }
-}
+// MENÜ SYSTEM
+function openMenu(type) {
+    const modal = document.getElementById('menuModal');
+    const title = document.getElementById('menuTitle');
+    const body = document.getElementById('menuBody');
+    modal.style.display = 'flex';
 
-function toggleGear(slot) {
-    const p = gameState.creatures[gameState.playerName];
-    if (!p.ownsGear) { alert("Schmiede erst das Set!"); return; }
-    
-    p.equipped[slot] = p.equipped[slot] ? null : GEAR_DATA[slot];
-    saveGameState();
-    updateInventoryUI();
-    renderCreatures();
-}
-
-function updateInventoryUI() {
-    const p = gameState.creatures[gameState.playerName];
-    const days = Math.floor((Date.now() - p.joinDate) / 86400000);
-    
-    document.getElementById('invPlayerName').textContent = p.name.toUpperCase();
-    document.getElementById('statEP').textContent = days;
-    document.getElementById('statLXP').textContent = Math.floor(p.lxp);
-    document.getElementById('statWood').textContent = Math.floor(p.wood);
-    
-    const charImg = (p.type === 'sub' && days >= 30) ? 'schleim.png' : (p.type === 'sub' ? 'ei.png' : 'follower.png');
-    document.getElementById('charPreview').style.backgroundImage = `url('${charImg}')`;
-    
-    // Slots Refresh
-    ["head", "hand", "body", "feet"].forEach(s => {
-        const slotEl = document.getElementById(`slot-${s}`);
-        const prevEl = document.getElementById(`prev-${s}`);
-        const active = !!p.equipped[s];
-        slotEl.classList.toggle('active', active);
-        if (s === 'hand') prevEl.style.display = active ? "block" : "none";
-        else prevEl.textContent = active ? p.equipped[s] : "";
-    });
-}
-
-function renderCreatures() {
-    const container = document.getElementById('creaturesContainer');
-    container.innerHTML = '';
-    Object.values(gameState.creatures).forEach(c => {
-        const el = document.createElement('div');
-        el.className = 'creature';
-        el.id = `creature-${c.name}`;
-        
-        const days = Math.floor((Date.now() - c.joinDate) / 86400000);
-        const img = (c.type === 'sub' && days >= 30) ? 'schleim.png' : (c.type === 'sub' ? 'ei.png' : 'follower.png');
-        
-        // Render Layers
-        let gearHtml = '';
-        if (c.equipped.head) gearHtml += `<div class="emoji-layer head-gear">${c.equipped.head}</div>`;
-        if (c.equipped.body) gearHtml += `<div class="emoji-layer body-gear">${c.equipped.body}</div>`;
-        if (c.equipped.feet) gearHtml += `<div class="emoji-layer feet-gear">${c.equipped.feet}</div>`;
-        if (c.equipped.hand) gearHtml += `<div class="visual-gear-png"></div>`;
-
-        el.innerHTML = `
-            <div class="bar-container" style="top:-20px;"><div class="bar-fill-ep" style="width:${Math.min(100, (days/30)*100)}%"></div></div>
-            <div class="bar-container" style="top:-13px;"><div class="bar-fill-lxp" style="width:${Math.min(100, c.lxp)}%"></div></div>
-            <div class="creature-base" style="background-image:url('${img}')">
-                ${gearHtml}
-                <div class="name-tag">${c.name}</div>
-            </div>
+    if(type === 'forge') {
+        title.textContent = "Schmiede";
+        body.innerHTML = `
+            <p>Ein 16-Bit Schwert schmieden?</p>
+            <p style="font-size:12px;">Kosten: 50 Holz</p>
+            <button onclick="buy('sword')">SCHMIEDEN</button>
         `;
-        el.style.left = (20 + Math.random() * 60) + "%";
-        el.style.top = (30 + Math.random() * 40) + "%";
-        container.appendChild(el);
-    });
+    } else if(type === 'shop') {
+        title.textContent = "Marktplatz";
+        body.innerHTML = `<p>Hier kommen bald Items für LXP rein!</p>`;
+    } else if(type === 'inv') {
+        title.textContent = "Inventar";
+        body.innerHTML = `
+            <p>Schwert: ${player.ownsSword ? 'Vorhanden' : 'Keins'}</p>
+            ${player.ownsSword ? `<button onclick="toggleGear()">${player.gear ? 'Ablegen' : 'Anlegen'}</button>` : ''}
+        `;
+    }
 }
 
-function saveGameState() { localStorage.setItem('creatures', JSON.stringify(gameState.creatures)); }
+function buy(item) {
+    if(item === 'sword' && player.wood >= 50) {
+        player.wood -= 50;
+        player.ownsSword = true;
+        alert("Schwert erhalten!");
+        save();
+    } else { alert("Nicht genug Holz!"); }
+}
 
-window.onload = () => {
-    initGame();
+function toggleGear() {
+    player.gear = player.gear ? null : 'sword';
+    save();
+    renderPlayer();
+}
+
+function save() {
+    localStorage.setItem('nestPlayer', JSON.stringify(player));
+    updateHUD();
+}
+
+function startLoops() {
+    // Passives Sammeln
     setInterval(() => {
-        Object.values(gameState.creatures).forEach(c => {
-            const el = document.getElementById(`creature-${c.name}`);
-            if(el) {
-                el.style.left = (15 + Math.random() * 70) + "%";
-                el.style.top = (25 + Math.random() * 55) + "%";
-            }
-        });
+        player.wood += 0.2;
+        player.lxp += 0.05;
+        save();
     }, 5000);
-    setInterval(() => {
-        Object.values(gameState.creatures).forEach(c => { c.wood += 1; c.lxp += 0.2; });
-        saveGameState();
-        if (document.getElementById('invOverlay').style.display === 'flex') updateInventoryUI();
-    }, 10000);
-};
+}
+
+window.onload = init;
 </script>
 </body>
 </html>
