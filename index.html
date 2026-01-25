@@ -3,181 +3,191 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Isekai Village - The Nest: Adventure Edition</title>
+<title>Isekai Village - The Nest: RPG Edition</title>
 <style>
-    /* ===== BASE & LAYER SYSTEM ===== */
-    body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', sans-serif; color: #e0d8b0; background: #0a0a12; position: relative; }
-    #watermark { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="600"><text x="50%" y="50%" font-family="Arial" font-size="40" fill="%23ffffff" fill-opacity="0.06" text-anchor="middle" transform="rotate(-15 500 300)">Property of Spawn2909 - The Nest</text></svg>'); z-index: 5; pointer-events: none; }
-    #gameWorld { position: absolute; width: 100%; height: 100%; background-image: url('wald.png'); background-size: cover; z-index: 1; }
-    
-    /* ===== BOSS RAID UI (OPTIMIERT) ===== */
-    #bossUI { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 500px; background: rgba(30, 5, 5, 0.95); border: 2px solid #ff4444; border-radius: 15px; padding: 20px; display: none; z-index: 150; box-shadow: 0 0 30px #ff0000; text-align: center; }
-    #bossHPBar { height: 25px; width: 100%; background: #222; border-radius: 12px; margin: 15px 0; overflow: hidden; border: 1px solid #ff4444; }
-    #bossHPFill { height: 100%; width: 100%; background: linear-gradient(90deg, #ff0000, #990000); transition: width 0.3s; }
-    
-    /* RIESIGER ATTACK BUTTON */
-    #attackBtn { 
-        background: linear-gradient(180deg, #ff4444, #990000); 
-        color: white; border: 2px solid #fff; 
-        padding: 20px 40px; border-radius: 10px; 
-        font-size: 24px; font-weight: bold; cursor: pointer; 
-        display: none; margin-top: 15px; width: 100%;
-        text-transform: uppercase; letter-spacing: 2px;
-        box-shadow: 0 5px 15px rgba(255,0,0,0.4);
-        transition: transform 0.1s;
-    }
-    #attackBtn:active { transform: scale(0.95); }
-    
-    /* BATTLE LOG */
-    #battleLog { height: 120px; overflow-y: hidden; font-size: 0.9em; color: #ffaaaa; margin-top: 15px; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 8px; text-align: left; border: 1px solid rgba(255,68,68,0.3); }
-    .log-name { color: #ffd700; font-weight: bold; }
-    .log-dmg { color: #ffffff; font-weight: bold; }
+    /* ===== BASE & PROTECTION ===== */
+    body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', sans-serif; color: #e0d8b0; background: #0a0a12; }
+    #watermark { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="600"><text x="50%" y="50%" font-family="Arial" font-size="36" fill="%23ffffff" fill-opacity="0.08" text-anchor="middle" transform="rotate(-15 500 300)">Property of Spawn2909 - The Nest</text></svg>'); z-index: 5; pointer-events: none; }
+    #gameWorld { position: absolute; width: 100%; height: 100%; background-image: url('wald.png'); background-size: 100% 100%; z-index: 1; }
 
-    #raidTimerDisplay { position: fixed; bottom: 20px; left: 10px; font-size: 14px; color: rgba(255,255,255,0.6); z-index: 100; background: rgba(0,0,0,0.4); padding: 5px 10px; border-radius: 5px; }
-
-    /* ===== CREATURES & UI ===== */
-    .creature { position: absolute; width: 70px; height: 70px; z-index: 10; pointer-events: none; }
-    .creature-base { width: 100%; height: 100%; background-size: contain; background-repeat: no-repeat; background-position: center; }
+    /* ===== CREATURES & BARS ===== */
+    .creature { position: absolute; width: 70px; height: 70px; z-index: 10; transition: left 2s linear, top 2s linear; }
+    .creature-base { width: 100%; height: 100%; background-size: contain; background-repeat: no-repeat; background-position: center; position: relative; }
     .name-tag { position: absolute; bottom: -25px; width: 160%; left: -30%; text-align: center; font-size: 11px; font-weight: bold; color: #ffeb3b; text-shadow: 2px 2px 2px black; }
+    
+    /* EP & LXP Leisten am Charakter */
+    .stat-bars { position: absolute; top: -15px; left: 0; width: 100%; }
+    .bar-bg { height: 4px; background: rgba(0,0,0,0.6); border-radius: 2px; margin-bottom: 2px; width: 100%; overflow: hidden; }
+    .bar-ep { height: 100%; background: #4caf50; width: 0%; transition: width 0.5s; }
+    .bar-lxp { height: 100%; background: #ff9800; width: 0%; transition: width 0.5s; }
+
+    /* ===== UI PANELS ===== */
     .ui-panel { position: absolute; background: rgba(18, 22, 30, 0.9); border: 1px solid rgba(184, 134, 11, 0.7); border-radius: 8px; padding: 12px; z-index: 100; backdrop-filter: blur(5px); }
     #villageStats { left: 10px; top: 10px; width: 220px; }
+    #inventoryPanel { right: 10px; top: 10px; width: 200px; cursor: pointer; }
+    #bossUI { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); width: 400px; background: rgba(40,0,0,0.9); border: 2px solid #ff4444; border-radius: 12px; padding: 20px; display: none; z-index: 150; text-align: center; }
+
+    .disabled-offline { opacity: 0.5; pointer-events: none; filter: grayscale(1); }
+    .online-indicator { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
 </style>
 </head>
 <body>
 
 <div id="watermark"></div>
-<div id="raidTimerDisplay">Nächster Raid in: --:--</div>
 
 <div id="bossUI">
-    <h2 style="margin:0; color:#ff4444;">👹 BOSS-RAID AKTIV!</h2>
-    <div id="bossHPBar"><div id="bossHPFill"></div></div>
-    <div id="battleLog">Warte auf den ersten Schlag...</div>
-    <button id="attackBtn" onclick="handleManualAttack()">⚔ ANGRIFF! ⚔</button>
+    <h2 style="color:#ff4444; margin:0;">👹 BOSS RAID</h2>
+    <div style="background:#222; height:15px; border-radius:10px; margin:10px 0;"><div id="bossHPFill" style="height:100%; background:red; width:100%;"></div></div>
+    <button id="attackBtn" style="padding:10px 20px; background:red; color:white; border:none; border-radius:5px; font-weight:bold; cursor:pointer;" onclick="handleManualAttack()">ANGRIFF!</button>
 </div>
 
-<div id="gameWorld">
-    <div id="creaturesContainer"></div>
-</div>
+<div id="gameWorld"><div id="creaturesContainer"></div></div>
 
 <div id="villageStats" class="ui-panel">
-    <h3>🏡 Dorf-Statistik</h3>
-    <div id="currentUserDisplay" style="color:#ffd700; font-weight:bold; margin-bottom:10px;">Spieler: -</div>
+    <h3>🏡 Dorf-Status</h3>
+    <div id="statusIndicator"><span class="online-indicator" id="liveDot" style="background:gray;"></span> <span id="liveText">Offline</span></div>
+    <hr>
     <div>Einwohner: <span id="resCount">0</span></div>
-    <div>Gold: <span id="resGold">0</span> 💰</div>
+    <div>Dorf-Gold: <span id="resGold">0</span></div>
+</div>
+
+<div id="inventoryPanel" class="ui-panel" onclick="toggleInventory()">
+    <h3>🎒 Inventar (Klick)</h3>
+    <div id="invContent" style="display:none; font-size:12px;">
+        <p>Holz: <span id="invHolz">0</span></p>
+        <p>Stein: <span id="invStein">0</span></p>
+        <p>LXP: <span id="invLXP">0</span></p>
+        <p>EP: <span id="invEP">0</span></p>
+        <hr>
+        <p>Ausrüstung: <span id="invGear">Keine</span></p>
+    </div>
 </div>
 
 <script>
-// ===== CONFIG & STORAGE =====
 const SECURITY = { HMAC_SECRET: 'NestWächter2026!', WS_ORIGIN: 'ws://127.0.0.1:8080' };
 
 const gameState = {
     creatures: JSON.parse(localStorage.getItem('creatures')) || {},
     resources: JSON.parse(localStorage.getItem('resources')) || { gold: 0 },
-    boss: { active: false, hp: 0, maxHp: 0, name: "Feuer-Drache" },
-    raidTimer: parseInt(localStorage.getItem('nextRaidTime')) || 0,
+    isLive: false,
     playerName: localStorage.getItem('nestPlayerName') || null
 };
 
-// ===== IDENTITY LOGIC =====
+// 30 EP (Tage) für Evolution
+const EVO_DAYS = 30;
+
+// ===== IDENTITY & STORAGE =====
 function checkIdentity() {
     if (!gameState.playerName) {
-        let name = prompt("Willkommen im Nest! Wie lautet dein Abenteurer-Name?", "Abenteurer");
-        if (!name || name.trim() === "") name = "Unbekannter";
-        gameState.playerName = name.trim();
+        let name = prompt("Dein Name?", "Abenteurer");
+        gameState.playerName = name || "Held";
         localStorage.setItem('nestPlayerName', gameState.playerName);
     }
-    document.getElementById('currentUserDisplay').textContent = "Held: " + gameState.playerName;
-    
-    // Den Spieler auch visuell ins Dorf einfügen, falls nicht vorhanden
     if (!gameState.creatures[gameState.playerName]) {
-        addCreature(gameState.playerName, 'follower', Date.now());
+        gameState.creatures[gameState.playerName] = { 
+            name: gameState.playerName, type: 'follower', xp: 0, lxp: 10, 
+            joinDate: Date.now(), wood: 0, stone: 0, gear: "Stoffkleidung" 
+        };
     }
 }
 
-// ===== RAID TIMER LOGIC =====
-function getRaidInterval() {
-    const day = new Date().getDay();
-    return (day >= 1 && day <= 4 || day === 0) ? 2700000 : 3600000;
-}
-
-function initRaidTimer() {
-    if (!gameState.raidTimer || gameState.raidTimer < Date.now()) setNextRaid();
-    setInterval(checkRaidTime, 1000);
-}
-
-function setNextRaid() {
-    gameState.raidTimer = Date.now() + getRaidInterval();
-    localStorage.setItem('nextRaidTime', gameState.raidTimer);
-}
-
-function checkRaidTime() {
-    if (gameState.boss.active) return;
-    const timeLeft = gameState.raidTimer - Date.now();
-    if (timeLeft <= 0) triggerBoss();
-    else updateTimerDisplay(timeLeft);
-}
-
-function updateTimerDisplay(ms) {
-    const m = Math.floor(ms / 60000);
-    const s = Math.floor((ms % 60000) / 1000);
-    document.getElementById('raidTimerDisplay').textContent = `Nächster Raid in: ${m}:${s < 10 ? '0' : ''}${s}`;
-}
-
-// ===== COMBAT LOGIC =====
-function triggerBoss() {
-    gameState.boss.active = true;
-    gameState.boss.maxHp = 2000 + (Object.keys(gameState.creatures).length * 150);
-    gameState.boss.hp = gameState.boss.maxHp;
-    document.getElementById('bossUI').style.display = 'block';
-    document.getElementById('attackBtn').style.display = 'block';
-    addLog(`Der <span class="log-name">${gameState.boss.name}</span> greift an!`);
-    updateBossUI();
-}
-
-function handleManualAttack() {
-    if (!gameState.boss.active) return;
+// ===== OFFLINE/ONLINE LOGIK =====
+function setOnlineStatus(online) {
+    gameState.isLive = online;
+    const dot = document.getElementById('liveDot');
+    const text = document.getElementById('liveText');
+    const bossUI = document.getElementById('bossUI');
     
-    const dmg = 45 + Math.floor(Math.random() * 20);
-    gameState.boss.hp -= dmg;
-    
-    // Nutzt den lokal gespeicherten Namen
-    addLog(`<span class="log-name">${gameState.playerName}</span> landet einen Treffer: <span class="log-dmg">${dmg}</span> Schaden!`);
-
-    // XP/LXP Belohnung
-    if (gameState.creatures[gameState.playerName]) {
-        gameState.creatures[gameState.playerName].xp = (gameState.creatures[gameState.playerName].xp || 0) + 5;
-        gameState.creatures[gameState.playerName].lxp = (gameState.creatures[gameState.playerName].lxp || 0) + 2;
+    if (online) {
+        dot.style.background = "#44ff44";
+        text.textContent = "Live & Aktiv";
+        bossUI.classList.remove('disabled-offline');
+    } else {
+        dot.style.background = "gray";
+        text.textContent = "Offline (Sammeln...)";
+        bossUI.style.display = 'none';
     }
-
-    updateBossUI();
-    if (gameState.boss.hp <= 0) victory();
 }
 
-function victory() {
-    gameState.boss.active = false;
-    addLog(`SIEG! Der Boss wurde besiegt!`);
-    document.getElementById('attackBtn').style.display = 'none';
-    setTimeout(() => { 
-        document.getElementById('bossUI').style.display = 'none'; 
-        setNextRaid(); 
-    }, 4000);
+// ===== MOVEMENT (KEIN ZITTERN MEHR) =====
+function moveCreatures() {
+    Object.values(gameState.creatures).forEach(c => {
+        const el = document.getElementById(`creature-${c.name}`);
+        if (!el) return;
+        
+        // Zufällige neue Position alle 2 Sekunden (ruhigere Bewegung)
+        const newX = 10 + Math.random() * 80;
+        const newY = 20 + Math.random() * 60;
+        
+        el.style.left = newX + "%";
+        el.style.top = newY + "%";
+    });
+}
+
+// ===== EVOLUTION & STATS =====
+function updateCreatureStats() {
+    Object.values(gameState.creatures).forEach(c => {
+        const now = Date.now();
+        const daysFollowed = Math.floor((now - c.joinDate) / (1000 * 60 * 60 * 24));
+        c.xp = daysFollowed; // 1 EP pro Tag
+
+        const el = document.getElementById(`creature-${c.name}`);
+        if (el) {
+            // Evolution Check
+            const img = (c.type === 'sub' && c.xp >= EVO_DAYS) ? 'schleim.png' : (c.type === 'sub' ? 'ei.png' : 'follower.png');
+            el.querySelector('.creature-base').style.backgroundImage = `url('${img}')`;
+            
+            // Balken Update
+            const epPercent = Math.min(100, (c.xp / EVO_DAYS) * 100);
+            el.querySelector('.bar-ep').style.width = epPercent + "%";
+            el.querySelector('.bar-lxp').style.width = Math.min(100, (c.lxp / 100) * 100) + "%";
+        }
+        
+        // Offline-Sammeln (Jede Minute 1 Holz/Stein)
+        c.wood += 1;
+        c.stone += 0.5;
+    });
+    updateUI();
     saveGameState();
 }
 
-function addLog(msg) {
-    const log = document.getElementById('battleLog');
-    const entry = document.createElement('div');
-    entry.innerHTML = `> ${msg}`;
-    log.prepend(entry);
+// ===== UI & INVENTORY =====
+function toggleInventory() {
+    const content = document.getElementById('invContent');
+    content.style.display = content.style.display === 'none' ? 'block' : 'none';
 }
 
-// ===== ENGINE & RENDER =====
-function addCreature(name, type, timestamp) {
-    if (!gameState.creatures[name]) {
-        gameState.creatures[name] = { name, type, xp: 0, lxp: 50, joinDate: timestamp };
-        renderCreatures();
-        saveGameState();
+function updateUI() {
+    const me = gameState.creatures[gameState.playerName];
+    if (me) {
+        document.getElementById('invHolz').textContent = Math.floor(me.wood);
+        document.getElementById('invStein').textContent = Math.floor(me.stone);
+        document.getElementById('invLXP').textContent = Math.floor(me.lxp);
+        document.getElementById('invEP').textContent = me.xp;
+        document.getElementById('invGear').textContent = me.gear;
     }
+    document.getElementById('resCount').textContent = Object.keys(gameState.creatures).length;
+    document.getElementById('resGold').textContent = Math.floor(gameState.resources.gold);
+}
+
+// ===== WEBSOCKET (STREAMER.BOT) =====
+function setupWS() {
+    const socket = new WebSocket(SECURITY.WS_ORIGIN);
+    socket.onopen = () => setOnlineStatus(true);
+    socket.onclose = () => { setOnlineStatus(false); setTimeout(setupWS, 5000); };
+    socket.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if (data.type === "follow" || data.type === "sub") {
+            const p = data.payload;
+            if (!gameState.creatures[p.username]) {
+                gameState.creatures[p.username] = { 
+                    name: p.username, type: data.type, xp: 0, lxp: 10, 
+                    joinDate: Date.now(), wood: 0, stone: 0, gear: "Stoff" 
+                };
+                renderCreatures();
+            }
+        }
+    };
 }
 
 function renderCreatures() {
@@ -187,19 +197,17 @@ function renderCreatures() {
         const el = document.createElement('div');
         el.className = 'creature';
         el.id = `creature-${c.name}`;
-        el.innerHTML = `<div class="creature-base" style="background-image: url('${c.type==='sub'?'ei.png':'follower.png'}')"></div><div class="name-tag">${c.name}</div>`;
+        el.innerHTML = `
+            <div class="stat-bars">
+                <div class="bar-bg"><div class="bar-ep"></div></div>
+                <div class="bar-bg"><div class="bar-lxp"></div></div>
+            </div>
+            <div class="creature-base">
+                <div class="name-tag">${c.name}</div>
+            </div>
+        `;
         container.appendChild(el);
     });
-}
-
-function updateBossUI() {
-    const p = (gameState.boss.hp / gameState.boss.maxHp) * 100;
-    document.getElementById('bossHPFill').style.width = Math.max(0, p) + "%";
-}
-
-function updateUI() {
-    document.getElementById('resCount').textContent = Object.keys(gameState.creatures).length;
-    document.getElementById('resGold').textContent = gameState.resources.gold;
 }
 
 function saveGameState() { 
@@ -208,21 +216,12 @@ function saveGameState() {
 }
 
 window.onload = () => {
-    checkIdentity(); // Namen abfragen oder laden
+    checkIdentity();
     renderCreatures();
-    initRaidTimer();
+    setupWS();
+    setInterval(updateCreatureStats, 60000); // Stats & Offline-Sammeln jede Minute
+    setInterval(moveCreatures, 3000); // Ruhige Bewegung alle 3 Sek.
     updateUI();
-    
-    // Einfache Bewegung
-    setInterval(() => {
-        Object.values(gameState.creatures).forEach(c => {
-            const el = document.getElementById(`creature-${c.name}`);
-            if(!el) return;
-            if(!c.curX) { c.curX = 20+Math.random()*60; c.curY = 30+Math.random()*50; }
-            c.curX += (Math.random()-0.5)*0.3; c.curY += (Math.random()-0.5)*0.3;
-            el.style.left = c.curX + "%"; el.style.top = c.curY + "%";
-        });
-    }, 100);
 };
 </script>
 </body>
