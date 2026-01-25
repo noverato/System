@@ -3,99 +3,82 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>The Nest: Solo Leveling RPG Master</title>
+<title>The Nest: Solo Leveling RPG Final</title>
 <style>
     body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #000; color: #e0d8b0; }
     #viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; }
     #world { 
         width: 1920px; height: 1080px; 
-        background: url('wald.png') no-repeat center; 
-        background-size: cover;
+        background: url('wald.png') no-repeat center; background-size: cover;
         position: absolute; transform-origin: 0 0; transition: transform 0.1s ease-out;
     }
 
     /* CHARAKTER */
-    .creature { position: absolute; width: 80px; height: 100px; z-index: 100; transition: left 0.8s ease-out, top 0.8s ease-out; text-align: center; transform: translate(-50%, -50%); }
+    .creature { position: absolute; width: 80px; height: 100px; z-index: 1000; transition: left 0.8s ease-out, top 0.8s ease-out; text-align: center; transform: translate(-50%, -50%); }
     .avatar-emoji { font-size: 60px; display: block; filter: drop-shadow(0 0 15px rgba(59, 130, 246, 0.8)); }
     .name-tag { font-size: 14px; font-weight: bold; color: #fff; background: rgba(15, 23, 42, 0.9); padding: 2px 12px; border-radius: 8px; border: 1px solid #3b82f6; margin-top: 5px; }
 
     /* GEBÄUDE */
-    .building { position: absolute; background-size: contain; background-repeat: no-repeat; background-position: center; cursor: pointer; z-index: 10; transform: translate(-50%, -50%); }
-    .label { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); padding: 2px 8px; border-radius: 5px; font-size: 11px; white-space: nowrap; }
+    .building { position: absolute; background-size: contain; background-repeat: no-repeat; background-position: center; cursor: pointer; z-index: 10; transform: translate(-50%, -50%); border: 1px solid transparent; }
+    .building:hover { border-color: gold; background-color: rgba(255,215,0,0.1); }
+    .label { position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: gold; padding: 2px 8px; border-radius: 5px; font-size: 12px; white-space: nowrap; border: 1px solid gold; }
 
-    /* BATTLE POPUP */
-    #battlePopup { 
+    /* BATTLE LOG (FF STYLE) */
+    #battleLogBox { 
         position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-        background: rgba(0,0,0,0.95); border: 3px solid red; padding: 40px;
-        z-index: 100000; display: none; text-align: center; border-radius: 20px;
-        box-shadow: 0 0 50px red;
+        width: 400px; background: rgba(0,0,50,0.95); border: 3px solid #3b82f6; 
+        padding: 20px; z-index: 100000; display: none; color: white; border-radius: 15px;
+        box-shadow: 0 0 50px #000; font-family: 'Courier New', monospace;
     }
 
-    /* MASTER INVENTAR */
+    /* INVENTAR */
     .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; z-index: 20000; align-items: center; justify-content: center; }
     .inv-container { 
-        display: grid; grid-template-columns: 100px 1fr 100px; grid-template-rows: 1fr 150px;
-        gap: 15px; width: 600px; background: #111827; border: 3px solid #3b82f6; border-radius: 25px; padding: 20px;
+        display: grid; grid-template-columns: 100px 1fr 100px; gap: 15px; 
+        width: 650px; background: #0f172a; border: 3px solid #facc15; border-radius: 25px; padding: 25px;
     }
-    .inv-slot { background: rgba(255,255,255,0.05); border: 2px solid #374151; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 24px; }
-    .center-char { grid-column: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-    .bottom-grid { grid-column: 1 / span 3; display: grid; grid-template-columns: repeat(9, 1fr); gap: 5px; }
+    .inv-slot { background: #1e293b; border: 1px solid #334155; border-radius: 8px; height: 60px; display: flex; align-items: center; justify-content: center; font-size: 28px; }
 
-    /* UI */
-    #hud { position: fixed; top: 20px; left: 20px; background: rgba(15, 23, 42, 0.95); padding: 15px; border-radius: 15px; border: 2px solid #3b82f6; z-index: 10000; }
-    #adminPanel { position: fixed; top: 20px; right: 20px; background: rgba(153, 27, 27, 0.9); padding: 10px; border-radius: 10px; border: 2px solid #ef4444; z-index: 10000; }
+    #hud { position: fixed; top: 20px; left: 20px; background: rgba(15, 23, 42, 0.9); padding: 15px; border-radius: 15px; border: 1px solid #3b82f6; z-index: 5000; }
 </style>
 </head>
 <body>
 
-<div id="battlePopup">
-    <h2 style="color:red; margin:0;">⚔️ KAMPF STARTET...</h2>
-    <p id="battleText">Ein Monster greift an!</p>
+<div id="battleLogBox">
+    <h3 style="color:#ef4444; border-bottom: 1px solid #ef4444; margin-top:0;">💥 KAMPF!</h3>
+    <div id="logText" style="height: 150px; overflow-y: auto; font-size: 14px;"></div>
 </div>
 
 <div id="viewport">
     <div id="world" onclick="handleWorldClick(event)">
-        <div class="building" style="left: 1500px; top: 200px; width: 220px; height: 220px; background-image: url('steinbruch.png');" id="quarry"><div class="label">Steinbruch</div></div>
-        <div class="building" style="left: 1200px; top: 750px; width: 220px; height: 220px; background-image: url('marktplatz.png');" onclick="toggleMarket(true)"><div class="label">Marktplatz</div></div>
-        <div class="building" style="left: 400px; top: 300px; width: 250px; height: 250px; background-image: url('rathaus.png');"><div class="label">Rathaus</div></div>
-        <div class="building" style="left: 900px; top: 200px; width: 200px; height: 200px; background-image: url('heilige_schmiede.png');"><div class="label">Heilige Schmiede</div></div>
-        <div class="building" style="left: 700px; top: 500px; width: 180px; height: 180px; background-image: url('schmiede.png');"><div class="label">Schmiede</div></div>
+        <div class="building" style="left:1500px; top:200px; width:250px; height:250px; background-image:url('steinbruch.png');" onclick="openBuilding('steinbruch')"><div class="label">Steinbruch</div></div>
+        <div class="building" style="left:1200px; top:750px; width:220px; height:220px; background-image:url('marktplatz.png');" onclick="openBuilding('markt')"><div class="label">Marktplatz</div></div>
+        <div class="building" style="left:400px; top:300px; width:250px; height:250px; background-image:url('rathaus.png');" onclick="openBuilding('rathaus')"><div class="label">Rathaus</div></div>
+        <div class="building" style="left:900px; top:200px; width:220px; height:220px; background-image:url('heilige_schmiede.png');" onclick="openBuilding('h_schmiede')"><div class="label">Heilige Schmiede</div></div>
+        <div class="building" style="left:700px; top:500px; width:200px; height:200px; background-image:url('schmiede.png');" onclick="openBuilding('schmiede')"><div class="label">Schmiede</div></div>
         
         <div id="charLayer"></div>
     </div>
 </div>
 
 <div id="hud">
-    <div style="font-weight: bold; color: #facc15;"><span id="playerName">Lädt...</span></div>
-    <div style="font-size: 12px; color: #94a3b8;">LXP: <span id="lxp">0</span> | EP: <span id="ep">0</span> | 🪨 <span id="stein">0</span></div>
+    <div style="color:#facc15; font-weight:bold; font-size:18px;">✨ <span id="playerName">Lädt...</span></div>
+    <div style="font-size:12px;">🪨 Steine: <span id="steinCount">0</span> | 🌿 Gras: <span id="grasCount">0</span></div>
+    <div style="font-size:11px; color:#3b82f6;">LXP: <span id="lxp">0</span> | EP: <span id="ep">0</span></div>
 </div>
 
-<div id="adminPanel" style="display:none;">
-    <button onclick="addRes('lxp', 100)">+100 LXP</button>
-    <button onclick="localStorage.clear(); location.reload();">RESET</button>
-</div>
-
-<button style="position:fixed; bottom:20px; right:20px; z-index:10000; padding:15px 30px; border-radius:15px; background:#2563eb; color:white; border:none; font-weight:bold; cursor:pointer;" onclick="toggleInv(true)">🎒 STATUS & LOOT</button>
+<button style="position:fixed; bottom:20px; right:20px; z-index:10000; padding:15px 30px; border-radius:15px; background:#2563eb; color:white; border:none; cursor:pointer;" onclick="toggleInv(true)">🎒 STATUS</button>
 
 <div id="invModal" class="modal">
     <div class="inv-container">
-        <div style="display:flex; flex-direction:column; gap:5px;">
-            <div class="inv-slot">🪖</div><div class="inv-slot">🛡️</div><div class="inv-slot">🧥</div><div class="inv-slot">👞</div><div class="inv-slot">💍</div>
-        </div>
-        
-        <div class="center-char">
+        <div style="display:grid; gap:5px;"><div class="inv-slot">🪖</div><div class="inv-slot">🛡️</div><div class="inv-slot">🧥</div><div class="inv-slot">👞</div><div class="inv-slot">💍</div></div>
+        <div style="text-align:center;">
             <div id="invAvatar" style="font-size: 100px;">🥚</div>
-            <div id="invClass" style="color:#3b82f6; font-weight:bold;">Ei</div>
+            <h3 id="invClass">Ei</h3>
+            <button onclick="toggleInv(false)" style="background:#ef4444; color:white; border:none; padding:10px; border-radius:5px; cursor:pointer;">Schließen</button>
         </div>
-
-        <div style="display:flex; flex-direction:column; gap:5px;">
-            <div class="inv-slot" title="Boss Loot">💎</div><div class="inv-slot">👑</div><div class="inv-slot">🔥</div><div class="inv-slot">🌀</div><div class="inv-slot">🦴</div>
-        </div>
-
-        <div class="bottom-grid" id="mainInventory">
-            </div>
-
-        <button style="grid-column: 2; margin-top:10px; background:#ef4444; color:white; border:none; border-radius:5px; padding:5px;" onclick="toggleInv(false)">Schließen</button>
+        <div style="display:grid; gap:5px;"><div class="inv-slot">💎</div><div class="inv-slot">👑</div><div class="inv-slot">🦴</div><div class="inv-slot">🏮</div><div class="inv-slot">📜</div></div>
+        <div style="grid-column: 1 / span 3; display:grid; grid-template-columns: repeat(9, 1fr); gap:5px; margin-top:10px;" id="lootGrid"></div>
     </div>
 </div>
 
@@ -116,30 +99,28 @@ window.addEventListener('wheel', (e) => {
 
 function init() {
     const p = new URLSearchParams(window.location.search);
-    if (p.get('user')) data.name = p.get('user');
-    if (p.get('admin') === 'true' && data.name.toLowerCase() === "spawn2909") {
-        document.getElementById('adminPanel').style.display = 'block';
-    }
+    const user = p.get('user');
+    if (user) data.name = user;
     updateUI();
-    setInterval(autoCollect, 5000); // Alle 5 Sek Steine sammeln
+    setInterval(autoCollect, 5000); // 5 Sekunden Takt
 }
 
 function updateUI() {
     document.getElementById('playerName').textContent = data.name;
     document.getElementById('lxp').textContent = data.lxp;
     document.getElementById('ep').textContent = data.ep;
-    document.getElementById('stein').textContent = data.stein;
+    document.getElementById('steinCount').textContent = data.stein;
+    document.getElementById('grasCount').textContent = data.gras;
     document.getElementById('invAvatar').textContent = data.emoji;
     document.getElementById('invClass').textContent = data.currentClass;
     
-    // Inventar Slots füllen
-    const grid = document.getElementById('mainInventory');
+    const grid = document.getElementById('lootGrid');
     grid.innerHTML = '';
     for(let i=0; i<9; i++) {
-        const slot = document.createElement('div');
-        slot.className = 'inv-slot';
-        slot.innerHTML = data.loot[i] || "";
-        grid.appendChild(slot);
+        const s = document.createElement('div');
+        s.className = 'inv-slot';
+        s.innerHTML = data.loot[i] || "";
+        grid.appendChild(s);
     }
     renderChar();
 }
@@ -158,41 +139,54 @@ function handleWorldClick(e) {
     const rect = world.getBoundingClientRect();
     data.x = (e.clientX - rect.left) / zoom;
     data.y = (e.clientY - rect.top) / zoom;
-    
-    // Zufallskampf
-    if(Math.random() > 0.9) triggerBattle();
-    else if(Math.random() > 0.7) data.gras++;
-    
+    if(Math.random() > 0.88) triggerBattle();
+    else if(Math.random() > 0.75) data.gras++;
     save();
 }
 
 function autoCollect() {
     const dist = Math.hypot(data.x - 1500, data.y - 200);
-    if(dist < 150) {
+    if(dist < 180) { // Steinbruch Radius
         data.stein += 1;
         updateUI();
     }
 }
 
 function triggerBattle() {
-    const popup = document.getElementById('battlePopup');
-    popup.style.display = 'block';
-    setTimeout(() => {
-        data.lxp += 15;
-        // Boss Loot Chance
-        if(Math.random() > 0.8) {
-            const bossLoot = ["💎", "👑", "🦴", "🏮"][Math.floor(Math.random()*4)];
-            data.loot.push(bossLoot);
-            alert("BOSS GEFALLEN! Du hast " + bossLoot + " erhalten!");
+    const box = document.getElementById('battleLogBox');
+    const log = document.getElementById('logText');
+    const monsters = ["Ratte 🐀", "Schleim 🟢", "Wildschwein 🐗", "Skelett 💀"];
+    const monster = monsters[Math.floor(Math.random() * monsters.length)];
+    
+    box.style.display = 'block';
+    log.innerHTML = `Ein wildes ${monster} taucht auf!<br>`;
+    
+    let turn = 1;
+    const fight = setInterval(() => {
+        const mAtk = Math.floor(Math.random() * 5) + 2;
+        const pDmg = data.lxp > 50 ? 12 : 6;
+        
+        log.innerHTML += `<span style="color:#aaa">Runde ${turn}:</span><br>`;
+        log.innerHTML += `> ${monster} verursacht ${mAtk} Schaden.<br>`;
+        log.innerHTML += `> <span style="color:#facc15">${data.name}</span> trifft für ${pDmg} DMG!<br>`;
+        log.scrollTop = log.scrollHeight;
+        
+        turn++;
+        if(turn > 3) {
+            clearInterval(fight);
+            data.lxp += 15; data.ep += 5;
+            log.innerHTML += `<br><b style="color:#22c55e">SIEG! +15 LXP / +5 EP</b>`;
+            setTimeout(() => { box.style.display = 'none'; save(); }, 3000);
         }
-        popup.style.display = 'none';
-        save();
-    }, 3000);
+    }, 1000);
+}
+
+function openBuilding(type) {
+    alert("Du betrittst: " + type + ". (Funktionen werden morgen implementiert!)");
 }
 
 function toggleInv(s) { document.getElementById('invModal').style.display = s ? 'flex' : 'none'; }
 function save() { localStorage.setItem('nestData', JSON.stringify(data)); updateUI(); }
-function addRes(t, v) { data[t] += v; save(); }
 
 window.onload = init;
 </script>
