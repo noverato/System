@@ -2,145 +2,324 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>Spawn2909 System</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Twitch RPG HUD</title>
 <style>
-    body { margin:0; background:#050b12; font-family:'Segoe UI', sans-serif; color:white; display:flex; justify-content:center; align-items:center; height:100vh; overflow: hidden; }
-    .system { width:950px; height:540px; background:linear-gradient(180deg,#031a30,#000); border:3px solid #00c3ff; border-radius:20px; box-shadow:0 0 40px #00c3ff; display:grid; grid-template-columns: 1fr 1fr; }
-    .char { padding:20px; border-right:2px solid #00c3ff; }
-    .char-box { border:1px solid #00c3ff; border-radius:10px; padding:15px; background:rgba(0,195,255,0.1); text-align:center; height:90%; }
-    .avatar { width:180px; height:180px; margin:auto; border-radius:20px; border:2px solid #00c3ff; box-shadow:0 0 20px #00c3ff; background:#000; display:flex; justify-content:center; align-items:center; overflow:hidden; }
-    .avatar img { max-width:100%; max-height:100%; object-fit: contain; }
-    .rank { font-size:24px; color:#00c3ff; margin-top:10px; font-weight: bold; text-shadow: 0 0 10px #00c3ff; }
-    .xpbar { background:#111; border:1px solid #00c3ff; height:20px; border-radius:20px; overflow:hidden; margin-top:10px; }
-    .xpfill { height:100%; background: linear-gradient(90deg, #005f7a, #00c3ff); width:0%; transition:1s; }
-    .rewards { margin-top:10px; min-height:40px; display:flex; justify-content:center; gap:8px; }
-    .inv { padding:20px; }
-    .grid { display:grid; grid-template-columns: repeat(3,1fr); gap:10px; }
-    .slot { height:90px; border:1px solid #444; border-radius:10px; background:#111; display:flex; justify-content:center; align-items:center; }
-    .slot img { max-width:60%; max-height:60%; filter:grayscale(100%); opacity:0.3; }
-    .slot.unlocked { border-color:#00c3ff; box-shadow:0 0 10px #00c3ff; background:rgba(0,195,255,0.2); }
-    .slot.unlocked img { filter:none; opacity:1; }
-    .daily { margin-top:15px; border:1px solid #00c3ff; padding:10px; border-radius:10px; background: rgba(0,0,0,0.5); }
-    button { background:#00c3ff; border:none; padding:8px 15px; cursor:pointer; font-weight:bold; color: #000; border-radius: 5px; }
-    input { width:80%; padding:8px; margin-top:5px; background: #111; border: 1px solid #00c3ff; color: white; border-radius: 5px; }
+/* =================== Grundlayout =================== */
+body {
+  margin:0;
+  font-family:'Segoe UI',sans-serif;
+  background:#0b0f1d;
+  color:#fff;
+  overflow:hidden;
+  user-select:none;
+}
+#main {
+  display:flex;
+  height:100vh;
+  width:100vw;
+}
+
+/* =================== Charakter-Menü =================== */
+#charMenu {
+  width:35%;
+  background:linear-gradient(180deg,#081b34,#041024);
+  border-right:3px solid #ffd700;
+  display:flex;
+  flex-direction:column;
+  padding:20px;
+  box-sizing:border-box;
+  position:relative;
+}
+
+/* --- Podest + Avatar --- */
+#avatarPodest {
+  width:220px;
+  height:60px;
+  margin:auto;
+  background:#112244;
+  border-radius:30px 30px 0 0;
+  position:relative;
+  box-shadow:0 0 20px #00c3ff inset;
+  animation: floatPodest 2s ease-in-out infinite alternate;
+}
+@keyframes floatPodest {
+  0% { transform: translateY(0px); }
+  100% { transform: translateY(-10px); }
+}
+#avatarContainer {
+  width:200px;
+  height:200px;
+  margin:-100px auto 0 auto;
+  position:relative;
+  border-radius:20px;
+  background:#000;
+  box-shadow:0 0 20px #ffd700;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  overflow:hidden;
+}
+
+/* --- Layer für Items --- */
+.avatar-layer {
+  position:absolute;
+  top:0; left:0;
+  width:100%; height:100%;
+  pointer-events:none;
+}
+
+/* --- Weapons / Slots --- */
+#wapons {
+  display:flex;
+  justify-content:center;
+  gap:10px;
+  margin-top:20px;
+}
+.weaponSlot {
+  width:60px; height:60px;
+  border:1px solid #444;
+  border-radius:10px;
+  background:#111;
+  display:flex; justify-content:center; align-items:center;
+  transition:0.3s;
+}
+.weaponSlot.rare {
+  border-color:#ffd700;
+  box-shadow:0 0 10px #ffd700;
+}
+.weaponSlot img {
+  max-width:70%; max-height:70%;
+}
+
+/* =================== Inventar & Rucksack =================== */
+#inventory { margin-top:20px; }
+#invGrid, #backpackGrid { display:grid; grid-template-columns: repeat(4,1fr); gap:10px; margin-top:5px; }
+.slot {
+  width:60px; height:60px;
+  border:1px solid #444;
+  border-radius:10px;
+  background:#111;
+  display:flex; justify-content:center; align-items:center;
+  cursor:pointer;
+}
+.slot img { max-width:80%; max-height:80%; filter:grayscale(100%); opacity:0.3; }
+.slot.unlocked img { filter:none; opacity:1; }
+.slot.rare { border-color:#ffd700; box-shadow:0 0 10px #ffd700; }
+
+/* =================== Tabs =================== */
+#tabs { width:65%; display:flex; flex-direction:column; background:#041024; }
+.tabButtons { display:flex; border-bottom:2px solid #ffd700; }
+.tabButtons button {
+  flex:1; padding:10px; background:#0b0f1d;
+  border:none; color:#fff; cursor:pointer; font-weight:bold;
+}
+.tabButtons button.active { background:#112244; border-bottom:3px solid #ffd700; }
+.tabContent { flex:1; padding:20px; overflow:auto; display:flex; flex-wrap:wrap; }
+
+/* =================== Dorf =================== */
+#villageMap {
+  width:100%; height:100%; background:#0c1a30; border-radius:15px;
+  position:relative;
+}
+.avatarTile {
+  width:40px; height:40px;
+  position:absolute;
+  border-radius:10px;
+  display:flex; justify-content:center; align-items:center;
+  background:#111;
+  border:1px solid #444;
+  font-size:24px;
+  box-shadow:0 0 5px #00c3ff;
+}
+
+/* =================== Marktplatz =================== */
+.marketItem {
+  background:#111; border:1px solid #444; border-radius:10px; padding:10px;
+  display:flex; flex-direction:column; align-items:center;
+  margin:5px;
+  transition:0.3s;
+}
+.marketItem.rare { border-color:#ffd700; box-shadow:0 0 10px #ffd700; }
+.marketItem img { width:50px; height:50px; margin-bottom:5px; }
+.marketItem button { margin-top:5px; padding:5px 10px; border:none; border-radius:5px; background:#ffd700; color:#000; cursor:pointer; font-weight:bold; }
+
+/* =================== Sicherheit =================== */
+body, html {
+  -webkit-user-select:none;
+  -moz-user-select:none;
+  -ms-user-select:none;
+  user-select:none;
+}
 </style>
 </head>
-<body>
+<body oncontextmenu="return false;" onkeydown="disableKeys(event)">
 
-<div class="system">
-    <div class="char">
-        <div class="char-box">
-            <div style="font-size: 1.2em;">SYSTEM-JÄGER: <span id="user" style="color:#00c3ff; font-weight:bold;">Gast</span></div>
-            <div class="rank" id="rank">LÄDT...</div>
-            <div class="avatar" id="avatarContainer">
-                <img id="avatarImage" src="img/ei.png" onerror="this.style.display='none'; document.getElementById('avatarText').style.display='block';">
-                <span id="avatarText" style="display:none; font-size: 50px;">🥚</span>
-            </div>
-            <div style="margin-top:10px;">XP: <span id="xp">0</span> / <span id="nextxp">60</span></div>
-            <div class="xpbar"><div class="xpfill" id="fill"></div></div>
-            <div class="rewards" id="rewards"></div>
-            <div class="daily" id="dailyBox">
-                <div id="question" style="font-style: italic; color: #aaa;">Warte auf Quest...</div>
-                <input id="answer" placeholder="Antwort eingeben...">
-                <div style="margin-top: 10px;"><button onclick="submitAnswer()">BESTÄTIGEN</button></div>
-            </div>
-        </div>
-    </div>
+<div id="main">
 
-    <div class="inv">
-        <h3 style="color:#00c3ff; border-bottom: 1px solid #00c3ff; padding-bottom: 5px;">INVENTAR</h3>
-        <div class="grid" id="inventory"></div>
+  <!-- Charakter -->
+  <div id="charMenu">
+    <div id="avatarPodest"></div>
+    <div id="avatarContainer">
+      <img id="avatarImg" src="img/ei.png">
+      <div class="avatar-layer" id="weaponLayer"></div>
+      <div class="avatar-layer" id="armorLayer"></div>
+      <div class="avatar-layer" id="jewelryLayer"></div>
     </div>
+    <div id="wapons">
+      <div class="weaponSlot" id="wp1"></div>
+      <div class="weaponSlot" id="wp2"></div>
+      <div class="weaponSlot" id="wp3"></div>
+    </div>
+    <div id="inventory">
+      <h3>Inventar</h3>
+      <div id="invGrid"></div>
+      <h3>Rucksack</h3>
+      <div id="backpackGrid"></div>
+      <button id="exportBtn">Profil als Bild exportieren</button>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div id="tabs">
+    <div class="tabButtons">
+      <button class="active" onclick="switchTab('villageMap')">Dorf</button>
+      <button onclick="switchTab('marketTab')">Marktplatz</button>
+    </div>
+    <div class="tabContent">
+      <div id="villageMap" class="tabPane"></div>
+      <div id="marketTab" class="tabPane" style="display:none;"></div>
+    </div>
+  </div>
+
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script>
-    const stages = [
-        {n:"EI", x:0, img:"img/ei.png", emo:"🥚"},
-        {n:"SCHLEIM", x:60, img:"img/schleim.png", emo:"💧"},
-        {n:"SKELETT", x:120, img:"img/skelett.png", emo:"💀"},
-        {n:"GOBLIN", x:240, img:"img/goblin.png", emo:"👺"},
-        {n:"OGER", x:480, img:"img/oger.png", emo:"👹"},
-        {n:"LICH", x:960, img:"img/lich.png", emo:"🧙‍♂️"},
-        {n:"HÖHERES WESEN", x:2000, img:"img/wesen.png", emo:"✨"}
-    ];
+// =================== Sicherheit ===================
+function disableKeys(e){
+  if(e.key==="F12" || (e.ctrlKey && e.shiftKey && ["I","J","C"].includes(e.key.toUpperCase()))) e.preventDefault();
+}
+document.addEventListener('contextmenu', e=>e.preventDefault());
 
-    const items = [
-        {n:"Schwert", x:60, img:"img/schwert.png", reward:"⚔️"},
-        {n:"Kristall", x:120, img:"img/kristall.png", reward:"💎"},
-        {n:"Truhe", x:240, img:"img/truhe.png", reward:"🎁"},
-        {n:"Relikt", x:960, img:"img/relikt.png", reward:"🔮"},
-        {n:"Krone", x:2000, img:"img/krone.png", reward:"👑"}
-    ];
+// =================== Charakter & Inventar ===================
+let charState = {
+  xp: Number(localStorage.getItem('xp')||0),
+  weapons: [],
+  armor: [],
+  jewelry: [],
+  inventory: [],
+  backpack: []
+};
+function updateCharUI(){
+  // Weapons Layer
+  ['wp1','wp2','wp3'].forEach((id,i)=>{
+    const slot = document.getElementById(id);
+    slot.innerHTML = charState.weapons[i]? `<img src="${charState.weapons[i].img}">` : '';
+    slot.className = 'weaponSlot'+(charState.weapons[i]?.rare?' rare':'');
+    // Layer oben
+    document.getElementById('weaponLayer').innerHTML = charState.weapons[0]? `<img src="${charState.weapons[0].img}" style="width:100%;height:100%;">` : '';
+  });
 
-    const params = new URLSearchParams(location.search);
-    const user = params.get("user") || "Gast";
-    document.getElementById("user").innerText = user;
-    const key = "spawn_" + user;
-    let save = JSON.parse(localStorage.getItem(key)) || {xp:0, last:""};
+  const grids = {invGrid: charState.inventory, backpackGrid: charState.backpack};
+  for(const gid in grids){
+    const grid = document.getElementById(gid);
+    grid.innerHTML='';
+    grids[gid].forEach((item,index)=>{
+      const s = document.createElement('div');
+      s.className='slot unlocked'+(item.rare?' rare':'');
+      s.innerHTML=`<img src="${item.img}">`;
+      s.onclick = ()=>equipItem(item,index,gid);
+      grid.appendChild(s);
+    });
+  }
+}
+function equipItem(item,index,from){
+  if(item.type==='weapon'){ charState.weapons[0]=item; }
+  if(item.type==='armor'){ charState.armor[0]=item; }
+  if(item.type==='jewelry'){ charState.jewelry[0]=item; }
+  // Entfernen aus original
+  charState[from].splice(index,1);
+  updateCharUI();
+}
 
-    let currentCorrectAnswer = "7"; // Standard
+// =================== Tabs ===================
+function switchTab(tabId){
+  document.querySelectorAll('.tabPane').forEach(p=>p.style.display='none');
+  document.getElementById(tabId).style.display='flex';
+  document.querySelectorAll('.tabButtons button').forEach(b=>b.classList.remove('active'));
+  document.querySelector(`.tabButtons button[onclick*="${tabId}"]`).classList.add('active');
+}
 
-    function updateUI() {
-        let cur = stages[0];
-        let next = stages[1];
-        stages.forEach(s => { if(save.xp >= s.x) cur = s; });
-        next = stages[stages.indexOf(cur)+1] || cur;
+// =================== Dorf ===================
+let villageAvatars = [];
+function renderVillage(){
+  const container=document.getElementById('villageMap');
+  container.innerHTML='';
+  villageAvatars.forEach(av=>{
+    const div=document.createElement('div');
+    div.className='avatarTile';
+    div.innerText=av.emo;
+    div.style.left=av.x+'px';
+    div.style.top=av.y+'px';
+    container.appendChild(div);
+  });
+}
 
-        document.getElementById("rank").innerText = cur.n;
-        const imgTag = document.getElementById("avatarImage");
-        const textTag = document.getElementById("avatarText");
-        imgTag.src = cur.img;
-        textTag.innerText = cur.emo;
-        
-        document.getElementById("xp").innerText = save.xp;
-        document.getElementById("nextxp").innerText = next.x;
-        
-        let p = cur === next ? 100 : ((save.xp - cur.x) / (next.x - cur.x)) * 100;
-        document.getElementById("fill").style.width = Math.min(100, p) + "%";
+// =================== Marktplatz ===================
+const marketItems = [
+  {name:'Schwert', img:'img/schwert.png', cost:50, rare:true, type:'weapon'},
+  {name:'Trank', img:'img/trank.png', cost:20, rare:false, type:'consumable'},
+  {name:'Krone', img:'img/krone.png', cost:200, rare:true, type:'jewelry'}
+];
+function renderMarket(){
+  const container=document.getElementById('marketTab');
+  container.innerHTML='';
+  marketItems.forEach(item=>{
+    const div=document.createElement('div');
+    div.className='marketItem'+(item.rare?' rare':'');
+    div.innerHTML=`<img src="${item.img}"><span>${item.name}</span><button onclick="buyItem('${item.name}')">Kaufen (${item.cost})</button>`;
+    container.appendChild(div);
+  });
+}
+function buyItem(name){
+  const item = marketItems.find(i=>i.name===name);
+  if(item){
+    charState.inventory.push(item);
+    updateCharUI();
+  }
+}
 
-        const inv = document.getElementById("inventory");
-        const rew = document.getElementById("rewards");
-        inv.innerHTML = "";
-        rew.innerHTML = "";
+// =================== Export ===================
+document.getElementById('exportBtn').onclick=()=>{
+  html2canvas(document.getElementById('charMenu')).then(canvas=>{
+    const link=document.createElement('a');
+    link.download='profil.png';
+    link.href=canvas.toDataURL();
+    link.click();
+  });
+};
 
-        items.forEach(it => {
-            const slot = document.createElement("div");
-            slot.className = "slot" + (save.xp >= it.x ? " unlocked" : "");
-            slot.innerHTML = `<img src="${save.xp >= it.x ? it.img : 'img/locked.png'}" onerror="this.src='https://via.placeholder.com/50?text=?'}">`;
-            inv.appendChild(slot);
-            if(save.xp >= it.x) rew.innerHTML += `<span style='font-size:25px;'>${it.reward}</span>`;
-        });
-    }
+// =================== WebSocket ===================
+const ws = new WebSocket('ws://127.0.0.1:8080');
+ws.onopen=()=>console.log('WS connected');
+ws.onmessage=e=>{
+  const data=JSON.parse(e.data);
+  if(data.type==='addXP'){ charState.xp+=data.amount; localStorage.setItem('xp',charState.xp); }
+  if(data.type==='addItem'){ charState.inventory.push(data.item); updateCharUI(); }
+  if(data.type==='joinVillage'){
+    const x=Math.floor(Math.random()*400);
+    const y=Math.floor(Math.random()*300);
+    villageAvatars.push({emo:data.emo,x,y});
+    renderVillage();
+  }
+};
 
-    function submitAnswer() {
-        const val = document.getElementById("answer").value.toLowerCase().trim();
-        if(val == currentCorrectAnswer.toString().toLowerCase()) {
-            save.xp += 10;
-            save.last = new Date().toDateString();
-            localStorage.setItem(key, JSON.stringify(save));
-            alert("System-Upgrade erfolgreich! +10 XP");
-            updateUI();
-        } else {
-            alert("Code inkorrekt.");
-        }
-    }
-
-    // WEBSOCKET
-    const ws = new WebSocket("ws://127.0.0.1:8080");
-    ws.onmessage = e => {
-        const data = JSON.parse(e.data);
-        if(data.type === "dailyQuest") {
-            document.getElementById("question").innerText = data.frage;
-            currentCorrectAnswer = data.antwort;
-        }
-        if(data.type === "xpBoost") {
-            save.xp += data.amount;
-            localStorage.setItem(key, JSON.stringify(save));
-            updateUI();
-        }
-    };
-
-    updateUI();
+// =================== Init ===================
+updateCharUI();
+renderMarket();
+renderVillage();
+switchTab('villageMap');
 </script>
 </body>
 </html>
