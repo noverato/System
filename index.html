@@ -2,150 +2,242 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>Spawn2909 Loyalty System</title>
+<title>Spawn2909 System</title>
+
 <style>
 body{
     margin:0;
     background:#050b12;
-    color:white;
     font-family:Segoe UI;
+    color:white;
     display:flex;
     justify-content:center;
     align-items:center;
-    min-height:100vh;
+    height:100vh;
 }
-.card{
-    width:380px;
-    background:linear-gradient(180deg,#021b30,#000);
-    border:2px solid #00c3ff;
-    border-radius:14px;
+
+/* FRAME */
+.system{
+    width:900px;
+    height:500px;
+    background:linear-gradient(180deg,#031a30,#000);
+    border:3px solid #00c3ff;
+    border-radius:20px;
+    box-shadow:0 0 40px #00c3ff;
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    overflow:hidden;
+}
+
+/* LEFT: CHARACTER */
+.char{
     padding:20px;
-    box-shadow:0 0 25px #00c3ff;
-    text-align:center;
+    border-right:2px solid #00c3ff;
 }
-.title{color:#00c3ff;font-size:22px;margin-bottom:10px;}
-.bar{background:#111;border:1px solid #00c3ff;border-radius:20px;height:18px;overflow:hidden;}
-.fill{height:100%;background:#00c3ff;width:0%;transition:1s;}
-.box{
+.char-box{
+    border:1px solid #00c3ff;
+    border-radius:10px;
+    padding:15px;
+    background:rgba(0,195,255,0.1);
+    text-align:center;
+    height:100%;
+}
+.char-icon{
+    font-size:80px;
+    margin:20px 0;
+}
+.glow{
+    text-shadow:0 0 20px #00c3ff;
+}
+.rank{
+    font-size:22px;
+    color:#00c3ff;
+}
+.xpbar{
+    background:#111;
+    border:1px solid #00c3ff;
+    height:20px;
+    border-radius:20px;
+    overflow:hidden;
+}
+.xpfill{
+    height:100%;
+    background:#00c3ff;
+    width:0%;
+    transition:1s;
+}
+
+/* RIGHT: INVENTORY */
+.inv{
+    padding:20px;
+}
+.grid{
+    display:grid;
+    grid-template-columns: repeat(3,1fr);
+    gap:10px;
+}
+.slot{
+    height:80px;
+    border:1px solid #444;
+    border-radius:10px;
+    background:#111;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    font-size:30px;
+    cursor:pointer;
+    color:#777;
+}
+.slot.unlocked{
+    border-color:#00c3ff;
+    color:white;
+    box-shadow:0 0 10px #00c3ff;
+    background:rgba(0,195,255,0.2);
+}
+
+/* DAILY */
+.daily{
+    margin-top:15px;
     border:1px solid #00c3ff;
     padding:10px;
-    border-radius:8px;
-    background:rgba(0,195,255,.1);
-    margin:10px 0;
+    border-radius:10px;
 }
 button{
     background:#00c3ff;
     border:none;
     padding:8px 12px;
-    font-weight:bold;
     cursor:pointer;
-    border-radius:6px;
+    font-weight:bold;
 }
-.hidden{display:none;}
+input{
+    width:100%;
+    padding:6px;
+    margin-top:5px;
+}
 </style>
 </head>
 
 <body>
 
-<div class="card">
-    <div class="title">SPAWN2909</div>
+<div class="system">
 
-    <div class="box">
-        JÄGER: <span id="user"></span><br>
-        STATUS: <span id="stage"></span>
-    </div>
+<!-- LEFT -->
+<div class="char">
+<div class="char-box">
+<div>JÄGER: <span id="user">Gast</span></div>
+<div class="rank" id="rank">EI</div>
+<div class="char-icon glow" id="icon">🥚</div>
 
-    <div class="box">
-        NÄCHSTE STUFE: <span id="nextStage"></span><br>
-        BELohnung: <span id="rewards"></span>
-    </div>
+XP <span id="xp">0</span> / <span id="nextxp">60</span>
+<div class="xpbar"><div class="xpfill" id="fill"></div></div>
 
-    <div class="box">
-        XP: <span id="xp"></span> / <span id="nextXp"></span>
-        <div class="bar"><div class="fill" id="fill"></div></div>
-    </div>
+<div class="daily" id="dailyBox">
+<div id="question"></div>
+<input id="answer">
+<button onclick="submit()">XP holen</button>
+</div>
+</div>
+</div>
 
-    <div id="dailyBox" class="box hidden">
-        <div id="question"></div><br>
-        <input id="answer" placeholder="Antwort..." style="width:90%;padding:5px;"><br><br>
-        <button onclick="checkAnswer()">XP verdienen</button>
-    </div>
+<!-- RIGHT -->
+<div class="inv">
+<h3>Inventar</h3>
+<div class="grid" id="inventory"></div>
+</div>
 
-    <div id="doneBox" class="box hidden">
-        Heute hast du bereits XP erhalten.<br>
-        Komm morgen wieder 🐲
-    </div>
 </div>
 
 <script>
-const params = new URLSearchParams(window.location.search);
-const user = params.get("user") || "Gast";
-document.getElementById("user").innerText = user;
-
-// ----- Fake Datenbank (Browser) -----
-const key = "spawn_"+user;
-let save = JSON.parse(localStorage.getItem(key)) || {xp:0,last:""};
-
-// ----- Stufen -----
+// ----- CONFIG -----
 const stages=[
- {n:"🥚 EI",x:0,r:[]},
- {n:"💧 SCHLEIM",x:60,r:["💧"]},
- {n:"💀 SKELETT",x:90,r:["💀","🦴"]},
- {n:"👺 GOBLIN",x:180,r:["👺","🗡️"]},
- {n:"👹 OGER",x:270,r:["👹","🔨"]},
- {n:"🧙‍♂️ LICH",x:360,r:["🧙‍♂️","🔮","💀"]},
- {n:"✨ WESEN",x:720,r:["✨","👑","🌌"]}
+ {n:"EI",x:0,i:"🥚"},
+ {n:"SCHLEIM",x:60,i:"💧"},
+ {n:"SKELETT",x:90,i:"💀"},
+ {n:"GOBLIN",x:180,i:"👺"},
+ {n:"OGER",x:270,i:"👹"},
+ {n:"LICH",x:360,i:"🧙‍♂️"},
+ {n:"WESEN",x:720,i:"✨"}
 ];
 
-// ----- Aktuelle Stufe -----
-let cur=stages[0];
-let next=stages[1];
+const items=[
+ {n:"Schwert",x:60,i:"⚔️"},
+ {n:"Kristall",x:90,i:"💎"},
+ {n:"Truhe",x:180,i:"🎁"},
+ {n:"Relikt",x:360,i:"🔮"},
+ {n:"Krone",x:720,i:"👑"}
+];
+
+// ----- USER -----
+const params=new URLSearchParams(location.search);
+const user=params.get("user")||"Gast";
+document.getElementById("user").innerText=user;
+
+const key="spawn_"+user;
+let save=JSON.parse(localStorage.getItem(key))||{xp:0,last:""};
+
+// ----- STAGE -----
+let cur=stages[0],next=stages[1];
 for(let i=0;i<stages.length;i++){
  if(save.xp>=stages[i].x){
-    cur=stages[i];
-    next=stages[i+1]||stages[i];
+   cur=stages[i];
+   next=stages[i+1]||stages[i];
  }
 }
-
-document.getElementById("stage").innerText=cur.n;
-document.getElementById("nextStage").innerText=next.n;
-document.getElementById("rewards").innerText=next.r.join(" ");
-
+document.getElementById("rank").innerText=cur.n;
+document.getElementById("icon").innerText=cur.i;
 document.getElementById("xp").innerText=save.xp;
-document.getElementById("nextXp").innerText=next.x;
+document.getElementById("nextxp").innerText=next.x;
+let p=((save.xp-cur.x)/(next.x-cur.x))*100;
+document.getElementById("fill").style.width=Math.min(100,p)+"%";
 
-let pct=((save.xp-cur.x)/(next.x-cur.x))*100;
-document.getElementById("fill").style.width=Math.min(100,pct)+"%";
+// ----- INVENTORY -----
+const inv=document.getElementById("inventory");
+items.forEach(it=>{
+ const d=document.createElement("div");
+ d.className="slot";
+ if(save.xp>=it.x){
+   d.classList.add("unlocked");
+   d.innerText=it.i;
+   d.onclick=()=>alert(it.n+" freigeschaltet!");
+ }else{
+   d.innerText="🔒";
+ }
+ inv.appendChild(d);
+});
 
-// ----- Daily Frage -----
+// ----- DAILY -----
 const today=new Date().toDateString();
+const q="Wie viele Eier sind im Nest?";
+const correct=7; // später vom Streamer.bot
 
-const questions=[
- {q:"Wie viele Eier sind heute im Nest?",a:"3"},
- {q:"Welches Spiel hat Spawn2909 heute gespielt?",a:"minecraft"},
- {q:"Welche Kreatur bewacht das Nest?",a:"drache"}
-];
-
-let q=questions[Math.floor(Math.random()*questions.length)];
-
-if(save.last!==today){
- document.getElementById("dailyBox").classList.remove("hidden");
- document.getElementById("question").innerText=q.q;
+if(save.last===today){
+ document.getElementById("dailyBox").innerText="Heute schon XP erhalten.";
 }else{
- document.getElementById("doneBox").classList.remove("hidden");
+ document.getElementById("question").innerText=q;
 }
 
-function checkAnswer(){
- let a=document.getElementById("answer").value.toLowerCase();
- if(a===q.a){
-    save.xp++;
-    save.last=today;
-    localStorage.setItem(key,JSON.stringify(save));
-    location.reload();
+function submit(){
+ const a=document.getElementById("answer").value;
+ if(parseInt(a)===correct){
+   save.xp++;
+   save.last=today;
+   localStorage.setItem(key,JSON.stringify(save));
+   location.reload();
  }else{
-    alert("Falsch. Nur echte Zuschauer kennen die Antwort 😈");
+   alert("Falsch!");
  }
 }
+
+// ----- STREAMER.BOT WEBSOCKET HOOK (Platzhalter) -----
+/*
+const ws=new WebSocket("ws://localhost:8080");
+ws.onmessage=e=>{
+  const data=JSON.parse(e.data);
+  if(data.type==="eggs"){
+     correct=data.value;
+  }
+};
+*/
 </script>
 
 </body>
