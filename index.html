@@ -3,36 +3,44 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>The Nest: Solo Leveling Sub-Evolution</title>
+<title>The Nest: Solo Leveling Master Fix</title>
 <style>
-    body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #0a0a12; color: #e0d8b0; }
-    #watermark { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="600"><text x="50%" y="50%" font-family="Arial" font-size="30" fill="%23ffffff" fill-opacity="0.05" text-anchor="middle" transform="rotate(-15 500 300)">Property of Spawn2909 - The Nest</text></svg>'); }
+    body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #05070a; color: #e0d8b0; }
     #gameWorld { position: absolute; width: 100%; height: 100%; background: url('wald.png') center/cover; z-index: 1; cursor: crosshair; }
 
-    /* CHARAKTER & BALKEN */
+    /* CHARAKTER & HP BARS */
     .creature { position: absolute; width: 80px; height: 80px; z-index: 10; transition: left 2s linear, top 2s linear; text-align: center; }
     .creature-img { width: 60px; height: 60px; background-size: contain; background-repeat: no-repeat; background-position: center; margin: 0 auto; position: relative; }
-    .bar-wrap { width: 50px; height: 5px; background: rgba(0,0,0,0.8); margin: 2px auto; border-radius: 2px; overflow: hidden; border: 1px solid #333; }
-    .bar-fill { height: 100%; background: #4caf50; transition: width 0.5s; }
     
-    /* BATTLE LOG & HUD */
-    #battleLog { position: fixed; bottom: 85px; left: 15px; width: 230px; height: 120px; background: rgba(0,0,0,0.9); border: 1px solid #3b82f6; border-radius: 8px; font-size: 11px; padding: 10px; overflow-y: auto; z-index: 100; display: none; color: #fff; }
-    #hud { position: fixed; top: 15px; left: 15px; z-index: 100; background: rgba(15, 23, 42, 0.95); padding: 12px; border-radius: 10px; border: 1px solid #3b82f6; backdrop-filter: blur(5px); }
+    /* Balken System */
+    .bar-container { width: 50px; height: 5px; background: rgba(0,0,0,0.8); margin: 2px auto; border-radius: 2px; border: 1px solid #1e293b; overflow: hidden; }
+    .hp-fill { height: 100%; background: #ef4444; width: 100%; transition: width 0.3s; }
+    .ep-fill { height: 100%; background: #22c55e; width: 0%; transition: width 0.5s; }
+
+    /* BATTLE LOG */
+    #battleLog { position: fixed; bottom: 90px; left: 15px; width: 240px; height: 130px; background: rgba(10,15,25,0.95); border: 2px solid #3b82f6; border-radius: 10px; font-size: 11px; padding: 12px; overflow-y: auto; z-index: 100; display: none; box-shadow: 0 0 20px rgba(59,130,246,0.3); color: #fff; }
+
+    /* HUD */
+    #hud { position: fixed; top: 15px; left: 15px; z-index: 100; background: rgba(15, 23, 42, 0.9); padding: 15px; border-radius: 12px; border: 1px solid #3b82f6; backdrop-filter: blur(8px); }
 
     /* ADMIN PANEL */
-    #adminPanel { position: fixed; bottom: 15px; left: 15px; z-index: 1000; background: rgba(153, 27, 27, 0.8); border: 2px solid #ef4444; padding: 12px; border-radius: 10px; display: none; }
-    .admin-btn { background: #111; color: #fff; border: 1px solid #ef4444; padding: 6px 10px; cursor: pointer; margin: 3px; font-size: 11px; border-radius: 4px; }
+    #adminPanel { position: fixed; bottom: 15px; left: 15px; z-index: 1000; background: rgba(153, 27, 27, 0.9); border: 2px solid #ef4444; padding: 12px; border-radius: 10px; display: none; }
+    .admin-btn { background: #000; color: #fff; border: 1px solid #ef4444; padding: 6px; cursor: pointer; margin: 2px; font-size: 10px; border-radius: 4px; }
 
-    /* MODAL */
+    /* SOLO LEVELING INVENTAR */
     .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: none; z-index: 500; align-items: center; justify-content: center; }
-    .inv-box { width: 90%; max-width: 450px; background: #1e293b; border: 2px solid #3b82f6; border-radius: 18px; padding: 25px; text-align: center; }
-    .slot { width: 70px; height: 70px; background: #020617; border: 2px solid #334155; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; font-size: 32px; cursor: pointer; }
-    .active { border-color: #facc15; box-shadow: 0 0 10px #facc15; }
+    .inv-box { width: 90%; max-width: 400px; background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%); border: 2px solid #3b82f6; border-radius: 20px; padding: 30px; text-align: center; box-shadow: 0 0 40px rgba(37, 99, 235, 0.4); }
+    .inv-grid { display: flex; justify-content: center; gap: 20px; margin-bottom: 30px; }
+    .inv-slot { width: 80px; height: 80px; background: #020617; border: 2px solid #334155; border-radius: 15px; display: flex; align-items: center; justify-content: center; font-size: 35px; cursor: pointer; transition: 0.3s; position: relative; }
+    .inv-slot.active { border-color: #3b82f6; box-shadow: 0 0 15px #3b82f6; }
+    .inv-slot::after { content: "HAND"; position: absolute; bottom: -20px; font-size: 10px; color: #64748b; }
+    
+    .btn-craft { background: #2563eb; color: white; border: none; padding: 15px 25px; border-radius: 10px; font-weight: bold; cursor: pointer; width: 100%; font-size: 14px; letter-spacing: 1px; }
+    .btn-craft:disabled { background: #334155; cursor: not-allowed; }
 </style>
 </head>
 <body>
 
-<div id="watermark"></div>
 <div id="gameWorld" onclick="handleWorldClick(event)">
     <div id="charLayer"></div>
     <div id="monsterLayer"></div>
@@ -41,78 +49,86 @@
 <div id="battleLog"></div>
 
 <div id="hud">
-    <div style="font-weight: bold; color: #facc15; font-size: 16px;"><span id="playerName">Lädt...</span></div>
-    <div id="subInfo" style="font-size: 11px; color: #b983ff;"></div>
-    ✨ LXP: <span id="lxpVal">0</span> | 📈 EP: <span id="epVal">0</span><br>
-    🌿 Gras: <span id="resGras">0</span> | 🪵 Stock: <span id="resStock">0</span>
+    <div style="font-weight: bold; color: #3b82f6; font-size: 18px; letter-spacing: 1px;"><span id="playerName">PLAYER</span></div>
+    <div id="subInfo" style="font-size: 11px; color: #94a3b8; margin-bottom: 8px;">Wesen: Ei</div>
+    <div style="font-size: 12px;">
+        ✨ LXP: <span id="lxpVal" style="color:#facc15">0</span><br>
+        📈 EP: <span id="epVal" style="color:#22c55e">0</span>
+    </div>
 </div>
 
 <div id="adminPanel">
-    <strong style="color:white; display:block; margin-bottom:8px;">🛠 SYSTEM ADMIN</strong>
-    <button class="admin-btn" onclick="addMonths(1)">+1 Monat Sub</button>
+    <strong style="color:white; display:block; margin-bottom:5px; font-size:12px;">SYSTEM ADMIN</strong>
+    <button class="admin-btn" onclick="addRes('ep', 20)">+20 EP</button>
     <button class="admin-btn" onclick="addRes('lxp', 50)">+50 LXP</button>
-    <button class="admin-btn" onclick="addRes('ep', 10)">+10 EP</button>
-    <button class="admin-btn" style="background:#450a0a;" onclick="resetSystem()">⚠️ RESET</button>
+    <button class="admin-btn" onclick="addMonths(1)">+1 Sub-Monat</button>
+    <button class="admin-btn" style="background:#450a0a;" onclick="resetSystem()">RESET</button>
 </div>
 
-<button style="position:fixed; bottom:20px; right:20px; z-index:100; padding:15px 30px; background:#2563eb; color:white; border:none; border-radius:12px; font-weight:bold;" onclick="toggleInv(true)">🎒 INVENTAR</button>
+<button style="position:fixed; bottom:25px; right:25px; z-index:100; padding:18px 35px; background:#2563eb; color:white; border:none; border-radius:15px; font-weight:bold; box-shadow: 0 10px 20px rgba(0,0,0,0.5);" onclick="toggleInv(true)">🎒 INVENTAR</button>
 
 <div id="invModal" class="modal">
     <div class="inv-box">
-        <h2 style="color:#facc15;">CHARAKTER STATUS</h2>
-        <div class="slot" id="slot-hand" onclick="equipHand()">🌑</div>
-        <p id="swordStatus" style="font-size: 12px;"></p>
-        <button id="craftBtn" style="width:100%; background:#eab308; padding:10px; border:none; font-weight:bold;" onclick="tryCraft()">⚒️ SCHWERT SCHMIEDEN (20 LXP)</button>
-        <br><br>
-        <button class="admin-btn" style="width:100%" onclick="toggleInv(false)">ZURÜCK</button>
+        <h2 style="color:#fff; margin-top:0; letter-spacing: 3px; font-size: 20px;">GEGENSTÄNDE</h2>
+        <div class="inv-grid">
+            <div class="inv-slot" id="slot-hand" onclick="equipHand()">🌑</div>
+        </div>
+        <div id="craftingArea">
+            <p id="swordInfo" style="font-size: 12px; color: #94a3b8; margin-bottom: 15px;">Kein Schwert geschmiedet</p>
+            <button id="craftBtn" class="btn-craft" onclick="tryCraft()">⚒️ SCHWERT SCHMIEDEN (20 LXP)</button>
+        </div>
+        <br>
+        <button onclick="toggleInv(false)" style="background:transparent; color:#64748b; border:none; cursor:pointer;">Schließen</button>
     </div>
 </div>
 
 <script>
-// --- KONFIGURATION ---
-const BROADCASTER = "spawn2909";
-
+// --- INITIALISIERUNG ---
 let data = JSON.parse(localStorage.getItem('nestData')) || {
     name: "Gast", lxp: 0, ep: 0, gras: 0, stock: 0,
-    subMonths: 0, hasSword: false, equippedHand: null, isFollower: true
+    subMonths: 0, hasSword: false, equippedHand: null
 };
 
 function init() {
     const p = new URLSearchParams(window.location.search);
     if (p.get('user')) data.name = p.get('user');
-    
-    if (data.name.toLowerCase() === BROADCASTER) {
-        if (p.get('admin') === 'true') document.getElementById('adminPanel').style.display = 'block';
+    if (p.get('admin') === 'true' && data.name.toLowerCase() === "spawn2909") {
+        document.getElementById('adminPanel').style.display = 'block';
     }
     updateUI();
     setInterval(spawnMonster, 20000);
 }
 
-// --- EVOLUTION LOGIK ---
-function getEvolutionData() {
+// --- DIE EVOLUTION LOGIK (KOMBINIERT) ---
+function getEvolution() {
     const m = data.subMonths;
+    const e = data.ep;
+
+    // Subs haben Vorrang bei der Form
     if (m >= 24) return { img: 'wesen.png', label: 'Höheres Wesen' };
     if (m >= 12) return { img: 'lich.png', label: 'Lich' };
     if (m >= 9)  return { img: 'oger.png', label: 'Oger' };
     if (m >= 6)  return { img: 'goblin.png', label: 'Goblin' };
-    if (m >= 3)  return { img: 'skelett.png', label: 'Skelett' };
-    if (m >= 2)  return { img: 'schleim.png', label: 'Schleim' };
+    
+    // EP-basierte Evolution (für alle)
+    if (e >= 100 || m >= 3) return { img: 'skelett.png', label: 'Skelett' };
+    if (e >= 30 || m >= 2)  return { img: 'schleim.png', label: 'Schleim' };
+    
     return { img: 'ei.png', label: 'Ei' };
 }
 
 function updateUI() {
-    const evo = getEvolutionData();
+    const evo = getEvolution();
     document.getElementById('playerName').textContent = data.name.toUpperCase();
-    document.getElementById('subInfo').textContent = data.subMonths > 0 ? `Sub: ${data.subMonths} Monate (${evo.label})` : "Follower";
+    document.getElementById('subInfo').textContent = "Wesen: " + evo.label + (data.subMonths > 0 ? ` (${data.subMonths}M)` : "");
     document.getElementById('lxpVal').textContent = Math.floor(data.lxp);
     document.getElementById('epVal').textContent = Math.floor(data.ep);
-    document.getElementById('resGras').textContent = data.gras;
-    document.getElementById('resStock').textContent = data.stock;
     
     const sHand = document.getElementById('slot-hand');
     sHand.textContent = data.equippedHand || "🌑";
     sHand.classList.toggle('active', !!data.equippedHand);
-    document.getElementById('swordStatus').textContent = data.hasSword ? "Schwert bereit" : "Keine Waffe";
+    
+    document.getElementById('swordInfo').textContent = data.hasSword ? "Schwert bereit zum Ausrüsten" : "Kosten: 20 LXP";
     document.getElementById('craftBtn').style.display = data.hasSword ? "none" : "block";
 
     renderChar(evo.img);
@@ -127,59 +143,66 @@ function renderChar(img) {
     char.style.left = "50%"; char.style.top = "50%";
     
     char.innerHTML = `
-        <div class="bar-wrap"><div class="bar-fill" style="width:${Math.min(100, data.lxp)}%"></div></div>
+        <div class="bar-container"><div class="ep-fill" style="width:${Math.min(100, data.ep)}%"></div></div>
         <div class="creature-img" style="background-image:url('${img}')">
-            ${data.equippedHand ? '<div style="position:absolute; right:-10px; top:10px; font-size:24px;">' + data.equippedHand + '</div>' : ''}
+            ${data.equippedHand ? '<div style="position:absolute; right:-15px; top:10px; font-size:25px; filter:drop-shadow(0 0 5px #3b82f6);">' + data.equippedHand + '</div>' : ''}
         </div>
-        <div style="font-size:11px; font-weight:bold; color:#fff; text-shadow:0 0 5px #000;">${data.name}</div>
+        <div style="font-size:10px; font-weight:bold; background:rgba(0,0,0,0.6); padding:2px 5px; border-radius:4px;">${data.name}</div>
     `;
     layer.appendChild(char);
 }
 
-// --- BATTLE & ACTIONS ---
+// --- KAMPF SYSTEM ---
 function spawnMonster() {
     const layer = document.getElementById('monsterLayer');
     const m = document.createElement('div');
     m.style.position = 'absolute';
     m.style.left = (20 + Math.random() * 60) + "%";
     m.style.top = (25 + Math.random() * 50) + "%";
-    m.style.fontSize = "35px";
+    m.style.fontSize = "40px";
     m.style.cursor = "pointer";
-    m.innerHTML = "👾";
+    m.innerHTML = `<div class="bar-container" style="width:40px;"><div class="hp-fill" id="m-hp-fill"></div></div>👾`;
     
+    let mHP = 30;
     m.onclick = (e) => {
         e.stopPropagation();
-        startBattle(m);
+        startBattle(m, mHP);
     };
     layer.appendChild(m);
 }
 
-function startBattle(mEl) {
+function startBattle(mEl, mHP) {
     const log = document.getElementById('battleLog');
     log.style.display = 'block';
-    log.innerHTML = "<b>⚔️ KAMPF STARTET...</b><br>";
+    log.innerHTML = "<b>KAMPF LOG</b><br>";
     
-    let mHP = 30;
+    const hpBar = mEl.querySelector('.hp-fill');
+    
     const interval = setInterval(() => {
         const dmg = data.equippedHand ? 10 : 3;
         mHP -= dmg;
-        log.innerHTML += `<div>> Schaden: ${dmg}</div>`;
+        if(hpBar) hpBar.style.width = (mHP / 30 * 100) + "%";
+        
+        log.innerHTML += `<div>> Treffer: <span style="color:#ef4444">-${dmg} HP</span></div>`;
         log.scrollTop = log.scrollHeight;
         
         if(mHP <= 0) {
             clearInterval(interval);
-            data.lxp += 5; save();
+            data.lxp += 5;
+            data.ep += 2; // EP Gewinn durch Kampf!
+            save();
             mEl.remove();
-            log.innerHTML += "<b style='color:#4ade80'>SIEG! +5 LXP</b>";
+            log.innerHTML += "<b style='color:#22c55e'>SIEG! +5 LXP, +2 EP</b>";
             setTimeout(() => log.style.display = 'none', 3000);
         }
     }, 1000);
 }
 
+// --- HELPER ---
 function tryCraft() {
     if(data.lxp >= 20) { data.lxp -= 20; data.hasSword = true; data.equippedHand = "⚔️"; save(); }
+    else alert("Nicht genug LXP!");
 }
-
 function equipHand() { if(data.hasSword) { data.equippedHand = data.equippedHand ? null : "⚔️"; save(); } }
 function handleWorldClick(e) {
     const el = document.getElementById('myChar');
@@ -191,7 +214,7 @@ function toggleInv(s) { document.getElementById('invModal').style.display = s ? 
 function save() { localStorage.setItem('nestData', JSON.stringify(data)); updateUI(); }
 function addMonths(v) { data.subMonths += v; save(); }
 function addRes(t, v) { data[t] += v; save(); }
-function resetSystem() { localStorage.clear(); location.reload(); }
+function resetSystem() { if(confirm("Daten löschen?")) { localStorage.clear(); location.reload(); } }
 
 window.onload = init;
 </script>
