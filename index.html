@@ -2,477 +2,955 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>Isekai Nest V4 - Stream Edition</title>
-
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Isekai Village - Dynamisches Twitch RPG</title>
 <style>
+/* ===== BASE STYLES ===== */
 body {
     margin: 0;
-    background: #050b05;
-    overflow: hidden;
-    font-family: 'Segoe UI', sans-serif;
-    color: white;
-    height: 100vh;
+    padding: 0;
     width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: #e0d8b0;
+    background: #0a0a12;
 }
 
-/* Dorf-Hintergrund */
-#forest {
+/* ===== BACKGROUND SYSTEM ===== */
+#gameWorld {
     position: absolute;
-    inset: 0;
-    background-image: url('dorf.jpg');
+    width: 100%;
+    height: 100%;
+    background-image: url('wald.png');
     background-size: cover;
     background-position: center;
     z-index: 1;
 }
 
-/* Creatures */
+/* ===== BUILDING SYSTEM ===== */
+.building {
+    position: absolute;
+    display: none; /* Standardmäßig unsichtbar */
+    z-index: 2;
+    transition: opacity 0.5s;
+}
+
+#schmiede {
+    left: 15%;
+    top: 60%;
+    width: 120px;
+    height: 100px;
+}
+
+#marktplatz {
+    left: 40%;
+    top: 55%;
+    width: 150px;
+    height: 120px;
+}
+
+#heiligeSchmiede {
+    left: 65%;
+    top: 60%;
+    width: 130px;
+    height: 110px;
+}
+
+#rathaus {
+    left: 45%;
+    top: 20%;
+    width: 180px;
+    height: 150px;
+}
+
+/* ===== CREATURE SYSTEM ===== */
 .creature {
     position: absolute;
-    text-align: center;
-    font-size: 32px;
-    z-index: 50;
-    animation: wusel 1.5s ease-in-out infinite alternate;
+    width: 60px;
+    height: 60px;
+    z-index: 10;
     transition: all 0.3s ease;
+    pointer-events: none;
 }
 
-.name {
-    font-size: 12px;
-    color: #ffe7a3;
-    text-shadow: 0 0 4px black;
-    z-index: 51;
+.creature-container {
     position: relative;
-    margin-top: -5px;
+    width: 100%;
+    height: 100%;
 }
 
-/* Wusel-Animation */
-@keyframes wusel {
-    0% { transform: translate(0px, 0px); }
-    25% { transform: translate(2px, -2px); }
-    50% { transform: translate(-2px, 2px); }
-    75% { transform: translate(2px, 1px); }
-    100% { transform: translate(-1px, -2px); }
-}
-
-/* UI Panels - Immer sichtbar */
-.ui {
+.creature-base {
     position: absolute;
-    top: 20px;
-    width: 200px;
-    height: calc(100vh - 40px);
-    background: rgba(20, 20, 40, 0.7);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(218, 165, 32, 0.7);
-    border-radius: 10px;
-    padding: 15px;
-    z-index: 1000;
-    box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
-    display: flex;
-    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
 }
 
-#leftUI {
-    left: 10px;
-}
-
-#rightUI {
-    right: 10px;
-}
-
-/* Close Buttons */
-.closeBtn {
+.equipment-slot {
     position: absolute;
-    top: 8px;
-    right: 8px;
-    background: rgba(200, 50, 50, 0.8);
-    color: white;
-    border: none;
-    border-radius: 50%;
-    width: 22px;
-    height: 22px;
+    width: 100%;
+    height: 100%;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    pointer-events: none;
+}
+
+.name-tag {
+    position: absolute;
+    bottom: -20px;
+    width: 100%;
     text-align: center;
-    line-height: 20px;
-    font-weight: bold;
-    cursor: pointer;
-    z-index: 1001;
-    font-size: 12px;
+    font-size: 10px;
+    color: #ffeb3b;
+    text-shadow: 1px 1px 2px black;
+    pointer-events: none;
+    z-index: 11;
 }
 
-.closeBtn:hover {
-    background: rgba(255, 50, 50, 0.9);
-}
-
-/* Standard Buttons */
-button {
-    background: rgba(50, 50, 80, 0.8);
-    color: white;
-    border: 1px solid rgba(218, 165, 32, 0.7);
-    border-radius: 6px;
-    padding: 8px;
-    margin: 5px 0;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-button:hover:not(:disabled) {
-    background: rgba(70, 70, 100, 0.9);
-    transform: scale(1.02);
-}
-
-button:disabled {
-    background: #555;
-    cursor: not-allowed;
-    opacity: 0.7;
-}
-
-/* Arena Design */
-#bossWindow {
+/* ===== UI SYSTEM ===== */
+.ui-panel {
     position: absolute;
+    background: rgba(18, 22, 30, 0.8);
+    border: 1px solid rgba(184, 134, 11, 0.7);
+    border-radius: 8px;
+    padding: 12px;
+    z-index: 100;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(5px);
+}
+
+#villageStats {
+    left: 10px;
+    top: 10px;
+    width: 220px;
+}
+
+#craftingMenu {
+    right: 10px;
+    top: 10px;
+    width: 250px;
+    display: none;
+}
+
+#bossArena {
     bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
     width: 600px;
     max-width: 90%;
-    background: rgba(15, 15, 30, 0.9);
-    border: 3px solid rgba(139, 0, 0, 0.8);
-    border-radius: 15px;
-    padding: 15px;
     display: none;
-    z-index: 1000;
-    box-shadow: 0 0 25px rgba(0, 0, 0, 0.8);
-    border-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect fill="none" stroke="%238B0000" stroke-width="3" x="1" y="1" width="98" height="98" rx="10"/></svg>') 10 round;
+    background: rgba(30, 15, 15, 0.9);
+    border: 2px solid #8B0000;
+    border-radius: 12px;
+    padding: 15px;
 }
 
-#bossHP {
-    display: block;
+#tradeMenu {
+    right: 10px;
+    bottom: 10px;
+    width: 240px;
+    display: none;
+}
+
+/* ===== BUTTON STYLES ===== */
+.button {
+    background: rgba(40, 45, 60, 0.8);
+    color: #e0d8b0;
+    border: 1px solid rgba(184, 134, 11, 0.6);
+    border-radius: 5px;
+    padding: 6px 10px;
+    margin: 4px 0;
+    cursor: pointer;
+    transition: all 0.2s;
     width: 100%;
+    text-align: left;
+    padding-left: 30px;
+    position: relative;
+}
+
+.button:hover:not(:disabled) {
+    background: rgba(60, 65, 80, 0.9);
+    transform: translateY(-1px);
+}
+
+.button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.button-icon {
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 14px;
+}
+
+/* ===== PROGRESS BARS ===== */
+.progress-container {
+    width: 100%;
+    height: 15px;
+    background: rgba(50, 50, 70, 0.6);
+    border-radius: 7px;
+    margin: 8px 0;
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #4CAF50, #8BC34A);
+    width: 0%;
+    transition: width 0.5s ease;
+}
+
+/* ===== BOSS ARENA ===== */
+#bossHealthBar {
     height: 20px;
     background: #333;
     border-radius: 10px;
     margin: 10px 0;
     overflow: hidden;
-    position: relative;
 }
 
-#bossHPBar {
+#bossHealthFill {
     height: 100%;
-    background: linear-gradient(90deg, #ff0000, #8B0000);
+    background: linear-gradient(90deg, #f44336, #d32f2f);
     width: 100%;
-    transition: width 0.5s ease;
+    transition: width 0.3s ease;
 }
 
-#party {
-    margin: 10px 0;
-    min-height: 60px;
-    background: rgba(0, 0, 0, 0.3);
-    padding: 8px;
-    border-radius: 8px;
-}
-
-#battleLog {
-    height: 100px;
+#bossLog {
+    height: 120px;
     overflow-y: auto;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.4);
     padding: 8px;
-    border-radius: 8px;
-    font-size: 13px;
+    border-radius: 6px;
     margin-top: 10px;
+    font-family: monospace;
+    font-size: 12px;
 }
 
-#attackButton {
-    background: rgba(100, 20, 20, 0.8);
-    border: 1px solid rgba(180, 50, 50, 0.9);
-    font-weight: bold;
-    letter-spacing: 1px;
-    margin-top: 10px;
-    padding: 10px;
-    font-size: 14px;
+/* ===== RESOURCE DISPLAY ===== */
+.resource {
+    display: flex;
+    align-items: center;
+    margin: 5px 0;
 }
 
-#attackButton:hover:not(:disabled) {
-    background: rgba(150, 30, 30, 0.9);
+.resource-icon {
+    width: 20px;
+    height: 20px;
+    margin-right: 8px;
+    background-size: contain;
+    background-repeat: no-repeat;
 }
 </style>
 </head>
-
 <body>
-    <div id="forest"></div>
+<!-- Welt Container -->
+<div id="gameWorld">
+    <!-- Gebäude (anfangs unsichtbar) -->
+    <img id="schmiede" class="building" src="schmiede.png" alt="Schmiede">
+    <img id="marktplatz" class="building" src="marktplatz.png" alt="Marktplatz">
+    <img id="heiligeSchmiede" class="building" src="heilige_schmiede.png" alt="Heilige Schmiede">
+    <img id="rathaus" class="building" src="rathaus.png" alt="Rathaus">
 
-    <!-- Linke UI - Immer sichtbar -->
-    <div id="leftUI" class="ui">
-        <button class="closeBtn" onclick="document.getElementById('leftUI').style.display='none'">×</button>
-        <h3 style="margin-top: 5px; color: #ffd700; text-shadow: 0 0 5px #000;">Dorf-Info</h3>
-        <div id="stats" style="margin: 10px 0; font-size: 14px;">
-            Bewohner: <span id="residentCount">0</span><br>
-            Subs: <span id="subCount">0</span><br>
-            Follower: <span id="followerCount">0</span>
+    <!-- Creatures Container -->
+    <div id="creaturesContainer"></div>
+</div>
+
+<!-- UI Panels -->
+<div id="villageStats" class="ui-panel">
+    <h3>🏡 Dorf-Status</h3>
+    <div id="villageProgress">
+        <div class="progress-container">
+            <div id="villageProgressBar" class="progress-bar"></div>
         </div>
-        <div style="margin-top: auto; font-size: 12px; color: #aaa;">
-            Isekai Nest v4.1<br>
-            Stream Edition
+        <div>Fortschritt: <span id="progressText">0%</span></div>
+        <div>Bewohner: <span id="residentCount">0</span></div>
+        <div>Gesammelte LXP: <span id="totalLXP">0</span></div>
+    </div>
+    <h4>🏗️ Gebäude:</h4>
+    <div id="buildingStatus">
+        <div>⛏ Schmiede: <span id="schmiedeStatus">🔒 Gesperrt</span></div>
+        <div>🏪 Marktplatz: <span id="marktplatzStatus">🔒 Gesperrt</span></div>
+        <div>⚔ Heilige Schmiede: <span id="heiligeSchmiedeStatus">🔒 Gesperrt</span></div>
+        <div>🏛 Rathaus: <span id="rathausStatus">🔒 Gesperrt</span></div>
+    </div>
+</div>
+
+<div id="craftingMenu" class="ui-panel">
+    <h3>⚒ Crafting</h3>
+    <div>
+        <h4>🌿 Basis-Crafting</h4>
+        <button class="button" onclick="craftItem('faser')">
+            <span class="button-icon">🧵</span> Faser herstellen (5x Gras + 50 LXP)
+        </button>
+        <button class="button" onclick="craftItem('holzbrett')">
+            <span class="button-icon">🪵</span> Holzbrett (3x Holz + 30 LXP)
+        </button>
+    </div>
+    <div id="heiligeCraftingSection" style="display: none;">
+        <h4>✨ Heilige Schmiede (Nur Subs)</h4>
+        <button class="button" onclick="craftItem('magischer_bogen')">
+            <span class="button-icon">🏹</span> Magischer Bogen (10x Holz + 1x Faser + 200 LXP)
+        </button>
+    </div>
+    <h4>📦 Ressourcen:</h4>
+    <div id="resourceDisplay">
+        <div class="resource">
+            <div class="resource-icon" style="background-image: url('gras.png');"></div>
+            <span>Gras: <span id="grasCount">0</span></span>
+        </div>
+        <div class="resource">
+            <div class="resource-icon" style="background-image: url('holz.png');"></div>
+            <span>Holz: <span id="holzCount">0</span></span>
+        </div>
+        <div class="resource">
+            <div class="resource-icon" style="background-image: url('stein.png');"></div>
+            <span>Stein: <span id="steinCount">0</span></span>
         </div>
     </div>
+</div>
 
-    <!-- Rechte UI - Shop -->
-    <div id="rightUI" class="ui">
-        <button class="closeBtn" onclick="document.getElementById('rightUI').style.display='none'">×</button>
-        <h3 style="margin-top: 5px; color: #ffd700; text-shadow: 0 0 5px #000;">Dorf-Shop</h3>
-
-        <button onclick="buyXP('DevUser')">+10 EP (10 LXP)</button>
-        <button onclick="buyPotion('DevUser')">Kleiner Trank (5 LXP)</button>
-        <button onclick="sharpenSword('DevUser')">Schwert-Schärfen (20 LXP)</button>
-        <button onclick="spawnBoss()">Boss rufen</button>
-
-        <div style="margin-top: auto; font-size: 12px; color: #aaa;">
-            LXP-Balance:<br>
-            <span id="lxpBalance">0</span>
+<div id="bossArena" class="ui-panel">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h3>👹 BOSS-KAMPF</h3>
+        <div id="bossHealthBar">
+            <div id="bossHealthFill"></div>
         </div>
     </div>
-
-    <!-- Arena -->
-    <div id="bossWindow">
-        <button class="closeBtn" onclick="document.getElementById('bossWindow').style.display='none'">×</button>
-        <h2 style="color: #ff4444; text-shadow: 0 0 8px #000; margin: 5px 0 15px;">👹 BOSS-KAMPF 👹</h2>
-
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <span style="color: #ffaaaa; font-size: 16px;">Boss-Health:</span>
-            <div id="bossHP">
-                <div id="bossHPBar"></div>
-            </div>
-        </div>
-
-        <div id="party"></div>
-
-        <button id="attackButton" onclick="attackBoss()">ANGREIFEN!</button>
-        <div id="battleLog"></div>
+    <div id="bossInfo">
+        <div>🔴 <span id="bossName">Unbekannter Boss</span></div>
+        <div>⚔ Schaden: <span id="bossDamage">0</span></div>
     </div>
+    <div id="partyMembers"></div>
+    <div style="display: flex; margin-top: 10px;">
+        <button id="attackButton" class="button" style="background: rgba(150, 30, 30, 0.8); width: 48%; margin-right: 4%;">
+            ⚔ ANGREIFEN
+        </button>
+        <button id="healButton" class="button" style="background: rgba(30, 100, 30, 0.8); width: 48%;">
+            ✚ HEILEN
+        </button>
+    </div>
+    <div id="bossLog"></div>
+</div>
 
-    <!-- Dev Button -->
-    <button
-        style="position: absolute; bottom: 20px; right: 20px; z-index: 9999; background: rgba(80, 80, 120, 0.8);"
-        onclick="spawnEgg('DevUser', 'sub')">
-        DEV SPAWN (Sub)
+<div id="tradeMenu" class="ui-panel">
+    <h3>🏪 Marktplatz</h3>
+    <div>
+        <h4>📜 Aktuelle Angebote:</h4>
+        <div id="tradeOffers">
+            <!-- Dynamisch generiert -->
+        </div>
+    </div>
+    <div style="margin-top: 10px;">
+        <h4>💰 Dein Inventar:</h4>
+        <div id="userInventory">
+            <!-- Dynamisch generiert -->
+        </div>
+    </div>
+    <button class="button" onclick="openTrade('verkaufen')">
+        💸 Item verkaufen
     </button>
+    <button class="button" onclick="openTrade('handeln')">
+        🔄 Mit User handeln
+    </button>
+</div>
 
-    <script>
-        // Admin-Funktion: Start-Datum für treue Follower
-        const FAKE_JOIN_DATES = {
-            "Follower1": Date.now() - (86400000 * 30),
-            "Follower2": Date.now() - (86400000 * 45),
-            "Follower3": Date.now() - (86400000 * 60),
-            "Follower4": Date.now() - (86400000 * 75),
-            "Follower5": Date.now() - (86400000 * 90),
-            "Follower6": Date.now() - (86400000 * 105),
-            "Follower7": Date.now() - (86400000 * 120),
-            "Follower8": Date.now() - (86400000 * 135),
+<!-- Toggle Buttons für UI -->
+<button onclick="togglePanel('craftingMenu')"
+        style="position: absolute; right: 10px; top: 10px; z-index: 1000; background: rgba(80, 80, 120, 0.7); border-radius: 50%; width: 40px; height: 40px; border: none; color: white; font-size: 18px; cursor: pointer;">
+    ⚒
+</button>
+<button onclick="togglePanel('tradeMenu')"
+        style="position: absolute; right: 10px; bottom: 10px; z-index: 1000; background: rgba(80, 80, 120, 0.7); border-radius: 50%; width: 40px; height: 40px; border: none; color: white; font-size: 18px; cursor: pointer;">
+    🏪
+</button>
+
+<script>
+// ===== GAME STATE MANAGEMENT =====
+const gameState = {
+    creatures: JSON.parse(localStorage.getItem('creatures')) || {},
+    resources: JSON.parse(localStorage.getItem('resources')) || {
+        gras: 0,
+        holz: 0,
+        stein: 0,
+        erz: 0
+    },
+    village: JSON.parse(localStorage.getItem('village')) || {
+        progress: 0,
+        totalLXP: 0,
+        buildings: {
+            schmiede: { unlocked: false, requiredLXP: 5000 },
+            marktplatz: { unlocked: false, requiredLXP: 10000 },
+            heiligeSchmiede: { unlocked: false, requiredLXP: 20000 },
+            rathaus: { unlocked: false, requiredLXP: 50000 }
+        },
+        boss: null,
+        health: 100
+    },
+    craftingRecipes: {
+        faser: { resources: { gras: 5 }, lxp: 50, output: { faser: 1 } },
+        holzbrett: { resources: { holz: 3 }, lxp: 30, output: { holzbrett: 1 } },
+        magischer_bogen: { resources: { holz: 10, faser: 1 }, lxp: 200, output: { magischer_bogen: 1 }, subOnly: true }
+    },
+    tradeOffers: [],
+    inventory: JSON.parse(localStorage.getItem('inventory')) || {}
+};
+
+// ===== INITIALIZATION =====
+function initGame() {
+    loadGameState();
+    renderCreatures();
+    updateUI();
+    checkVillageProgress();
+
+    // Demo-Daten für Entwicklung
+    if (Object.keys(gameState.creatures).length === 0) {
+        addCreature('Streamer', 'sub', Date.now() - (86400000 * 120)); // 120 Tage alt
+        addCreature('Moderator', 'sub', Date.now() - (86400000 * 60));  // 60 Tage alt
+        addCreature('Follower1', 'follower', Date.now() - (86400000 * 45)); // 45 Tage alt
+    }
+
+    // Ressourcen-Sammeln alle 30 Sekunden
+    setInterval(collectResources, 30000);
+    // Game State alle Minute speichern
+    setInterval(saveGameState, 60000);
+}
+
+// ===== CORE GAME FUNCTIONS =====
+function addCreature(name, type, joinDate) {
+    if (!gameState.creatures[name]) {
+        gameState.creatures[name] = {
+            name,
+            type,
+            joinDate: joinDate || Date.now(),
+            ep: 0,
+            lxp: type === 'sub' ? 100 : 50,
+            path: null, // Wird bei 30 Tagen gewählt
+            equipment: {
+                head: null,
+                hand: null,
+                body: null
+            },
+            resources: {
+                gras: 0,
+                holz: 0,
+                stein: 0,
+                erz: 0
+            },
+            inventory: {},
+            battleRole: null,
+            lastAction: Date.now()
         };
+    }
+    saveGameState();
+    renderCreatures();
+    updateUI();
+}
 
-        let creatures = JSON.parse(localStorage.getItem("creatures")) || {};
-        let boss = null;
-        let attackCooldown = false;
+function calculateEP(joinDate) {
+    const days = Math.floor((Date.now() - joinDate) / (1000 * 60 * 60 * 24));
+    return Math.min(days, 365); // Max 1 Jahr
+}
 
-        // Initial spawn für Demo
-        if (Object.keys(creatures).length === 0) {
-            spawnEgg("DevUser", "sub");
-            spawnEgg("Follower1");
-            spawnEgg("Follower2");
+function getEvolutionStage(creature) {
+    const ep = calculateEP(creature.joinDate);
+
+    if (creature.type === 'sub') {
+        // Sub-Pfad (Isekai)
+        if (ep >= 180) return { emoji: '👽', name: 'Höheres Wesen' };
+        if (ep >= 150) return { emoji: '💀', name: 'Lich' };
+        if (ep >= 120) return { emoji: '👹', name: 'Oger' };
+        if (ep >= 90) return { emoji: '🎃', name: 'Goblin' };
+        if (ep >= 60) return { emoji: '💧', name: 'Skelett' };
+        if (ep >= 30) return { emoji: '🟢', name: 'Schleim' };
+        return { emoji: '🥚', name: 'Ei' };
+    } else {
+        // Follower-Pfad (mit Wahlmöglichkeit)
+        if (!creature.path && ep >= 30) {
+            // Standardmäßig Pfad des Kriegers
+            creature.path = 'krieger';
         }
 
-        function save() {
-            localStorage.setItem("creatures", JSON.stringify(creatures));
+        if (creature.path === 'krieger') {
+            if (ep >= 120) return { emoji: '🏔', name: 'Berg-Gigant' };
+            if (ep >= 90) return { emoji: '🛡', name: 'Heiliger Ritter' };
+            if (ep >= 60) return { emoji: '🤖', name: 'Panzer-Golem' };
+            if (ep >= 30) return { emoji: '🛟', name: 'Knappe' };
+            return { emoji: '🌱', name: 'Keimling' };
         }
-
-        // Evolution für Follower
-        function getFollowerStage(ep) {
-            if (ep >= 90) return "🌳"; // Waldwächter
-            if (ep >= 30) return "🏺"; // Golem
-            return "🥚"; // Ei
+        else if (creature.path === 'natur') {
+            if (ep >= 120) return { emoji: '👤', name: 'Schatten-Jäger' };
+            if (ep >= 90) return { emoji: '🌳', name: 'Meister-Waldläufer' };
+            if (ep >= 60) return { emoji: '👒', name: 'Waldwächter' };
+            if (ep >= 30) return { emoji: '👀', name: 'Späher' };
+            return { emoji: '🌱', name: 'Sprössling' };
         }
-
-        // Evolution für Subs
-        function getSubStage(ep) {
-            if (ep >= 180) return "👽"; // Höheres Wesen
-            if (ep >= 150) return "💀"; // Lich
-            if (ep >= 120) return "👹"; // Oger
-            if (ep >= 90) return "🎃"; // Goblin
-            if (ep >= 60) return "💧"; // Skelett
-            if (ep >= 30) return "🟢"; // Schleim
-            return "🥚"; // Ei
+        else if (creature.path === 'wissen') {
+            if (ep >= 120) return { emoji: '👴', name: 'Dorfältester' };
+            if (ep >= 90) return { emoji: '🧙', name: 'Erzmagier' };
+            if (ep >= 60) return { emoji: '🔮', name: 'Schamane' };
+            if (ep >= 30) return { emoji: '👶', name: 'Lehrling' };
+            return { emoji: '🌱', name: 'Keimling' };
         }
-
-        function spawnEgg(name, type = "follower") {
-            if (creatures[name]) return;
-
-            creatures[name] = {
-                name,
-                type,
-                ep: 0,
-                lxp: type === "sub" ? 50 : 10,
-                joined: FAKE_JOIN_DATES[name] || Date.now()
-            };
-            save();
-            render();
+        else {
+            // Standard-Pfad wenn noch nicht gewählt
+            if (ep >= 30) return { emoji: '🏺', name: 'Golem' };
+            return { emoji: '🥚', name: 'Ei' };
         }
+    }
+}
 
-        function tick() {
-            for (let c of Object.values(creatures)) {
-                let days = (Date.now() - c.joined) / (1000 * 60 * 60 * 24);
-                c.ep = Math.floor(days);
-                c.lxp += 1 / 1440; // 1 LXP pro Minute
+function renderCreatures() {
+    const container = document.getElementById('creaturesContainer');
+    container.innerHTML = '';
+
+    Object.values(gameState.creatures).forEach(creature => {
+        const stage = getEvolutionStage(creature);
+        const ep = calculateEP(creature.joinDate);
+
+        const creatureElement = document.createElement('div');
+        creatureElement.className = 'creature';
+        creatureElement.style.left = `${30 + Math.random() * 40}%`;
+        creatureElement.style.top = `${30 + Math.random() * 40}%`;
+
+        // Basis-Layer
+        creatureElement.innerHTML = `
+            <div class="creature-container">
+                <div class="creature-base" style="background-image: url('${stage.emoji}.png');"></div>
+                ${creature.equipment.head ? `<div class="equipment-slot" style="background-image: url('${creature.equipment.head}.png');"></div>` : ''}
+                ${creature.equipment.hand ? `<div class="equipment-slot" style="background-image: url('${creature.equipment.hand}.png');"></div>` : ''}
+                ${creature.equipment.body ? `<div class="equipment-slot" style="background-image: url('${creature.equipment.body}.png');"></div>` : ''}
+                <div class="name-tag">${creature.name} (${stage.name})</div>
+            </div>
+        `;
+
+        container.appendChild(creatureElement);
+    });
+}
+
+function collectResources() {
+    Object.values(gameState.creatures).forEach(creature => {
+        // Jede Kreatur sammelt passiv Ressourcen
+        creature.resources.gras += Math.floor(Math.random() * 3);
+        creature.resources.holz += Math.floor(Math.random() * 2);
+        creature.resources.stein += Math.floor(Math.random() * 1);
+
+        // Zum Gesamtpool hinzufügen
+        gameState.resources.gras += Math.floor(Math.random() * 2);
+        gameState.resources.holz += Math.floor(Math.random());
+        gameState.resources.stein += Math.floor(Math.random() * 0.5);
+    });
+
+    updateUI();
+    saveGameState();
+}
+
+function checkVillageProgress() {
+    const totalLXP = Object.values(gameState.creatures)
+        .reduce((sum, creature) => sum + creature.lxp, 0);
+
+    gameState.village.totalLXP = totalLXP;
+    gameState.village.progress = Math.min(100, totalLXP / 1000);
+
+    // Gebäude freischalten
+    Object.keys(gameState.village.buildings).forEach(building => {
+        const buildingData = gameState.village.buildings[building];
+        if (!buildingData.unlocked && totalLXP >= buildingData.requiredLXP) {
+            buildingData.unlocked = true;
+            document.getElementById(building).style.display = 'block';
+            addLog(`🏗 Neue Struktur freigeschaltet: ${building}!`);
+        }
+    });
+
+    updateUI();
+    saveGameState();
+}
+
+// ===== CRAFTING SYSTEM =====
+function craftItem(recipeName) {
+    const recipe = gameState.craftingRecipes[recipeName];
+    if (!recipe) return;
+
+    // Check if user is sub for holy forge items
+    if (recipe.subOnly && !gameState.creatures['Streamer'].type === 'sub') {
+        addLog("⚠ Nur Subs können in der Heiligen Schmiede craften!");
+        return;
+    }
+
+    // Ressourcen prüfen
+    let hasResources = true;
+    for (const [resource, amount] of Object.entries(recipe.resources)) {
+        if ((gameState.resources[resource] || 0) < amount) {
+            hasResources = false;
+            break;
+        }
+    }
+
+    if (hasResources && gameState.creatures['Streamer'].lxp >= recipe.lxp) {
+        // Ressourcen abziehen
+        for (const [resource, amount] of Object.entries(recipe.resources)) {
+            gameState.resources[resource] -= amount;
+        }
+        gameState.creatures['Streamer'].lxp -= recipe.lxp;
+
+        // Item hinzufügen
+        for (const [item, amount] of Object.entries(recipe.output)) {
+            if (!gameState.inventory[item]) {
+                gameState.inventory[item] = 0;
             }
-            save();
-            render();
+            gameState.inventory[item] += amount;
         }
 
-        setInterval(tick, 60000);
+        addLog(`✅ Erfolgreich ${recipeName} hergestellt!`);
+        updateUI();
+        saveGameState();
+    } else {
+        addLog("❌ Nicht genug Ressourcen oder LXP!");
+    }
+}
 
-        function render() {
-            // Statistiken aktualisieren
-            const residents = Object.keys(creatures).length;
-            const subs = Object.values(creatures).filter(c => c.type === "sub").length;
-            const followers = residents - subs;
+// ===== BATTLE SYSTEM =====
+function spawnBoss(hp = 5000) {
+    gameState.village.boss = {
+        name: `Dämon der ${['Schatten', 'Flammen', 'Eis', 'Natur'][Math.floor(Math.random() * 4)]}`,
+        hp,
+        maxHP: hp,
+        damage: Math.floor(Math.random() * 200) + 100
+    };
 
-            document.getElementById("residentCount").textContent = residents;
-            document.getElementById("subCount").textContent = subs;
-            document.getElementById("followerCount").textContent = followers;
+    document.getElementById('bossArena').style.display = 'block';
+    document.getElementById('bossName').textContent = gameState.village.boss.name;
+    document.getElementById('bossDamage').textContent = gameState.village.boss.damage;
+    updateBossHP();
+    renderParty();
+}
 
-            // LXP-Balance anzeigen (Beispielwert)
-            const user = creatures["DevUser"];
-            document.getElementById("lxpBalance").textContent = user ? Math.floor(user.lxp) + " LXP" : "0";
+function updateBossHP() {
+    const percent = (gameState.village.boss.hp / gameState.village.boss.maxHP) * 100;
+    document.getElementById('bossHealthFill').style.width = `${percent}%`;
+}
 
-            // Creatures rendern
-            document.querySelectorAll(".creature").forEach(e => e.remove());
+function renderParty() {
+    const partyElement = document.getElementById('partyMembers');
+    partyElement.innerHTML = '<h4>👥 Party:</h4>';
 
-            let i = 0;
-            for (let c of Object.values(creatures)) {
-                let d = document.createElement("div");
-                d.className = "creature";
-                d.style.left = (30 + Math.random() * 40) + "%";
-                d.style.top = (30 + Math.random() * 40) + "%";
-                d.innerHTML = `
-                    <div class="name">${c.name}</div>
-                    ${c.type === "sub" ? getSubStage(c.ep) : getFollowerStage(c.ep)}
-                `;
-                document.body.appendChild(d);
-                i++;
+    Object.values(gameState.creatures).forEach(creature => {
+        const stage = getEvolutionStage(creature);
+        const role = creature.battleRole || 'Keine Rolle';
+
+        partyElement.innerHTML += `
+            <div style="display: flex; justify-content: space-between; margin: 4px 0;">
+                <span>${stage.emoji} ${creature.name} (${stage.name})</span>
+                <span>${role}</span>
+            </div>
+        `;
+    });
+}
+
+function attackBoss(role) {
+    if (!gameState.village.boss) return;
+
+    const activeCreatures = Object.values(gameState.creatures)
+        .filter(c => calculateEP(c.joinDate) >= 30); // Nur entwickelte Kreaturen
+
+    if (activeCreatures.length === 0) {
+        addLog("⚠ Keine entwickelten Kreaturen zum Kämpfen!");
+        return;
+    }
+
+    // Schaden berechnen basierend auf Rollen
+    let totalDamage = 0;
+    activeCreatures.forEach(creature => {
+        const stage = getEvolutionStage(creature);
+        let damage = 0;
+
+        if (role === 'attack') {
+            if (stage.name.includes('Ritter') || stage.name.includes('Gigant')) {
+                damage = 150; // Tank/Ritter macht moderaten Schaden
+                creature.battleRole = 'Ritter';
+            }
+            else if (stage.name.includes('Waldläufer') || stage.name.includes('Jäger')) {
+                damage = 250; // Waldläufer macht hohen Schaden
+                creature.battleRole = 'Waldläufer';
+            }
+            else if (stage.name.includes('Magier') || stage.name.includes('Schamane')) {
+                damage = 100; // Magier macht wenig direkten Schaden
+                creature.battleRole = 'Magier';
+            }
+            else {
+                damage = 50; // Standard-Schaden
+            }
+        }
+        else if (role === 'heal') {
+            if (stage.name.includes('Magier') || stage.name.includes('Schamane')) {
+                damage = -200; // Heilung (negativer Schaden)
+                creature.battleRole = 'Magier';
+            }
+            else {
+                damage = -50; // Geringe Heilung
             }
         }
 
-        /* Boss Kampf */
-        function spawnBoss() {
-            boss = { hp: 1000, maxHP: 1000 };
-            document.getElementById("bossWindow").style.display = "block";
-            updateBoss();
+        totalDamage += damage;
+        creature.lastAction = Date.now();
+    });
+
+    // Boss HP aktualisieren
+    gameState.village.boss.hp -= totalDamage;
+    if (gameState.village.boss.hp <= 0) {
+        // Boss besiegt
+        gameState.village.boss = null;
+        addLog(`🎉 BOSS BESIEGT! Alle Teilnehmer erhalten 100 LXP!`);
+
+        // LXP verteilen
+        activeCreatures.forEach(c => {
+            c.lxp += 100;
+        });
+
+        // Zufälligen Loot generieren
+        const loot = ['magischer_bogen', 'faser', 'holzbrett'][Math.floor(Math.random() * 3)];
+        if (!gameState.inventory[loot]) gameState.inventory[loot] = 0;
+        gameState.inventory[loot] += 1;
+        addLog(`🎁 Loot erhalten: 1x ${loot}`);
+
+        setTimeout(() => {
+            document.getElementById('bossArena').style.display = 'none';
+        }, 3000);
+    } else {
+        // Boss greift zurück
+        const bossDamage = Math.floor(gameState.village.boss.damage * (0.8 + Math.random() * 0.4));
+        gameState.village.health -= bossDamage;
+        addLog(`💥 Boss trifft zurück für ${bossDamage} Schaden! Dorf-HP: ${Math.max(0, gameState.village.health)}`);
+
+        if (gameState.village.health <= 0) {
+            addLog("⚠ DORF ZERSTÖRT! Ein Gebäude wurde beschädigt!");
+            // Zufälliges Gebäude beschädigen
+            const buildings = Object.keys(gameState.village.buildings);
+            const damagedBuilding = buildings[Math.floor(Math.random() * buildings.length)];
+            gameState.village.buildings[damagedBuilding].unlocked = false;
+            document.getElementById(damagedBuilding).style.display = 'none';
+            checkVillageProgress();
         }
+    }
 
-        function updateBoss() {
-            // HP-Bar aktualisieren
-            const hpPercent = (boss.hp / boss.maxHP) * 100;
-            document.getElementById("bossHPBar").style.width = hpPercent + "%";
+    updateBossHP();
+    renderParty();
+    updateUI();
+    saveGameState();
+}
 
-            // Party anzeigen
-            document.getElementById("party").innerHTML =
-                Object.values(creatures)
-                    .map(c => (c.type === "sub" ? getSubStage(c.ep) : getFollowerStage(c.ep)) + " " + c.name)
-                    .join("<br>");
-        }
+// ===== TRADE SYSTEM =====
+function openTrade(mode) {
+    const tradeMenu = document.getElementById('tradeMenu');
+    if (mode === 'verkaufen') {
+        tradeMenu.innerHTML = `
+            <h3>💰 Item verkaufen</h3>
+            <div id="sellItems">
+                ${Object.entries(gameState.inventory).map(([item, amount]) => `
+                    <div style="display: flex; justify-content: space-between; margin: 5px 0;">
+                        <span>${item} (x${amount})</span>
+                        <button class="button" onclick="sellItem('${item}')" style="width: 60px; padding: 2px;">Verkaufen</button>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+    else if (mode === 'handeln') {
+        tradeMenu.innerHTML = `
+            <h3>🔄 Handel anbieten</h3>
+            <input type="text" id="tradePartner" placeholder="Username" style="width: 100%; padding: 5px; margin: 5px 0; background: #333; color: white; border: 1px solid #666;">
+            <div style="margin: 10px 0;">
+                <h4>Dein Angebot:</h4>
+                <div id="tradeOfferItems" style="min-height: 50px; background: rgba(0,0,0,0.2); padding: 5px; border-radius: 5px;">
+                    <!-- Dynamisch gefüllt -->
+                </div>
+                <div style="display: flex; margin-top: 10px;">
+                    <select id="offerItem" style="flex: 1; padding: 5px; background: #333; color: white; border: 1px solid #666;">
+                        ${Object.entries(gameState.inventory).map(([item]) => `<option value="${item}">${item}</option>`).join('')}
+                    </select>
+                    <input type="number" id="offerAmount" min="1" value="1" style="width: 50px; padding: 5px; margin: 0 5px; background: #333; color: white; border: 1px solid #666;">
+                    <button class="button" onclick="addToOffer()" style="padding: 5px 10px;">Hinzufügen</button>
+                </div>
+            </div>
+            <button class="button" onclick="sendTradeOffer()">Handel anbieten</button>
+        `;
+    }
 
-        function attackBoss() {
-            if (attackCooldown) return;
+    togglePanel('tradeMenu');
+}
 
-            attackCooldown = true;
-            document.getElementById("attackButton").disabled = true;
+function sellItem(item) {
+    if (!gameState.inventory[item]) return;
 
-            let log = "";
-            let dmg = 0;
+    // Verkaufswert berechnen (Beispiel: 10 LXP pro Item)
+    const value = 10;
+    gameState.creatures['Streamer'].lxp += value;
+    gameState.inventory[item]--;
 
-            for (let c of Object.values(creatures)) {
-                let stage = c.type === "sub" ? getSubStage(c.ep) : getFollowerStage(c.ep);
-                if (stage === "👽" || stage === "🌳") dmg += 100;
-                else if (stage === "💀" || stage === "👹") dmg += 40;
-                else if (stage === "🎃" || stage === "💧" || stage === "🏺") dmg += 10;
+    if (gameState.inventory[item] <= 0) {
+        delete gameState.inventory[item];
+    }
+
+    addLog(`💰 Verkauft: 1x ${item} für ${value} LXP`);
+    updateUI();
+    saveGameState();
+    openTrade('verkaufen');
+}
+
+// ===== UI HELPERS =====
+function updateUI() {
+    // Dorf-Statistiken
+    document.getElementById('residentCount').textContent = Object.keys(gameState.creatures).length;
+    document.getElementById('totalLXP').textContent = gameState.village.totalLXP;
+    document.getElementById('progressText').textContent = `${Math.floor(gameState.village.progress)}%`;
+    document.getElementById('villageProgressBar').style.width = `${gameState.village.progress}%`;
+
+    // Gebäude-Status
+    document.getElementById('schmiedeStatus').textContent =
+        gameState.village.buildings.schmiede.unlocked ? '🔓 Freigeschaltet' : `🔒 ${gameState.village.buildings.schmiede.requiredLXP} LXP benötigt`;
+    document.getElementById('marktplatzStatus').textContent =
+        gameState.village.buildings.marktplatz.unlocked ? '🔓 Freigeschaltet' : `🔒 ${gameState.village.buildings.marktplatz.requiredLXP} LXP benötigt`;
+    document.getElementById('heiligeSchmiedeStatus').textContent =
+        gameState.village.buildings.heiligeSchmiede.unlocked ? '🔓 Freigeschaltet' : `🔒 ${gameState.village.buildings.heiligeSchmiede.requiredLXP} LXP benötigt`;
+    document.getElementById('rathausStatus').textContent =
+        gameState.village.buildings.rathaus.unlocked ? '🔓 Freigeschaltet' : `🔒 ${gameState.village.buildings.rathaus.requiredLXP} LXP benötigt`;
+
+    // Heilige Schmiede nur für Subs sichtbar
+    document.getElementById('heiligeCraftingSection').style.display =
+        gameState.village.buildings.heiligeSchmiede.unlocked &&
+        gameState.creatures['Streamer']?.type === 'sub' ? 'block' : 'none';
+
+    // Ressourcen-Anzeige
+    document.getElementById('grasCount').textContent = gameState.resources.gras;
+    document.getElementById('holzCount').textContent = gameState.resources.holz;
+    document.getElementById('steinCount').textContent = gameState.resources.stein;
+
+    // Crafting-Buttons aktualisieren
+    const craftingButtons = document.querySelectorAll('#craftingMenu .button');
+    craftingButtons.forEach(button => {
+        const recipeName = button.onclick.toString().match(/craftItem\('([^']+)'\)/)[1];
+        const recipe = gameState.craftingRecipes[recipeName];
+        let canCraft = true;
+
+        // Ressourcen prüfen
+        for (const [resource, amount] of Object.entries(recipe.resources)) {
+            if ((gameState.resources[resource] || 0) < amount) {
+                canCraft = false;
+                break;
             }
+        }
 
-            boss.hp -= dmg;
-            log += `⚔️ Gruppe verursacht <strong>${dmg}</strong> Schaden!<br>`;
+        // LXP prüfen
+        if (gameState.creatures['Streamer'].lxp < recipe.lxp) {
+            canCraft = false;
+        }
 
-            if (boss.hp <= 0) {
-                log += "🎉 <strong>BOSS BESIEGT!</strong> 🎉<br>";
-                log += "💰 Alle Teilnehmer erhalten 50 LXP!";
-                // LXP Belohnung verteilen
-                for (let c of Object.values(creatures)) {
-                    c.lxp += 50;
+        button.disabled = !canCraft;
+    });
+}
+
+function togglePanel(panelId) {
+    const panel = document.getElementById(panelId);
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+function addLog(message) {
+    const logElement = document.getElementById('bossLog') || document.createElement('div');
+    logElement.innerHTML = `<div>[${new Date().toLocaleTimeString()}] ${message}</div>` + logElement.innerHTML;
+}
+
+// ===== SAVE/LOAD SYSTEM =====
+function saveGameState() {
+    localStorage.setItem('creatures', JSON.stringify(gameState.creatures));
+    localStorage.setItem('resources', JSON.stringify(gameState.resources));
+    localStorage.setItem('village', JSON.stringify(gameState.village));
+    localStorage.setItem('inventory', JSON.stringify(gameState.inventory));
+}
+
+function loadGameState() {
+    const savedCreatures = localStorage.getItem('creatures');
+    const savedResources = localStorage.getItem('resources');
+    const savedVillage = localStorage.getItem('village');
+    const savedInventory = localStorage.getItem('inventory');
+
+    if (savedCreatures) gameState.creatures = JSON.parse(savedCreatures);
+    if (savedResources) gameState.resources = JSON.parse(savedResources);
+    if (savedVillage) gameState.village = JSON.parse(savedVillage);
+    if (savedInventory) gameState.inventory = JSON.parse(savedInventory);
+}
+
+// ===== WEBSOCKET INTEGRATION =====
+function setupWebSocket() {
+    const ws = new WebSocket('ws://localhost:8080'); // An streamer.bot anpassen
+
+    ws.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+
+        // Neue Follower/Subs hinzufügen
+        if (data.type === 'follow' || data.type === 'sub') {
+            const userType = data.type === 'sub' ? 'sub' : 'follower';
+            addCreature(data.username, userType, Date.now());
+
+            // LXP aus Twitch-Bits/Sub-Monaten hinzufügen
+            if (data.type === 'sub') {
+                gameState.creatures[data.username].lxp += data.months * 100;
+            }
+        }
+
+        // Chat-Befehle verarbeiten
+        if (data.type === 'command') {
+            handleCommand(data.username, data.command, data.args);
+        }
+    };
+
+    // Beispiel für Command-Handling
+    function handleCommand(username, command, args) {
+        const creature = gameState.creatures[username];
+        if (!creature) return;
+
+        switch (command) {
+            case 'path':
+                if (calculateEP(creature.joinDate) >= 30 && !creature.path) {
+                    creature.path = args[0]; // 'krieger', 'natur' oder 'wissen'
+                    addLog(`🔄 ${username} hat den Pfad ${args[0]} gewählt!`);
+                    saveGameState();
+                    renderCreatures();
                 }
-                save();
+                break;
 
-                setTimeout(() => {
-                    document.getElementById("bossWindow").style.display = "none";
-                }, 3000);
-            }
+            case 'equip':
+                if (gameState.inventory[args[0]] > 0) {
+                    creature.equipment[args[1]] = args[0]; // args[1] = 'head', 'hand', 'body'
+                    gameState.inventory[args[0]]--;
+                    addLog(`🎩 ${username} rüstet ${args[0]} aus!`);
+                    saveGameState();
+                    renderCreatures();
+                }
+                break;
 
-            document.getElementById("battleLog").innerHTML = log + "<br>" + document.getElementById("battleLog").innerHTML;
-            updateBoss();
-
-            setTimeout(() => {
-                attackCooldown = false;
-                document.getElementById("attackButton").disabled = false;
-            }, 1000);
+            case 'trade':
+                // Handelslogik hier
+                break;
         }
+    }
+}
 
-        /* Shop Funktionen */
-        function buyXP(userName) {
-            let user = creatures[userName];
-            if (user && user.lxp >= 10) {
-                user.lxp -= 10;
-                user.ep += 10;
-                save();
-                render();
-                logMessage(`✅ ${userName} kauft +10 EP für 10 LXP!`);
-            } else {
-                logMessage(`❌ Nicht genug LXP! (Benötigt: 10)`);
-            }
-        }
+// ===== START THE GAME =====
+window.onload = function() {
+    initGame();
+    setupWebSocket();
 
-        function buyPotion(userName) {
-            let user = creatures[userName];
-            if (user && user.lxp >= 5) {
-                user.lxp -= 5;
-                save();
-                render();
-                logMessage(`🍵 ${userName} kauft einen kleinen Trank für 5 LXP!`);
-            } else {
-                logMessage(`❌ Nicht genug LXP! (Benötigt: 5)`);
-            }
-        }
-
-        function sharpenSword(userName) {
-            let user = creatures[userName];
-            if (user && user.lxp >= 20) {
-                user.lxp -= 20;
-                user.ep += 5; // Bonus-EP
-                save();
-                render();
-                logMessage(`⚔️ ${userName} schärft sein Schwert für 20 LXP (+5 EP Bonus)!`);
-            } else {
-                logMessage(`❌ Nicht genug LXP! (Benötigt: 20)`);
-            }
-        }
-
-        function logMessage(message) {
-            const logElement = document.getElementById("battleLog");
-            logElement.innerHTML = message + "<br>" + logElement.innerHTML;
-        }
-
-        // Initial Render
-        render();
-
-        /* WebSocket (Beispiel - muss an deine Backend-Logik angepasst werden) */
-        let ws = new WebSocket("ws://localhost:8080");
-        ws.onmessage = function(e) {
-            let data = JSON.parse(e.data);
-            if (data.displayName) {
-                spawnEgg(data.displayName, data.isSub ? "sub" : "follower");
-            }
-        };
-    </script>
+    // Event Listener für Battle-Buttons
+    document.getElementById('attackButton').addEventListener('click', () => attackBoss('attack'));
+    document.getElementById('healButton').addEventListener('click', () => attackBoss('heal'));
+};
+</script>
 </body>
 </html>
