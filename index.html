@@ -5,134 +5,73 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Isekai Village - The Nest Edition</title>
 <style>
-/* ===== BASE STYLES ===== */
-body {
-    margin: 0;
-    padding: 0;
-    width: 100vw;
-    height: 100vh;
-    overflow: hidden;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    color: #e0d8b0;
-    background: #0a0a12;
-    position: relative;
-}
+    /* ===== BASE STYLES ===== */
+    body {
+        margin: 0; padding: 0;
+        width: 100vw; height: 100vh;
+        overflow: hidden;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        color: #e0d8b0;
+        background: #0a0a12;
+        position: relative;
+    }
 
-/* ===== WATERMARK LAYER (Z-INDEX 5) ===== */
-#watermark {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="600" viewBox="0 0 1000 600"><text x="50%" y="50%" font-family="Arial" font-size="40" fill="%23ffffff" fill-opacity="0.15" text-anchor="middle" transform="rotate(-15 500 300)">Property of Spawn2909 - The Nest</text></svg>');
-    background-repeat: repeat;
-    background-position: center;
-    z-index: 5;
-    pointer-events: none;
-    user-select: none;
-}
+    /* ===== LAYER SYSTEM ===== */
+    #watermark {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="600" viewBox="0 0 1000 600"><text x="50%" y="50%" font-family="Arial" font-size="40" fill="%23ffffff" fill-opacity="0.15" text-anchor="middle" transform="rotate(-15 500 300)">Property of Spawn2909 - The Nest</text></svg>');
+        z-index: 5; pointer-events: none;
+    }
 
-/* ===== BACKGROUND SYSTEM (Z-INDEX 1) ===== */
-#gameWorld {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    background-image: url('wald.png');
-    background-size: cover;
-    background-position: center;
-    z-index: 1;
-}
+    #gameWorld {
+        position: absolute; width: 100%; height: 100%;
+        background-image: url('wald.png');
+        background-size: cover; background-position: center;
+        z-index: 1;
+    }
 
-/* ===== BUILDING SYSTEM (Z-INDEX 2) ===== */
-.building {
-    position: absolute;
-    display: none;
-    z-index: 2; 
-    transition: opacity 0.5s;
-}
-#schmiede { left: 15%; top: 60%; width: 200px; height: 200px; filter: drop-shadow(0 0 5px rgba(255, 100, 0, 0.7)); }
-#marktplatz { left: 40%; top: 55%; width: 150px; height: 120px; }
-#heiligeSchmiede { left: 65%; top: 60%; width: 130px; height: 110px; }
-#rathaus { left: 45%; top: 20%; width: 180px; height: 150px; }
+    .building {
+        position: absolute; display: none; z-index: 2;
+        transition: opacity 0.5s;
+    }
 
-/* ===== CREATURE SYSTEM (Z-INDEX 10) ===== */
-.creature {
-    position: absolute;
-    width: 60px;
-    height: 60px;
-    z-index: 10; /* Über Gebäuden, hinter UI */
-    transition: all 0.3s ease;
-    pointer-events: none;
-}
-.creature-container {
-    position: relative;
-    width: 100%;
-    height: 100%;
-}
-.creature-base {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    background-size: contain;
-    background-repeat: no-repeat;
-    background-position: center;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-.name-tag {
-    position: absolute;
-    bottom: -20px;
-    width: 140%;
-    left: -20%;
-    text-align: center;
-    font-size: 10px;
-    font-weight: bold;
-    color: #ffeb3b;
-    text-shadow: 2px 2px 2px black;
-    pointer-events: none;
-    z-index: 11;
-}
+    /* Gebäude Positionen */
+    #schmiede { left: 15%; top: 60%; width: 200px; }
+    #marktplatz { left: 40%; top: 55%; width: 150px; }
+    #heiligeSchmiede { left: 65%; top: 60%; width: 130px; }
+    #rathaus { left: 45%; top: 20%; width: 180px; }
 
-/* ===== UI SYSTEM (Z-INDEX 100+) ===== */
-.ui-panel {
-    position: absolute;
-    background: rgba(18, 22, 30, 0.9);
-    border: 1px solid rgba(184, 134, 11, 0.7);
-    border-radius: 8px;
-    padding: 12px;
-    z-index: 100;
-    box-shadow: 0 0 15px rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(5px);
-}
-#villageStats { left: 10px; top: 10px; width: 220px; }
-#craftingMenu { right: 10px; top: 10px; width: 250px; display: none; }
-#bossArena { bottom: 20px; left: 50%; transform: translateX(-50%); width: 600px; display: none; background: rgba(30, 15, 15, 0.95); border: 2px solid #8B0000; }
-#tradeMenu { right: 10px; bottom: 10px; width: 240px; display: none; }
+    /* Bewohner (Eier & Kreaturen) */
+    .creature {
+        position: absolute; width: 60px; height: 60px;
+        z-index: 10; pointer-events: none;
+        will-change: left, top;
+    }
+    .creature-base {
+        width: 100%; height: 100%;
+        background-size: contain; background-repeat: no-repeat;
+        background-position: center;
+    }
+    .name-tag {
+        position: absolute; bottom: -20px; width: 140%; left: -20%;
+        text-align: center; font-size: 10px; font-weight: bold;
+        color: #ffeb3b; text-shadow: 2px 2px 2px black;
+    }
 
-.button {
-    background: rgba(40, 45, 60, 0.8);
-    color: #e0d8b0;
-    border: 1px solid rgba(184, 134, 11, 0.6);
-    border-radius: 5px;
-    padding: 6px 10px;
-    margin: 4px 0;
-    cursor: pointer;
-    width: 100%;
-}
+    /* UI Panels */
+    .ui-panel {
+        position: absolute; background: rgba(18, 22, 30, 0.9);
+        border: 1px solid rgba(184, 134, 11, 0.7);
+        border-radius: 8px; padding: 12px; z-index: 100;
+        backdrop-filter: blur(5px);
+    }
+    #villageStats { left: 10px; top: 10px; width: 220px; }
+    #craftingMenu { right: 10px; top: 10px; width: 250px; display: none; }
 
-.progress-container { width: 100%; height: 15px; background: rgba(50, 50, 70, 0.6); border-radius: 7px; margin: 8px 0; overflow: hidden; }
-.progress-bar { height: 100%; background: linear-gradient(90deg, #4CAF50, #8BC34A); width: 0%; transition: width 0.5s; }
+    .progress-container { width: 100%; height: 15px; background: rgba(50, 50, 70, 0.6); border-radius: 7px; margin: 8px 0; overflow: hidden; }
+    .progress-bar { height: 100%; background: linear-gradient(90deg, #4CAF50, #8BC34A); width: 0%; transition: width 0.5s; }
 
-#connectionStatus {
-    position: fixed;
-    bottom: 5px;
-    left: 5px;
-    font-size: 9px;
-    z-index: 1000;
-    color: #ff4444;
-}
+    #connectionStatus { position: fixed; bottom: 5px; left: 5px; font-size: 9px; z-index: 1000; color: #ff4444; }
 </style>
 </head>
 <body>
@@ -153,23 +92,17 @@ body {
     <div class="progress-container"><div id="villageProgressBar" class="progress-bar"></div></div>
     <div>Fortschritt: <span id="progressText">0%</span></div>
     <div>Bewohner: <span id="residentCount">0</span></div>
-    <div>Gesammelte LXP: <span id="totalLXP">0</span></div>
+    <div>LXP: <span id="totalLXP">0</span></div>
     <hr style="border: 0.5px solid rgba(184,134,11,0.3)">
     <div id="buildingStatus" style="font-size: 0.9em;">
         <div>⛏ Schmiede: <span id="schmiedeStatus">🔒</span></div>
         <div>🏪 Markt: <span id="marktplatzStatus">🔒</span></div>
-        <div>⚔ Heilige Schmiede: <span id="heiligeSchmiedeStatus">🔒</span></div>
         <div>🏛 Rathaus: <span id="rathausStatus">🔒</span></div>
     </div>
 </div>
 
 <div id="craftingMenu" class="ui-panel">
-    <h3>⚒ Crafting</h3>
-    <button class="button" onclick="craftItem('holzbrett')">🪵 Holzbrett (3x Holz)</button>
-    <div id="heiligeCraftingSection" style="display: none;">
-        <button class="button" onclick="craftItem('magischer_bogen')">🏹 Magischer Bogen (Subs)</button>
-    </div>
-    <h4>📦 Ressourcen:</h4>
+    <h3>⚒ Ressourcen & Inventar</h3>
     <div id="grasCount">Gras: 0</div>
     <div id="holzCount">Holz: 0</div>
     <div id="steinCount">Stein: 0</div>
@@ -177,26 +110,22 @@ body {
 
 <button onclick="togglePanel('craftingMenu')" style="position: absolute; right: 10px; top: 10px; z-index: 1000; background: rgba(80, 80, 120, 0.7); border-radius: 50%; width: 40px; height: 40px; border: none; color: white; cursor: pointer;">⚒</button>
 
-<input type="hidden" id="securityToken" value="">
-
 <script>
-// ===== CONFIG =====
+// ===== CONFIGURATION =====
 const SECURITY = {
     HMAC_SECRET: 'NestWächter2026!',
-    ALLOWED_TYPES: ['follow', 'sub', 'command', 'verify', 'stage_update'],
-    WS_ORIGIN: 'ws://127.0.0.1:8080'
+    WS_ORIGIN: 'ws://127.0.0.1:8080' // Behalten für Streamer.bot
 };
 
 const gameState = {
     creatures: JSON.parse(localStorage.getItem('creatures')) || {},
     resources: JSON.parse(localStorage.getItem('resources')) || {gras: 0, holz: 0, stein: 0},
     village: JSON.parse(localStorage.getItem('village')) || {
-        totalLXP: 0, progress: 0,
+        totalLXP: 0,
         buildings: {
-            schmiede: {unlocked: false, requiredLXP: 5000},
-            marktplatz: {unlocked: false, requiredLXP: 10000},
-            heiligeSchmiede: {unlocked: false, requiredLXP: 20000},
-            rathaus: {unlocked: false, requiredLXP: 50000}
+            schmiede: { unlocked: false, requiredLXP: 5000 },
+            marktplatz: { unlocked: false, requiredLXP: 10000 },
+            rathaus: { unlocked: false, requiredLXP: 50000 }
         }
     }
 };
@@ -204,64 +133,99 @@ const gameState = {
 let socket;
 let reconnectInterval;
 
-// ===== SECURITY =====
+// ===== SECURITY & AUTH =====
 function generateSignature(data) {
     if (typeof CryptoJS !== 'undefined') {
         return CryptoJS.HmacSHA256(JSON.stringify(data), SECURITY.HMAC_SECRET).toString(CryptoJS.enc.Base64);
     }
-    return "DEBUG_MODE";
+    return "DEBUG";
 }
 
-function verifySignature(data, signature) {
-    return generateSignature(data) === signature;
-}
-
-// ===== GAME LOGIC =====
+// ===== EVOLUTION & ASSETS =====
 function getEvolutionStage(creature) {
-    const ep = Math.floor((Date.now() - creature.joinDate) / (1000 * 60 * 60 * 24));
+    const days = Math.floor((Date.now() - creature.joinDate) / (1000 * 60 * 60 * 24));
     
     if (creature.type === 'sub') {
-        if (ep >= 365) return { name: 'Höheres Wesen', image: 'wesen.png' };
-        if (ep >= 270) return { name: 'Lich', image: 'lich.png' };
-        if (ep >= 180) return { name: 'Oger', image: 'oger.png' };
-        if (ep >= 90)  return { name: 'Goblin', image: 'goblin.png' };
-        if (ep >= 60)  return { name: 'Skelett', image: 'skelett.png' };
-        if (ep >= 30)  return { name: 'Schleim', image: 'schleim.png' };
-        return { name: 'Ei', image: 'ei.png' };
+        if (days >= 365) return { name: 'Höheres Wesen', image: 'wesen.png' };
+        if (days >= 270) return { name: 'Lich', image: 'lich.png' };
+        if (days >= 180) return { name: 'Oger', image: 'oger.png' };
+        if (days >= 90)  return { name: 'Goblin', image: 'goblin.png' };
+        if (days >= 60)  return { name: 'Skelett', image: 'skelett.png' };
+        if (days >= 30)  return { name: 'Schleim', image: 'schleim.png' };
+        return { name: 'Ei (Sub)', image: 'ei.png' }; // Lila/Sub Ei
     } 
-    // Follower Gleichberechtigung: Nutzen alle das hochwertige follower.png
-    return { name: 'Bewohner', image: 'follower.png' };
+    // Follower bekommen das rote Ei (follower.png)
+    return { name: 'Ei (Follower)', image: 'follower.png' };
 }
 
+// ===== ENGINE: MOVEMENT & RESOURCES =====
+function startGameLoops() {
+    requestAnimationFrame(updateMovement);
+    setInterval(collectResources, 10000); // Bewohner sammeln alle 10 Sek
+}
+
+function updateMovement() {
+    Object.values(gameState.creatures).forEach(creature => {
+        const el = document.getElementById(`creature-${creature.name}`);
+        if (!el) return;
+
+        // Initialsierung der Geschwindigkeit (Auch für Eier!)
+        if (creature.vx === undefined) {
+            creature.vx = (Math.random() - 0.5) * 0.12; 
+            creature.vy = (Math.random() - 0.5) * 0.12;
+            creature.curX = 20 + Math.random() * 60;
+            creature.curY = 30 + Math.random() * 50;
+        }
+
+        creature.curX += creature.vx;
+        creature.curY += creature.vy;
+
+        // Kollision mit dem Rand
+        if (creature.curX < 5 || creature.curX > 90) creature.vx *= -1;
+        if (creature.curY < 15 || creature.curY > 85) creature.vy *= -1;
+
+        el.style.left = creature.curX + "%";
+        el.style.top = creature.curY + "%";
+    });
+    requestAnimationFrame(updateMovement);
+}
+
+function collectResources() {
+    const activeResidents = Object.keys(gameState.creatures).length;
+    if (activeResidents === 0) return;
+
+    // Jedes Ei/Bewohner trägt zum Sammeln bei
+    gameState.resources.gras += Math.floor(Math.random() * activeResidents) + 1;
+    gameState.resources.holz += Math.floor(Math.random() * (activeResidents / 2)) + 1;
+    gameState.resources.stein += Math.floor(Math.random() * (activeResidents / 3)) + 1;
+    
+    updateUI();
+    saveGameState();
+}
+
+// ===== SYSTEM FUNCTIONS =====
 function renderCreatures() {
     const container = document.getElementById('creaturesContainer');
     container.innerHTML = '';
-
     Object.values(gameState.creatures).forEach(creature => {
         const stage = getEvolutionStage(creature);
         const el = document.createElement('div');
         el.className = 'creature';
-        el.style.left = creature.posX || `${20 + Math.random() * 60}%`;
-        el.style.top = creature.posY || `${30 + Math.random() * 50}%`;
-
+        el.id = `creature-${creature.name}`;
         el.innerHTML = `
-            <div class="creature-container">
-                <div class="creature-base" style="background-image: url('${stage.image}');"></div>
-                <div class="name-tag">${creature.name}<br><span style="font-size:8px; opacity:0.8;">${stage.name}</span></div>
-            </div>
+            <div class="creature-base" style="background-image: url('${stage.image}');"></div>
+            <div class="name-tag">${creature.name}<br><span>${stage.name}</span></div>
         `;
         container.appendChild(el);
     });
 }
 
-function addCreature(name, type, joinDate) {
+function addCreature(name, type, timestamp) {
     if (!gameState.creatures[name]) {
         gameState.creatures[name] = {
             name, type, 
-            joinDate: joinDate || Date.now(),
-            lxp: type === 'sub' ? 100 : 50,
-            posX: `${20 + Math.random() * 60}%`,
-            posY: `${30 + Math.random() * 50}%`
+            joinDate: timestamp || Date.now(),
+            lxp: type === 'sub' ? 150 : 50
         };
         saveGameState();
         renderCreatures();
@@ -269,13 +233,11 @@ function addCreature(name, type, joinDate) {
     }
 }
 
-// ===== STABLE WEBSOCKET (5G OPTIMIZED) =====
 function setupSecureWebSocket() {
     socket = new WebSocket(SECURITY.WS_ORIGIN);
     const statusEl = document.getElementById('connectionStatus');
 
     socket.onopen = () => {
-        console.log("✅ Nest-Link Established");
         statusEl.textContent = "WebSocket: Connected";
         statusEl.style.color = "#44ff44";
         clearInterval(reconnectInterval);
@@ -285,32 +247,23 @@ function setupSecureWebSocket() {
     socket.onmessage = (e) => {
         try {
             const data = JSON.parse(e.data);
-            if (!SECURITY.ALLOWED_TYPES.includes(data.type)) return;
-            if (data.signature && !verifySignature(data.payload, data.signature)) return;
-
             const p = data.payload;
             if (data.type === 'follow' || data.type === 'sub') {
-                addCreature(p.username, data.type === 'sub' ? 'sub' : 'follower', p.timestamp);
+                addCreature(p.username, data.type, p.timestamp);
             }
-        } catch (err) { console.error("Data Error", err); }
+        } catch (err) {}
     };
 
     socket.onclose = () => {
-        statusEl.textContent = "WebSocket: Disconnected (Retrying...)";
+        statusEl.textContent = "WebSocket: Reconnecting...";
         statusEl.style.color = "#ff4444";
-        if (!reconnectInterval) {
-            reconnectInterval = setInterval(setupSecureWebSocket, 5000);
-        }
+        if (!reconnectInterval) reconnectInterval = setInterval(setupSecureWebSocket, 5000);
     };
-
-    socket.onerror = (err) => { socket.close(); };
 }
 
-// ===== UTILS =====
 function checkVillageProgress() {
     const total = Object.values(gameState.creatures).reduce((s, c) => s + c.lxp, 0);
     gameState.village.totalLXP = total;
-    gameState.village.progress = Math.min(100, total / 500);
     
     Object.keys(gameState.village.buildings).forEach(b => {
         if (!gameState.village.buildings[b].unlocked && total >= gameState.village.buildings[b].requiredLXP) {
@@ -322,20 +275,32 @@ function checkVillageProgress() {
 }
 
 function updateUI() {
+    const totalLXP = gameState.village.totalLXP;
     document.getElementById('residentCount').textContent = Object.keys(gameState.creatures).length;
-    document.getElementById('totalLXP').textContent = gameState.village.totalLXP;
-    document.getElementById('villageProgressBar').style.width = `${gameState.village.progress}%`;
-    document.getElementById('progressText').textContent = `${Math.floor(gameState.village.progress)}%`;
+    document.getElementById('totalLXP').textContent = totalLXP;
+    document.getElementById('villageProgressBar').style.width = Math.min(100, (totalLXP / 50000) * 100) + "%";
+    document.getElementById('progressText').textContent = Math.floor(Math.min(100, (totalLXP / 50000) * 100)) + "%";
     
-    ['schmiede', 'marktplatz', 'heiligeSchmiede', 'rathaus'].forEach(id => {
-        document.getElementById(id + 'Status').textContent = gameState.village.buildings[id].unlocked ? '🔓' : '🔒';
+    document.getElementById('grasCount').textContent = `Gras: ${gameState.resources.gras}`;
+    document.getElementById('holzCount').textContent = `Holz: ${gameState.resources.holz}`;
+    document.getElementById('steinCount').textContent = `Stein: ${gameState.resources.stein}`;
+
+    ['schmiede', 'marktplatz', 'rathaus'].forEach(id => {
+        if (gameState.village.buildings[id]) {
+            document.getElementById(id + 'Status').textContent = gameState.village.buildings[id].unlocked ? '🔓' : '🔒';
+        }
     });
 }
 
-function saveGameState() { localStorage.setItem('creatures', JSON.stringify(gameState.creatures)); }
+function saveGameState() { 
+    localStorage.setItem('creatures', JSON.stringify(gameState.creatures)); 
+    localStorage.setItem('resources', JSON.stringify(gameState.resources)); 
+    localStorage.setItem('village', JSON.stringify(gameState.village));
+}
+
 function togglePanel(id) { const p = document.getElementById(id); p.style.display = p.style.display === 'none' ? 'block' : 'none'; }
 
-// ===== INIT =====
+// ===== START ENGINE =====
 window.onload = () => {
     const scr = document.createElement('script');
     scr.src = 'https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js';
@@ -343,7 +308,8 @@ window.onload = () => {
         renderCreatures();
         checkVillageProgress();
         setupSecureWebSocket();
-        // Fallback für Streamer-Test
+        startGameLoops();
+        // Test-Bewohner falls leer
         if (Object.keys(gameState.creatures).length === 0) addCreature('Spawn2909', 'sub');
     };
     document.head.appendChild(scr);
