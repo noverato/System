@@ -5,105 +5,141 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Spawn2909 Nest RPG</title>
 <style>
-/* © 2026 Spawn2909 - Nest System. Alle Rechte vorbehalten. */
+/* © 2026 Spawn2909 - Nest System. Alle Rechte vorbehalten */
 body {
-    margin: 0;
-    padding: 0;
-    font-family: 'Segoe UI', sans-serif;
-    background: linear-gradient(to bottom, #1a472a, #2d5a27);
-    overflow: hidden;
-    color: #fff;
+    margin:0; padding:0;
+    font-family:'Segoe UI', sans-serif;
+    background: linear-gradient(to bottom, #0a1f0a, #163316);
+    overflow:hidden;
+    color:#fff;
 }
-
 #village-center {
-    position: relative;
-    width: 100vw;
-    height: 100vh;
-    overflow: hidden;
+    position:relative;
+    width:100vw;
+    height:100vh;
+    overflow:hidden;
 }
 
+/* Baum-Emojis */
+.tree {
+    position:absolute;
+    font-size: 16px;
+    user-select:none;
+    pointer-events:none;
+}
+
+/* Navigation Tabs */
+#navBar {
+    position:absolute;
+    top:10px;
+    left:50%;
+    transform:translateX(-50%);
+    display:flex;
+    gap:10px;
+}
+.tabBtn {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 5px;
+    padding:5px 10px;
+    cursor:pointer;
+    backdrop-filter: blur(5px);
+}
+
+/* Fenster / Tabs */
+.tabContent {
+    position:absolute;
+    top:60px;
+    left:50%;
+    transform:translateX(-50%);
+    width:80%;
+    height:70%;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius:10px;
+    backdrop-filter: blur(8px);
+    display:none;
+    padding:10px;
+    overflow:auto;
+}
+
+/* Eier / Avatare */
 .eggAvatar {
-    font-size: 32px;
-    position: absolute;
+    font-size:32px;
+    position:absolute;
     transition: all 5s linear;
-    text-align: center;
+    text-align:center;
 }
-
 .avatarName {
-    display: block;
-    font-size: 12px;
-    text-align: center;
-    margin-top: 2px;
+    display:block;
+    font-size:12px;
+    margin-top:2px;
+    text-align:center;
 }
 
+/* Gebäude */
 .building {
-    font-size: 40px;
-    position: absolute;
-    cursor: pointer;
+    font-size:40px;
+    position:absolute;
+    cursor:pointer;
     transition: transform 0.2s;
-    z-index: 10;
+    z-index:10;
 }
-
 .building:hover {
     transform: scale(1.2) rotate(5deg);
     filter: drop-shadow(0 0 10px gold);
 }
 
-/* Inventar Grid */
+/* Inventar */
+#charMenu {
+    position:absolute;
+    left:20px;
+    top:60px;
+    width:150px;
+}
+#baseLayer { z-index:1; }
+#headLayer { z-index:2; }
+#weaponLayer { z-index:3; position:relative; }
+
 #inventory {
-    position: absolute;
-    right: 20px;
-    top: 20px;
-    width: 300px;
-    display: grid;
+    display:grid;
     grid-template-columns: repeat(4, 60px);
     grid-template-rows: repeat(2, 60px);
-    gap: 5px;
+    gap:5px;
+    margin-top:10px;
 }
-
 .inventory-slot {
-    border: 1px solid rgba(255,255,255,0.3);
+    border:1px solid rgba(255,255,255,0.3);
     background: rgba(255,255,255,0.1);
-    border-radius: 5px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 28px;
+    border-radius:5px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:28px;
 }
 
-/* Char Layering */
-#charMenu {
-    position: absolute;
-    left: 20px;
-    top: 20px;
-    width: 150px;
-}
-
-#baseLayer { z-index: 1; }
-#headLayer { z-index: 2; }
-#weaponLayer { z-index: 3; position: relative; }
+/* Bossbereich */
 #bossArea {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%,-50%);
-    text-align: center;
+    position:absolute;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
+    text-align:center;
 }
+#bossEmoji { font-size:64px; transition: transform 0.1s;}
+#attackBtn { margin-top:10px; padding:5px 10px; cursor:pointer;}
 
-#bossEmoji {
-    font-size: 64px;
-    transition: transform 0.1s;
-}
-
+/* News Ticker */
 #newsTicker {
-    position: absolute;
-    bottom: 0;
-    width: 100%;
+    position:absolute;
+    bottom:0;
+    width:100%;
     background: rgba(0,0,0,0.6);
-    padding: 5px;
-    text-align: center;
-    font-size: 16px;
+    padding:5px;
+    text-align:center;
+    font-size:16px;
 }
+
 @keyframes shake {
     0% { transform: translate(1px, 1px) rotate(0deg);}
     20% { transform: translate(-1px, -2px) rotate(-1deg);}
@@ -115,27 +151,36 @@ body {
 </style>
 </head>
 <body>
+<!-- Navigation -->
+<div id="navBar">
+    <div class="tabBtn" onclick="switchTab('villageTab')">Dorf</div>
+    <div class="tabBtn" onclick="switchTab('arenaTab')">Arena</div>
+    <div class="tabBtn" onclick="switchTab('forgeTab')">Schmiede</div>
+    <div class="tabBtn" onclick="switchTab('marketTab')">Marktplatz</div>
+    <div class="tabBtn" onclick="switchTab('hallTab')">Hall of Fame</div>
+</div>
 
-<div id="village-center">
-    <div id="charMenu">
-        <div id="baseLayer">🥚</div>
-        <div id="headLayer"></div>
-        <div id="weaponLayer"></div>
-        <div>Status: Rang: Ei (Follower)</div>
-    </div>
-
-    <!-- Gebäude -->
-    <div class="building" id="forge" style="left:20%; top:40%;">⚒️</div>
-    <div class="building" id="arena" style="left:60%; top:40%;">🏟️</div>
-
-    <!-- Bossbereich -->
+<!-- Dorf / Tabs -->
+<div id="villageTab" class="tabContent">
+    <div id="villageMap" style="position:relative;width:100%;height:100%;"></div>
+</div>
+<div id="arenaTab" class="tabContent">
     <div id="bossArea">
         <div id="bossEmoji">👹</div>
         <div id="bossHP">HP: 1000</div>
         <button id="attackBtn">ANGREIFEN</button>
     </div>
+</div>
+<div id="forgeTab" class="tabContent">Hier kommt die Schmiede...</div>
+<div id="marketTab" class="tabContent">Marktplatz-Fenster</div>
+<div id="hallTab" class="tabContent">Hall of Fame</div>
 
-    <!-- Inventar -->
+<!-- Charakter Menu / Inventar -->
+<div id="charMenu">
+    <div id="baseLayer">🥚</div>
+    <div id="headLayer"></div>
+    <div id="weaponLayer"></div>
+    <div>Status: Rang: Ei (Follower)</div>
     <div id="inventory">
         <div class="inventory-slot"></div>
         <div class="inventory-slot"></div>
@@ -146,10 +191,10 @@ body {
         <div class="inventory-slot"></div>
         <div class="inventory-slot"></div>
     </div>
-
-    <!-- News Ticker -->
-    <div id="newsTicker">Das Dorf ist friedlich... bereitet euch vor!</div>
 </div>
+
+<!-- News Ticker -->
+<div id="newsTicker">Das Dorf ist friedlich... bereitet euch vor!</div>
 
 <script>
 /* Copyright (c) 2026 Spawn2909 */
@@ -159,123 +204,136 @@ console.log("NEST SYSTEM BY SPAWN2909 - STOP STEALING!");
 const spawn2909_avatars = {};
 let spawn2909_activeBoss = null;
 let spawn2909_save = { inventory: [] };
+const villageMap = document.getElementById('villageMap');
+const bossArea = document.getElementById('bossArea');
 
-// Gebäude-Klick
-document.getElementById('forge').addEventListener('click',()=>switchTab('premiumTab'));
-document.getElementById('arena').addEventListener('click',()=>switchTab('liveQuest'));
+// Navigation Tabs
+function switchTab(tab){
+    document.querySelectorAll('.tabContent').forEach(tc=>tc.style.display='none');
+    document.getElementById(tab).style.display='block';
+}
 
-// Spawn Egg
+// Initial Tab
+switchTab('villageTab');
+
+// Baumfeld
+for(let i=0;i<200;i++){
+    const tree = document.createElement('div');
+    tree.classList.add('tree');
+    tree.textContent = Math.random()<0.5?'🌲':'🌳';
+    tree.style.left = Math.random()*villageMap.clientWidth + 'px';
+    tree.style.top = Math.random()*villageMap.clientHeight + 'px';
+    tree.style.fontSize = (12+Math.random()*16)+'px';
+    villageMap.appendChild(tree);
+}
+
+// Gebäude
+const forge = document.createElement('div');
+forge.className='building';
+forge.id='forge';
+forge.textContent='⚒️';
+forge.style.left='20%';
+forge.style.top='40%';
+forge.addEventListener('click',()=>switchTab('forgeTab'));
+villageMap.appendChild(forge);
+
+const arena = document.createElement('div');
+arena.className='building';
+arena.id='arena';
+arena.textContent='🏟️';
+arena.style.left='60%';
+arena.style.top='40%';
+arena.addEventListener('click',()=>switchTab('arenaTab'));
+villageMap.appendChild(arena);
+
+// Eier / Avatare
 function spawnEgg(user){
-    if(spawn2909_avatars[user.id]) return; // existiert schon
-
+    if(spawn2909_avatars[user.id]) return;
     const egg = document.createElement('div');
     egg.classList.add('eggAvatar');
-    egg.id = 'egg-' + user.id;
-    egg.innerHTML = `🥚<span class="avatarName">${user.name}</span>`;
-    document.getElementById('village-center').appendChild(egg);
-    spawn2909_avatars[user.id] = egg;
-
+    egg.id='egg-'+user.id;
+    egg.innerHTML=`🥚<span class="avatarName">${user.name}</span>`;
+    villageMap.appendChild(egg);
+    spawn2909_avatars[user.id]=egg;
     moveAvatar(user.id);
 }
 
-// Wusel-Bewegung
+// Wander-Logik mit Begrenzung
 function moveAvatar(userID){
     const egg = spawn2909_avatars[userID];
     if(!egg) return;
-
-    const center = document.getElementById('village-center');
-
-    const maxX = center.clientWidth - egg.offsetWidth;
-    const maxY = center.clientHeight - egg.offsetHeight;
-
-    const randX = Math.random() * maxX;
-    const randY = Math.random() * maxY;
-
-    egg.style.left = randX + 'px';
-    egg.style.top = randY + 'px';
-
-    // Mini-Event 10% Chance
-    if(Math.random() < 0.1){
+    const maxX = villageMap.clientWidth - egg.offsetWidth;
+    const maxY = villageMap.clientHeight - egg.offsetHeight;
+    const randX = Math.random()*maxX;
+    const randY = Math.random()*maxY;
+    egg.style.left = randX+'px';
+    egg.style.top = randY+'px';
+    // Mini-Event
+    if(Math.random()<0.1){
         const effect = document.createElement('div');
-        effect.textContent = '💥';
-        effect.style.position = 'absolute';
-        effect.style.left = '0';
-        effect.style.top = '-20px';
-        effect.style.fontSize = '24px';
+        effect.textContent='💥';
+        effect.style.position='absolute';
+        effect.style.left='0';
+        effect.style.top='-20px';
+        effect.style.fontSize='24px';
         egg.appendChild(effect);
-        setTimeout(()=>effect.remove(), 1000);
-
-        document.getElementById('newsTicker').textContent =
-            `${egg.querySelector('.avatarName').textContent} hat eine kleine Beute gefunden!`;
+        setTimeout(()=>effect.remove(),1000);
+        document.getElementById('newsTicker').textContent = `${egg.querySelector('.avatarName').textContent} hat eine kleine Beute gefunden!`;
     }
-
-    setTimeout(()=>moveAvatar(userID), 5000 + Math.random()*3000);
+    setTimeout(()=>moveAvatar(userID),5000+Math.random()*3000);
 }
 
-// Boss Generator
+// Boss
 function spawnBoss(){
-    if(spawn2909_activeBoss) return; // nur ein Boss aktiv
-
+    if(spawn2909_activeBoss) return;
     const adjectives = ['Brennender','Frostiger','Wilder','Giftiger'];
     const monsters = ['Schleim','Oger','Wolf','Drache'];
-
-    const name = adjectives[Math.floor(Math.random()*adjectives.length)] + ' ' + 
-                 monsters[Math.floor(Math.random()*monsters.length)];
-    spawn2909_activeBoss = { name: name, hp: 1000 };
-    document.getElementById('bossEmoji').textContent = name.split(' ')[1] === 'Drache' ? '🐉' : '👹';
-    document.getElementById('bossHP').textContent = 'HP: ' + spawn2909_activeBoss.hp;
+    const name = adjectives[Math.floor(Math.random()*adjectives.length)] + ' ' + monsters[Math.floor(Math.random()*monsters.length)];
+    spawn2909_activeBoss={name:name,hp:1000};
+    document.getElementById('bossEmoji').textContent = name.split(' ')[1]==='Drache'?'🐉':'👹';
+    document.getElementById('bossHP').textContent='HP: '+spawn2909_activeBoss.hp;
 }
 
 // Angriff
 document.getElementById('attackBtn').addEventListener('click',()=>{
     if(!spawn2909_activeBoss) return;
-    const damage = 50; // Beispiel Schaden
-    spawn2909_activeBoss.hp -= damage;
-    if(spawn2909_activeBoss.hp < 0) spawn2909_activeBoss.hp = 0;
-
-    document.getElementById('bossHP').textContent = 'HP: ' + spawn2909_activeBoss.hp;
-
-    // Shake Animation
-    const bossEl = document.getElementById('bossEmoji');
-    bossEl.style.animation = 'shake 0.3s';
+    const damage=50;
+    spawn2909_activeBoss.hp-=damage;
+    if(spawn2909_activeBoss.hp<0) spawn2909_activeBoss.hp=0;
+    document.getElementById('bossHP').textContent='HP: '+spawn2909_activeBoss.hp;
+    const bossEl=document.getElementById('bossEmoji');
+    bossEl.style.animation='shake 0.3s';
     setTimeout(()=>bossEl.style.animation='',300);
-
-    if(spawn2909_activeBoss.hp === 0){
-        document.getElementById('newsTicker').textContent = `Der Boss ${spawn2909_activeBoss.name} wurde besiegt!`;
-
-        // Beispiel Loot
-        const loot = {name:'Feuer-Schwert [+5 DMG]', type:'weapon', emoji:'⚔️'};
+    if(spawn2909_activeBoss.hp===0){
+        document.getElementById('newsTicker').textContent=`Der Boss ${spawn2909_activeBoss.name} wurde besiegt!`;
+        const loot={name:'Feuer-Schwert [+5 DMG]',type:'weapon',emoji:'⚔️'};
         addItemToInventory(loot);
-        spawn2909_activeBoss = null;
-        document.getElementById('bossEmoji').textContent = '👹';
+        spawn2909_activeBoss=null;
+        document.getElementById('bossEmoji').textContent='👹';
     }
 });
 
-// Inventory Management
+// Inventar
 function addItemToInventory(item){
     spawn2909_save.inventory.push(item);
     renderInventory();
-    // Zeige direkt im Layer, wenn Wearable
-    if(item.type === 'weapon') document.getElementById('weaponLayer').textContent = item.emoji;
-    if(item.type === 'head') document.getElementById('headLayer').textContent = item.emoji;
+    if(item.type==='weapon') document.getElementById('weaponLayer').textContent=item.emoji;
+    if(item.type==='head') document.getElementById('headLayer').textContent=item.emoji;
 }
 
 function renderInventory(){
     const slots = document.querySelectorAll('.inventory-slot');
     slots.forEach((slot,i)=>{
-        slot.textContent = spawn2909_save.inventory[i] ? spawn2909_save.inventory[i].emoji : '';
+        slot.textContent = spawn2909_save.inventory[i]?spawn2909_save.inventory[i].emoji:'';
         if(spawn2909_save.inventory[i]) slot.title = spawn2909_save.inventory[i].name;
     });
 }
 
-// Dummy Tab Switch
-function switchTab(tab){
-    document.getElementById('newsTicker').textContent = 'Switched to '+tab;
-}
-
-// TEST: Spawn Boss nach Laden
+// TEST: Spawn Boss & Eier
 window.addEventListener('load',()=>{
     spawnBoss();
+    spawnEgg({id:1,name:'Spieler1'});
+    spawnEgg({id:2,name:'Spieler2'});
 });
 </script>
 </body>
