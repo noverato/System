@@ -3,37 +3,45 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>The Nest: Evolution & Zoom</title>
+<title>The Nest: Fix & Solo Leveling</title>
 <style>
-    body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #05070a; color: #e0d8b0; touch-action: none; }
+    body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #000; color: #e0d8b0; touch-action: none; }
     
-    /* KAMERA & WELT */
-    #viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; cursor: grab; }
+    #viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; display: flex; align-items: center; justify-content: center; }
+    
     #world { 
-        width: 3000px; height: 2000px; 
-        background: url('wald.png') repeat; 
-        background-size: 1200px auto;
-        position: absolute; transform-origin: 0 0;
+        width: 1920px; height: 1080px; 
+        background: url('wald.png') no-repeat center; 
+        background-size: contain;
+        position: relative;
+        transform-origin: center center;
         transition: transform 0.1s ease-out;
     }
 
-    /* CHARAKTER */
-    .creature { position: absolute; width: 100px; height: 100px; z-index: 10; transition: left 2s linear, top 2s linear; text-align: center; pointer-events: none; }
+    /* CHARAKTER FIX */
+    .creature { 
+        position: absolute; width: 120px; height: 120px; z-index: 10; 
+        transition: left 2s linear, top 2s linear; 
+        text-align: center; pointer-events: none; 
+        transform: translate(-50%, -50%); 
+    }
     .avatar-emoji { font-size: 60px; display: block; filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.5)); }
-    .weapon-layer { position: absolute; right: 0; top: 10px; font-size: 30px; transform: rotate(15deg); }
+    .weapon-layer { position: absolute; right: 10px; top: 20px; font-size: 30px; }
+    .name-tag { 
+        font-size: 14px; font-weight: bold; color: #fff; 
+        background: rgba(0,0,0,0.7); padding: 2px 10px; 
+        border-radius: 5px; display: inline-block; margin-top: 5px;
+        border: 1px solid #3b82f6;
+    }
 
-    /* UI LAYERS */
-    .ui { position: fixed; z-index: 1000; pointer-events: auto; }
-    #hud { top: 15px; left: 15px; background: rgba(15, 23, 42, 0.95); padding: 15px; border-radius: 12px; border: 1px solid #3b82f6; backdrop-filter: blur(8px); }
-    #battleLog { bottom: 90px; left: 15px; width: 240px; height: 120px; background: rgba(10,15,25,0.95); border: 1px solid #3b82f6; border-radius: 10px; padding: 10px; font-size: 11px; overflow-y: auto; display: none; }
-    
-    .inv-btn { bottom: 25px; right: 25px; padding: 18px 35px; background: #2563eb; color: white; border: none; border-radius: 15px; font-weight: bold; cursor: pointer; }
+    /* UI */
+    .ui-overlay { position: fixed; z-index: 1000; pointer-events: auto; }
+    #hud { top: 15px; left: 15px; background: rgba(15, 23, 42, 0.95); padding: 15px; border-radius: 12px; border: 1px solid #3b82f6; }
+    .inv-btn { bottom: 25px; right: 25px; padding: 15px 30px; background: #2563eb; color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; }
 
     /* MODAL */
     .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: none; z-index: 2000; align-items: center; justify-content: center; }
-    .inv-box { width: 90%; max-width: 450px; background: #1e293b; border: 2px solid #3b82f6; border-radius: 20px; padding: 30px; text-align: center; }
-    .class-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
-    .class-card { background: #0f172a; border: 1px solid #334155; padding: 10px; border-radius: 8px; cursor: pointer; }
+    .inv-box { width: 320px; background: #1e293b; border: 2px solid #3b82f6; border-radius: 20px; padding: 30px; text-align: center; }
 </style>
 </head>
 <body>
@@ -45,70 +53,84 @@
     </div>
 </div>
 
-<div class="ui" id="hud">
-    <div style="font-weight: bold; color: #3b82f6; font-size: 18px;"><span id="playerName">PLAYER</span></div>
-    <div id="classInfo" style="font-size: 11px; color: #94a3b8;">Klasse: Ei</div>
-    <div style="font-size: 12px; margin-top:5px;">✨ LXP: <span id="lxpVal" style="color:#facc15">0</span> | 📈 EP: <span id="epVal" style="color:#22c55e">0</span></div>
+<div class="ui-overlay" id="hud">
+    <div style="font-weight: bold; color: #3b82f6; font-size: 18px;"><span id="playerNameDisplay">Lade...</span></div>
+    <div style="font-size: 11px;">Klasse: <span id="classDisplay">Ei</span></div>
+    <div style="font-size: 12px; margin-top:5px;">✨ LXP: <span id="lxpDisplay">0</span> | 📈 EP: <span id="epDisplay">0</span></div>
 </div>
 
-<div class="ui" id="battleLog"></div>
-
-<button class="ui inv-btn" onclick="toggleInv(true)">🎒 INVENTAR</button>
+<button class="ui-overlay inv-btn" onclick="toggleInv(true)">🎒 INVENTAR</button>
 
 <div id="invModal" class="modal">
     <div class="inv-box">
-        <h2 id="invTitle">CHARAKTER STATUS</h2>
+        <h2 style="color:#facc15; margin-top:0;">STATUS</h2>
+        <div id="invName" style="font-weight:bold; margin-bottom:10px; color:#fff;">-</div>
         <div style="font-size: 60px; margin-bottom: 20px;" id="invAvatar">🥚</div>
-        
-        <div id="classSelection" style="display:none;">
-            <p style="color:#facc15; font-size:12px;">WÄHLE DEINE KLASSE:</p>
-            <div class="class-grid">
-                <div class="class-card" onclick="chooseClass('Krieger', '🗡️')">🗡️ Krieger</div>
-                <div class="class-card" onclick="chooseClass('Waldläufer', '🏹')">🏹 Waldläufer</div>
-                <div class="class-card" onclick="chooseClass('Magier', '🪄')">🪄 Magier</div>
-                <div class="class-card" onclick="chooseClass('Dunkel-Elf', '🌑')">🌑 Dunkel-Elf</div>
-            </div>
-        </div>
-
-        <button id="craftBtn" onclick="tryCraft()" style="width:100%; padding:15px; background:#eab308; border:none; border-radius:10px; font-weight:bold; margin-bottom:10px;">🗡️ SCHWERT SCHMIEDEN (20 LXP)</button>
+        <button id="craftBtn" onclick="tryCraft()" style="width:100%; padding:15px; background:#eab308; border:none; border-radius:10px; font-weight:bold;">🗡️ SCHMIEDEN (20 LXP)</button>
+        <br><br>
         <button onclick="toggleInv(false)" style="width:100%; padding:10px; background:#475569; color:white; border:none; border-radius:10px;">Zurück</button>
     </div>
 </div>
 
 <script>
-// --- STATE ---
+// --- SPEICHER & STATE ---
 let data = JSON.parse(localStorage.getItem('nestData')) || {
-    name: "Gast", lxp: 0, ep: 0, x: 500, y: 500,
-    currentClass: "Ei", emoji: "🥚", hasSword: false, equipped: false
+    name: "Held", 
+    lxp: 0, 
+    ep: 0, 
+    x: 960, 
+    y: 540, 
+    currentClass: "Ei", 
+    emoji: "🥚", 
+    hasSword: false, 
+    equipped: false
 };
 
 let zoom = 1.0;
 const world = document.getElementById('world');
 
-// --- ZOOM LOGIK ---
+// --- ZOOM ---
 window.addEventListener('wheel', (e) => {
     e.preventDefault();
     const delta = e.deltaY > 0 ? -0.1 : 0.1;
-    zoom = Math.min(Math.max(zoom + delta, 0.4), 2.5);
+    zoom = Math.min(Math.max(zoom + delta, 0.3), 3.0);
     world.style.transform = `scale(${zoom})`;
 }, { passive: false });
 
+// --- INITIALISIERUNG ---
 function init() {
     const p = new URLSearchParams(window.location.search);
-    if (p.get('user')) data.name = p.get('user');
+    const user = p.get('user');
+    
+    // Falls kein User in URL, nimm den gespeicherten oder "Held"
+    if (user) {
+        data.name = user;
+    } else if (!data.name || data.name === "undefined") {
+        data.name = "Abenteurer";
+    }
+
     updateUI();
-    setInterval(spawnMonster, 20000);
+    setInterval(() => {
+        // Monster Spawn Logik
+        if(document.querySelectorAll('.monster').length < 3) spawnMonster();
+    }, 15000);
 }
 
 function updateUI() {
     // Evolutions-Check
-    if (data.currentClass === "Ei" && data.ep >= 20) { data.currentClass = "Gras-Wesen"; data.emoji = "🌱"; }
-    if (data.ep >= 50 && data.currentClass === "Gras-Wesen") { document.getElementById('classSelection').style.display = "grid"; }
+    if (data.ep >= 20 && data.currentClass === "Ei") { 
+        data.currentClass = "Gras-Wesen"; 
+        data.emoji = "🌱"; 
+    }
 
-    document.getElementById('playerName').textContent = data.name;
-    document.getElementById('lxpVal').textContent = Math.floor(data.lxp);
-    document.getElementById('epVal').textContent = Math.floor(data.ep);
-    document.getElementById('classInfo').textContent = "Klasse: " + data.currentClass;
+    // HUD & Inventar Texte (Sicheres Schreiben)
+    const nameStr = String(data.name);
+    document.getElementById('playerNameDisplay').textContent = nameStr;
+    document.getElementById('classDisplay').textContent = String(data.currentClass);
+    document.getElementById('lxpDisplay').textContent = Math.floor(data.lxp);
+    document.getElementById('epDisplay').textContent = Math.floor(data.ep);
+    
+    document.getElementById('invName').textContent = nameStr;
     document.getElementById('invAvatar').textContent = data.emoji;
     document.getElementById('craftBtn').style.display = data.hasSword ? "none" : "block";
 
@@ -118,64 +140,58 @@ function updateUI() {
 function renderChar() {
     const layer = document.getElementById('charLayer');
     layer.innerHTML = '';
+    
     const char = document.createElement('div');
     char.className = 'creature';
     char.id = "myChar";
-    char.style.left = data.x + "px"; char.style.top = data.y + "px";
+    char.style.left = data.x + "px"; 
+    char.style.top = data.y + "px";
+    
+    // Den Namen hier absolut sicher einfügen
+    const safeName = data.name && data.name !== "undefined" ? data.name : "Held";
     
     char.innerHTML = `
         <span class="avatar-emoji">${data.emoji}</span>
         ${data.equipped ? '<span class="weapon-layer">🗡️</span>' : ''}
-        <div style="font-size:12px; font-weight:bold; background:rgba(0,0,0,0.6); border-radius:5px; padding:2px;">${data.name}</div>
+        <div class="name-tag">${safeName}</div>
     `;
     layer.appendChild(char);
 }
 
 function handleWorldClick(e) {
     const rect = world.getBoundingClientRect();
-    data.x = (e.clientX - rect.left) / zoom - 50;
-    data.y = (e.clientY - rect.top) / zoom - 50;
+    // Berechnung der Position unter Berücksichtigung des Zoom-Levels
+    const clickX = (e.clientX - rect.left) / zoom;
+    const clickY = (e.clientY - rect.top) / zoom;
+    
+    data.x = clickX;
+    data.y = clickY;
+    
     save();
     renderChar();
 }
 
 function spawnMonster() {
     const m = document.createElement('div');
+    m.className = 'monster';
     m.style.position = 'absolute';
-    m.style.left = (Math.random() * 2000) + "px";
-    m.style.top = (Math.random() * 1500) + "px";
-    m.style.fontSize = "40px";
+    m.style.left = (Math.random() * 1700 + 100) + "px";
+    m.style.top = (Math.random() * 800 + 100) + "px";
+    m.style.fontSize = "50px";
+    m.style.cursor = "pointer";
+    m.style.transform = "translate(-50%, -50%)";
     m.innerHTML = "👾";
-    m.onclick = (e) => { e.stopPropagation(); startBattle(m); };
+    m.onclick = (e) => { e.stopPropagation(); m.remove(); data.lxp += 5; data.ep += 2; save(); };
     document.getElementById('monsterLayer').appendChild(m);
 }
 
-function startBattle(mEl) {
-    const log = document.getElementById('battleLog');
-    log.style.display = "block";
-    let mHP = 30;
-    const i = setInterval(() => {
-        const dmg = data.equipped ? 10 : 3;
-        mHP -= dmg;
-        log.innerHTML += `<div>> Treffer: ${dmg} DMG</div>`;
-        log.scrollTop = log.scrollHeight;
-        if(mHP <= 0) {
-            clearInterval(i);
-            data.lxp += 10; data.ep += 5; save();
-            mEl.remove();
-            log.innerHTML = "SIEG!";
-            setTimeout(() => log.style.display="none", 2000);
-        }
-    }, 1000);
+function tryCraft() {
+    if(data.lxp >= 20) {
+        data.lxp -= 20; data.hasSword = true; data.equipped = true;
+        save();
+    }
 }
 
-function chooseClass(name, emoji) {
-    data.currentClass = name; data.emoji = emoji;
-    document.getElementById('classSelection').style.display = "none";
-    save();
-}
-
-function tryCraft() { if(data.lxp >= 20) { data.lxp -= 20; data.hasSword = true; data.equipped = true; save(); } }
 function toggleInv(s) { document.getElementById('invModal').style.display = s ? 'flex' : 'none'; }
 function save() { localStorage.setItem('nestData', JSON.stringify(data)); updateUI(); }
 
