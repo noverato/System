@@ -3,9 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>The Nest: Solo Leveling Master Edition</title>
+<title>The Nest: Solo Leveling Sub-Evolution</title>
 <style>
-    /* ===== BASIS DESIGN ===== */
     body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #0a0a12; color: #e0d8b0; }
     #watermark { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="600"><text x="50%" y="50%" font-family="Arial" font-size="30" fill="%23ffffff" fill-opacity="0.05" text-anchor="middle" transform="rotate(-15 500 300)">Property of Spawn2909 - The Nest</text></svg>'); }
     #gameWorld { position: absolute; width: 100%; height: 100%; background: url('wald.png') center/cover; z-index: 1; cursor: crosshair; }
@@ -13,34 +12,27 @@
     /* CHARAKTER & BALKEN */
     .creature { position: absolute; width: 80px; height: 80px; z-index: 10; transition: left 2s linear, top 2s linear; text-align: center; }
     .creature-img { width: 60px; height: 60px; background-size: contain; background-repeat: no-repeat; background-position: center; margin: 0 auto; position: relative; }
-    .bar-wrap { width: 50px; height: 4px; background: rgba(0,0,0,0.8); margin: 2px auto; border-radius: 2px; overflow: hidden; }
+    .bar-wrap { width: 50px; height: 5px; background: rgba(0,0,0,0.8); margin: 2px auto; border-radius: 2px; overflow: hidden; border: 1px solid #333; }
     .bar-fill { height: 100%; background: #4caf50; transition: width 0.5s; }
-
-    /* BATTLE LOG (UNTER LINKS) */
-    #battleLog { position: fixed; bottom: 80px; left: 15px; width: 200px; height: 100px; background: rgba(0,0,0,0.85); border: 1px solid #ff4444; border-radius: 8px; font-size: 11px; padding: 10px; overflow-y: hidden; z-index: 100; display: none; box-shadow: 0 0 15px rgba(255,0,0,0.2); }
-
-    /* HUD (OBEN LINKS) */
-    #hud { position: fixed; top: 15px; left: 15px; z-index: 100; background: rgba(15, 23, 42, 0.9); padding: 12px; border-radius: 10px; border: 1px solid #3b82f6; backdrop-filter: blur(5px); }
-    #wsStatus { font-size: 10px; margin-top: 5px; font-weight: bold; }
+    
+    /* BATTLE LOG & HUD */
+    #battleLog { position: fixed; bottom: 85px; left: 15px; width: 230px; height: 120px; background: rgba(0,0,0,0.9); border: 1px solid #3b82f6; border-radius: 8px; font-size: 11px; padding: 10px; overflow-y: auto; z-index: 100; display: none; color: #fff; }
+    #hud { position: fixed; top: 15px; left: 15px; z-index: 100; background: rgba(15, 23, 42, 0.95); padding: 12px; border-radius: 10px; border: 1px solid #3b82f6; backdrop-filter: blur(5px); }
 
     /* ADMIN PANEL */
-    #adminPanel { position: fixed; bottom: 15px; left: 15px; z-index: 1000; background: rgba(220, 38, 38, 0.3); border: 2px solid #ef4444; padding: 10px; border-radius: 8px; display: none; }
-    .admin-btn { background: #000; color: #fff; border: 1px solid #ef4444; padding: 4px 8px; cursor: pointer; margin: 2px; font-size: 11px; }
+    #adminPanel { position: fixed; bottom: 15px; left: 15px; z-index: 1000; background: rgba(153, 27, 27, 0.8); border: 2px solid #ef4444; padding: 12px; border-radius: 10px; display: none; }
+    .admin-btn { background: #111; color: #fff; border: 1px solid #ef4444; padding: 6px 10px; cursor: pointer; margin: 3px; font-size: 11px; border-radius: 4px; }
 
-    /* MODAL / INVENTAR */
-    .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); display: none; z-index: 500; align-items: center; justify-content: center; backdrop-filter: blur(8px); }
-    .inv-box { width: 90%; max-width: 450px; background: #1e293b; border: 2px solid #3b82f6; border-radius: 18px; padding: 25px; text-align: center; box-shadow: 0 0 30px rgba(59, 130, 246, 0.3); }
-    .slot-row { display: flex; justify-content: center; gap: 12px; margin: 20px 0; }
-    .slot { width: 65px; height: 65px; background: #0f172a; border: 2px solid #334155; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 28px; transition: 0.2s; }
-    .slot.active { border-color: #facc15; box-shadow: 0 0 10px #facc15; }
-    .btn-action { background: #2563eb; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; cursor: pointer; }
-    .inv-trigger { position: fixed; bottom: 20px; right: 20px; z-index: 100; padding: 15px 30px; background: #2563eb; color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
+    /* MODAL */
+    .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: none; z-index: 500; align-items: center; justify-content: center; }
+    .inv-box { width: 90%; max-width: 450px; background: #1e293b; border: 2px solid #3b82f6; border-radius: 18px; padding: 25px; text-align: center; }
+    .slot { width: 70px; height: 70px; background: #020617; border: 2px solid #334155; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; font-size: 32px; cursor: pointer; }
+    .active { border-color: #facc15; box-shadow: 0 0 10px #facc15; }
 </style>
 </head>
 <body>
 
 <div id="watermark"></div>
-
 <div id="gameWorld" onclick="handleWorldClick(event)">
     <div id="charLayer"></div>
     <div id="monsterLayer"></div>
@@ -49,228 +41,157 @@
 <div id="battleLog"></div>
 
 <div id="hud">
-    <div style="font-weight: bold; color: #facc15;"><span id="playerName">Abenteurer</span></div>
-    <div id="roleBadge" style="font-size: 11px; margin-bottom: 5px;">Status: <span id="userRole">Gast</span></div>
+    <div style="font-weight: bold; color: #facc15; font-size: 16px;"><span id="playerName">Lädt...</span></div>
+    <div id="subInfo" style="font-size: 11px; color: #b983ff;"></div>
     ✨ LXP: <span id="lxpVal">0</span> | 📈 EP: <span id="epVal">0</span><br>
     🌿 Gras: <span id="resGras">0</span> | 🪵 Stock: <span id="resStock">0</span>
-    <div id="wsStatus">Bot-Verbindung: <span id="wsState" style="color:#ef4444;">Offline</span></div>
 </div>
 
 <div id="adminPanel">
-    <strong style="color:white; display:block; margin-bottom:5px;">🛠 ADMIN TOOLS</strong>
-    <button class="admin-btn" onclick="addRes('ep', 10)">+10 EP (Evolution)</button>
+    <strong style="color:white; display:block; margin-bottom:8px;">🛠 SYSTEM ADMIN</strong>
+    <button class="admin-btn" onclick="addMonths(1)">+1 Monat Sub</button>
     <button class="admin-btn" onclick="addRes('lxp', 50)">+50 LXP</button>
-    <button class="admin-btn" onclick="toggleFollower()">Follower-Test</button>
+    <button class="admin-btn" onclick="addRes('ep', 10)">+10 EP</button>
+    <button class="admin-btn" style="background:#450a0a;" onclick="resetSystem()">⚠️ RESET</button>
 </div>
 
-<button class="inv-trigger" onclick="toggleInv(true)">🎒 STATUS & SCHMIEDE</button>
+<button style="position:fixed; bottom:20px; right:20px; z-index:100; padding:15px 30px; background:#2563eb; color:white; border:none; border-radius:12px; font-weight:bold;" onclick="toggleInv(true)">🎒 INVENTAR</button>
 
 <div id="invModal" class="modal">
     <div class="inv-box">
-        <h2 style="color:#facc15; margin-top:0;">CHARAKTER STATUS</h2>
-        <div class="slot-row">
-            <div class="slot" id="slot-head">🌑</div>
-            <div class="slot" id="slot-body">🌑</div>
-            <div class="slot" id="slot-hand" onclick="equipHand()">🌑</div>
-        </div>
-        <div id="craftingArea">
-            <button id="craftBtn" class="btn-action" style="background:#eab308; color:#000;" onclick="tryCraft()">⚔️ Schwert schmieden (20 LXP)</button>
-            <p id="lockMsg" style="color:#ef4444; font-size:11px; margin-top:10px;"></p>
-        </div>
-        <br>
-        <button class="btn-action" style="background:#475569;" onclick="toggleInv(false)">Schließen</button>
+        <h2 style="color:#facc15;">CHARAKTER STATUS</h2>
+        <div class="slot" id="slot-hand" onclick="equipHand()">🌑</div>
+        <p id="swordStatus" style="font-size: 12px;"></p>
+        <button id="craftBtn" style="width:100%; background:#eab308; padding:10px; border:none; font-weight:bold;" onclick="tryCraft()">⚒️ SCHWERT SCHMIEDEN (20 LXP)</button>
+        <br><br>
+        <button class="admin-btn" style="width:100%" onclick="toggleInv(false)">ZURÜCK</button>
     </div>
 </div>
 
 <script>
-// ===== DIEBSTAHLSCHUTZ =====
-(function() {
-    const authDomain = "noverato.github.io";
-    const host = window.location.hostname;
-    if (host !== authDomain && host !== "localhost" && host !== "127.0.0.1") {
-        document.body.innerHTML = "<div style='color:red; text-align:center; padding:50px;'><h1>🚫 ZUGRIFF VERWEIGERT</h1><p>Dieses Overlay ist Eigentum von Spawn2909.</p></div>";
-        throw new Error("Unauthorized Domain");
-    }
-})();
-
-// ===== GLOBALE VARIABLEN =====
-const WS_URL = "ws://127.0.0.1:8080";
+// --- KONFIGURATION ---
 const BROADCASTER = "spawn2909";
 
 let data = JSON.parse(localStorage.getItem('nestData')) || {
-    name: "Gast",
-    lxp: 0,
-    ep: 0,
-    gras: 0,
-    stock: 0,
-    isFollower: false,
-    hasSword: false,
-    equippedHand: null
+    name: "Gast", lxp: 0, ep: 0, gras: 0, stock: 0,
+    subMonths: 0, hasSword: false, equippedHand: null, isFollower: true
 };
 
-// ===== WEBSOCKET =====
-function connectWS() {
-    const socket = new WebSocket(WS_URL);
-    const stateEl = document.getElementById('wsState');
-
-    socket.onopen = () => {
-        stateEl.textContent = "Verbunden";
-        stateEl.style.color = "#4ade80";
-    };
-
-    socket.onclose = () => {
-        stateEl.textContent = "Getrennt";
-        stateEl.style.color = "#ef4444";
-        setTimeout(connectWS, 5000);
-    };
-
-    socket.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
-        if (msg.type === "follow" && msg.user.toLowerCase() === data.name.toLowerCase()) {
-            data.isFollower = true;
-            save();
-        }
-    };
+function init() {
+    const p = new URLSearchParams(window.location.search);
+    if (p.get('user')) data.name = p.get('user');
+    
+    if (data.name.toLowerCase() === BROADCASTER) {
+        if (p.get('admin') === 'true') document.getElementById('adminPanel').style.display = 'block';
+    }
+    updateUI();
+    setInterval(spawnMonster, 20000);
 }
 
-// ===== LOGIK =====
-function init() {
-    const params = new URLSearchParams(window.location.search);
-    const user = params.get('user');
-    
-    if (user) data.name = user;
-    
-    // Broadcaster Sonderrechte
-    if (data.name.toLowerCase() === BROADCASTER) {
-        data.isFollower = true;
-        if (params.get('admin') === 'true') {
-            document.getElementById('adminPanel').style.display = 'block';
-        }
-    }
-
-    connectWS();
-    updateUI();
-    
-    // Intervalle
-    setInterval(spawnMonster, 25000);
-    setInterval(() => {
-        if (data.isFollower) {
-            data.gras += 1;
-            save();
-        }
-    }, 15000);
+// --- EVOLUTION LOGIK ---
+function getEvolutionData() {
+    const m = data.subMonths;
+    if (m >= 24) return { img: 'wesen.png', label: 'Höheres Wesen' };
+    if (m >= 12) return { img: 'lich.png', label: 'Lich' };
+    if (m >= 9)  return { img: 'oger.png', label: 'Oger' };
+    if (m >= 6)  return { img: 'goblin.png', label: 'Goblin' };
+    if (m >= 3)  return { img: 'skelett.png', label: 'Skelett' };
+    if (m >= 2)  return { img: 'schleim.png', label: 'Schleim' };
+    return { img: 'ei.png', label: 'Ei' };
 }
 
 function updateUI() {
-    document.getElementById('playerName').textContent = data.name;
+    const evo = getEvolutionData();
+    document.getElementById('playerName').textContent = data.name.toUpperCase();
+    document.getElementById('subInfo').textContent = data.subMonths > 0 ? `Sub: ${data.subMonths} Monate (${evo.label})` : "Follower";
     document.getElementById('lxpVal').textContent = Math.floor(data.lxp);
     document.getElementById('epVal').textContent = Math.floor(data.ep);
     document.getElementById('resGras').textContent = data.gras;
     document.getElementById('resStock').textContent = data.stock;
-    document.getElementById('userRole').textContent = data.isFollower ? "Follower" : "Gast";
-    document.getElementById('userRole').style.color = data.isFollower ? "#4ade80" : "#ef4444";
     
-    document.getElementById('lockMsg').textContent = !data.isFollower ? "⚠️ Nur Follower können Ressourcen sammeln!" : "";
-    document.getElementById('slot-hand').textContent = data.equippedHand || "🌑";
-    document.getElementById('slot-hand').classList.toggle('active', !!data.equippedHand);
+    const sHand = document.getElementById('slot-hand');
+    sHand.textContent = data.equippedHand || "🌑";
+    sHand.classList.toggle('active', !!data.equippedHand);
+    document.getElementById('swordStatus').textContent = data.hasSword ? "Schwert bereit" : "Keine Waffe";
+    document.getElementById('craftBtn').style.display = data.hasSword ? "none" : "block";
 
-    renderChar();
+    renderChar(evo.img);
 }
 
-function save() {
-    localStorage.setItem('nestData', JSON.stringify(data));
-    updateUI();
-}
-
-function renderChar() {
+function renderChar(img) {
     const layer = document.getElementById('charLayer');
     layer.innerHTML = '';
-    
     const char = document.createElement('div');
     char.className = 'creature';
     char.id = "myChar";
     char.style.left = "50%"; char.style.top = "50%";
     
-    let img = data.ep >= 30 ? 'schleim.png' : 'ei.png';
-    
     char.innerHTML = `
-        <div class="bar-wrap"><div class="bar-fill" style="width:${Math.min(100, (data.ep/30)*100)}%"></div></div>
+        <div class="bar-wrap"><div class="bar-fill" style="width:${Math.min(100, data.lxp)}%"></div></div>
         <div class="creature-img" style="background-image:url('${img}')">
-            ${data.equippedHand ? '<div style="position:absolute; right:-10px; top:10px; font-size:22px;">' + data.equippedHand + '</div>' : ''}
+            ${data.equippedHand ? '<div style="position:absolute; right:-10px; top:10px; font-size:24px;">' + data.equippedHand + '</div>' : ''}
         </div>
-        <div style="font-size:10px; font-weight:bold; text-shadow:1px 1px 2px #000;">${data.name}</div>
+        <div style="font-size:11px; font-weight:bold; color:#fff; text-shadow:0 0 5px #000;">${data.name}</div>
     `;
     layer.appendChild(char);
 }
 
-function handleWorldClick(e) {
-    const el = document.getElementById('myChar');
-    if(!el) return;
-    const x = (e.clientX / window.innerWidth) * 100;
-    const y = (e.clientY / window.innerHeight) * 100;
-    el.style.left = (x - 4) + "%";
-    el.style.top = (y - 4) + "%";
-}
-
-function toggleInv(show) { document.getElementById('invModal').style.display = show ? 'flex' : 'none'; }
-
-function tryCraft() {
-    if (!data.isFollower) return;
-    if (data.lxp >= 20) {
-        data.lxp -= 20;
-        data.hasSword = true;
-        data.equippedHand = "⚔️";
-        save();
-        alert("Schwert geschmiedet und ausgerüstet!");
-    } else {
-        alert("Du brauchst 20 LXP zum Schmieden!");
-    }
-}
-
-function equipHand() {
-    if (!data.hasSword) return;
-    data.equippedHand = data.equippedHand ? null : "⚔️";
-    save();
-}
-
+// --- BATTLE & ACTIONS ---
 function spawnMonster() {
     const layer = document.getElementById('monsterLayer');
     const m = document.createElement('div');
-    m.innerHTML = '👾';
     m.style.position = 'absolute';
     m.style.left = (20 + Math.random() * 60) + "%";
     m.style.top = (25 + Math.random() * 50) + "%";
-    m.style.fontSize = "32px";
+    m.style.fontSize = "35px";
     m.style.cursor = "pointer";
-    m.onclick = (e) => { e.stopPropagation(); startBattle(m); };
+    m.innerHTML = "👾";
+    
+    m.onclick = (e) => {
+        e.stopPropagation();
+        startBattle(m);
+    };
     layer.appendChild(m);
 }
 
-function startBattle(monsterEl) {
-    if(!data.isFollower) { alert("Nur Follower können kämpfen!"); return; }
+function startBattle(mEl) {
     const log = document.getElementById('battleLog');
     log.style.display = 'block';
-    log.innerHTML = "<b>⚔️ KAMPF STARTET...</b>";
+    log.innerHTML = "<b>⚔️ KAMPF STARTET...</b><br>";
     
-    let time = 15; // Kampfzeit auf 15s zum Testen, kannst du auf 60 erhöhen
+    let mHP = 30;
     const interval = setInterval(() => {
-        time--;
-        log.innerHTML += `<div>> Angriff...</div>`;
+        const dmg = data.equippedHand ? 10 : 3;
+        mHP -= dmg;
+        log.innerHTML += `<div>> Schaden: ${dmg}</div>`;
         log.scrollTop = log.scrollHeight;
-        if(time <= 0) {
+        
+        if(mHP <= 0) {
             clearInterval(interval);
-            data.lxp += 5;
-            save();
-            monsterEl.remove();
-            log.innerHTML = "<b>🏆 SIEG! +5 LXP</b>";
+            data.lxp += 5; save();
+            mEl.remove();
+            log.innerHTML += "<b style='color:#4ade80'>SIEG! +5 LXP</b>";
             setTimeout(() => log.style.display = 'none', 3000);
         }
     }, 1000);
 }
 
-// ADMIN TOOLS
-function addRes(type, val) { data[type] += val; save(); }
-function toggleFollower() { data.isFollower = !data.isFollower; save(); }
+function tryCraft() {
+    if(data.lxp >= 20) { data.lxp -= 20; data.hasSword = true; data.equippedHand = "⚔️"; save(); }
+}
+
+function equipHand() { if(data.hasSword) { data.equippedHand = data.equippedHand ? null : "⚔️"; save(); } }
+function handleWorldClick(e) {
+    const el = document.getElementById('myChar');
+    if(!el) return;
+    el.style.left = ((e.clientX / window.innerWidth) * 100 - 4) + "%";
+    el.style.top = ((e.clientY / window.innerHeight) * 100 - 4) + "%";
+}
+function toggleInv(s) { document.getElementById('invModal').style.display = s ? 'flex' : 'none'; }
+function save() { localStorage.setItem('nestData', JSON.stringify(data)); updateUI(); }
+function addMonths(v) { data.subMonths += v; save(); }
+function addRes(t, v) { data[t] += v; save(); }
+function resetSystem() { localStorage.clear(); location.reload(); }
 
 window.onload = init;
 </script>
