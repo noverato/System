@@ -8,77 +8,117 @@
         body {
             background-color: #0a0a0a;
             color: #fff;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Segoe UI', sans-serif;
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            min-height: 100vh;
             margin: 0;
-            overflow: hidden;
+            padding: 20px;
+            box-sizing: border-box;
         }
         .system-frame {
             border: 4px solid #00c3ff;
-            background: rgba(0, 30, 60, 0.8);
-            box-shadow: 0 0 20px #00c3ff, inset 0 0 15px #00c3ff;
-            padding: 30px;
-            width: 80%;
-            max-width: 600px;
+            background: rgba(0, 30, 60, 0.9);
+            box-shadow: 0 0 25px #00c3ff, inset 0 0 15px #00c3ff;
+            padding: 25px;
+            width: 100%;
+            max-width: 550px;
             border-radius: 15px;
             text-align: center;
-            position: relative;
         }
-        h1 { font-size: 1.5rem; color: #00c3ff; text-transform: uppercase; margin-bottom: 20px; letter-spacing: 2px; }
-        .info-box { border: 1px solid #00c3ff; margin-bottom: 20px; padding: 10px; background: rgba(0, 195, 255, 0.1); }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .stage { border: 1px solid #444; padding: 10px; font-size: 0.8rem; border-radius: 5px; color: #777; }
-        /* Die aktive Stufe leuchtet blau */
-        .active { border-color: #00c3ff; color: #fff; background: rgba(0, 195, 255, 0.3); box-shadow: 0 0 10px #00c3ff; }
+        h1 { font-size: 1.4rem; color: #00c3ff; text-transform: uppercase; margin-bottom: 15px; letter-spacing: 2px; }
+        .info-box { border: 1px solid #00c3ff; margin-bottom: 20px; padding: 15px; background: rgba(0, 195, 255, 0.1); border-radius: 8px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 25px; }
+        .stage { border: 1px solid #444; padding: 10px; font-size: 0.75rem; border-radius: 5px; color: #777; cursor: pointer; transition: 0.3s; }
+        .stage:hover { border-color: #00c3ff; background: rgba(0, 195, 255, 0.1); transform: scale(1.02); }
+        .active { border-color: #00c3ff; color: #fff; background: rgba(0, 195, 255, 0.3); box-shadow: 0 0 12px #00c3ff; }
+        
+        /* XP Sektion */
+        .xp-section { border-top: 1px solid #00c3ff; padding-top: 20px; }
+        .xp-bar-bg { background: rgba(255, 255, 255, 0.1); border: 1px solid #00c3ff; height: 22px; border-radius: 11px; overflow: hidden; margin: 10px 0; }
+        .xp-bar-fill { background: linear-gradient(90deg, #00c3ff, #0088ff); height: 100%; width: 0%; transition: width 1.5s ease-in-out; }
+        
+        /* Info Modal */
+        .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #001e3c; border: 2px solid #00c3ff; padding: 20px; z-index: 1000; box-shadow: 0 0 40px #00c3ff; border-radius: 10px; width: 80%; max-width: 300px; }
+        .modal-btn { background: #00c3ff; border: none; color: #000; padding: 8px 15px; cursor: pointer; font-weight: bold; margin-top: 15px; border-radius: 4px; }
     </style>
 </head>
 <body>
 
 <div class="system-frame">
-    <h1>Willkommen, <span id="userName">Jäger</span></h1>
+    <h1>System Status: <span id="userName">Jäger</span></h1>
     
     <div class="info-box">
-        <div>STATUS: <span id="currentStatus" style="color:#00c3ff;">Lädt...</span></div>
-        <div>LOYALITÄT: <span id="loyaltyDays">0</span> TAGE</div>
+        <div style="font-size: 1.1rem; font-weight: bold;">EVOLUTION: <span id="currentStatus" style="color:#00c3ff;">Lädt...</span></div>
+        <div style="font-size: 0.9rem; margin-top: 5px;">LOYALITÄT: <span id="loyaltyDays">0</span> TAGE (XP)</div>
     </div>
 
     <div class="grid">
-        <div id="stage0" class="stage">EI (0d)</div>
-        <div id="stage1" class="stage">SCHLEIM (60d)</div>
-        <div id="stage2" class="stage">SKELETT (90d)</div>
-        <div id="stage3" class="stage">GOBLIN (180d)</div>
-        <div id="stage4" class="stage">OGER (270d)</div>
-        <div id="stage5" class="stage">LICH (360d)</div>
-        <div id="stage6" class="stage">WESEN (720d)</div>
+        <div id="stage0" class="stage" onclick="showInfo('Ei', 'Dein Abenteuer im Nest beginnt. Sicher und geschützt bis zum Schlupf.')">🥚 EI (0d)</div>
+        <div id="stage1" class="stage" onclick="showInfo('Schleim', 'Du bist geschlüpft! Flexibel und bereit für alles. (Vibe: Rimuru)')">💧 SCHLEIM (60d)</div>
+        <div id="stage2" class="stage" onclick="showInfo('Skelett', 'Die erste feste Form. Ein unsterblicher Krieger der Schatten.')">💀 SKELETT (90d)</div>
+        <div id="stage3" class="stage" onclick="showInfo('Goblin', 'Du hast eine Gemeinschaft gefunden. Listig, flink und gefährlich.')">👺 GOBLIN (180d)</div>
+        <div id="stage4" class="stage" onclick="showInfo('Oger', 'Brutale Stärke und Ehre. Du wirst zur Legende des Waldes.')">👹 OGER (270d)</div>
+        <div id="stage5" class="stage" onclick="showInfo('Lich', 'Meister der verbotenen Magie. Der Tod hat keine Macht mehr.')">🧙‍♂️ LICH (360d)</div>
+        <div id="stage6" class="stage" onclick="showInfo('Höheres Wesen', 'Göttliche Stufe erreicht. Du herrschst über das Nest-System!')">✨ WESEN (720d)</div>
+    </div>
+
+    <div class="xp-section">
+        <div style="font-size: 0.8rem; color: #00c3ff;">PROGRESS: <span id="xpPercent">0</span>%</div>
+        <div class="xp-bar-bg"><div id="xpFill" class="xp-bar-fill"></div></div>
+        <div style="font-size: 0.7rem;"><span id="currentXp">0</span> / <span id="nextLevelXp">60</span> XP bis zum nächsten Level</div>
     </div>
 </div>
 
+<div id="infoModal" class="modal">
+    <h2 id="modalTitle" style="color:#00c3ff; margin:0 0 10px 0; font-size: 1.2rem;"></h2>
+    <p id="modalText" style="font-size: 0.9rem; line-height: 1.4;"></p>
+    <button class="modal-btn" onclick="closeInfo()">VERSTANDEN</button>
+</div>
+
 <script>
-    // Funktion um Daten aus dem Link zu lesen
+    function showInfo(title, text) {
+        document.getElementById('modalTitle').innerText = title;
+        document.getElementById('modalText').innerText = text;
+        document.getElementById('infoModal').style.display = 'block';
+    }
+    function closeInfo() { document.getElementById('infoModal').style.display = 'none'; }
+
     function updateSystem() {
         const urlParams = new URLSearchParams(window.location.search);
         const name = urlParams.get('user') || 'Spawn2909';
-        const days = parseInt(urlParams.get('days')) || 0;
+        let days = parseInt(urlParams.get('days')) || 0;
 
         document.getElementById('userName').innerText = name;
         document.getElementById('loyaltyDays').innerText = days;
 
-        // Evolution Logik basierend auf deinen Daten [cite: 2026-01-18]
         let currentId = "stage0";
         let statusText = "EI";
+        let nextLevel = 60;
+        let prevLevel = 0;
 
-        if (days >= 720) { currentId = "stage6"; statusText = "HÖHERES WESEN"; }
-        else if (days >= 360) { currentId = "stage5"; statusText = "LICH"; }
-        else if (days >= 270) { currentId = "stage4"; statusText = "OGER"; }
-        else if (days >= 180) { currentId = "stage3"; statusText = "GOBLIN"; }
-        else if (days >= 90) { currentId = "stage2"; statusText = "SKELETT"; }
-        else if (days >= 60) { currentId = "stage1"; statusText = "SCHLEIM"; }
+        if (days >= 720) { currentId = "stage6"; statusText = "HÖHERES WESEN"; nextLevel = 720; prevLevel = 720; }
+        else if (days >= 360) { currentId = "stage5"; statusText = "LICH"; nextLevel = 720; prevLevel = 360; }
+        else if (days >= 270) { currentId = "stage4"; statusText = "OGER"; nextLevel = 360; prevLevel = 270; }
+        else if (days >= 180) { currentId = "stage3"; statusText = "GOBLIN"; nextLevel = 270; prevLevel = 180; }
+        else if (days >= 90) { currentId = "stage2"; statusText = "SKELETT"; nextLevel = 180; prevLevel = 90; }
+        else if (days >= 60) { currentId = "stage1"; statusText = "SCHLEIM"; nextLevel = 90; prevLevel = 60; }
+        else { nextLevel = 60; prevLevel = 0; }
 
         document.getElementById(currentId).classList.add('active');
         document.getElementById('currentStatus').innerText = statusText;
+
+        // XP Berechnung (1 Tag = 1 XP)
+        let diff = nextLevel - prevLevel;
+        let progress = diff > 0 ? ((days - prevLevel) / diff) * 100 : 100;
+        if (progress > 100) progress = 100;
+        if (progress < 0) progress = 0;
+
+        document.getElementById('xpFill').style.width = progress + "%";
+        document.getElementById('xpPercent').innerText = Math.floor(progress);
+        document.getElementById('currentXp').innerText = days;
+        document.getElementById('nextLevelXp').innerText = nextLevel;
     }
 
     updateSystem();
