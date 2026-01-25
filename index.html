@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>Spawn2909 – RPG Nest</title>
+
 <style>
 body{
     margin:0;
@@ -12,6 +13,7 @@ body{
     color:white;
 }
 
+/* UI Columns */
 #uiLeft, #uiRight{
     position:fixed;
     top:0;
@@ -24,6 +26,7 @@ body{
 #uiLeft{ left:0; border-right:2px solid #2c3f2c; }
 #uiRight{ right:0; border-left:2px solid #2c3f2c; }
 
+/* World */
 #world{
     position:absolute;
     left:220px;
@@ -32,8 +35,6 @@ body{
     bottom:0;
     overflow:hidden;
 }
-
-/* ===== Forest background ===== */
 #forest{
     position:absolute;
     width:100%;
@@ -42,7 +43,7 @@ body{
     z-index:0;
 }
 
-/* ===== Village ===== */
+/* Village */
 #village{
     position:absolute;
     width:600px;
@@ -80,6 +81,7 @@ body{
     line-height:90px;
     font-size:40px;
     z-index:10;
+    cursor:pointer;
 }
 #forge{ left:120px; top:220px;}
 #market{ right:120px; top:220px;}
@@ -94,9 +96,37 @@ body{
 /* Eggs */
 .egg{
     position:absolute;
-    font-size:20px;
-    z-index:6;
-    transition: 1s linear;
+    font-size:22px;
+    z-index:8; /* above village */
+    transition: 3s linear;
+}
+
+/* Overlay UI */
+.overlay{
+    position:absolute;
+    width:400px;
+    height:300px;
+    background:#1a1f1a;
+    border:3px solid gold;
+    left:50%;
+    top:50%;
+    transform:translate(-50%,-50%);
+    z-index:300;
+    display:none;
+    padding:15px;
+}
+.overlay button{
+    position:absolute;
+    top:5px;
+    right:5px;
+}
+
+/* Boss */
+#boss{
+    position:absolute;
+    font-size:100px;
+    display:none;
+    z-index:3;
 }
 </style>
 </head>
@@ -104,19 +134,24 @@ body{
 <body>
 
 <div id="uiLeft">
-    <h3>🥚 Status</h3>
+    <h3>🥚 Spawn2909</h3>
+    Name: Spawn2909<br>
     Rang: Ei<br>
     XP: <div style="background:#333;height:10px;"><div style="background:#6f6;height:10px;width:40%;"></div></div>
+    <h4>🎒 Inventar</h4>
+    🗡️ 🧪 🌿
 </div>
 
 <div id="uiRight">
     <h3>📜 Dorf</h3>
-    Schmiede bereit<br>
-    Markt geöffnet
+    Level: 3<br>
+    Bewohner: 12 Eier<br>
+    Bosse besiegt: 0
 </div>
 
 <div id="world">
     <div id="forest"></div>
+    <div id="boss">🐲</div>
 
     <div id="village">
         <div id="pathNorth" class="path"></div>
@@ -129,56 +164,80 @@ body{
     </div>
 </div>
 
-<script>
-const world = document.getElementById("forest");
-const village = document.getElementById("village");
+<!-- Overlays -->
+<div id="forgeUI" class="overlay">
+    <button onclick="closeUI()">X</button>
+    <h3>⚒️ Schmiede</h3>
+    Schwerter, Rüstung, Upgrades
+</div>
 
-/* Create forest */
+<div id="marketUI" class="overlay">
+    <button onclick="closeUI()">X</button>
+    <h3>🏪 Marktplatz</h3>
+    Tränke & Handel
+</div>
+
+<script>
+const forest = document.getElementById("forest");
+const village = document.getElementById("village");
+const boss = document.getElementById("boss");
+
+/* Forest */
 function createForest(){
-    for(let i=0;i<180;i++){
-        const t = document.createElement("div");
+    for(let i=0;i<280;i++){
+        const t=document.createElement("div");
         t.className="tree";
-        t.textContent = Math.random()>0.5 ? "🌲":"🌳";
-        t.style.left = Math.random()*window.innerWidth + "px";
-        t.style.top = Math.random()*window.innerHeight + "px";
-        world.appendChild(t);
+        t.textContent=Math.random()>0.5?"🌲":"🌳";
+        t.style.left=Math.random()*window.innerWidth+"px";
+        t.style.top=Math.random()*window.innerHeight+"px";
+        forest.appendChild(t);
     }
 }
 
-/* Create eggs */
+/* Eggs */
 const eggs=[];
 function spawnEgg(){
     const e=document.createElement("div");
     e.className="egg";
     e.textContent="🥚";
-    world.appendChild(e);
+    forest.appendChild(e);
     eggs.push(e);
     moveEgg(e);
 }
 
-/* Move eggs between forest & village */
 function moveEgg(e){
     setInterval(()=>{
-        const vRect = village.getBoundingClientRect();
-        let targetX, targetY;
-
-        if(Math.random()<0.6){
-            // go inside village
-            targetX = vRect.left + Math.random()*vRect.width;
-            targetY = vRect.top + Math.random()*vRect.height;
+        const v=village.getBoundingClientRect();
+        let x,y;
+        if(Math.random()<0.7){
+            x=v.left+Math.random()*v.width;
+            y=v.top+Math.random()*v.height;
         }else{
-            // forest
-            targetX = Math.random()*window.innerWidth;
-            targetY = Math.random()*window.innerHeight;
+            x=Math.random()*window.innerWidth;
+            y=Math.random()*window.innerHeight;
         }
-
-        e.style.left = targetX + "px";
-        e.style.top = targetY + "px";
-    },2000);
+        e.style.left=x+"px";
+        e.style.top=y+"px";
+    },3000);
 }
 
+/* UI */
+forge.onclick=()=>{ document.getElementById("forgeUI").style.display="block"; }
+market.onclick=()=>{ document.getElementById("marketUI").style.display="block"; }
+function closeUI(){
+    document.querySelectorAll(".overlay").forEach(o=>o.style.display="none");
+}
+
+/* Boss Timer */
+setInterval(()=>{
+    boss.style.display="block";
+    boss.style.left=Math.random()*window.innerWidth+"px";
+    boss.style.top=Math.random()*window.innerHeight+"px";
+},30000);
+
+/* Init */
 createForest();
-for(let i=0;i<12;i++) spawnEgg();
+for(let i=0;i<15;i++) spawnEgg();
 </script>
 
 </body>
