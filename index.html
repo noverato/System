@@ -83,6 +83,7 @@ body {
   background:#111;
   display:flex; justify-content:center; align-items:center;
   transition:0.3s;
+  position:relative;
 }
 .weaponSlot.rare {
   border-color:#ffd700;
@@ -102,6 +103,7 @@ body {
   background:#111;
   display:flex; justify-content:center; align-items:center;
   cursor:pointer;
+  position:relative;
 }
 .slot img { max-width:80%; max-height:80%; filter:grayscale(100%); opacity:0.3; }
 .slot.unlocked img { filter:none; opacity:1; }
@@ -119,9 +121,30 @@ body {
 
 /* =================== Dorf =================== */
 #villageMap {
-  width:100%; height:100%; background:#0c1a30; border-radius:15px;
-  position:relative;
+    width:100%; height:100%;
+    background: linear-gradient(to bottom, #1b3a2d 0%, #0c1a0f 100%);
+    border-radius:15px;
+    position:relative;
+    overflow:hidden;
 }
+
+/* SVG-Bäume */
+.tree {
+    width:20px; height:40px;
+    position:absolute;
+    background: green;
+    clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+}
+
+/* Nest-Lager am Rand */
+#nest {
+    width:60px; height:60px;
+    position:absolute; bottom:10px; right:10px;
+    background:#a0522d; border-radius:50%;
+    box-shadow:0 0 10px #ffd700;
+}
+
+/* Avatar-Tiles */
 .avatarTile {
   width:40px; height:40px;
   position:absolute;
@@ -202,43 +225,70 @@ function disableKeys(e){
 }
 document.addEventListener('contextmenu', e=>e.preventDefault());
 
+// =================== Fallback-Bilder ===================
+function applyImageFallback(img,type){
+    img.onerror = ()=>{
+        let emoji='❓';
+        switch(type){
+            case 'avatar': emoji='🥚'; break;
+            case 'weapon': emoji='⚔️'; break;
+            case 'armor': emoji='🛡️'; break;
+            case 'jewelry': emoji='💎'; break;
+            case 'consumable': emoji='🍷'; break;
+        }
+        img.style.display='none';
+        const span=document.createElement('span');
+        span.innerText=emoji;
+        span.style.fontSize='2em';
+        span.style.position='absolute';
+        span.style.top='50%'; span.style.left='50%';
+        span.style.transform='translate(-50%,-50%)';
+        span.style.pointerEvents='none';
+        img.parentElement.appendChild(span);
+    }
+}
+
 // =================== Charakter & Inventar ===================
 let charState = {
   xp: Number(localStorage.getItem('xp')||0),
-  weapons: [],
-  armor: [],
-  jewelry: [],
-  inventory: [],
-  backpack: []
+  weapons: [], armor: [], jewelry: [],
+  inventory: [], backpack: []
 };
+
 function updateCharUI(){
-  // Weapons Layer
+  // Avatar Layer
+  applyImageFallback(document.getElementById('avatarImg'),'avatar');
+
   ['wp1','wp2','wp3'].forEach((id,i)=>{
     const slot = document.getElementById(id);
     slot.innerHTML = charState.weapons[i]? `<img src="${charState.weapons[i].img}">` : '';
     slot.className = 'weaponSlot'+(charState.weapons[i]?.rare?' rare':'');
-    // Layer oben
-    document.getElementById('weaponLayer').innerHTML = charState.weapons[0]? `<img src="${charState.weapons[0].img}" style="width:100%;height:100%;">` : '';
+    if(charState.weapons[0]){
+        const layer=document.getElementById('weaponLayer');
+        layer.innerHTML=`<img src="${charState.weapons[0].img}" style="width:100%;height:100%;">`;
+        applyImageFallback(layer.querySelector('img'),'weapon');
+    } else { document.getElementById('weaponLayer').innerHTML=''; }
   });
 
   const grids = {invGrid: charState.inventory, backpackGrid: charState.backpack};
   for(const gid in grids){
-    const grid = document.getElementById(gid);
+    const grid=document.getElementById(gid);
     grid.innerHTML='';
     grids[gid].forEach((item,index)=>{
-      const s = document.createElement('div');
+      const s=document.createElement('div');
       s.className='slot unlocked'+(item.rare?' rare':'');
       s.innerHTML=`<img src="${item.img}">`;
-      s.onclick = ()=>equipItem(item,index,gid);
+      applyImageFallback(s.querySelector('img'),item.type);
+      s.onclick=()=>equipItem(item,index,gid);
       grid.appendChild(s);
     });
   }
 }
+
 function equipItem(item,index,from){
   if(item.type==='weapon'){ charState.weapons[0]=item; }
   if(item.type==='armor'){ charState.armor[0]=item; }
   if(item.type==='jewelry'){ charState.jewelry[0]=item; }
-  // Entfernen aus original
   charState[from].splice(index,1);
   updateCharUI();
 }
@@ -252,42 +302,54 @@ function switchTab(tabId){
 }
 
 // =================== Dorf ===================
-let villageAvatars = [];
+let villageAvatars=[];
 function renderVillage(){
-  const container=document.getElementById('villageMap');
-  container.innerHTML='';
-  villageAvatars.forEach(av=>{
-    const div=document.createElement('div');
-    div.className='avatarTile';
-    div.innerText=av.emo;
-    div.style.left=av.x+'px';
-    div.style.top=av.y+'px';
-    container.appendChild(div);
-  });
+    const container=document.getElementById('villageMap');
+    container.innerHTML='<div id="nest"></div>';
+    // Bäume
+    for(let i=0;i<10;i++){
+        const tree=document.createElement('div');
+        tree.className='tree';
+        tree.style.left=Math.random()*container.offsetWidth+'px';
+        tree.style.top=Math.random()*container.offsetHeight+'px';
+        container.appendChild(tree);
+    }
+    // Avatare
+    villageAvatars.forEach(av=>{
+        const div=document.createElement('div');
+        div.className='avatarTile';
+        div.innerText=av.emo;
+        div.style.left=av.x+'px';
+        div.style.top=av.y+'px';
+        container.appendChild(div);
+    });
 }
 
 // =================== Marktplatz ===================
-const marketItems = [
-  {name:'Schwert', img:'img/schwert.png', cost:50, rare:true, type:'weapon'},
-  {name:'Trank', img:'img/trank.png', cost:20, rare:false, type:'consumable'},
-  {name:'Krone', img:'img/krone.png', cost:200, rare:true, type:'jewelry'}
+const marketItems=[
+  {name:'Schwert',img:'img/schwert.png',cost:50,rare:true,type:'weapon'},
+  {name:'Trank',img:'img/trank.png',cost:20,rare:false,type:'consumable'},
+  {name:'Krone',img:'img/krone.png',cost:200,rare:true,type:'jewelry'}
 ];
+
 function renderMarket(){
   const container=document.getElementById('marketTab');
   container.innerHTML='';
   marketItems.forEach(item=>{
-    const div=document.createElement('div');
-    div.className='marketItem'+(item.rare?' rare':'');
-    div.innerHTML=`<img src="${item.img}"><span>${item.name}</span><button onclick="buyItem('${item.name}')">Kaufen (${item.cost})</button>`;
-    container.appendChild(div);
+      const div=document.createElement('div');
+      div.className='marketItem'+(item.rare?' rare':'');
+      div.innerHTML=`<img src="${item.img}"><span>${item.name}</span>
+      <button onclick="buyItem('${item.name}')">Kaufen (${item.cost})</button>`;
+      applyImageFallback(div.querySelector('img'),item.type);
+      container.appendChild(div);
   });
 }
+
 function buyItem(name){
   const item = marketItems.find(i=>i.name===name);
-  if(item){
-    charState.inventory.push(item);
-    updateCharUI();
-  }
+  if(!item) return;
+  alert("Warte auf Bestätigung im Stream...");
+  ws.send(JSON.stringify({type:'purchaseRequest', itemName:name}));
 }
 
 // =================== Export ===================
@@ -308,10 +370,14 @@ ws.onmessage=e=>{
   if(data.type==='addXP'){ charState.xp+=data.amount; localStorage.setItem('xp',charState.xp); }
   if(data.type==='addItem'){ charState.inventory.push(data.item); updateCharUI(); }
   if(data.type==='joinVillage'){
-    const x=Math.floor(Math.random()*400);
-    const y=Math.floor(Math.random()*300);
-    villageAvatars.push({emo:data.emo,x,y});
-    renderVillage();
+      const x=Math.floor(Math.random()*350)+20;
+      const y=Math.floor(Math.random()*250)+20;
+      villageAvatars.push({emo:data.emo,x,y});
+      renderVillage();
+  }
+  if(data.type==='PaymentSuccessful'){
+      const item = marketItems.find(i=>i.name===data.itemName);
+      if(item){ charState.inventory.push(item); updateCharUI(); alert(`Bezahlung erfolgreich! ${item.name} freigeschaltet.`); }
   }
 };
 
