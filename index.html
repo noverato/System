@@ -3,223 +3,232 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Spawn2909 RPG Live-System</title>
+<title>Spawn2909 RPG Isekai Interface - Final</title>
 <style>
-body, html { margin:0; padding:0; font-family:'Segoe UI',sans-serif; background:#0b0f1d; color:white; overflow:hidden; user-select:none; }
-#main { display:flex; height:100vh; width:100vw; }
-/* Charakter-Menü */
-#charMenu { width:28%; background:linear-gradient(180deg,#081b34,#041024); border-right:3px solid #ffd700; display:flex; flex-direction:column; padding:20px; box-sizing:border-box; position:relative; }
-#avatarPodest { width:220px; height:60px; margin:auto; background:#112244; border-radius:30px 30px 0 0; position:relative; box-shadow:0 0 20px #00c3ff inset; animation: floatPodest 2s ease-in-out infinite alternate; }
-@keyframes floatPodest { 0%{transform:translateY(0px);}100%{transform:translateY(-10px);} }
-#avatarContainer { width:200px; height:200px; margin:-100px auto 0 auto; position:relative; border-radius:20px; background:#000; box-shadow:0 0 20px #ffd700; display:flex; justify-content:center; align-items:center; overflow:hidden; }
+/* Basis Reset */
+body, html { margin:0; padding:0; width:100%; height:100%; font-family:'Segoe UI',sans-serif; background:#0b0f0c; overflow:hidden; user-select:none; }
+
+/* Scanline Effekt */
+body::before {
+  content:""; position:fixed; top:0; left:0; width:100%; height:100%;
+  background:repeating-linear-gradient(transparent, transparent 1px, rgba(255,255,255,0.02) 2px);
+  pointer-events:none; z-index:1000;
+}
+
+/* Layout */
+#main { display:flex; width:100%; height:100%; }
+/* Charakter Menü */
+#charMenu {
+  width:28%; padding:20px; box-sizing:border-box; display:flex; flex-direction:column; backdrop-filter:blur(10px); background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.2); border-radius:15px; margin:10px;
+}
+#avatarPodest { width:220px; height:60px; margin:auto; background:rgba(30,30,60,0.5); border-radius:30px 30px 0 0; box-shadow:0 0 20px #00c3ff inset; animation: floatPodest 2s ease-in-out infinite alternate;}
+@keyframes floatPodest {0%{transform:translateY(0px);}100%{transform:translateY(-10px);}}
+#avatarContainer { width:200px;height:200px;margin:-100px auto 0 auto; position:relative;border-radius:20px;background:rgba(0,0,0,0.4);box-shadow:0 0 20px #ffd700; display:flex; justify-content:center; align-items:center; overflow:hidden;}
 .avatar-layer { position:absolute; top:0; left:0; width:100%; height:100%; display:flex; justify-content:center; align-items:center; font-size:60px; pointer-events:none; }
-#weaponLayer { font-size:60px; }
-#headLayer { font-size:60px; }
-#baseLayer { font-size:60px; }
+#baseLayer { z-index:1; font-size:60px; }
+#headLayer { z-index:2; font-size:60px; }
+#weaponLayer { z-index:3; font-size:60px; }
+/* Status */
 #statusLine { text-align:center; margin-top:10px; font-size:14px; color:#ccc; }
-#wapons { display:flex; justify-content:center; gap:10px; margin-top:20px; }
-.weaponSlot { width:60px; height:60px; border:1px solid #444; border-radius:10px; background:#111; display:flex; justify-content:center; align-items:center; position:relative; transition:0.3s; cursor:pointer;}
-.slot { width:60px; height:60px; border:1px solid #444; border-radius:10px; background:#111; display:flex; justify-content:center; align-items:center; cursor:pointer; position:relative; font-size: 30px;}
+/* Inventar */
 #inventory { margin-top:20px; flex:1; overflow-y:auto; }
-#invGrid { display:grid; grid-template-columns: repeat(4,1fr); gap:10px; margin-top:5px; }
+#invGrid, #backpackGrid { display:grid; grid-template-columns: repeat(4,1fr); gap:10px; margin-top:5px; }
+.slot { width:60px; height:60px; border:1px solid #444; border-radius:10px; background:rgba(0,0,0,0.3); display:flex; justify-content:center; align-items:center; cursor:pointer; position:relative; }
+.slot img { max-width:80%; max-height:80%; filter:grayscale(100%); opacity:0.3; }
+.slot.unlocked img { filter:none; opacity:1; }
+.slot.rare { border-color:#ffd700; box-shadow:0 0 10px #ffd700; }
 /* Tabs */
-#tabs { width:72%; display:flex; flex-direction:column; background:#041024; }
-.tabButtons { display:flex; border-bottom:2px solid #ffd700; }
-.tabButtons button { flex:1; padding:10px; background:#0b0f1d; border:none; color:#fff; cursor:pointer; font-weight:bold; }
-.tabButtons button.active { background:#112244; border-bottom:3px solid #ffd700; }
-.tabContent { flex:1; padding:20px; overflow:auto; display:flex; flex-wrap:wrap; position:relative; }
+#tabs { width:72%; display:flex; flex-direction:column; margin:10px;}
+.tabButtons { display:flex; border-bottom:2px solid #ffd700;}
+.tabButtons button { flex:1; padding:10px; background:rgba(0,0,0,0.4); border:none; color:#fff; cursor:pointer; font-weight:bold; }
+.tabButtons button.active { background:rgba(30,30,60,0.6); border-bottom:3px solid #ffd700;}
+.tabContent { flex:1; padding:0; overflow:hidden; display:flex; flex-wrap:wrap; position:relative; }
 /* Dorf */
-#villageMap { width:100%; height:100%; position: relative; border-radius:15px; background: linear-gradient(to bottom, #1a472a, #2d5a27); overflow:hidden; }
-.tree { width: 20px; height: 40px; position: absolute; background: green; clip-path: polygon(50% 0%, 0% 100%, 100% 100%); }
-#nest { width: 60px; height: 60px; position: absolute; bottom: 10px; right: 10px; background: #a0522d; border-radius:50%; box-shadow:0 0 10px #ffd700; display:flex; justify-content:center; align-items:center; animation: floatNest 2s ease-in-out infinite alternate; }
-@keyframes floatNest { 0%{transform:translateY(0);}100%{transform:translateY(-10px);} }
-.building { width:80px; height:60px; position:absolute; border-radius:10px; display:flex; justify-content:center; align-items:center; color:#ffd700; font-weight:bold; cursor:pointer; opacity:0.3; transition: opacity 1s; background: rgba(0,0,0,0.5); border: 1px solid #ffd700; }
+#villageMap { width:100%; height:100%; position:relative; border-radius:15px; background:linear-gradient(to bottom,#1a472a,#2d5a27); overflow:hidden; }
+/* Bäume */
+.tree { position:absolute; font-size:20px; animation: sway 3s infinite alternate; }
+@keyframes sway {0%{transform:translateY(0);}100%{transform:translateY(-3px);}}
+
+/* Nest */
+#nest { width:60px;height:60px;position:absolute;bottom:10px;right:10px;background:#a0522d;border-radius:50%;box-shadow:0 0 10px #ffd700; display:flex;justify-content:center;align-items:center; animation: floatNest 2s ease-in-out infinite alternate;}
+@keyframes floatNest {0%{transform:translateY(0);}100%{transform:translateY(-10px);}}
+
+/* Zuschauer Eier */
+.avatarTile { width:40px;height:40px; position:absolute; border-radius:10px; display:flex; justify-content:center; align-items:center; background: rgba(0,0,0,0.3); border:1px solid #444; font-size:24px; box-shadow:0 0 5px #00c3ff; animation: floatNest 2s ease-in-out infinite alternate; }
+
+/* Gebäude */
+.building { width:60px; height:60px; position:absolute; border-radius:10px; display:flex; justify-content:center; align-items:center; color:#ffd700; font-weight:bold; cursor:pointer; opacity:0.3; transition: opacity 1s; z-index:10;}
 .building.visible { opacity:1; }
-/* Live-Quest */
+
+/* Boss */
 #liveQuest { width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding:20px; box-sizing:border-box; }
 #bossContainer { margin-top:20px; text-align:center; display:none; }
-#bossEmoji { font-size:100px; display:block; transition:0.2s; }
+#bossEmoji { font-size:100px; display:block; transition:0.3s; animation: breathe 2s ease-in-out infinite alternate;}
+@keyframes breathe {0%{transform:scale(1);}100%{transform:scale(1.05);}}
+@keyframes shake {0%{transform:translateX(-5px);}20%{transform:translateX(5px);}40%{transform:translateX(-5px);}60%{transform:translateX(5px);}80%{transform:translateX(-5px);}100%{transform:translateX(0);}}
 #bossHPBar { width:80%; height:25px; background:#111; border:1px solid #444; border-radius:12px; margin:10px auto; overflow:hidden; }
-#bossHPFill { height:100%; background:linear-gradient(90deg, #ff5f5f, #ff0000); width:100%; transition:0.3s; }
+#bossHPFill { height:100%; background:linear-gradient(90deg,#ff5f5f,#ff0000); width:100%; transition:0.3s; }
 #attackBtn { margin-top:10px; padding:10px 20px; background:#ffd700; border:none; color:#000; font-weight:bold; cursor:pointer; border-radius:5px; }
-#questLog { margin-top:20px; width:90%; height:150px; background:#111; border:1px solid #444; border-radius:10px; padding:10px; overflow-y:auto; font-size:14px; text-align: left; }
-/* Popups */
-#lootPopup, #marketOverlay { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:#111; border:2px solid #ffd700; border-radius:10px; padding:20px; display:none; z-index:999; width:280px; text-align:center; }
-#marketOverlay { width: 80%; height: 80%; flex-direction: column; display: none; }
-button { padding:10px; cursor:pointer; font-weight:bold; border-radius:5px; border:none; }
-#collectBtn.disabled { background:#555; color:#999; cursor:not-allowed; }
+#questLog { margin-top:20px; width:90%; height:150px; background:rgba(0,0,0,0.3); border:1px solid #444; border-radius:10px; padding:10px; overflow-y:auto; font-size:14px; }
+
+/* Loot Popup */
+#lootPopup { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.7); border:2px solid #ffd700; border-radius:10px; padding:20px; display:none; z-index:999; width:250px; text-align:center; }
+#lootPopup button { margin-top:10px; padding:10px 20px; border:none; border-radius:5px; font-weight:bold; cursor:pointer; }
+#lootPopup button.disabled { background:#555; color:#999; cursor:not-allowed; }
+
+/* Hall of Fame */
+#hallOfFameTab { display:none; flex-direction:column; align-items:center; justify-content:flex-start; width:100%; height:100%; }
+#lastHitContainer { margin-top:20px; }
+.podium { width:100px; height:100px; background:#ffd700; border-radius:10px; display:flex; justify-content:center; align-items:center; font-size:60px; box-shadow:0 0 10px #ffd700; }
+
+/* Ticker */
+#newsTicker { position:absolute; bottom:0; width:100%; background:rgba(0,0,0,0.6); padding:5px; text-align:center; font-weight:bold; color:#ffd700; font-size:18px; }
 </style>
 </head>
-<body oncontextmenu="return false;" onkeydown="disableKeys(event)">
+<body>
 <div id="main">
-    <div id="charMenu">
-        <div id="avatarPodest"></div>
-        <div id="avatarContainer">
-            <div id="baseLayer" class="avatar-layer">🥚</div>
-            <div id="headLayer" class="avatar-layer"></div>
-            <div id="weaponLayer" class="avatar-layer"></div>
-        </div>
-        <div id="statusLine">Rang: Ei (Follower)</div>
-        <div id="wapons">
-            <div class="weaponSlot" id="wp1"></div>
-            <div class="weaponSlot" id="wp2"></div>
-            <div class="weaponSlot" id="wp3"></div>
-        </div>
-        <div id="inventory">
-            <h3>Inventar</h3>
-            <div id="invGrid"></div>
-        </div>
-    </div>
-    <div id="tabs">
-        <div class="tabButtons">
-            <button class="active" onclick="switchTab('villageMap')">Dorf</button>
-            <button onclick="switchTab('liveQuest')">Arena</button>
-            <button onclick="switchTab('premiumTab')">Götter-Schmiede</button>
-            <button onclick="switchTab('hallOfFameTab')">Hall of Fame</button>
-        </div>
-        <div class="tabContent">
-            <div id="villageMap" class="tabPane" style="display:block;"></div>
-            <div id="liveQuest" class="tabPane" style="display:none;">
-                <div id="questStatus">Das Nest schläft gerade... Spawn2909 offline!</div>
-                <div id="bossContainer">
-                    <span id="bossEmoji">👹</span>
-                    <div id="bossHPBar"><div id="bossHPFill"></div></div>
-                    <button id="attackBtn">ANGREIFEN</button>
-                    <div id="questLog"></div>
-                </div>
-            </div>
-            <div id="premiumTab" class="tabPane" style="display:none;">
-                <h2>Götter-Schmiede</h2>
-                <p>Coming Soon: Exklusive Items gegen Bits</p>
-            </div>
-            <div id="hallOfFameTab" class="tabPane" style="display:none;">
-                <h2>Hall of Fame</h2>
-                <div id="lastHitContainer">Noch keine Helden verewigt.</div>
-            </div>
-        </div>
-    </div>
+  <div id="charMenu">
+    <div id="avatarPodest"></div>
+    <div id="avatarContainer">
+      <div id="baseLayer" class="avatar-layer">🥚</div>
+      <div id="headLayer" class="avatar-layer"></div>
+      <div id="weaponLayer" class="avatar-layer"></div>
+    </div>
+    <div id="statusLine">Rang: Ei (Follower)</div>
+    <div id="inventory">
+      <h3>Inventar</h3>
+      <div id="invGrid"></div>
+      <h3>Rucksack</h3>
+      <div id="backpackGrid"></div>
+    </div>
+  </div>
+  <div id="tabs">
+    <div class="tabButtons">
+      <button class="active" onclick="switchTab('villageMap')">Dorf</button>
+      <button onclick="switchTab('liveQuest')">Arena</button>
+      <button onclick="switchTab('premiumTab')">Götter-Schmiede</button>
+      <button onclick="switchTab('hallOfFameTab')">Hall of Fame</button>
+    </div>
+    <div class="tabContent">
+      <div id="villageMap" class="tabPane"></div>
+      <div id="liveQuest" class="tabPane">
+        <div id="questStatus">Das Nest schläft gerade... Spawn2909 offline!</div>
+        <div id="bossContainer">
+          <span id="bossEmoji">👹</span>
+          <div id="bossHPBar"><div id="bossHPFill"></div></div>
+          <button id="attackBtn">ANGREIFEN</button>
+          <div id="questLog"></div>
+        </div>
+      </div>
+      <div id="premiumTab" class="tabPane">
+        <h2>Coming Soon: Exklusive Items gegen Bits</h2>
+      </div>
+      <div id="hallOfFameTab" class="tabPane">
+        <h2>Hall of Fame</h2>
+        <div id="lastHitContainer"></div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div id="lootPopup">
-    <div id="lootItem" style="font-size: 50px;">🧪</div>
-    <div id="lootNotice">Gegenstand gefunden!</div>
-    <button id="collectBtn">EINSAMMELN</button>
-    <button onclick="document.getElementById('lootPopup').style.display='none'" style="background: #444; color: white; margin-top: 5px;">Schließen</button>
+  <div id="lootItem">🧪</div>
+  <button id="collectBtn">EINSAMMELN</button>
+  <div id="lootNotice" style="margin-top:10px;font-size:12px;color:#ccc;"></div>
 </div>
 
-<div id="marketOverlay">
-    <h2>Marktplatz</h2>
-    <div id="marketItemsContainer" style="display:flex; flex-wrap:wrap; justify-content:center; overflow-y: auto; flex: 1;"></div>
-    <button onclick="document.getElementById('marketOverlay').style.display='none'" style="background: red; color: white;">Schließen</button>
-</div>
+<div id="newsTicker">+++ EILMELDUNG: Ein wilder Oger nähert sich dem Dorf! +++</div>
 
 <script>
 // Sicherheit
-function disableKeys(e){ if(e.key==="F12"||(e.ctrlKey&&e.shiftKey&&["I","J","C"].includes(e.key.toUpperCase()))) e.preventDefault(); }
 document.addEventListener('contextmenu', e=>e.preventDefault());
+document.addEventListener('keydown', e=>{ if(e.key==="F12"|| (e.ctrlKey&&e.shiftKey)) e.preventDefault(); });
 
-// Variablen
+// Basis-Variablen
 let save = JSON.parse(localStorage.getItem('save'))||{inventory:[],weapons:[]};
-let villageAvatars=[]; let followerCount=15; let isFollower=true; let isPrime=false; let isSub=false;
+let followerCount=0, isFollower=true, isPrime=false, isSub=false;
+let villageAvatars=[], boss={hp:0,maxHp:100,emoji:'🐀'}, activeViewers=1,lastHitUser=null;
+const followerLoot=[{emoji:'🧪',name:'Heiltrank'},{emoji:'⚔️',name:'Giftschwert'}];
+const primeLoot=[{emoji:'💎',name:'Kristall'},{emoji:'⚔️',name:'Giftklinge'}];
+const subLoot=[{emoji:'👑',name:'Krone'},{emoji:'🧙‍♂️',name:'Lichstab'}];
+
+// Loot-Funktion
+function getLootPool(){ if(isSub) return subLoot; else if(isPrime) return primeLoot; else return followerLoot; }
+
+// Tabwechsel
+function switchTab(tabId){document.querySelectorAll('.tabPane').forEach(t=>t.style.display='none');document.getElementById(tabId).style.display='flex';document.querySelectorAll('.tabButtons button').forEach(b=>b.classList.remove('active'));document.querySelector(`.tabButtons button[onclick*="${tabId}"]`).classList.add('active');}
+
+// Dorf erzeugen
+function renderVillage(){
+  const map=document.getElementById('villageMap'); map.innerHTML='';
+  // Bäume
+  for(let i=0;i<300;i++){
+    let tree=document.createElement('div'); tree.className='tree'; 
+    tree.innerText=Math.random()>0.5?'🌲':'🌳';
+    tree.style.fontSize=(12+Math.random()*18)+'px';
+    tree.style.color=`rgb(0,${80+Math.random()*100},0)`;
+    tree.style.left=Math.random()*map.offsetWidth+'px';
+    tree.style.top=Math.random()*map.offsetHeight+'px';
+    map.appendChild(tree);
+  }
+  // Nest
+  let nest=document.createElement('div'); nest.id='nest'; nest.innerText='🥚'; map.appendChild(nest);
+
+  // Gebäude-Dummies zentral platzieren
+  let forge=document.createElement('div'); forge.className='building visible'; forge.style.left='20%'; forge.style.top='40%'; forge.innerText='⚒️'; map.appendChild(forge);
+  let arena=document.createElement('div'); arena.className='building visible'; arena.style.right='20%'; arena.style.top='40%'; arena.innerText='🏟️'; map.appendChild(arena);
+
+  // 5 Test-Zuschauer Eier
+  for(let i=0;i<5;i++){
+    let avatar=document.createElement('div'); avatar.className='avatarTile'; avatar.innerText='🥚';
+    avatar.style.left=Math.random()*(map.offsetWidth-40)+'px';
+    avatar.style.top=Math.random()*(map.offsetHeight-40)+'px';
+    map.appendChild(avatar);
+  }
+}
+setTimeout(renderVillage,100);
+
+// Websocket (Placeholder)
 let ws = new WebSocket('ws://127.0.0.1:8080');
-let boss = {hp:100,maxHp:100,emoji:'🐀'}; let activeViewers=1;
+ws.onopen=()=>{document.getElementById('questStatus').innerText='Spawn2909 online!'; document.getElementById('bossContainer').style.display='block';}
+ws.onmessage=e=>{let d=JSON.parse(e.data); if(d.action==='updateViewers'){activeViewers=d.count; scaleBoss();}}
 
-// Loot Pools
-const followerLoot = [{emoji:'🧪',name:'Heiltrank'},{emoji:'⚔️',name:'Giftschwert'}];
-const primeLoot = [{emoji:'💎',name:'Kristall'},{emoji:'🗡️',name:'Giftklinge'}];
-const subLoot = [{emoji:'👑',name:'Krone'},{emoji:'🧙‍♂️',name:'Lichstab'}];
+function scaleBoss(){boss.maxHp=100+activeViewers*50;boss.hp=boss.maxHp; 
+  if(activeViewers<5) boss.emoji='🐀'; else if(activeViewers<15) boss.emoji='👹'; else boss.emoji='🐉'; 
+  document.getElementById('bossEmoji').innerText=boss.emoji; updateBossHP();}
 
-// Kern-Funktionen
-function getLootPool(){ if(isSub) return subLoot; else if(isPrime) return primeLoot; return followerLoot; }
+function updateBossHP(){document.getElementById('bossHPFill').style.width=(boss.hp/boss.maxHp*100)+'%';}
 
-function updateCharUI() {
-    ['wp1','wp2','wp3'].forEach((id,i)=>{
-        const slot=document.getElementById(id);
-        slot.innerHTML=save.weapons[i]?`<span>${save.weapons[i].emoji}</span>`:'';
-    });
-    document.getElementById('weaponLayer').innerText = save.weapons[0]?.emoji || '';
-    const grid = document.getElementById('invGrid');
-    grid.innerHTML = '';
-    save.inventory.forEach(item => {
-        const slot = document.createElement('div');
-        slot.className = 'slot';
-        slot.innerHTML = `<span>${item.emoji}</span>`;
-        grid.appendChild(slot);
-    });
+// Angriff mit Shake
+document.getElementById('attackBtn').addEventListener('click',()=>{
+  let dmg=10; boss.hp-=dmg; if(boss.hp<0) boss.hp=0; updateBossHP();
+  document.getElementById('questLog').innerHTML+=`Du hast ${dmg} Schaden gemacht.<br>`;
+  let bossEl=document.getElementById('bossEmoji');
+  bossEl.style.animation='shake 0.3s'; setTimeout(()=>{bossEl.style.animation='breathe 2s ease-in-out infinite alternate';},300);
+  if(boss.hp===0) showLootPopup();
+});
+
+// Loot Popup
+function showLootPopup(){ 
+  let pool=getLootPool(); 
+  let loot=pool[Math.floor(Math.random()*pool.length)]; 
+  document.getElementById('lootItem').innerText=loot.emoji; 
+  let btn=document.getElementById('collectBtn'); 
+  btn.disabled=false; btn.classList.remove('disabled'); 
+  if(!isFollower){btn.disabled=true; btn.classList.add('disabled'); document.getElementById('lootNotice').innerText='Nur für Nest-Follower!';} else document.getElementById('lootNotice').innerText=''; 
+  document.getElementById('lootPopup').style.display='block'; 
+  btn.onclick=()=>{
+    save.inventory.push(loot); 
+    localStorage.setItem('save',JSON.stringify(save)); 
+    document.getElementById('weaponLayer').innerText=loot.emoji; // Sofort anzeigen
+    document.getElementById('lootPopup').style.display='none';
+  }
 }
 
-function switchTab(tabId) {
-    document.querySelectorAll('.tabPane').forEach(p => p.style.display = 'none');
-    document.getElementById(tabId).style.display = 'flex';
-    document.querySelectorAll('.tabButtons button').forEach(b => b.classList.remove('active'));
-    if(tabId === 'villageMap') renderVillage();
-}
-
-function renderVillage() {
-    const container = document.getElementById('villageMap');
-    container.innerHTML = '<div id="nest">🥚</div>';
-    for(let i=0; i<15; i++) {
-        const tree = document.createElement('div');
-        tree.className = 'tree';
-        tree.style.left = Math.random() * 90 + '%'; tree.style.top = Math.random() * 80 + '%';
-        container.appendChild(tree);
-    }
-    const buildings = [{name:'Schmiede',x:10,y:10,t:0},{name:'Arena',x:50,y:20,t:10}];
-    buildings.forEach(b => {
-        const div = document.createElement('div');
-        div.className = 'building' + (followerCount >= b.t ? ' visible' : '');
-        div.style.left = b.x + '%'; div.style.top = b.y + '%';
-        div.innerText = b.name;
-        if(b.name === 'Schmiede') div.onclick = openMarket;
-        container.appendChild(div);
-    });
-}
-
-function scaleBoss() {
-    boss.maxHp = 100 + (activeViewers * 50); boss.hp = boss.maxHp;
-    boss.emoji = activeViewers < 5 ? '🐀' : (activeViewers < 15 ? '👹' : '🐉');
-    document.getElementById('bossEmoji').innerText = boss.emoji;
-    updateBossUI();
-}
-
-function attackBoss() {
-    if(boss.hp <= 0) return;
-    let dmg = isSub ? 30 : 10;
-    boss.hp = Math.max(0, boss.hp - dmg);
-    updateBossUI();
-    const entry = document.createElement('div');
-    entry.innerText = `Schaden: ${dmg}!`;
-    document.getElementById('questLog').prepend(entry);
-    if(boss.hp <= 0) showLootPopup();
-}
-
-function updateBossUI() { document.getElementById('bossHPFill').style.width = (boss.hp/boss.maxHp*100) + '%'; }
-
-function showLootPopup() {
-    const item = getLootPool()[Math.floor(Math.random()*2)];
-    const popup = document.getElementById('lootPopup');
-    const btn = document.getElementById('collectBtn');
-    document.getElementById('lootItem').innerText = item.emoji;
-    popup.style.display = 'block';
-    if(!isFollower) {
-        btn.className = "disabled"; btn.innerText = "Gesperrt";
-        document.getElementById('lootNotice').innerText = "Folge Spawn2909!";
-    } else {
-        btn.className = ""; btn.innerText = "EINSAMMELN";
-        btn.onclick = () => {
-            save.inventory.push(item);
-            localStorage.setItem('save', JSON.stringify(save));
-            updateCharUI(); popup.style.display = 'none';
-        };
-    }
-}
-
-function openMarket() { document.getElementById('marketOverlay').style.display = 'flex'; }
-
-// Init
-ws.onopen=()=>{document.getElementById('questStatus').innerText='Spawn2909 online!';}
-document.getElementById('attackBtn').onclick = attackBoss;
-updateCharUI(); renderVillage(); scaleBoss();
+// Test: Item Layer beim Laden
+window.addEventListener('load',()=>{
+  if(save.inventory.length>0){ document.getElementById('weaponLayer').innerText=save.inventory[0].emoji; }
+});
 </script>
 </body>
 </html>
