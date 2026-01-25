@@ -3,209 +3,188 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>The Nest - Mobile RPG Edition</title>
+<title>The Nest: Admin & Mobile Edition</title>
 <style>
-    /* BASE SETUP */
-    body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #0a0a12; color: #e0d8b0; }
-    #gameWorld { position: absolute; width: 100%; height: 100%; background: url('wald.png') center/cover; z-index: 1; }
+    body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #0a0a12; }
     
-    /* CREATURES & BARS */
-    .creature { position: absolute; width: 80px; height: 80px; z-index: 10; transition: all 3s ease-in-out; text-align: center; }
+    /* Das Spielfeld ist jetzt klickbar für die Bewegung */
+    #gameWorld { 
+        position: absolute; width: 100%; height: 100%; 
+        background: url('wald.png') center/cover; 
+        z-index: 1; cursor: crosshair;
+    }
+
+    /* CHARAKTER */
+    .creature { 
+        position: absolute; width: 80px; height: 80px; z-index: 10; 
+        transition: left 2s linear, top 2s linear; /* Linearer für direkte Steuerung */
+        text-align: center; pointer-events: none; 
+    }
     .creature-img { width: 60px; height: 60px; background-size: contain; background-repeat: no-repeat; background-position: center; margin: 0 auto; position: relative; }
     
-    .bar-wrap { width: 60px; height: 4px; background: rgba(0,0,0,0.8); margin: 2px auto; border-radius: 2px; overflow: hidden; }
-    .bar-ep { height: 100%; background: #4caf50; width: 0%; transition: width 0.3s; }
-    .bar-lxp { height: 100%; background: #2196f3; width: 0%; transition: width 0.3s; }
-    .name-tag { font-size: 10px; font-weight: bold; text-shadow: 1px 1px 2px #000; }
+    /* WILD MONSTER */
+    .wild-monster {
+        position: absolute; width: 40px; height: 40px; z-index: 9;
+        font-size: 30px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+        animation: popIn 0.3s ease-out;
+    }
+    @keyframes popIn { from { transform: scale(0); } to { transform: scale(1); } }
 
-    /* BOSS & BATTLE LOG */
-    #bossArea { position: absolute; top: 15%; left: 50%; transform: translateX(-50%); text-align: center; z-index: 50; display: none; }
-    #bossImg { width: 150px; height: 150px; filter: drop-shadow(0 0 15px red); }
-    #attackBtn { background: linear-gradient(#ff4444, #990000); color: white; border: 2px solid #fff; padding: 15px 30px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
-    
-    #battleLog { position: absolute; bottom: 20px; left: 20px; width: 250px; height: 120px; background: rgba(0,0,0,0.7); border: 1px solid #334155; border-radius: 5px; padding: 10px; font-size: 12px; overflow-y: hidden; z-index: 100; pointer-events: none; }
+    /* ADMIN PANEL */
+    #adminPanel {
+        position: fixed; bottom: 10px; left: 10px; z-index: 1000;
+        background: rgba(255, 0, 0, 0.2); border: 1px solid red; padding: 5px; border-radius: 5px;
+        display: none; /* Wird nur für dich eingeblendet */
+    }
+    .admin-btn { font-size: 10px; background: #000; color: #ff4444; border: 1px solid red; cursor: pointer; margin: 2px; }
 
-    /* MARKT & SCHMIEDE (HUD) */
-    #mainHUD { position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; gap: 10px; z-index: 100; }
-    .hud-btn { background: rgba(15, 23, 42, 0.9); border: 1px solid #3b82f6; color: white; padding: 10px; border-radius: 8px; cursor: pointer; font-size: 14px; text-align: center; }
-    .hud-btn:hover { background: #1e293b; }
+    /* UI & HUD */
+    #hud { position: fixed; top: 10px; left: 10px; z-index: 100; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 8px; border: 1px solid #3b82f6; pointer-events: none; }
+    .inv-btn { position: fixed; bottom: 20px; right: 20px; z-index: 100; padding: 15px 25px; background: #2563eb; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; }
 
-    /* OVERLAYS */
-    .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; z-index: 200; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
-    .modal-content { background: #1a1c2c; border: 2px solid #3d4a5d; padding: 25px; border-radius: 15px; width: 300px; text-align: center; }
-
-    /* GEAR VISUAL */
-    .gear-sword { position: absolute; width: 40px; height: 40px; right: -15px; top: 0; background: url('schwert.png') no-repeat center/contain; image-rendering: pixelated; }
+    /* BALKEN */
+    .bar-wrap { width: 50px; height: 5px; background: rgba(0,0,0,0.8); margin: 2px auto; border-radius: 3px; }
+    .bar-ep { height: 100%; background: #4caf50; transition: width 0.5s; }
+    .bar-lxp { height: 100%; background: #2196f3; transition: width 0.5s; }
 </style>
 </head>
 <body>
 
-<div id="gameWorld">
-    <div id="creatureLayer"></div>
-    
-    <div id="bossArea">
-        <h2 id="bossName" style="color:red; text-shadow: 0 0 10px black;">BOSS ERSCHIENEN!</h2>
-        <div id="bossHpBar" style="width:200px; height:15px; background:black; border:1px solid white; margin: 10px auto;">
-            <div id="bossHpFill" style="width:100%; height:100%; background:red;"></div>
-        </div>
-        <img src="https://i.imgur.com/6M6oVvP.png" id="bossImg" alt="Boss"> <br><br>
-        <button id="attackBtn" onclick="doAttack()">⚔️ ATTACK!</button>
-    </div>
-
-    <div id="battleLog"></div>
-
-    <div id="mainHUD">
-        <div class="hud-btn" onclick="openMenu('inv')">🎒 INVENTAR</div>
-        <div class="hud-btn" onclick="openMenu('shop')" style="border-color:#eab308;">⚖️ MARKTPLATZ</div>
-        <div class="hud-btn" onclick="openMenu('forge')" style="border-color:#ef4444;">⚒️ SCHMIEDE</div>
-        <div style="background:rgba(0,0,0,0.5); padding:5px; border-radius:5px; font-size:12px;">
-            🪵: <span id="resWood">0</span> | ✨: <span id="resLXP">0</span>
-        </div>
-    </div>
+<div id="gameWorld" onclick="handleWorldClick(event)">
+    <div id="charLayer"></div>
+    <div id="monsterLayer"></div>
 </div>
 
-<div id="menuModal" class="modal" onclick="closeMenu(event)">
-    <div class="modal-content" onclick="event.stopPropagation()">
-        <h2 id="menuTitle">Menü</h2>
-        <div id="menuBody"></div>
-        <br>
-        <button onclick="document.getElementById('menuModal').style.display='none'">Schließen</button>
-    </div>
+<div id="hud">
+    ✨ LXP: <span id="lxpVal">0</span> | 📈 EP: <span id="epVal">0</span><br>
+    🌿 <span id="resGras">0</span> | 🪵 <span id="resStock">0</span> | 🪨 <span id="resStein">0</span>
 </div>
+
+<div id="adminPanel">
+    <strong style="font-size:10px; color:red;">ADMIN TOOLS</strong><br>
+    <button class="admin-btn" onclick="addRes('lxp', 100)">+100 LXP</button>
+    <button class="admin-btn" onclick="addRes('ep', 10)">+10 EP (Evo)</button>
+    <button class="admin-btn" onclick="addRes('wood', 50)">+50 All Res</button>
+    <button class="admin-btn" onclick="resetSave()">Reset</button>
+</div>
+
+<button class="inv-btn" onclick="alert('Inventar öffnet sich...')">🎒 INVENTAR</button>
 
 <script>
-const BROADCASTER = "spawn2909";
-let player = JSON.parse(localStorage.getItem('nestPlayer')) || {
-    name: "spawn2909", wood: 0, lxp: 0, ep: 0, gear: null, ownsSword: false
+let data = JSON.parse(localStorage.getItem('nestData')) || {
+    lxp: 0, ep: 0, gras: 0, stock: 0, stein: 0,
+    equipped: { head: null, body: null, hand: null }
 };
 
-let boss = { active: false, hp: 100, maxHp: 100 };
+const BROADCASTER_NAME = "spawn2909";
 
-// INITIALISIERUNG
-function init() {
-    renderPlayer();
-    updateHUD();
-    startLoops();
-    // Test-Boss alle 5 Minuten
-    setInterval(spawnBoss, 300000);
+function save() { 
+    localStorage.setItem('nestData', JSON.stringify(data)); 
+    updateUI(); 
 }
 
-function updateHUD() {
-    document.getElementById('resWood').textContent = Math.floor(player.wood);
-    document.getElementById('resLXP').textContent = Math.floor(player.lxp);
+function updateUI() {
+    document.getElementById('lxpVal').textContent = Math.floor(data.lxp);
+    document.getElementById('epVal').textContent = Math.floor(data.ep);
+    document.getElementById('resGras').textContent = data.gras;
+    document.getElementById('resStock').textContent = data.stock;
+    document.getElementById('resStein').textContent = data.stein;
+    renderChar();
 }
 
-function renderPlayer() {
-    const layer = document.getElementById('creatureLayer');
-    layer.innerHTML = '';
+// STEUERUNG FÜR HANDY & PC
+function handleWorldClick(e) {
+    const el = document.getElementById('myChar');
+    if(!el) return;
     
-    const div = document.createElement('div');
-    div.className = 'creature';
-    div.style.left = "50%"; div.style.top = "50%";
+    // Berechne Prozentposition für Responsive Design
+    const x = (e.clientX / window.innerWidth) * 100;
+    const y = (e.clientY / window.innerHeight) * 100;
     
-    // EP/LXP BARS FIX
-    const epWidth = Math.min(100, (player.ep / 30) * 100);
-    const lxpWidth = Math.min(100, player.lxp);
+    el.style.left = (x - 4) + "%"; // -4 um das Ei zu zentrieren
+    el.style.top = (y - 4) + "%";
+}
 
-    div.innerHTML = `
-        <div class="bar-wrap"><div class="bar-ep" style="width:${epWidth}%"></div></div>
-        <div class="bar-wrap"><div class="bar-lxp" style="width:${lxpWidth}%"></div></div>
-        <div class="creature-img" style="background-image:url('ei.png')">
-            ${player.gear === 'sword' ? '<div class="gear-sword"></div>' : ''}
-        </div>
-        <div class="name-tag">${player.name}</div>
+function renderChar() {
+    const layer = document.getElementById('charLayer');
+    if(layer.children.length > 0) return; // Nicht jedes Mal neu zeichnen
+
+    const char = document.createElement('div');
+    char.className = 'creature';
+    char.id = "myChar";
+    char.style.left = "50%"; char.style.top = "50%";
+    
+    // Evolution Logik
+    let img = 'ei.png';
+    if(data.ep >= 30) img = 'schleim.png';
+    if(data.ep >= 60) img = 'held.png'; // Beispiel für nächste Stufe
+    
+    char.innerHTML = `
+        <div class="bar-wrap"><div class="bar-ep" id="barEP" style="width:${Math.min(100, (data.ep/30)*100)}%"></div></div>
+        <div class="bar-wrap"><div class="bar-lxp" id="barLXP" style="width:${Math.min(100, data.lxp/10)}%"></div></div>
+        <div class="creature-img" id="charImg" style="background-image:url('${img}')"></div>
+        <div class="name-tag">${BROADCASTER_NAME}</div>
     `;
-    layer.appendChild(div);
+    layer.appendChild(char);
 }
 
-// BATTLE SYSTEM
-function spawnBoss() {
-    boss.active = true;
-    boss.hp = 100;
-    document.getElementById('bossArea').style.display = 'block';
-    addLog("Ein wildes Monster greift an!");
-}
-
-function doAttack() {
-    if(!boss.active) return;
-    const dmg = player.gear === 'sword' ? 10 : 2;
-    boss.hp -= dmg;
+// WILD MONSTER SYSTEM
+function spawnWildMonster() {
+    const monsterLayer = document.getElementById('monsterLayer');
+    const m = document.createElement('div');
+    m.className = 'wild-monster';
+    m.innerHTML = '👾';
+    m.style.left = (10 + Math.random() * 80) + "%";
+    m.style.top = (10 + Math.random() * 80) + "%";
     
-    document.getElementById('bossHpFill').style.width = boss.hp + "%";
-    addLog(`Du triffst für ${dmg} Schaden!`);
-
-    if(boss.hp <= 0) {
-        boss.active = false;
-        document.getElementById('bossArea').style.display = 'none';
-        player.lxp += 20;
-        player.wood += 10;
-        addLog("SIEG! +20 LXP, +10 Holz erhalten.");
+    m.onclick = (e) => {
+        e.stopPropagation();
+        data.lxp += 1;
         save();
-    }
+        m.remove();
+        // Kleiner Battle-Text Effekt
+        const txt = document.createElement('div');
+        txt.style.position = 'fixed';
+        txt.style.left = e.clientX + "px";
+        txt.style.top = e.clientY + "px";
+        txt.style.color = "#44ff44";
+        txt.textContent = "+1 LXP";
+        document.body.appendChild(txt);
+        setTimeout(() => txt.remove(), 1000);
+    };
+    
+    monsterLayer.appendChild(m);
+    // Monster verschwindet nach 10 Sek von selbst
+    setTimeout(() => { if(m) m.remove(); }, 10000);
 }
 
-function addLog(txt) {
-    const log = document.getElementById('battleLog');
-    log.innerHTML += `<div>> ${txt}</div>`;
-    log.scrollTop = log.scrollHeight;
-}
-
-// MENÜ SYSTEM
-function openMenu(type) {
-    const modal = document.getElementById('menuModal');
-    const title = document.getElementById('menuTitle');
-    const body = document.getElementById('menuBody');
-    modal.style.display = 'flex';
-
-    if(type === 'forge') {
-        title.textContent = "Schmiede";
-        body.innerHTML = `
-            <p>Ein 16-Bit Schwert schmieden?</p>
-            <p style="font-size:12px;">Kosten: 50 Holz</p>
-            <button onclick="buy('sword')">SCHMIEDEN</button>
-        `;
-    } else if(type === 'shop') {
-        title.textContent = "Marktplatz";
-        body.innerHTML = `<p>Hier kommen bald Items für LXP rein!</p>`;
-    } else if(type === 'inv') {
-        title.textContent = "Inventar";
-        body.innerHTML = `
-            <p>Schwert: ${player.ownsSword ? 'Vorhanden' : 'Keins'}</p>
-            ${player.ownsSword ? `<button onclick="toggleGear()">${player.gear ? 'Ablegen' : 'Anlegen'}</button>` : ''}
-        `;
-    }
-}
-
-function buy(item) {
-    if(item === 'sword' && player.wood >= 50) {
-        player.wood -= 50;
-        player.ownsSword = true;
-        alert("Schwert erhalten!");
-        save();
-    } else { alert("Nicht genug Holz!"); }
-}
-
-function toggleGear() {
-    player.gear = player.gear ? null : 'sword';
+// ADMIN FUNKTIONEN
+function addRes(type, val) {
+    if(type === 'lxp') data.lxp += val;
+    if(type === 'ep') data.ep += val;
+    if(type === 'wood') { data.gras += val; data.stock += val; data.stein += val; }
     save();
-    renderPlayer();
+    location.reload(); // Refresh um Evo-Bild zu aktualisieren
 }
 
-function save() {
-    localStorage.setItem('nestPlayer', JSON.stringify(player));
-    updateHUD();
-}
+function resetSave() { localStorage.clear(); location.reload(); }
 
-function startLoops() {
-    // Passives Sammeln
+window.onload = () => {
+    updateUI();
+    // Prüfe ob Admin Modus aktiv (?admin=true in der URL)
+    if(new URLSearchParams(window.location.search).get('admin') === 'true') {
+        document.getElementById('adminPanel').style.display = 'block';
+    }
+    
+    // Alle 15 Sekunden ein wildes Monster
+    setInterval(spawnWildMonster, 15000);
+    
+    // Ressourcen-Tick (Passiv)
     setInterval(() => {
-        player.wood += 0.2;
-        player.lxp += 0.05;
+        data.gras += 1;
         save();
-    }, 5000);
-}
-
-window.onload = init;
+    }, 30000);
+};
 </script>
 </body>
 </html>
