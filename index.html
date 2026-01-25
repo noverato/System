@@ -2,147 +2,167 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>Spawn2909 – RPG Nest</title>
+<title>Isekai Nest V3</title>
 
 <style>
+/* ========== CORE ========== */
 body{
     margin:0;
     background:#050a05 !important;
-    font-family:Verdana, sans-serif;
     overflow:hidden;
+    font-family: "Segoe UI", sans-serif;
     color:white;
 }
 
-/* UI Columns */
-#uiLeft, #uiRight{
+/* ========== LAYOUT ========== */
+#uiLeft,#uiRight{
     position:fixed;
     top:0;
     bottom:0;
-    width:220px;
-    background:#0c140c;
-    padding:10px;
-    z-index:200;
+    width:260px;
+    padding:15px;
+    background:rgba(20,30,20,.55);
+    backdrop-filter: blur(12px);
+    border:2px solid gold;
+    z-index:9999;
 }
-#uiLeft{ left:0; border-right:2px solid #2c3f2c; }
-#uiRight{ right:0; border-left:2px solid #2c3f2c; }
+#uiLeft{ left:0; }
+#uiRight{ right:0; }
 
-/* World */
 #world{
     position:absolute;
-    left:220px;
-    right:220px;
+    left:260px;
+    right:260px;
     top:0;
     bottom:0;
     overflow:hidden;
 }
+
+/* ========== FOREST ========== */
 #forest{
     position:absolute;
     width:100%;
     height:100%;
-    background:#0b180b;
+    background: radial-gradient(circle at center,#1c2c1c,#050a05);
     z-index:0;
 }
 
-/* Village */
+/* trees */
+.tree{
+    position:absolute;
+    z-index:0;
+    filter:brightness(0.8);
+}
+
+/* ========== VILLAGE ========== */
 #village{
     position:absolute;
-    width:600px;
-    height:600px;
+    width:520px;
+    height:520px;
+    border-radius:50%;
     left:50%;
     top:50%;
     transform:translate(-50%,-50%);
-    background:#3e5c2f;
-    border-radius:50%;
-    border:10px solid #5d4037;
-    box-shadow: inset 0 0 30px #2a1b10;
+    background: radial-gradient(circle,#3b2a18,#1a120a);
+    box-shadow:0 0 50px rgba(255,215,120,.6);
     z-index:10;
 }
 
-/* Paths */
+/* light paths */
 .path{
     position:absolute;
-    background:#7b5a2b;
+    background:linear-gradient(to center,#ffd27d,#6b4a2a);
+    opacity:.8;
     z-index:9;
 }
-#pathNorth{ width:60px; height:200px; left:50%; top:-200px; transform:translateX(-50%);}
-#pathSouth{ width:60px; height:200px; left:50%; bottom:-200px; transform:translateX(-50%);}
-#pathWest{ height:60px; width:200px; left:-200px; top:50%; transform:translateY(-50%);}
-#pathEast{ height:60px; width:200px; right:-200px; top:50%; transform:translateY(-50%);}
+#pN{ width:80px;height:200px;left:50%;top:-200px;transform:translateX(-50%);}
+#pS{ width:80px;height:200px;left:50%;bottom:-200px;transform:translateX(-50%);}
+#pW{ height:80px;width:200px;left:-200px;top:50%;transform:translateY(-50%);}
+#pE{ height:80px;width:200px;right:-200px;top:50%;transform:translateY(-50%);}
 
-/* Buildings */
+/* buildings */
 .building{
     position:absolute;
-    width:90px;
-    height:90px;
-    background:#6d4c41;
-    border:3px solid #2a1b10;
-    border-radius:8px;
+    width:90px;height:90px;
+    background:rgba(50,30,10,.9);
+    border:3px solid gold;
+    border-radius:10px;
     text-align:center;
     line-height:90px;
-    font-size:40px;
-    z-index:20;
+    font-size:42px;
     cursor:pointer;
+    z-index:20;
 }
-#forge{ left:120px; top:220px;}
-#market{ right:120px; top:220px;}
+#forge{left:90px;top:210px;}
+#market{right:90px;top:210px;}
 
-/* Trees */
-.tree{
-    position:absolute;
-    font-size:28px;
-    z-index:1;
-}
-
-/* Eggs */
+/* ========== EGGS ========== */
 .egg{
     position:absolute;
-    font-size:22px;
+    font-size:26px;
     z-index:50;
-    transition: left 6s linear, top 6s linear;
+    transition:left 6s linear, top 6s linear;
+    text-shadow:0 5px 10px rgba(0,0,0,.8);
 }
-
-/* Name tag */
 .nameTag{
     position:absolute;
     top:-18px;
     left:50%;
     transform:translateX(-50%);
-    font-size:11px;
-    background:rgba(0,0,0,0.6);
+    background:rgba(0,0,0,.7);
     padding:2px 6px;
     border-radius:6px;
-    white-space:nowrap;
+    font-size:11px;
     z-index:60;
-    pointer-events:none;
 }
 
-/* Overlay UI */
+/* ========== BOSS ========== */
+#boss{
+    position:absolute;
+    font-size:120px;
+    z-index:100;
+    display:none;
+    cursor:pointer;
+}
+#bossBar{
+    position:absolute;
+    width:120px;height:8px;
+    background:#400;
+    border:1px solid #fff;
+    top:-15px;left:0;
+}
+#bossHP{
+    height:100%;
+    background:red;
+}
+
+/* ========== OVERLAYS ========== */
 .overlay{
     position:absolute;
-    width:400px;
-    height:300px;
-    background:#1a1f1a;
+    width:400px;height:300px;
+    background:rgba(20,30,20,.7);
+    backdrop-filter:blur(12px);
     border:3px solid gold;
-    left:50%;
-    top:50%;
+    left:50%;top:50%;
     transform:translate(-50%,-50%);
-    z-index:300;
+    z-index:9999;
     display:none;
     padding:15px;
 }
-.overlay button{
+.overlay .close{
     position:absolute;
-    top:5px;
-    right:5px;
+    right:10px;top:5px;
+    cursor:pointer;
+    color:red;
+    font-size:22px;
 }
 
-/* Boss */
-#boss{
-    position:absolute;
-    font-size:100px;
-    display:none;
-    z-index:5;
-    cursor:pointer;
+/* Dev button */
+#devBtn{
+    position:fixed;
+    bottom:10px;
+    right:280px;
+    z-index:9999;
 }
 </style>
 </head>
@@ -150,191 +170,129 @@ body{
 <body>
 
 <div id="uiLeft">
-    <h3>🥚 Spawn2909</h3>
-    Name: Spawn2909<br>
-    Rang: Ei<br><br>
-
-    <h4>🎒 Inventar</h4>
-    <div id="inventory">🗡️ 🧪 🌿</div>
+    <h3>🧬 Status</h3>
+    Inventar:<div id="inventory"></div>
 </div>
 
 <div id="uiRight">
-    <h3>📜 Dorf</h3>
-    Follower: <span id="followerCount">0</span><br>
-    Dorf-Level: <span id="villageLevel">0</span><br>
+    <h3>🏰 Dorf</h3>
     Bosse besiegt: <span id="bossKills">0</span>
 </div>
 
 <div id="world">
     <div id="forest"></div>
-    <div id="boss">🐲</div>
 
     <div id="village">
-        <div id="pathNorth" class="path"></div>
-        <div id="pathSouth" class="path"></div>
-        <div id="pathWest" class="path"></div>
-        <div id="pathEast" class="path"></div>
+        <div id="pN" class="path"></div>
+        <div id="pS" class="path"></div>
+        <div id="pW" class="path"></div>
+        <div id="pE" class="path"></div>
 
         <div id="forge" class="building">⚒️</div>
         <div id="market" class="building">🏪</div>
     </div>
+
+    <div id="boss">👾<div id="bossBar"><div id="bossHP"></div></div></div>
 </div>
 
-<!-- Overlays -->
-<div id="forgeUI" class="overlay">
-    <button onclick="closeUI()">X</button>
-    <h3>⚒️ Schmiede</h3>
-    <button onclick="addItem('🗡️')">Schwert kaufen</button><br><br>
-    <button onclick="addItem('🛡️')">Rüstung kaufen</button>
+<div id="forgeUI" class="overlay"><span class="close" onclick="closeUI()">✖</span>
+<h3>Schmiede</h3>
+<button onclick="addItem('🗡️')">Schwert</button>
+<button onclick="addItem('🛡️')">Rüstung</button>
 </div>
 
-<div id="marketUI" class="overlay">
-    <button onclick="closeUI()">X</button>
-    <h3>🏪 Marktplatz</h3>
-    <button onclick="buyPotion()">🧪 Trank kaufen</button>
+<div id="marketUI" class="overlay"><span class="close" onclick="closeUI()">✖</span>
+<h3>Markt</h3>
+<button onclick="addItem('🧪')">Trank</button>
 </div>
+
+<button id="devBtn" onclick="spawnEgg('TestUser'+Math.floor(Math.random()*999))">DEV +1</button>
 
 <script>
-const forest = document.getElementById("forest");
-const village = document.getElementById("village");
-const boss = document.getElementById("boss");
-const inventory = document.getElementById("inventory");
-const bossKills = document.getElementById("bossKills");
-
-let activeEggs = {};   // name -> egg element
-
-/* =============================
-   🌲 Forest
-============================= */
-function createForest(){
-    for(let i=0;i<300;i++){
-        const t=document.createElement("div");
-        t.className="tree";
-        t.textContent=Math.random()>0.5?"🌲":"🌳";
-        t.style.left=Math.random()*window.innerWidth+"px";
-        t.style.top=Math.random()*window.innerHeight+"px";
-        forest.appendChild(t);
-    }
-}
-
-/* =============================
-   🥚 Egg System
-============================= */
-function spawnEgg(name){
-    if(activeEggs[name]) return; // Dubletten verhindern
-
-    const e=document.createElement("div");
-    e.className="egg";
-    e.textContent="🥚";
-    e.xp = 0;
-
-    const tag=document.createElement("span");
-    tag.className="nameTag";
-    tag.textContent=name;
-    e.appendChild(tag);
-
-    forest.appendChild(e);
-    activeEggs[name] = e;
-
-    updateStats();
-
-    setInterval(()=>{
-        e.xp++;
-        if(e.xp>100) e.textContent="💀";
-        else if(e.xp>50) e.textContent="💧";
-        e.appendChild(tag);
-    },10000);
-
-    moveEgg(e);
-}
-
-function moveEgg(e){
-    setInterval(()=>{
-        const v=village.getBoundingClientRect();
-        let x,y;
-        if(Math.random()<0.7){
-            x=v.left+Math.random()*v.width;
-            y=v.top+Math.random()*v.height;
-        }else{
-            x=Math.random()*window.innerWidth;
-            y=Math.random()*window.innerHeight;
-        }
-        e.style.transitionDuration = (5+Math.random()*3)+"s";
-        e.style.left=x+"px";
-        e.style.top=y+"px";
-    },6000);
-}
-
-/* =============================
-   📊 Stats
-============================= */
-function updateStats(){
-    const count = Object.keys(activeEggs).length;
-    document.getElementById("followerCount").textContent = count;
-    document.getElementById("villageLevel").textContent = Math.floor(count/2);
-}
-
-/* =============================
-   🧙 UI
-============================= */
-forge.onclick=()=>{ document.getElementById("forgeUI").style.display="block"; }
-market.onclick=()=>{ document.getElementById("marketUI").style.display="block"; }
-function closeUI(){
-    document.querySelectorAll(".overlay").forEach(o=>o.style.display="none");
-}
-function addItem(icon){ inventory.innerHTML += " " + icon; }
-function buyPotion(){ addItem("🧪"); alert("Trank gekauft!"); }
-
-/* =============================
-   🐲 Boss
-============================= */
+const forest=document.getElementById("forest");
+const boss=document.getElementById("boss");
+const bossHP=document.getElementById("bossHP");
+const inventory=document.getElementById("inventory");
+let eggs={};
+let bossHealth=100;
 let kills=0;
-boss.onclick=()=>{
-    kills++;
-    bossKills.textContent=kills;
-    boss.style.display="none";
-    setTimeout(()=>{ boss.style.display="block"; },10000);
-};
+
+/* Trees */
+for(let i=0;i<200;i++){
+  let t=document.createElement("div");
+  t.className="tree";
+  t.textContent=Math.random()>0.5?"🌲":"🌳";
+  t.style.fontSize=20+Math.random()*20+"px";
+  t.style.left=Math.random()*window.innerWidth+"px";
+  t.style.top=Math.random()*window.innerHeight+"px";
+  forest.appendChild(t);
+}
+
+/* Spawn egg */
+function spawnEgg(name){
+  if(eggs[name]) return;
+  let e=document.createElement("div");
+  e.className="egg";
+  e.textContent="🥚";
+  e.xp=0;
+  let tag=document.createElement("div");
+  tag.className="nameTag";
+  tag.textContent=name;
+  e.appendChild(tag);
+  forest.appendChild(e);
+  eggs[name]=e;
+  moveEgg(e);
+  setInterval(()=>{
+    e.xp++;
+    if(e.xp>100) e.textContent="💀";
+    else if(e.xp>50) e.textContent="💧";
+    e.appendChild(tag);
+  },1000);
+}
+
+/* Move */
+function moveEgg(e){
+  setInterval(()=>{
+    let x=Math.random()*window.innerWidth;
+    let y=Math.random()*window.innerHeight;
+    e.style.left=x+"px";
+    e.style.top=y+"px";
+  },6000);
+}
+
+/* Boss */
 setInterval(()=>{
-    boss.style.display="block";
-    boss.style.left=Math.random()*window.innerWidth+"px";
-    boss.style.top=Math.random()*window.innerHeight+"px";
+  boss.style.display="block";
+  bossHealth=100;
+  bossHP.style.width="100%";
+  boss.style.left=Math.random()*window.innerWidth+"px";
+  boss.style.top=Math.random()*window.innerHeight+"px";
 },30000);
 
-/* =============================
-   🔌 Streamer.bot WebSocket
-============================= */
-const ws = new WebSocket("ws://127.0.0.1:8080/");
-
-ws.onopen = () => {
-    console.log("🟢 Connected to streamer.bot");
+boss.onclick=()=>{
+  bossHealth-=20;
+  bossHP.style.width=bossHealth+"%";
+  if(bossHealth<=0){
+    boss.style.display="none";
+    kills++;
+    document.getElementById("bossKills").textContent=kills;
+  }
 };
 
-ws.onmessage = (event) => {
-    try{
-        const data = JSON.parse(event.data);
+/* UI */
+document.getElementById("forge").onclick=()=>document.getElementById("forgeUI").style.display="block";
+document.getElementById("market").onclick=()=>document.getElementById("marketUI").style.display="block";
+function closeUI(){document.querySelectorAll(".overlay").forEach(o=>o.style.display="none");}
+function addItem(i){inventory.innerHTML+=" "+i;}
 
-        // streamer.bot sends many events – we extract any username we can find
-        if(data?.event?.user){
-            spawnEgg(data.event.user);
-        }
-        if(data?.data?.userName){
-            spawnEgg(data.data.userName);
-        }
-        if(data?.data?.displayName){
-            spawnEgg(data.data.displayName);
-        }
-
-    }catch(e){
-        console.log("Non-JSON message:", event.data);
-    }
+/* Websocket */
+const ws=new WebSocket("ws://localhost:8080");
+ws.onmessage=e=>{
+ try{
+  const d=JSON.parse(e.data);
+  if(d.data?.displayName) spawnEgg(d.data.displayName);
+ }catch{}
 };
-
-/* =============================
-   Init
-============================= */
-createForest();
 </script>
-
 </body>
 </html>
