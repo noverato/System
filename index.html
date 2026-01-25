@@ -3,171 +3,63 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Twitch RPG HUD mit Live-Quest</title>
+<title>Spawn2909 RPG Live-System</title>
 <style>
-body {
-    margin:0;
-    font-family:'Segoe UI',sans-serif;
-    background:#0b0f1d;
-    color:white;
-    overflow:hidden;
-    user-select:none;
-}
+body, html { margin:0; padding:0; font-family:'Segoe UI',sans-serif; background:#0b0f1d; color:white; overflow:hidden; user-select:none; }
 #main { display:flex; height:100vh; width:100vw; }
-/* =================== Charakter-Menü =================== */
-#charMenu {
-    width:35%;
-    background:linear-gradient(180deg,#081b34,#041024);
-    border-right:3px solid #ffd700;
-    display:flex;
-    flex-direction:column;
-    padding:20px;
-    box-sizing:border-box;
-    position:relative;
-}
-#avatarPodest {
-    width:220px;
-    height:60px;
-    margin:auto;
-    background:#112244;
-    border-radius:30px 30px 0 0;
-    position:relative;
-    box-shadow:0 0 20px #00c3ff inset;
-    animation: floatPodest 2s ease-in-out infinite alternate;
-}
-@keyframes floatPodest { 0% { transform: translateY(0px); } 100% { transform: translateY(-10px); } }
-#avatarContainer {
-    width:200px;
-    height:200px;
-    margin:-100px auto 0 auto;
-    position:relative;
-    border-radius:20px;
-    background:#000;
-    box-shadow:0 0 20px #ffd700;
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    overflow:hidden;
-}
-.avatar-layer {
-    position:absolute;
-    top:0; left:0;
-    width:100%; height:100%;
-    pointer-events:none;
-}
+/* Charakter-Menü */
+#charMenu { width:28%; background:linear-gradient(180deg,#081b34,#041024); border-right:3px solid #ffd700; display:flex; flex-direction:column; padding:20px; box-sizing:border-box; position:relative; }
+#avatarPodest { width:220px; height:60px; margin:auto; background:#112244; border-radius:30px 30px 0 0; position:relative; box-shadow:0 0 20px #00c3ff inset; animation: floatPodest 2s ease-in-out infinite alternate; }
+@keyframes floatPodest { 0%{transform:translateY(0px);}100%{transform:translateY(-10px);} }
+#avatarContainer { width:200px; height:200px; margin:-100px auto 0 auto; position:relative; border-radius:20px; background:#000; box-shadow:0 0 20px #ffd700; display:flex; justify-content:center; align-items:center; overflow:hidden; }
+.avatar-layer { position:absolute; top:0; left:0; width:100%; height:100%; display:flex; justify-content:center; align-items:center; font-size:60px; pointer-events:none; }
+#weaponLayer { font-size:60px; }
+#headLayer { font-size:60px; }
+#baseLayer { font-size:60px; }
+#statusLine { text-align:center; margin-top:10px; font-size:14px; color:#ccc; }
 #wapons { display:flex; justify-content:center; gap:10px; margin-top:20px; }
-.weaponSlot {
-    width:60px; height:60px;
-    border:1px solid #444;
-    border-radius:10px;
-    background:#111;
-    display:flex; justify-content:center; align-items:center;
-    position:relative;
-    transition:0.3s;
-}
-.weaponSlot img { max-width:70%; max-height:70%; }
-.weaponSlot.rare { border-color:#ffd700; box-shadow:0 0 10px #ffd700; }
-/* =================== Inventar =================== */
-#inventory { margin-top:20px; }
-#invGrid, #backpackGrid { display:grid; grid-template-columns: repeat(4,1fr); gap:10px; margin-top:5px; }
-.slot {
-    width:60px; height:60px;
-    border:1px solid #444;
-    border-radius:10px;
-    background:#111;
-    display:flex; justify-content:center; align-items:center;
-    cursor:pointer;
-    position:relative;
-}
-.slot img { max-width:80%; max-height:80%; filter:grayscale(100%); opacity:0.3; }
-.slot.unlocked img { filter:none; opacity:1; }
-.slot.rare { border-color:#ffd700; box-shadow:0 0 10px #ffd700; }
-/* =================== Tabs =================== */
-#tabs { width:65%; display:flex; flex-direction:column; background:#041024; }
+.weaponSlot { width:60px; height:60px; border:1px solid #444; border-radius:10px; background:#111; display:flex; justify-content:center; align-items:center; position:relative; transition:0.3s; cursor:pointer;}
+.slot { width:60px; height:60px; border:1px solid #444; border-radius:10px; background:#111; display:flex; justify-content:center; align-items:center; cursor:pointer; position:relative; font-size: 30px;}
+#inventory { margin-top:20px; flex:1; overflow-y:auto; }
+#invGrid { display:grid; grid-template-columns: repeat(4,1fr); gap:10px; margin-top:5px; }
+/* Tabs */
+#tabs { width:72%; display:flex; flex-direction:column; background:#041024; }
 .tabButtons { display:flex; border-bottom:2px solid #ffd700; }
-.tabButtons button {
-    flex:1; padding:10px; background:#0b0f1d;
-    border:none; color:#fff; cursor:pointer; font-weight:bold;
-}
+.tabButtons button { flex:1; padding:10px; background:#0b0f1d; border:none; color:#fff; cursor:pointer; font-weight:bold; }
 .tabButtons button.active { background:#112244; border-bottom:3px solid #ffd700; }
-.tabContent { flex:1; padding:20px; overflow:auto; display:flex; flex-wrap:wrap; }
-/* =================== Dorf =================== */
-#villageMap {
-    width:100%; height:100%;
-    position: relative;
-    border-radius: 15px;
-    background: linear-gradient(to bottom, #1a472a, #2d5a27);
-    overflow: hidden;
-}
-.tree {
-    width: 20px;
-    height: 40px;
-    position: absolute;
-    background: green;
-    clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
-}
-#nest {
-    width: 60px; height: 60px;
-    position: absolute;
-    bottom: 10px; right: 10px;
-    background: #a0522d; border-radius:50%;
-    box-shadow:0 0 10px #ffd700;
-}
-.avatarTile {
-    width: 40px; height: 40px;
-    position: absolute;
-    border-radius: 10px;
-    display:flex; justify-content:center; align-items:center;
-    background: rgba(0,0,0,0.3);
-    border:1px solid #444;
-    font-size:24px;
-    box-shadow:0 0 5px #00c3ff;
-}
-/* =================== Marktplatz =================== */
-.marketItem {
-    background:#111; border:1px solid #444; border-radius:10px; padding:10px;
-    display:flex; flex-direction:column; align-items:center;
-    margin:5px;
-}
-.marketItem img { width:50px; height:50px; margin-bottom:5px; }
-.marketItem button { margin-top:5px; padding:5px 10px; border:none; border-radius:5px; background:#ffd700; color:#000; cursor:pointer; font-weight:bold; }
-.marketItem.rare { border-color:#ffd700; box-shadow:0 0 10px #ffd700; }
-/* =================== Live-Quest =================== */
-#liveQuest {
-    width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
-    padding:20px; box-sizing:border-box;
-}
-#bossContainer {
-    margin-top:20px; text-align:center;
-}
-#bossEmoji {
-    font-size:100px; display:block; transition:0.2s;
-}
-#bossHPBar {
-    width:80%; height:25px; background:#111; border:1px solid #444; border-radius:12px; margin:10px auto;
-    overflow:hidden;
-}
-#bossHPFill {
-    height:100%; background:linear-gradient(90deg, #ff5f5f, #ff0000); width:100%; transition:0.3s;
-}
+.tabContent { flex:1; padding:20px; overflow:auto; display:flex; flex-wrap:wrap; position:relative; }
+/* Dorf */
+#villageMap { width:100%; height:100%; position: relative; border-radius:15px; background: linear-gradient(to bottom, #1a472a, #2d5a27); overflow:hidden; }
+.tree { width: 20px; height: 40px; position: absolute; background: green; clip-path: polygon(50% 0%, 0% 100%, 100% 100%); }
+#nest { width: 60px; height: 60px; position: absolute; bottom: 10px; right: 10px; background: #a0522d; border-radius:50%; box-shadow:0 0 10px #ffd700; display:flex; justify-content:center; align-items:center; animation: floatNest 2s ease-in-out infinite alternate; }
+@keyframes floatNest { 0%{transform:translateY(0);}100%{transform:translateY(-10px);} }
+.building { width:80px; height:60px; position:absolute; border-radius:10px; display:flex; justify-content:center; align-items:center; color:#ffd700; font-weight:bold; cursor:pointer; opacity:0.3; transition: opacity 1s; background: rgba(0,0,0,0.5); border: 1px solid #ffd700; }
+.building.visible { opacity:1; }
+/* Live-Quest */
+#liveQuest { width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding:20px; box-sizing:border-box; }
+#bossContainer { margin-top:20px; text-align:center; display:none; }
+#bossEmoji { font-size:100px; display:block; transition:0.2s; }
+#bossHPBar { width:80%; height:25px; background:#111; border:1px solid #444; border-radius:12px; margin:10px auto; overflow:hidden; }
+#bossHPFill { height:100%; background:linear-gradient(90deg, #ff5f5f, #ff0000); width:100%; transition:0.3s; }
 #attackBtn { margin-top:10px; padding:10px 20px; background:#ffd700; border:none; color:#000; font-weight:bold; cursor:pointer; border-radius:5px; }
-#questLog { margin-top:20px; width:90%; height:150px; background:#111; border:1px solid #444; border-radius:10px; padding:10px; overflow-y:auto; font-size:14px; }
-/* =================== Sicherheit =================== */
-body, html { user-select:none; }
+#questLog { margin-top:20px; width:90%; height:150px; background:#111; border:1px solid #444; border-radius:10px; padding:10px; overflow-y:auto; font-size:14px; text-align: left; }
+/* Popups */
+#lootPopup, #marketOverlay { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:#111; border:2px solid #ffd700; border-radius:10px; padding:20px; display:none; z-index:999; width:280px; text-align:center; }
+#marketOverlay { width: 80%; height: 80%; flex-direction: column; display: none; }
+button { padding:10px; cursor:pointer; font-weight:bold; border-radius:5px; border:none; }
+#collectBtn.disabled { background:#555; color:#999; cursor:not-allowed; }
 </style>
 </head>
 <body oncontextmenu="return false;" onkeydown="disableKeys(event)">
-
 <div id="main">
-    <!-- Charakter-Menü -->
     <div id="charMenu">
         <div id="avatarPodest"></div>
         <div id="avatarContainer">
-            <img id="avatarImg" src="img/ei.png">
-            <div class="avatar-layer" id="weaponLayer"></div>
-            <div class="avatar-layer" id="armorLayer"></div>
-            <div class="avatar-layer" id="jewelryLayer"></div>
+            <div id="baseLayer" class="avatar-layer">🥚</div>
+            <div id="headLayer" class="avatar-layer"></div>
+            <div id="weaponLayer" class="avatar-layer"></div>
         </div>
+        <div id="statusLine">Rang: Ei (Follower)</div>
         <div id="wapons">
             <div class="weaponSlot" id="wp1"></div>
             <div class="weaponSlot" id="wp2"></div>
@@ -176,230 +68,158 @@ body, html { user-select:none; }
         <div id="inventory">
             <h3>Inventar</h3>
             <div id="invGrid"></div>
-            <h3>Rucksack</h3>
-            <div id="backpackGrid"></div>
-            <button id="exportBtn">Profil als Bild exportieren</button>
         </div>
     </div>
-
-    <!-- Tabs -->
     <div id="tabs">
         <div class="tabButtons">
             <button class="active" onclick="switchTab('villageMap')">Dorf</button>
-            <button onclick="switchTab('marketTab')">Marktplatz</button>
-            <button onclick="switchTab('liveQuest')">Live-Quest</button>
+            <button onclick="switchTab('liveQuest')">Arena</button>
+            <button onclick="switchTab('premiumTab')">Götter-Schmiede</button>
+            <button onclick="switchTab('hallOfFameTab')">Hall of Fame</button>
         </div>
         <div class="tabContent">
-            <div id="villageMap" class="tabPane"></div>
-            <div id="marketTab" class="tabPane" style="display:none;"></div>
-            <div id="liveQuest" class="tabPane" style="display:none; flex-direction:column; align-items:center;">
-                <div id="questStatus">Das Nest schläft gerade... Komm wieder, wenn Spawn2909 online ist!</div>
-                <div id="bossContainer" style="display:none;">
+            <div id="villageMap" class="tabPane" style="display:block;"></div>
+            <div id="liveQuest" class="tabPane" style="display:none;">
+                <div id="questStatus">Das Nest schläft gerade... Spawn2909 offline!</div>
+                <div id="bossContainer">
                     <span id="bossEmoji">👹</span>
                     <div id="bossHPBar"><div id="bossHPFill"></div></div>
                     <button id="attackBtn">ANGREIFEN</button>
                     <div id="questLog"></div>
                 </div>
             </div>
+            <div id="premiumTab" class="tabPane" style="display:none;">
+                <h2>Götter-Schmiede</h2>
+                <p>Coming Soon: Exklusive Items gegen Bits</p>
+            </div>
+            <div id="hallOfFameTab" class="tabPane" style="display:none;">
+                <h2>Hall of Fame</h2>
+                <div id="lastHitContainer">Noch keine Helden verewigt.</div>
+            </div>
         </div>
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<div id="lootPopup">
+    <div id="lootItem" style="font-size: 50px;">🧪</div>
+    <div id="lootNotice">Gegenstand gefunden!</div>
+    <button id="collectBtn">EINSAMMELN</button>
+    <button onclick="document.getElementById('lootPopup').style.display='none'" style="background: #444; color: white; margin-top: 5px;">Schließen</button>
+</div>
+
+<div id="marketOverlay">
+    <h2>Marktplatz</h2>
+    <div id="marketItemsContainer" style="display:flex; flex-wrap:wrap; justify-content:center; overflow-y: auto; flex: 1;"></div>
+    <button onclick="document.getElementById('marketOverlay').style.display='none'" style="background: red; color: white;">Schließen</button>
+</div>
+
 <script>
-// =================== Sicherheit ===================
-function disableKeys(e){
-  if(e.key==="F12" || (e.ctrlKey && e.shiftKey && ["I","J","C"].includes(e.key.toUpperCase()))) e.preventDefault();
-}
+// Sicherheit
+function disableKeys(e){ if(e.key==="F12"||(e.ctrlKey&&e.shiftKey&&["I","J","C"].includes(e.key.toUpperCase()))) e.preventDefault(); }
 document.addEventListener('contextmenu', e=>e.preventDefault());
 
-// =================== Global Image Fallback ===================
-function applyGlobalImageFallback() {
-    document.querySelectorAll('img').forEach(img => {
-        img.onerror = () => {
-            const parent = img.parentElement;
-            let emoji = '❓';
-            const src = img.src.toLowerCase();
-            if(src.includes('ei')) emoji='🥚';
-            else if(src.includes('goblin')) emoji='👺';
-            else if(src.includes('schwert')) emoji='⚔️';
-            else if(src.includes('schleim')) emoji='💧';
-            else if(src.includes('skelett')) emoji='💀';
-            else if(src.includes('lich')) emoji='🧙‍♂️';
-            else if(src.includes('oger')) emoji='👹';
-            else if(src.includes('kristall')) emoji='💎';
-            else if(src.includes('trank')) emoji='🧪';
-            img.style.display='none';
-            const span = document.createElement('span');
-            span.innerText = emoji;
-            span.style.fontSize='2em';
-            span.style.position='absolute';
-            span.style.top='50%';
-            span.style.left='50%';
-            span.style.transform='translate(-50%,-50%)';
-            span.style.pointerEvents='none';
-            parent.appendChild(span);
-        };
-    });
-}
-applyGlobalImageFallback();
+// Variablen
+let save = JSON.parse(localStorage.getItem('save'))||{inventory:[],weapons:[]};
+let villageAvatars=[]; let followerCount=15; let isFollower=true; let isPrime=false; let isSub=false;
+let ws = new WebSocket('ws://127.0.0.1:8080');
+let boss = {hp:100,maxHp:100,emoji:'🐀'}; let activeViewers=1;
 
-// =================== Globale Variablen ===================
-const marketItems = [
-    {name:'Giftschwert', img:'img/schwert.png', type:'weapon', rare:true},
-    {name:'Heiltrank', img:'img/trank.png', type:'item', rare:false}
-];
-let save = JSON.parse(localStorage.getItem('save')) || {xp:0, inventory:[], backpack:[], weapons:[], armor:[], jewelry:[]};
-let villageAvatars = [];
-let boss = {hp:100, maxHp:100};
+// Loot Pools
+const followerLoot = [{emoji:'🧪',name:'Heiltrank'},{emoji:'⚔️',name:'Giftschwert'}];
+const primeLoot = [{emoji:'💎',name:'Kristall'},{emoji:'🗡️',name:'Giftklinge'}];
+const subLoot = [{emoji:'👑',name:'Krone'},{emoji:'🧙‍♂️',name:'Lichstab'}];
 
-// =================== Charakter UI ===================
-function updateCharUI(){
+// Kern-Funktionen
+function getLootPool(){ if(isSub) return subLoot; else if(isPrime) return primeLoot; return followerLoot; }
+
+function updateCharUI() {
     ['wp1','wp2','wp3'].forEach((id,i)=>{
-        const slot = document.getElementById(id);
-        slot.innerHTML = save.weapons[i]? `<img src="${save.weapons[i].img}">` : '';
-        slot.className = 'weaponSlot'+(save.weapons[i]?.rare?' rare':'');
-        if(save.weapons[0]){
-            const layer=document.getElementById('weaponLayer');
-            layer.innerHTML=`<img src="${save.weapons[0].img}" style="width:100%;height:100%;">`;
-        } else { document.getElementById('weaponLayer').innerHTML=''; }
+        const slot=document.getElementById(id);
+        slot.innerHTML=save.weapons[i]?`<span>${save.weapons[i].emoji}</span>`:'';
     });
-    const grids = {invGrid: save.inventory, backpackGrid: save.backpack};
-    for(const gid in grids){
-        const grid=document.getElementById(gid);
-        grid.innerHTML='';
-        grids[gid].forEach((item,index)=>{
-            const s=document.createElement('div');
-            s.className='slot unlocked'+(item.rare?' rare':'');
-            s.innerHTML=`<img src="${item.img}">`;
-            s.onclick=()=>equipItem(item,index,gid);
-            grid.appendChild(s);
-        });
-    }
-}
-function equipItem(item,index,from){
-    if(item.type==='weapon'){ save.weapons[0]=item; }
-    if(item.type==='armor'){ save.armor[0]=item; }
-    if(item.type==='jewelry'){ save.jewelry[0]=item; }
-    save[from].splice(index,1);
-    localStorage.setItem('save', JSON.stringify(save));
-    updateCharUI();
+    document.getElementById('weaponLayer').innerText = save.weapons[0]?.emoji || '';
+    const grid = document.getElementById('invGrid');
+    grid.innerHTML = '';
+    save.inventory.forEach(item => {
+        const slot = document.createElement('div');
+        slot.className = 'slot';
+        slot.innerHTML = `<span>${item.emoji}</span>`;
+        grid.appendChild(slot);
+    });
 }
 
-// =================== Tabs ===================
-function switchTab(tabId){
-    document.querySelectorAll('.tabPane').forEach(p=>p.style.display='none');
-    document.getElementById(tabId).style.display='flex';
-    document.querySelectorAll('.tabButtons button').forEach(b=>b.classList.remove('active'));
-    document.querySelector(`.tabButtons button[onclick*="${tabId}"]`).classList.add('active');
-
-    if(tabId==='villageMap') setTimeout(()=>renderVillage(),100);
-    if(tabId==='marketTab') renderMarket();
+function switchTab(tabId) {
+    document.querySelectorAll('.tabPane').forEach(p => p.style.display = 'none');
+    document.getElementById(tabId).style.display = 'flex';
+    document.querySelectorAll('.tabButtons button').forEach(b => b.classList.remove('active'));
+    if(tabId === 'villageMap') renderVillage();
 }
 
-// =================== Dorf ===================
-function renderVillage(){
-    const container=document.getElementById('villageMap');
-    container.innerHTML='<div id="nest"></div>';
-    for(let i=0;i<20;i++){
-        const tree=document.createElement('div');
-        tree.className='tree';
-        tree.style.left=Math.random()*(container.offsetWidth-20)+'px';
-        tree.style.top=Math.random()*(container.offsetHeight-40)+'px';
+function renderVillage() {
+    const container = document.getElementById('villageMap');
+    container.innerHTML = '<div id="nest">🥚</div>';
+    for(let i=0; i<15; i++) {
+        const tree = document.createElement('div');
+        tree.className = 'tree';
+        tree.style.left = Math.random() * 90 + '%'; tree.style.top = Math.random() * 80 + '%';
         container.appendChild(tree);
     }
-    villageAvatars.forEach(av=>{
-        const div=document.createElement('div');
-        div.className='avatarTile';
-        div.innerText=av.emo;
-        div.style.left=Math.min(container.offsetWidth-40,av.x)+'px';
-        div.style.top=Math.min(container.offsetHeight-40,av.y)+'px';
+    const buildings = [{name:'Schmiede',x:10,y:10,t:0},{name:'Arena',x:50,y:20,t:10}];
+    buildings.forEach(b => {
+        const div = document.createElement('div');
+        div.className = 'building' + (followerCount >= b.t ? ' visible' : '');
+        div.style.left = b.x + '%'; div.style.top = b.y + '%';
+        div.innerText = b.name;
+        if(b.name === 'Schmiede') div.onclick = openMarket;
         container.appendChild(div);
     });
 }
 
-// =================== Marktplatz ===================
-function renderMarket(){
-    const container=document.getElementById('marketTab');
-    container.innerHTML='';
-    marketItems.forEach(item=>{
-        const div=document.createElement('div');
-        div.className='marketItem'+(item.rare?' rare':'');
-        div.innerHTML=`<img src="${item.img}"><div>${item.name}</div><button onclick="buyItem('${item.name}')">Kaufen</button>`;
-        container.appendChild(div);
-    });
-}
-function buyItem(name){
-    const item = marketItems.find(i=>i.name===name);
-    if(!item) return;
-    alert("Warte auf Bestätigung im Stream...");
-    ws.send(JSON.stringify({type:'purchaseRequest', itemName:name}));
-}
-
-// =================== WebSocket ===================
-const ws = new WebSocket('ws://127.0.0.1:8080');
-ws.onopen=()=> {
-    console.log('WS connected');
-    document.getElementById('questStatus').innerText = 'Ein Nest wacht! Bereit für Live-Quests!';
-};
-ws.onmessage=e=>{
-    const data=JSON.parse(e.data);
-    if(data.type==='joinVillage'){
-        const container=document.getElementById('villageMap');
-        const x=Math.floor(Math.random()*(container.offsetWidth-40));
-        const y=Math.floor(Math.random()*(container.offsetHeight-40));
-        villageAvatars.push({emo:data.emo, x, y});
-        renderVillage();
-    }
-    if(data.type==='PaymentSuccessful'){
-        const item = marketItems.find(i=>i.name===data.itemName);
-        if(item){ save.inventory.push(item); localStorage.setItem('save', JSON.stringify(save)); updateCharUI(); alert(`Bezahlung erfolgreich! ${item.name} freigeschaltet.`); }
-    }
-    if(data.type==='bossUpdate'){
-        boss.hp = data.hp;
-        updateBossUI();
-    }
-};
-
-// =================== Live-Quest ===================
-const bossEmoji = document.getElementById('bossEmoji');
-const bossHPFill = document.getElementById('bossHPFill');
-const bossContainer = document.getElementById('bossContainer');
-const questLog = document.getElementById('questLog');
-document.getElementById('attackBtn').onclick=attackBoss;
-
-function attackBoss(){
-    if(boss.hp <=0) return;
-    const damage = 10 + (save.weapons[0]?20:0);
-    boss.hp = Math.max(0, boss.hp-damage);
-    ws.send(JSON.stringify({action:'attack', damage}));
-    logQuest(`Du hast ${damage} Schaden verursacht!`);
-    bossEmoji.style.color='#ff0000';
-    bossEmoji.style.transform='translateX(-5px)';
-    setTimeout(()=>{ bossEmoji.style.color='white'; bossEmoji.style.transform='translateX(0px)'; },150);
+function scaleBoss() {
+    boss.maxHp = 100 + (activeViewers * 50); boss.hp = boss.maxHp;
+    boss.emoji = activeViewers < 5 ? '🐀' : (activeViewers < 15 ? '👹' : '🐉');
+    document.getElementById('bossEmoji').innerText = boss.emoji;
     updateBossUI();
-    if(boss.hp===0) {
-        logQuest('Boss besiegt! Alle Spieler erhalten Loot!');
-        generateRandomLoot();
-    }
-}
-function updateBossUI(){ bossHPFill.style.width = (boss.hp/boss.maxHp*100)+'%'; bossContainer.style.display='block'; }
-function generateRandomLoot(){
-    const loot = {name:'Heiltrank', img:'img/trank.png', type:'item', rare:false};
-    save.inventory.push(loot);
-    localStorage.setItem('save', JSON.stringify(save));
-    updateCharUI();
-}
-function logQuest(text){
-    const entry=document.createElement('div');
-    entry.innerText = text;
-    questLog.appendChild(entry);
-    questLog.scrollTop = questLog.scrollHeight;
 }
 
-// =================== Initial UI ===================
-updateCharUI();
-setTimeout(()=>renderVillage(),100);
+function attackBoss() {
+    if(boss.hp <= 0) return;
+    let dmg = isSub ? 30 : 10;
+    boss.hp = Math.max(0, boss.hp - dmg);
+    updateBossUI();
+    const entry = document.createElement('div');
+    entry.innerText = `Schaden: ${dmg}!`;
+    document.getElementById('questLog').prepend(entry);
+    if(boss.hp <= 0) showLootPopup();
+}
+
+function updateBossUI() { document.getElementById('bossHPFill').style.width = (boss.hp/boss.maxHp*100) + '%'; }
+
+function showLootPopup() {
+    const item = getLootPool()[Math.floor(Math.random()*2)];
+    const popup = document.getElementById('lootPopup');
+    const btn = document.getElementById('collectBtn');
+    document.getElementById('lootItem').innerText = item.emoji;
+    popup.style.display = 'block';
+    if(!isFollower) {
+        btn.className = "disabled"; btn.innerText = "Gesperrt";
+        document.getElementById('lootNotice').innerText = "Folge Spawn2909!";
+    } else {
+        btn.className = ""; btn.innerText = "EINSAMMELN";
+        btn.onclick = () => {
+            save.inventory.push(item);
+            localStorage.setItem('save', JSON.stringify(save));
+            updateCharUI(); popup.style.display = 'none';
+        };
+    }
+}
+
+function openMarket() { document.getElementById('marketOverlay').style.display = 'flex'; }
+
+// Init
+ws.onopen=()=>{document.getElementById('questStatus').innerText='Spawn2909 online!';}
+document.getElementById('attackBtn').onclick = attackBoss;
+updateCharUI(); renderVillage(); scaleBoss();
 </script>
 </body>
 </html>
