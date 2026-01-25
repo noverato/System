@@ -888,7 +888,7 @@ function loadGameState() {
 
 // ===== WEBSOCKET INTEGRATION =====
 function setupWebSocket() {
-    const ws = new WebSocket('ws://localhost:8080'); // An streamer.bot anpassen
+    const ws = new WebSocket('ws://127.0.0.1:8080'); // An streamer.bot anpassen
 
     ws.onmessage = function(e) {
         const data = JSON.parse(e.data);
