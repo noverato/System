@@ -1,84 +1,143 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spawn2909 System</title>
-    <style>
-        body { background-color: #0a0a0a; color: #fff; font-family: sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-        .system-frame { border: 3px solid #00c3ff; background: rgba(0, 30, 60, 0.9); box-shadow: 0 0 20px #00c3ff; padding: 20px; width: 90%; max-width: 500px; border-radius: 10px; text-align: center; }
-        .info-box { border: 1px solid #00c3ff; padding: 10px; margin-bottom: 20px; background: rgba(0, 195, 255, 0.1); }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px; }
-        .stage { border: 1px solid #444; padding: 8px; font-size: 0.7rem; border-radius: 4px; color: #777; cursor: pointer; }
-        .active { border-color: #00c3ff; color: #fff; box-shadow: 0 0 10px #00c3ff; background: rgba(0, 195, 255, 0.2); }
-        .xp-bar-bg { background: #222; border: 1px solid #00c3ff; height: 20px; border-radius: 10px; overflow: hidden; margin-top: 10px; }
-        .xp-bar-fill { background: #00c3ff; height: 100%; width: 0%; transition: width 1s; }
-        .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #001e3c; border: 2px solid #00c3ff; padding: 20px; z-index: 1000; width: 250px; border-radius: 10px; }
-    </style>
+<meta charset="UTF-8">
+<title>Spawn2909 | Follower System</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body {
+    margin:0;
+    background:#050b12;
+    font-family: "Segoe UI", sans-serif;
+    color:white;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    min-height:100vh;
+}
+
+.panel {
+    width:360px;
+    background:linear-gradient(180deg,#021a30,#000);
+    border:2px solid #00c3ff;
+    border-radius:12px;
+    box-shadow:0 0 25px #00c3ff;
+    padding:20px;
+    text-align:center;
+}
+
+.title {
+    color:#00c3ff;
+    font-size:22px;
+    margin-bottom:10px;
+}
+
+.user {
+    font-size:16px;
+    margin-bottom:5px;
+}
+
+.status {
+    color:#00c3ff;
+    font-weight:bold;
+    margin-bottom:15px;
+}
+
+.grid {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+}
+
+.stage {
+    border:1px solid #444;
+    border-radius:6px;
+    padding:8px;
+    font-size:13px;
+    color:#777;
+}
+
+.stage.active {
+    border-color:#00c3ff;
+    color:white;
+    box-shadow:0 0 10px #00c3ff;
+    background:rgba(0,195,255,0.15);
+}
+
+.bar {
+    background:#111;
+    border:1px solid #00c3ff;
+    border-radius:20px;
+    overflow:hidden;
+    height:20px;
+    margin-top:10px;
+}
+
+.fill {
+    height:100%;
+    background:#00c3ff;
+    width:0%;
+    transition:1s;
+}
+
+.xptext {
+    font-size:12px;
+    margin-top:5px;
+}
+</style>
 </head>
+
 <body>
 
-<div class="system-frame">
-    <h1>System Status</h1>
-    <div class="info-box">
-        <div>USER: <span id="userName">Jäger</span></div>
-        <div>STATUS: <span id="currentStatus" style="color:#00c3ff;">Lädt...</span></div>
-    </div>
+<div class="panel">
+    <div class="title">SPAWN2909</div>
+    <div class="user" id="user">Follower</div>
+    <div class="status" id="status">EI</div>
 
     <div class="grid">
-        <div id="stage0" class="stage" onclick="showInfo('Ei', 'Sicher im Nest.')">🥚 EI</div>
-        <div id="stage1" class="stage" onclick="showInfo('Schleim', 'Du bist geschlüpft!')">💧 SCHLEIM</div>
-        <div id="stage2" class="stage" onclick="showInfo('Skelett', 'Schattenkrieger.')">💀 SKELETT</div>
-        <div id="stage3" class="stage" onclick="showInfo('Goblin', 'Flink und listig.')">👺 GOBLIN</div>
-        <div id="stage4" class="stage" onclick="showInfo('Oger', 'Brutale Stärke.')">👹 OGER</div>
-        <div id="stage5" class="stage" onclick="showInfo('Lich', 'Todesmagie.')">🧙‍♂️ LICH</div>
-        <div id="stage6" class="stage" onclick="showInfo('Wesen', 'Göttliche Stufe.')">✨ WESEN</div>
+        <div class="stage" id="s0">🥚 EI</div>
+        <div class="stage" id="s1">💧 SCHLEIM</div>
+        <div class="stage" id="s2">💀 SKELETT</div>
+        <div class="stage" id="s3">👺 GOBLIN</div>
+        <div class="stage" id="s4">👹 OGER</div>
+        <div class="stage" id="s5">🧙‍♂️ LICH</div>
+        <div class="stage" id="s6">✨ WESEN</div>
     </div>
 
-    <div style="border-top: 1px solid #00c3ff; padding-top: 15px;">
-        <div style="font-size: 0.8rem;">XP: <span id="xpText">0</span> / <span id="nextXpText">60</span></div>
-        <div class="xp-bar-bg"><div id="xpFill" class="xp-bar-fill"></div></div>
-    </div>
-</div>
-
-<div id="infoModal" class="modal">
-    <h2 id="modalTitle" style="color:#00c3ff; font-size: 1rem;"></h2>
-    <p id="modalText" style="font-size: 0.8rem;"></p>
-    <button onclick="closeInfo()">OK</button>
+    <div class="bar"><div class="fill" id="fill"></div></div>
+    <div class="xptext"><span id="xp">0</span> / <span id="next">60</span> XP</div>
 </div>
 
 <script>
-    function showInfo(t, txt) {
-        document.getElementById('modalTitle').innerText = t;
-        document.getElementById('modalText').innerText = txt;
-        document.getElementById('infoModal').style.display = 'block';
-    }
-    function closeInfo() { document.getElementById('infoModal').style.display = 'none'; }
+const params = new URLSearchParams(window.location.search);
+const name = params.get("user") || "Gast";
+const xp = parseInt(params.get("xp")) || 0;
 
-    function init() {
-        const p = new URLSearchParams(window.location.search);
-        const name = p.get('user') || 'Gast';
-        const days = parseInt(p.get('days')) || 0;
+document.getElementById("user").innerText = "JÄGER: " + name;
 
-        document.getElementById('userName').innerText = name;
-        
-        let sid = "stage0", st = "EI", nxt = 60, prv = 0;
-        if (days >= 720) { sid="stage6"; st="WESEN"; nxt=720; prv=720; }
-        else if (days >= 360) { sid="stage5"; st="LICH"; nxt=720; prv=360; }
-        else if (days >= 270) { sid="stage4"; st="OGER"; nxt=360; prv=270; }
-        else if (days >= 180) { sid="stage3"; st="GOBLIN"; nxt=270; prv=180; }
-        else if (days >= 90) { sid="stage2"; st="SKELETT"; nxt=180; prv=90; }
-        else if (days >= 60) { sid="stage1"; st="SCHLEIM"; nxt=90; prv=60; }
+let stage = 0;
+let next = 60;
+let prev = 0;
 
-        document.getElementById(sid).classList.add('active');
-        document.getElementById('currentStatus').innerText = st;
-        
-        let prog = nxt > prv ? ((days - prv) / (nxt - prv)) * 100 : 100;
-        document.getElementById('xpFill').style.width = Math.min(100, Math.max(0, prog)) + "%";
-        document.getElementById('xpText').innerText = days;
-        document.getElementById('nextXpText').innerText = nxt;
-    }
-    init();
+if(xp >= 720){stage=6; prev=720; next=720;}
+else if(xp >= 360){stage=5; prev=360; next=720;}
+else if(xp >= 270){stage=4; prev=270; next=360;}
+else if(xp >= 180){stage=3; prev=180; next=270;}
+else if(xp >= 90){stage=2; prev=90; next=180;}
+else if(xp >= 60){stage=1; prev=60; next=90;}
+
+document.getElementById("status").innerText =
+["EI","SCHLEIM","SKELETT","GOBLIN","OGER","LICH","WESEN"][stage];
+
+document.getElementById("s"+stage).classList.add("active");
+
+let percent = ((xp-prev)/(next-prev))*100;
+document.getElementById("fill").style.width = Math.min(100,Math.max(0,percent))+"%";
+
+document.getElementById("xp").innerText = xp;
+document.getElementById("next").innerText = next;
 </script>
+
 </body>
 </html>
