@@ -5,105 +5,82 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Twitch RPG HUD</title>
 <style>
-/* =================== Grundlayout =================== */
 body {
-  margin:0;
-  font-family:'Segoe UI',sans-serif;
-  background:#0b0f1d;
-  color:#fff;
-  overflow:hidden;
-  user-select:none;
+    margin:0;
+    font-family:'Segoe UI',sans-serif;
+    background:#0b0f1d;
+    color:white;
+    overflow:hidden;
+    user-select:none;
 }
-#main {
-  display:flex;
-  height:100vh;
-  width:100vw;
-}
+#main { display:flex; height:100vh; width:100vw; }
 
 /* =================== Charakter-Menü =================== */
 #charMenu {
-  width:35%;
-  background:linear-gradient(180deg,#081b34,#041024);
-  border-right:3px solid #ffd700;
-  display:flex;
-  flex-direction:column;
-  padding:20px;
-  box-sizing:border-box;
-  position:relative;
+    width:35%;
+    background:linear-gradient(180deg,#081b34,#041024);
+    border-right:3px solid #ffd700;
+    display:flex;
+    flex-direction:column;
+    padding:20px;
+    box-sizing:border-box;
+    position:relative;
 }
-
-/* --- Podest + Avatar --- */
+/* Podest + Avatar */
 #avatarPodest {
-  width:220px;
-  height:60px;
-  margin:auto;
-  background:#112244;
-  border-radius:30px 30px 0 0;
-  position:relative;
-  box-shadow:0 0 20px #00c3ff inset;
-  animation: floatPodest 2s ease-in-out infinite alternate;
+    width:220px;
+    height:60px;
+    margin:auto;
+    background:#112244;
+    border-radius:30px 30px 0 0;
+    position:relative;
+    box-shadow:0 0 20px #00c3ff inset;
+    animation: floatPodest 2s ease-in-out infinite alternate;
 }
-@keyframes floatPodest {
-  0% { transform: translateY(0px); }
-  100% { transform: translateY(-10px); }
-}
+@keyframes floatPodest { 0% { transform: translateY(0px); } 100% { transform: translateY(-10px); } }
 #avatarContainer {
-  width:200px;
-  height:200px;
-  margin:-100px auto 0 auto;
-  position:relative;
-  border-radius:20px;
-  background:#000;
-  box-shadow:0 0 20px #ffd700;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  overflow:hidden;
+    width:200px;
+    height:200px;
+    margin:-100px auto 0 auto;
+    position:relative;
+    border-radius:20px;
+    background:#000;
+    box-shadow:0 0 20px #ffd700;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    overflow:hidden;
 }
-
-/* --- Layer für Items --- */
 .avatar-layer {
-  position:absolute;
-  top:0; left:0;
-  width:100%; height:100%;
-  pointer-events:none;
+    position:absolute;
+    top:0; left:0;
+    width:100%; height:100%;
+    pointer-events:none;
 }
-
-/* --- Weapons / Slots --- */
-#wapons {
-  display:flex;
-  justify-content:center;
-  gap:10px;
-  margin-top:20px;
-}
+#wapons { display:flex; justify-content:center; gap:10px; margin-top:20px; }
 .weaponSlot {
-  width:60px; height:60px;
-  border:1px solid #444;
-  border-radius:10px;
-  background:#111;
-  display:flex; justify-content:center; align-items:center;
-  transition:0.3s;
-  position:relative;
+    width:60px; height:60px;
+    border:1px solid #444;
+    border-radius:10px;
+    background:#111;
+    display:flex; justify-content:center; align-items:center;
+    position:relative;
+    transition:0.3s;
 }
-.weaponSlot.rare {
-  border-color:#ffd700;
-  box-shadow:0 0 10px #ffd700;
-}
-.weaponSlot img {
-  max-width:70%; max-height:70%;
-}
+.weaponSlot img { max-width:70%; max-height:70%; }
+.weaponSlot.rare { border-color:#ffd700; box-shadow:0 0 10px #ffd700; }
 
-/* =================== Inventar & Rucksack =================== */
+/* =================== Inventar =================== */
 #inventory { margin-top:20px; }
 #invGrid, #backpackGrid { display:grid; grid-template-columns: repeat(4,1fr); gap:10px; margin-top:5px; }
 .slot {
-  width:60px; height:60px;
-  border:1px solid #444;
-  border-radius:10px;
-  background:#111;
-  display:flex; justify-content:center; align-items:center;
-  cursor:pointer;
-  position:relative;
+    width:60px; height:60px;
+    border:1px solid #444;
+    border-radius:10px;
+    background:#111;
+    display:flex; justify-content:center; align-items:center;
+    cursor:pointer;
+    position:relative;
 }
 .slot img { max-width:80%; max-height:80%; filter:grayscale(100%); opacity:0.3; }
 .slot.unlocked img { filter:none; opacity:1; }
@@ -113,8 +90,8 @@ body {
 #tabs { width:65%; display:flex; flex-direction:column; background:#041024; }
 .tabButtons { display:flex; border-bottom:2px solid #ffd700; }
 .tabButtons button {
-  flex:1; padding:10px; background:#0b0f1d;
-  border:none; color:#fff; cursor:pointer; font-weight:bold;
+    flex:1; padding:10px; background:#0b0f1d;
+    border:none; color:#fff; cursor:pointer; font-weight:bold;
 }
 .tabButtons button.active { background:#112244; border-bottom:3px solid #ffd700; }
 .tabContent { flex:1; padding:20px; overflow:auto; display:flex; flex-wrap:wrap; }
@@ -122,99 +99,87 @@ body {
 /* =================== Dorf =================== */
 #villageMap {
     width:100%; height:100%;
-    background: linear-gradient(to bottom, #1b3a2d 0%, #0c1a0f 100%);
-    border-radius:15px;
-    position:relative;
-    overflow:hidden;
+    position: relative;
+    border-radius: 15px;
+    background: linear-gradient(to bottom, #1a472a, #2d5a27);
+    overflow: hidden;
 }
-
-/* SVG-Bäume */
 .tree {
-    width:20px; height:40px;
-    position:absolute;
+    width: 20px;
+    height: 40px;
+    position: absolute;
     background: green;
     clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
 }
-
-/* Nest-Lager am Rand */
 #nest {
-    width:60px; height:60px;
-    position:absolute; bottom:10px; right:10px;
-    background:#a0522d; border-radius:50%;
+    width: 60px; height: 60px;
+    position: absolute;
+    bottom: 10px; right: 10px;
+    background: #a0522d; border-radius:50%;
     box-shadow:0 0 10px #ffd700;
 }
-
-/* Avatar-Tiles */
 .avatarTile {
-  width:40px; height:40px;
-  position:absolute;
-  border-radius:10px;
-  display:flex; justify-content:center; align-items:center;
-  background:#111;
-  border:1px solid #444;
-  font-size:24px;
-  box-shadow:0 0 5px #00c3ff;
+    width: 40px; height: 40px;
+    position: absolute;
+    border-radius: 10px;
+    display:flex; justify-content:center; align-items:center;
+    background: rgba(0,0,0,0.3);
+    border:1px solid #444;
+    font-size:24px;
+    box-shadow:0 0 5px #00c3ff;
 }
 
 /* =================== Marktplatz =================== */
 .marketItem {
-  background:#111; border:1px solid #444; border-radius:10px; padding:10px;
-  display:flex; flex-direction:column; align-items:center;
-  margin:5px;
-  transition:0.3s;
+    background:#111; border:1px solid #444; border-radius:10px; padding:10px;
+    display:flex; flex-direction:column; align-items:center;
+    margin:5px;
 }
-.marketItem.rare { border-color:#ffd700; box-shadow:0 0 10px #ffd700; }
 .marketItem img { width:50px; height:50px; margin-bottom:5px; }
 .marketItem button { margin-top:5px; padding:5px 10px; border:none; border-radius:5px; background:#ffd700; color:#000; cursor:pointer; font-weight:bold; }
+.marketItem.rare { border-color:#ffd700; box-shadow:0 0 10px #ffd700; }
 
 /* =================== Sicherheit =================== */
-body, html {
-  -webkit-user-select:none;
-  -moz-user-select:none;
-  -ms-user-select:none;
-  user-select:none;
-}
+body, html { user-select:none; }
 </style>
 </head>
 <body oncontextmenu="return false;" onkeydown="disableKeys(event)">
 
 <div id="main">
+    <!-- Charakter-Menü -->
+    <div id="charMenu">
+        <div id="avatarPodest"></div>
+        <div id="avatarContainer">
+            <img id="avatarImg" src="img/ei.png">
+            <div class="avatar-layer" id="weaponLayer"></div>
+            <div class="avatar-layer" id="armorLayer"></div>
+            <div class="avatar-layer" id="jewelryLayer"></div>
+        </div>
+        <div id="wapons">
+            <div class="weaponSlot" id="wp1"></div>
+            <div class="weaponSlot" id="wp2"></div>
+            <div class="weaponSlot" id="wp3"></div>
+        </div>
+        <div id="inventory">
+            <h3>Inventar</h3>
+            <div id="invGrid"></div>
+            <h3>Rucksack</h3>
+            <div id="backpackGrid"></div>
+            <button id="exportBtn">Profil als Bild exportieren</button>
+        </div>
+    </div>
 
-  <!-- Charakter -->
-  <div id="charMenu">
-    <div id="avatarPodest"></div>
-    <div id="avatarContainer">
-      <img id="avatarImg" src="img/ei.png">
-      <div class="avatar-layer" id="weaponLayer"></div>
-      <div class="avatar-layer" id="armorLayer"></div>
-      <div class="avatar-layer" id="jewelryLayer"></div>
+    <!-- Tabs -->
+    <div id="tabs">
+        <div class="tabButtons">
+            <button class="active" onclick="switchTab('villageMap')">Dorf</button>
+            <button onclick="switchTab('marketTab')">Marktplatz</button>
+        </div>
+        <div class="tabContent">
+            <div id="villageMap" class="tabPane"></div>
+            <div id="marketTab" class="tabPane" style="display:none;"></div>
+        </div>
     </div>
-    <div id="wapons">
-      <div class="weaponSlot" id="wp1"></div>
-      <div class="weaponSlot" id="wp2"></div>
-      <div class="weaponSlot" id="wp3"></div>
-    </div>
-    <div id="inventory">
-      <h3>Inventar</h3>
-      <div id="invGrid"></div>
-      <h3>Rucksack</h3>
-      <div id="backpackGrid"></div>
-      <button id="exportBtn">Profil als Bild exportieren</button>
-    </div>
-  </div>
-
-  <!-- Tabs -->
-  <div id="tabs">
-    <div class="tabButtons">
-      <button class="active" onclick="switchTab('villageMap')">Dorf</button>
-      <button onclick="switchTab('marketTab')">Marktplatz</button>
-    </div>
-    <div class="tabContent">
-      <div id="villageMap" class="tabPane"></div>
-      <div id="marketTab" class="tabPane" style="display:none;"></div>
-    </div>
-  </div>
-
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
@@ -225,166 +190,163 @@ function disableKeys(e){
 }
 document.addEventListener('contextmenu', e=>e.preventDefault());
 
-// =================== Fallback-Bilder ===================
-function applyImageFallback(img,type){
-    img.onerror = ()=>{
-        let emoji='❓';
-        switch(type){
-            case 'avatar': emoji='🥚'; break;
-            case 'weapon': emoji='⚔️'; break;
-            case 'armor': emoji='🛡️'; break;
-            case 'jewelry': emoji='💎'; break;
-            case 'consumable': emoji='🍷'; break;
-        }
-        img.style.display='none';
-        const span=document.createElement('span');
-        span.innerText=emoji;
-        span.style.fontSize='2em';
-        span.style.position='absolute';
-        span.style.top='50%'; span.style.left='50%';
-        span.style.transform='translate(-50%,-50%)';
-        span.style.pointerEvents='none';
-        img.parentElement.appendChild(span);
+// =================== Global Image Fallback ===================
+function applyGlobalImageFallback() {
+    document.querySelectorAll('img').forEach(img => {
+        img.onerror = () => {
+            const parent = img.parentElement;
+            let emoji = '❓';
+            const src = img.src.toLowerCase();
+            if(src.includes('ei')) emoji='🥚';
+            else if(src.includes('goblin')) emoji='👺';
+            else if(src.includes('schwert')) emoji='⚔️';
+            else if(src.includes('schleim')) emoji='💧';
+            else if(src.includes('skelett')) emoji='💀';
+            else if(src.includes('lich')) emoji='🧙‍♂️';
+            else if(src.includes('oger')) emoji='👹';
+            else if(src.includes('kristall')) emoji='💎';
+            else if(src.includes('trank')) emoji='🧪';
+            img.style.display='none';
+            const span = document.createElement('span');
+            span.innerText = emoji;
+            span.style.fontSize='2em';
+            span.style.position='absolute';
+            span.style.top='50%';
+            span.style.left='50%';
+            span.style.transform='translate(-50%,-50%)';
+            span.style.pointerEvents='none';
+            parent.appendChild(span);
+        };
+    });
+}
+applyGlobalImageFallback();
+
+// =================== Globale Variablen ===================
+const marketItems = [
+    {name:'Giftschwert', img:'img/schwert.png', type:'weapon', rare:true},
+    {name:'Heiltrank', img:'img/trank.png', type:'item', rare:false}
+];
+
+let save = JSON.parse(localStorage.getItem('save')) || {xp:0, inventory:[], backpack:[], weapons:[], armor:[], jewelry:[]};
+let villageAvatars = [];
+
+// =================== Charakter UI ===================
+function updateCharUI(){
+    ['wp1','wp2','wp3'].forEach((id,i)=>{
+        const slot = document.getElementById(id);
+        slot.innerHTML = save.weapons[i]? `<img src="${save.weapons[i].img}">` : '';
+        slot.className = 'weaponSlot'+(save.weapons[i]?.rare?' rare':'');
+        if(save.weapons[0]){
+            const layer=document.getElementById('weaponLayer');
+            layer.innerHTML=`<img src="${save.weapons[0].img}" style="width:100%;height:100%;">`;
+        } else { document.getElementById('weaponLayer').innerHTML=''; }
+    });
+    const grids = {invGrid: save.inventory, backpackGrid: save.backpack};
+    for(const gid in grids){
+        const grid=document.getElementById(gid);
+        grid.innerHTML='';
+        grids[gid].forEach((item,index)=>{
+            const s=document.createElement('div');
+            s.className='slot unlocked'+(item.rare?' rare':'');
+            s.innerHTML=`<img src="${item.img}">`;
+            s.onclick=()=>equipItem(item,index,gid);
+            grid.appendChild(s);
+        });
     }
 }
-
-// =================== Charakter & Inventar ===================
-let charState = {
-  xp: Number(localStorage.getItem('xp')||0),
-  weapons: [], armor: [], jewelry: [],
-  inventory: [], backpack: []
-};
-
-function updateCharUI(){
-  // Avatar Layer
-  applyImageFallback(document.getElementById('avatarImg'),'avatar');
-
-  ['wp1','wp2','wp3'].forEach((id,i)=>{
-    const slot = document.getElementById(id);
-    slot.innerHTML = charState.weapons[i]? `<img src="${charState.weapons[i].img}">` : '';
-    slot.className = 'weaponSlot'+(charState.weapons[i]?.rare?' rare':'');
-    if(charState.weapons[0]){
-        const layer=document.getElementById('weaponLayer');
-        layer.innerHTML=`<img src="${charState.weapons[0].img}" style="width:100%;height:100%;">`;
-        applyImageFallback(layer.querySelector('img'),'weapon');
-    } else { document.getElementById('weaponLayer').innerHTML=''; }
-  });
-
-  const grids = {invGrid: charState.inventory, backpackGrid: charState.backpack};
-  for(const gid in grids){
-    const grid=document.getElementById(gid);
-    grid.innerHTML='';
-    grids[gid].forEach((item,index)=>{
-      const s=document.createElement('div');
-      s.className='slot unlocked'+(item.rare?' rare':'');
-      s.innerHTML=`<img src="${item.img}">`;
-      applyImageFallback(s.querySelector('img'),item.type);
-      s.onclick=()=>equipItem(item,index,gid);
-      grid.appendChild(s);
-    });
-  }
-}
-
 function equipItem(item,index,from){
-  if(item.type==='weapon'){ charState.weapons[0]=item; }
-  if(item.type==='armor'){ charState.armor[0]=item; }
-  if(item.type==='jewelry'){ charState.jewelry[0]=item; }
-  charState[from].splice(index,1);
-  updateCharUI();
+    if(item.type==='weapon'){ save.weapons[0]=item; }
+    if(item.type==='armor'){ save.armor[0]=item; }
+    if(item.type==='jewelry'){ save.jewelry[0]=item; }
+    save[from].splice(index,1);
+    localStorage.setItem('save', JSON.stringify(save));
+    updateCharUI();
 }
 
 // =================== Tabs ===================
 function switchTab(tabId){
-  document.querySelectorAll('.tabPane').forEach(p=>p.style.display='none');
-  document.getElementById(tabId).style.display='flex';
-  document.querySelectorAll('.tabButtons button').forEach(b=>b.classList.remove('active'));
-  document.querySelector(`.tabButtons button[onclick*="${tabId}"]`).classList.add('active');
+    document.querySelectorAll('.tabPane').forEach(p=>p.style.display='none');
+    document.getElementById(tabId).style.display='flex';
+    document.querySelectorAll('.tabButtons button').forEach(b=>b.classList.remove('active'));
+    document.querySelector(`.tabButtons button[onclick*="${tabId}"]`).classList.add('active');
+
+    // Dorf neu rendern beim Wechsel
+    if(tabId==='villageMap') setTimeout(()=>renderVillage(),50);
+    if(tabId==='marketTab') renderMarket();
 }
 
 // =================== Dorf ===================
-let villageAvatars=[];
 function renderVillage(){
     const container=document.getElementById('villageMap');
     container.innerHTML='<div id="nest"></div>';
-    // Bäume
-    for(let i=0;i<10;i++){
+    for(let i=0;i<20;i++){
         const tree=document.createElement('div');
         tree.className='tree';
-        tree.style.left=Math.random()*container.offsetWidth+'px';
-        tree.style.top=Math.random()*container.offsetHeight+'px';
+        tree.style.left=Math.random()*(container.offsetWidth-20)+'px';
+        tree.style.top=Math.random()*(container.offsetHeight-40)+'px';
         container.appendChild(tree);
     }
-    // Avatare
     villageAvatars.forEach(av=>{
         const div=document.createElement('div');
         div.className='avatarTile';
         div.innerText=av.emo;
-        div.style.left=av.x+'px';
-        div.style.top=av.y+'px';
+        div.style.left=Math.min(container.offsetWidth-40,av.x)+'px';
+        div.style.top=Math.min(container.offsetHeight-40,av.y)+'px';
         container.appendChild(div);
     });
 }
 
 // =================== Marktplatz ===================
-const marketItems=[
-  {name:'Schwert',img:'img/schwert.png',cost:50,rare:true,type:'weapon'},
-  {name:'Trank',img:'img/trank.png',cost:20,rare:false,type:'consumable'},
-  {name:'Krone',img:'img/krone.png',cost:200,rare:true,type:'jewelry'}
-];
-
 function renderMarket(){
-  const container=document.getElementById('marketTab');
-  container.innerHTML='';
-  marketItems.forEach(item=>{
-      const div=document.createElement('div');
-      div.className='marketItem'+(item.rare?' rare':'');
-      div.innerHTML=`<img src="${item.img}"><span>${item.name}</span>
-      <button onclick="buyItem('${item.name}')">Kaufen (${item.cost})</button>`;
-      applyImageFallback(div.querySelector('img'),item.type);
-      container.appendChild(div);
-  });
+    const container=document.getElementById('marketTab');
+    container.innerHTML='';
+    marketItems.forEach(item=>{
+        const div=document.createElement('div');
+        div.className='marketItem'+(item.rare?' rare':'');
+        div.innerHTML=`<img src="${item.img}"><div>${item.name}</div><button onclick="buyItem('${item.name}')">Kaufen</button>`;
+        container.appendChild(div);
+    });
 }
-
-function buyItem(name){
-  const item = marketItems.find(i=>i.name===name);
-  if(!item) return;
-  alert("Warte auf Bestätigung im Stream...");
-  ws.send(JSON.stringify({type:'purchaseRequest', itemName:name}));
-}
-
-// =================== Export ===================
-document.getElementById('exportBtn').onclick=()=>{
-  html2canvas(document.getElementById('charMenu')).then(canvas=>{
-    const link=document.createElement('a');
-    link.download='profil.png';
-    link.href=canvas.toDataURL();
-    link.click();
-  });
-};
 
 // =================== WebSocket ===================
 const ws = new WebSocket('ws://127.0.0.1:8080');
 ws.onopen=()=>console.log('WS connected');
 ws.onmessage=e=>{
-  const data=JSON.parse(e.data);
-  if(data.type==='addXP'){ charState.xp+=data.amount; localStorage.setItem('xp',charState.xp); }
-  if(data.type==='addItem'){ charState.inventory.push(data.item); updateCharUI(); }
-  if(data.type==='joinVillage'){
-      const x=Math.floor(Math.random()*350)+20;
-      const y=Math.floor(Math.random()*250)+20;
-      villageAvatars.push({emo:data.emo,x,y});
-      renderVillage();
-  }
-  if(data.type==='PaymentSuccessful'){
-      const item = marketItems.find(i=>i.name===data.itemName);
-      if(item){ charState.inventory.push(item); updateCharUI(); alert(`Bezahlung erfolgreich! ${item.name} freigeschaltet.`); }
-  }
+    const data=JSON.parse(e.data);
+    if(data.type==='joinVillage'){
+        const container=document.getElementById('villageMap');
+        const x=Math.floor(Math.random()*(container.offsetWidth-40));
+        const y=Math.floor(Math.random()*(container.offsetHeight-40));
+        villageAvatars.push({emo:data.emo, x, y});
+        renderVillage();
+    }
+    if(data.type==='PaymentSuccessful'){
+        const item = marketItems.find(i=>i.name===data.itemName);
+        if(item){ save.inventory.push(item); localStorage.setItem('save', JSON.stringify(save)); updateCharUI(); alert(`Bezahlung erfolgreich! ${item.name} freigeschaltet.`); }
+    }
+};
+
+// =================== Kaufen ===================
+function buyItem(name){
+    const item = marketItems.find(i=>i.name===name);
+    if(!item) return;
+    alert("Warte auf Bestätigung im Stream...");
+    ws.send(JSON.stringify({type:'purchaseRequest', itemName:name}));
+}
+
+// =================== Export ===================
+document.getElementById('exportBtn').onclick=()=>{
+    html2canvas(document.getElementById('charMenu')).then(canvas=>{
+        const link=document.createElement('a');
+        link.download='profil.png';
+        link.href=canvas.toDataURL();
+        link.click();
+    });
 };
 
 // =================== Init ===================
+setTimeout(()=>renderVillage(),100);
 updateCharUI();
-renderMarket();
-renderVillage();
 switchTab('villageMap');
 </script>
 </body>
