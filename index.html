@@ -16,10 +16,9 @@ body{
     height:100vh;
 }
 
-/* FRAME */
 .system{
-    width:900px;
-    height:500px;
+    width:950px;
+    height:540px;
     background:linear-gradient(180deg,#031a30,#000);
     border:3px solid #00c3ff;
     border-radius:20px;
@@ -29,7 +28,7 @@ body{
     overflow:hidden;
 }
 
-/* LEFT: CHARACTER */
+/* LEFT */
 .char{
     padding:20px;
     border-right:2px solid #00c3ff;
@@ -42,23 +41,37 @@ body{
     text-align:center;
     height:100%;
 }
-.char-icon{
-    font-size:80px;
-    margin:20px 0;
+
+.avatar{
+    width:160px;
+    height:160px;
+    margin:auto;
+    border-radius:20px;
+    border:2px solid #00c3ff;
+    box-shadow:0 0 20px #00c3ff;
+    background:#000;
+    display:flex;
+    justify-content:center;
+    align-items:center;
 }
-.glow{
-    text-shadow:0 0 20px #00c3ff;
+.avatar img{
+    max-width:100%;
+    max-height:100%;
 }
+
 .rank{
     font-size:22px;
     color:#00c3ff;
+    margin-top:10px;
 }
+
 .xpbar{
     background:#111;
     border:1px solid #00c3ff;
     height:20px;
     border-radius:20px;
     overflow:hidden;
+    margin-top:6px;
 }
 .xpfill{
     height:100%;
@@ -67,7 +80,21 @@ body{
     transition:1s;
 }
 
-/* RIGHT: INVENTORY */
+/* rewards */
+.rewards{
+    margin-top:10px;
+    min-height:40px;
+    display:flex;
+    justify-content:center;
+    gap:8px;
+    flex-wrap:wrap;
+}
+.reward{
+    width:32px;
+    height:32px;
+}
+
+/* RIGHT */
 .inv{
     padding:20px;
 }
@@ -77,25 +104,31 @@ body{
     gap:10px;
 }
 .slot{
-    height:80px;
+    height:90px;
     border:1px solid #444;
     border-radius:10px;
     background:#111;
     display:flex;
     justify-content:center;
     align-items:center;
-    font-size:30px;
     cursor:pointer;
-    color:#777;
+}
+.slot img{
+    max-width:70%;
+    max-height:70%;
+    filter:grayscale(100%);
+    opacity:0.3;
 }
 .slot.unlocked{
     border-color:#00c3ff;
-    color:white;
     box-shadow:0 0 10px #00c3ff;
     background:rgba(0,195,255,0.2);
 }
+.slot.unlocked img{
+    filter:none;
+    opacity:1;
+}
 
-/* DAILY */
 .daily{
     margin-top:15px;
     border:1px solid #00c3ff;
@@ -126,16 +159,22 @@ input{
 <div class="char-box">
 <div>JÄGER: <span id="user">Gast</span></div>
 <div class="rank" id="rank">EI</div>
-<div class="char-icon glow" id="icon">🥚</div>
+
+<div class="avatar">
+    <img id="avatarImage" src="img/ei.png">
+</div>
 
 XP <span id="xp">0</span> / <span id="nextxp">60</span>
 <div class="xpbar"><div class="xpfill" id="fill"></div></div>
+
+<div class="rewards" id="rewards"></div>
 
 <div class="daily" id="dailyBox">
 <div id="question"></div>
 <input id="answer">
 <button onclick="submit()">XP holen</button>
 </div>
+
 </div>
 </div>
 
@@ -148,72 +187,83 @@ XP <span id="xp">0</span> / <span id="nextxp">60</span>
 </div>
 
 <script>
-// ----- CONFIG -----
+/* ================= CONFIG ================= */
+
 const stages=[
- {n:"EI",x:0,i:"🥚"},
- {n:"SCHLEIM",x:60,i:"💧"},
- {n:"SKELETT",x:90,i:"💀"},
- {n:"GOBLIN",x:180,i:"👺"},
- {n:"OGER",x:270,i:"👹"},
- {n:"LICH",x:360,i:"🧙‍♂️"},
- {n:"WESEN",x:720,i:"✨"}
+ {n:"EI",x:0,img:"img/ei.png"},
+ {n:"SCHLEIM",x:60,img:"img/schleim.png"},
+ {n:"SKELETT",x:90,img:"img/skelett.png"},
+ {n:"GOBLIN",x:180,img:"img/goblin.png"},
+ {n:"OGER",x:270,img:"img/oger.png"},
+ {n:"LICH",x:360,img:"img/lich.png"},
+ {n:"WESEN",x:720,img:"img/wesen.png"}
 ];
 
 const items=[
- {n:"Schwert",x:60,i:"⚔️"},
- {n:"Kristall",x:90,i:"💎"},
- {n:"Truhe",x:180,i:"🎁"},
- {n:"Relikt",x:360,i:"🔮"},
- {n:"Krone",x:720,i:"👑"}
+ {n:"Schwert",x:60,img:"img/schwert.png",reward:"⚔️"},
+ {n:"Kristall",x:90,img:"img/kristall.png",reward:"💎"},
+ {n:"Truhe",x:180,img:"img/truhe.png",reward:"🎁"},
+ {n:"Relikt",x:360,img:"img/relikt.png",reward:"🔮"},
+ {n:"Krone",x:720,img:"img/krone.png",reward:"👑"}
 ];
 
-// ----- USER -----
+const lockedImg="img/locked.png";
+
+/* ================= USER ================= */
+
 const params=new URLSearchParams(location.search);
 const user=params.get("user")||"Gast";
 document.getElementById("user").innerText=user;
-
 const key="spawn_"+user;
 let save=JSON.parse(localStorage.getItem(key))||{xp:0,last:""};
 
-// ----- STAGE -----
+/* ================= STAGE ================= */
+
 let cur=stages[0],next=stages[1];
-for(let i=0;i<stages.length;i++){
- if(save.xp>=stages[i].x){
-   cur=stages[i];
-   next=stages[i+1]||stages[i];
- }
-}
+stages.forEach(s=>{
+ if(save.xp>=s.x) cur=s;
+});
+next=stages[stages.indexOf(cur)+1]||cur;
+
 document.getElementById("rank").innerText=cur.n;
-document.getElementById("icon").innerText=cur.i;
+document.getElementById("avatarImage").src=cur.img;
 document.getElementById("xp").innerText=save.xp;
 document.getElementById("nextxp").innerText=next.x;
+
 let p=((save.xp-cur.x)/(next.x-cur.x))*100;
 document.getElementById("fill").style.width=Math.min(100,p)+"%";
 
-// ----- INVENTORY -----
+/* ================= INVENTORY ================= */
+
 const inv=document.getElementById("inventory");
+const rewards=document.getElementById("rewards");
+
 items.forEach(it=>{
  const d=document.createElement("div");
  d.className="slot";
+ const img=document.createElement("img");
+
  if(save.xp>=it.x){
    d.classList.add("unlocked");
-   d.innerText=it.i;
+   img.src=it.img;
+   rewards.innerHTML+=`<div class="reward">${it.reward}</div>`;
    d.onclick=()=>alert(it.n+" freigeschaltet!");
  }else{
-   d.innerText="🔒";
+   img.src=lockedImg;
  }
+
+ d.appendChild(img);
  inv.appendChild(d);
 });
 
-// ----- DAILY -----
+/* ================= DAILY ================= */
+
 const today=new Date().toDateString();
-const q="Wie viele Eier sind im Nest?";
-const correct=7; // später vom Streamer.bot
+let correct=7;
+document.getElementById("question").innerText="Wie viele Eier sind im Nest?";
 
 if(save.last===today){
  document.getElementById("dailyBox").innerText="Heute schon XP erhalten.";
-}else{
- document.getElementById("question").innerText=q;
 }
 
 function submit(){
@@ -228,13 +278,18 @@ function submit(){
  }
 }
 
- ----- STREAMER.BOT WEBSOCKET HOOK  -----
-     
+/* ================= STREAMER.BOT ================= */
+
 const ws=new WebSocket("ws://127.0.0.1:8080");
 ws.onmessage=e=>{
   const data=JSON.parse(e.data);
   if(data.type==="eggs"){
      correct=data.value;
+  }
+  if(data.type==="xp"){
+     save.xp+=data.amount;
+     localStorage.setItem(key,JSON.stringify(save));
+     location.reload();
   }
 };
 </script>
