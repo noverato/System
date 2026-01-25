@@ -55,14 +55,14 @@ body{
     border-radius:50%;
     border:10px solid #5d4037;
     box-shadow: inset 0 0 30px #2a1b10;
-    z-index:5;
+    z-index:10;
 }
 
 /* Paths */
 .path{
     position:absolute;
     background:#7b5a2b;
-    z-index:4;
+    z-index:9;
 }
 #pathNorth{ width:60px; height:200px; left:50%; top:-200px; transform:translateX(-50%);}
 #pathSouth{ width:60px; height:200px; left:50%; bottom:-200px; transform:translateX(-50%);}
@@ -80,7 +80,7 @@ body{
     text-align:center;
     line-height:90px;
     font-size:40px;
-    z-index:10;
+    z-index:20;
     cursor:pointer;
 }
 #forge{ left:120px; top:220px;}
@@ -90,15 +90,30 @@ body{
 .tree{
     position:absolute;
     font-size:28px;
-    z-index:0;
+    z-index:1;
 }
 
 /* Eggs */
 .egg{
     position:absolute;
     font-size:22px;
-    z-index:8; /* above village */
-    transition: 3s linear;
+    z-index:50;
+    transition: left 6s linear, top 6s linear;
+}
+
+/* Name tag */
+.nameTag{
+    position:absolute;
+    top:-18px;
+    left:50%;
+    transform:translateX(-50%);
+    font-size:11px;
+    background:rgba(0,0,0,0.6);
+    padding:2px 6px;
+    border-radius:6px;
+    white-space:nowrap;
+    z-index:60;
+    pointer-events:none;
 }
 
 /* Overlay UI */
@@ -126,7 +141,8 @@ body{
     position:absolute;
     font-size:100px;
     display:none;
-    z-index:3;
+    z-index:5;
+    cursor:pointer;
 }
 </style>
 </head>
@@ -136,17 +152,17 @@ body{
 <div id="uiLeft">
     <h3>🥚 Spawn2909</h3>
     Name: Spawn2909<br>
-    Rang: Ei<br>
-    XP: <div style="background:#333;height:10px;"><div style="background:#6f6;height:10px;width:40%;"></div></div>
+    Rang: Ei<br><br>
+
     <h4>🎒 Inventar</h4>
-    🗡️ 🧪 🌿
+    <div id="inventory">🗡️ 🧪 🌿</div>
 </div>
 
 <div id="uiRight">
     <h3>📜 Dorf</h3>
-    Level: 3<br>
-    Bewohner: 12 Eier<br>
-    Bosse besiegt: 0
+    Follower: <span id="followerCount">0</span><br>
+    Dorf-Level: <span id="villageLevel">0</span><br>
+    Bosse besiegt: <span id="bossKills">0</span>
 </div>
 
 <div id="world">
@@ -168,23 +184,30 @@ body{
 <div id="forgeUI" class="overlay">
     <button onclick="closeUI()">X</button>
     <h3>⚒️ Schmiede</h3>
-    Schwerter, Rüstung, Upgrades
+    <button onclick="addItem('🗡️')">Schwert kaufen</button><br><br>
+    <button onclick="addItem('🛡️')">Rüstung kaufen</button>
 </div>
 
 <div id="marketUI" class="overlay">
     <button onclick="closeUI()">X</button>
     <h3>🏪 Marktplatz</h3>
-    Tränke & Handel
+    <button onclick="buyPotion()">🧪 Trank kaufen</button>
 </div>
 
 <script>
 const forest = document.getElementById("forest");
 const village = document.getElementById("village");
 const boss = document.getElementById("boss");
+const inventory = document.getElementById("inventory");
+const bossKills = document.getElementById("bossKills");
 
-/* Forest */
+let activeEggs = {};   // name -> egg element
+
+/* =============================
+   🌲 Forest
+============================= */
 function createForest(){
-    for(let i=0;i<280;i++){
+    for(let i=0;i<300;i++){
         const t=document.createElement("div");
         t.className="tree";
         t.textContent=Math.random()>0.5?"🌲":"🌳";
@@ -194,14 +217,34 @@ function createForest(){
     }
 }
 
-/* Eggs */
-const eggs=[];
-function spawnEgg(){
+/* =============================
+   🥚 Egg System
+============================= */
+function spawnEgg(name){
+    if(activeEggs[name]) return; // Dubletten verhindern
+
     const e=document.createElement("div");
     e.className="egg";
     e.textContent="🥚";
+    e.xp = 0;
+
+    const tag=document.createElement("span");
+    tag.className="nameTag";
+    tag.textContent=name;
+    e.appendChild(tag);
+
     forest.appendChild(e);
-    eggs.push(e);
+    activeEggs[name] = e;
+
+    updateStats();
+
+    setInterval(()=>{
+        e.xp++;
+        if(e.xp>100) e.textContent="💀";
+        else if(e.xp>50) e.textContent="💧";
+        e.appendChild(tag);
+    },10000);
+
     moveEgg(e);
 }
 
@@ -216,28 +259,81 @@ function moveEgg(e){
             x=Math.random()*window.innerWidth;
             y=Math.random()*window.innerHeight;
         }
+        e.style.transitionDuration = (5+Math.random()*3)+"s";
         e.style.left=x+"px";
         e.style.top=y+"px";
-    },3000);
+    },6000);
 }
 
-/* UI */
+/* =============================
+   📊 Stats
+============================= */
+function updateStats(){
+    const count = Object.keys(activeEggs).length;
+    document.getElementById("followerCount").textContent = count;
+    document.getElementById("villageLevel").textContent = Math.floor(count/2);
+}
+
+/* =============================
+   🧙 UI
+============================= */
 forge.onclick=()=>{ document.getElementById("forgeUI").style.display="block"; }
 market.onclick=()=>{ document.getElementById("marketUI").style.display="block"; }
 function closeUI(){
     document.querySelectorAll(".overlay").forEach(o=>o.style.display="none");
 }
+function addItem(icon){ inventory.innerHTML += " " + icon; }
+function buyPotion(){ addItem("🧪"); alert("Trank gekauft!"); }
 
-/* Boss Timer */
+/* =============================
+   🐲 Boss
+============================= */
+let kills=0;
+boss.onclick=()=>{
+    kills++;
+    bossKills.textContent=kills;
+    boss.style.display="none";
+    setTimeout(()=>{ boss.style.display="block"; },10000);
+};
 setInterval(()=>{
     boss.style.display="block";
     boss.style.left=Math.random()*window.innerWidth+"px";
     boss.style.top=Math.random()*window.innerHeight+"px";
 },30000);
 
-/* Init */
+/* =============================
+   🔌 Streamer.bot WebSocket
+============================= */
+const ws = new WebSocket("ws://127.0.0.1:8080/");
+
+ws.onopen = () => {
+    console.log("🟢 Connected to streamer.bot");
+};
+
+ws.onmessage = (event) => {
+    try{
+        const data = JSON.parse(event.data);
+
+        // streamer.bot sends many events – we extract any username we can find
+        if(data?.event?.user){
+            spawnEgg(data.event.user);
+        }
+        if(data?.data?.userName){
+            spawnEgg(data.data.userName);
+        }
+        if(data?.data?.displayName){
+            spawnEgg(data.data.displayName);
+        }
+
+    }catch(e){
+        console.log("Non-JSON message:", event.data);
+    }
+};
+
+/* =============================
+   Init
+============================= */
 createForest();
-for(let i=0;i<15;i++) spawnEgg();
 </script>
 
 </body>
