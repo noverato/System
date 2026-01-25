@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Twitch RPG HUD</title>
+<title>Twitch RPG HUD mit Live-Quest</title>
 <style>
 body {
     margin:0;
@@ -14,7 +14,6 @@ body {
     user-select:none;
 }
 #main { display:flex; height:100vh; width:100vw; }
-
 /* =================== Charakter-Menü =================== */
 #charMenu {
     width:35%;
@@ -26,7 +25,6 @@ body {
     box-sizing:border-box;
     position:relative;
 }
-/* Podest + Avatar */
 #avatarPodest {
     width:220px;
     height:60px;
@@ -69,7 +67,6 @@ body {
 }
 .weaponSlot img { max-width:70%; max-height:70%; }
 .weaponSlot.rare { border-color:#ffd700; box-shadow:0 0 10px #ffd700; }
-
 /* =================== Inventar =================== */
 #inventory { margin-top:20px; }
 #invGrid, #backpackGrid { display:grid; grid-template-columns: repeat(4,1fr); gap:10px; margin-top:5px; }
@@ -85,7 +82,6 @@ body {
 .slot img { max-width:80%; max-height:80%; filter:grayscale(100%); opacity:0.3; }
 .slot.unlocked img { filter:none; opacity:1; }
 .slot.rare { border-color:#ffd700; box-shadow:0 0 10px #ffd700; }
-
 /* =================== Tabs =================== */
 #tabs { width:65%; display:flex; flex-direction:column; background:#041024; }
 .tabButtons { display:flex; border-bottom:2px solid #ffd700; }
@@ -95,7 +91,6 @@ body {
 }
 .tabButtons button.active { background:#112244; border-bottom:3px solid #ffd700; }
 .tabContent { flex:1; padding:20px; overflow:auto; display:flex; flex-wrap:wrap; }
-
 /* =================== Dorf =================== */
 #villageMap {
     width:100%; height:100%;
@@ -128,7 +123,6 @@ body {
     font-size:24px;
     box-shadow:0 0 5px #00c3ff;
 }
-
 /* =================== Marktplatz =================== */
 .marketItem {
     background:#111; border:1px solid #444; border-radius:10px; padding:10px;
@@ -138,7 +132,26 @@ body {
 .marketItem img { width:50px; height:50px; margin-bottom:5px; }
 .marketItem button { margin-top:5px; padding:5px 10px; border:none; border-radius:5px; background:#ffd700; color:#000; cursor:pointer; font-weight:bold; }
 .marketItem.rare { border-color:#ffd700; box-shadow:0 0 10px #ffd700; }
-
+/* =================== Live-Quest =================== */
+#liveQuest {
+    width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+    padding:20px; box-sizing:border-box;
+}
+#bossContainer {
+    margin-top:20px; text-align:center;
+}
+#bossEmoji {
+    font-size:100px; display:block; transition:0.2s;
+}
+#bossHPBar {
+    width:80%; height:25px; background:#111; border:1px solid #444; border-radius:12px; margin:10px auto;
+    overflow:hidden;
+}
+#bossHPFill {
+    height:100%; background:linear-gradient(90deg, #ff5f5f, #ff0000); width:100%; transition:0.3s;
+}
+#attackBtn { margin-top:10px; padding:10px 20px; background:#ffd700; border:none; color:#000; font-weight:bold; cursor:pointer; border-radius:5px; }
+#questLog { margin-top:20px; width:90%; height:150px; background:#111; border:1px solid #444; border-radius:10px; padding:10px; overflow-y:auto; font-size:14px; }
 /* =================== Sicherheit =================== */
 body, html { user-select:none; }
 </style>
@@ -174,10 +187,20 @@ body, html { user-select:none; }
         <div class="tabButtons">
             <button class="active" onclick="switchTab('villageMap')">Dorf</button>
             <button onclick="switchTab('marketTab')">Marktplatz</button>
+            <button onclick="switchTab('liveQuest')">Live-Quest</button>
         </div>
         <div class="tabContent">
             <div id="villageMap" class="tabPane"></div>
             <div id="marketTab" class="tabPane" style="display:none;"></div>
+            <div id="liveQuest" class="tabPane" style="display:none; flex-direction:column; align-items:center;">
+                <div id="questStatus">Das Nest schläft gerade... Komm wieder, wenn Spawn2909 online ist!</div>
+                <div id="bossContainer" style="display:none;">
+                    <span id="bossEmoji">👹</span>
+                    <div id="bossHPBar"><div id="bossHPFill"></div></div>
+                    <button id="attackBtn">ANGREIFEN</button>
+                    <div id="questLog"></div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -226,9 +249,9 @@ const marketItems = [
     {name:'Giftschwert', img:'img/schwert.png', type:'weapon', rare:true},
     {name:'Heiltrank', img:'img/trank.png', type:'item', rare:false}
 ];
-
 let save = JSON.parse(localStorage.getItem('save')) || {xp:0, inventory:[], backpack:[], weapons:[], armor:[], jewelry:[]};
 let villageAvatars = [];
+let boss = {hp:100, maxHp:100};
 
 // =================== Charakter UI ===================
 function updateCharUI(){
@@ -270,8 +293,7 @@ function switchTab(tabId){
     document.querySelectorAll('.tabButtons button').forEach(b=>b.classList.remove('active'));
     document.querySelector(`.tabButtons button[onclick*="${tabId}"]`).classList.add('active');
 
-    // Dorf neu rendern beim Wechsel
-    if(tabId==='villageMap') setTimeout(()=>renderVillage(),50);
+    if(tabId==='villageMap') setTimeout(()=>renderVillage(),100);
     if(tabId==='marketTab') renderMarket();
 }
 
@@ -307,10 +329,19 @@ function renderMarket(){
         container.appendChild(div);
     });
 }
+function buyItem(name){
+    const item = marketItems.find(i=>i.name===name);
+    if(!item) return;
+    alert("Warte auf Bestätigung im Stream...");
+    ws.send(JSON.stringify({type:'purchaseRequest', itemName:name}));
+}
 
 // =================== WebSocket ===================
 const ws = new WebSocket('ws://127.0.0.1:8080');
-ws.onopen=()=>console.log('WS connected');
+ws.onopen=()=> {
+    console.log('WS connected');
+    document.getElementById('questStatus').innerText = 'Ein Nest wacht! Bereit für Live-Quests!';
+};
 ws.onmessage=e=>{
     const data=JSON.parse(e.data);
     if(data.type==='joinVillage'){
@@ -324,30 +355,51 @@ ws.onmessage=e=>{
         const item = marketItems.find(i=>i.name===data.itemName);
         if(item){ save.inventory.push(item); localStorage.setItem('save', JSON.stringify(save)); updateCharUI(); alert(`Bezahlung erfolgreich! ${item.name} freigeschaltet.`); }
     }
+    if(data.type==='bossUpdate'){
+        boss.hp = data.hp;
+        updateBossUI();
+    }
 };
 
-// =================== Kaufen ===================
-function buyItem(name){
-    const item = marketItems.find(i=>i.name===name);
-    if(!item) return;
-    alert("Warte auf Bestätigung im Stream...");
-    ws.send(JSON.stringify({type:'purchaseRequest', itemName:name}));
+// =================== Live-Quest ===================
+const bossEmoji = document.getElementById('bossEmoji');
+const bossHPFill = document.getElementById('bossHPFill');
+const bossContainer = document.getElementById('bossContainer');
+const questLog = document.getElementById('questLog');
+document.getElementById('attackBtn').onclick=attackBoss;
+
+function attackBoss(){
+    if(boss.hp <=0) return;
+    const damage = 10 + (save.weapons[0]?20:0);
+    boss.hp = Math.max(0, boss.hp-damage);
+    ws.send(JSON.stringify({action:'attack', damage}));
+    logQuest(`Du hast ${damage} Schaden verursacht!`);
+    bossEmoji.style.color='#ff0000';
+    bossEmoji.style.transform='translateX(-5px)';
+    setTimeout(()=>{ bossEmoji.style.color='white'; bossEmoji.style.transform='translateX(0px)'; },150);
+    updateBossUI();
+    if(boss.hp===0) {
+        logQuest('Boss besiegt! Alle Spieler erhalten Loot!');
+        generateRandomLoot();
+    }
+}
+function updateBossUI(){ bossHPFill.style.width = (boss.hp/boss.maxHp*100)+'%'; bossContainer.style.display='block'; }
+function generateRandomLoot(){
+    const loot = {name:'Heiltrank', img:'img/trank.png', type:'item', rare:false};
+    save.inventory.push(loot);
+    localStorage.setItem('save', JSON.stringify(save));
+    updateCharUI();
+}
+function logQuest(text){
+    const entry=document.createElement('div');
+    entry.innerText = text;
+    questLog.appendChild(entry);
+    questLog.scrollTop = questLog.scrollHeight;
 }
 
-// =================== Export ===================
-document.getElementById('exportBtn').onclick=()=>{
-    html2canvas(document.getElementById('charMenu')).then(canvas=>{
-        const link=document.createElement('a');
-        link.download='profil.png';
-        link.href=canvas.toDataURL();
-        link.click();
-    });
-};
-
-// =================== Init ===================
-setTimeout(()=>renderVillage(),100);
+// =================== Initial UI ===================
 updateCharUI();
-switchTab('villageMap');
+setTimeout(()=>renderVillage(),100);
 </script>
 </body>
 </html>
