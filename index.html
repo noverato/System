@@ -6,16 +6,17 @@
 <title>The Nest: Solo Leveling RPG Master</title>
 <style>
     body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #000; color: #e0d8b0; }
-    #viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; }
+    #viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; display: flex; align-items: center; justify-content: center; }
     
-    /* WELTKARTE */
     #world { 
         width: 1920px; height: 1080px; 
         background: url('wald.png') no-repeat center; background-size: cover;
-        position: absolute; transform-origin: 0 0; transition: transform 0.1s ease-out;
+        position: absolute; transition: transform 0.1s ease-out;
+        /* Start-Zentrierung */
+        transform-origin: center center; 
     }
 
-    /* ARENA INNEN */
+    /* SCENES */
     #arena_scene { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: url('arena_innen.png') no-repeat center; background-size: cover; display: none; z-index: 50000; }
 
     /* CHARAKTER */
@@ -27,20 +28,15 @@
     .building { position: absolute; background-size: contain; background-repeat: no-repeat; background-position: center; cursor: pointer; z-index: 10; transform: translate(-50%, -50%); }
     .label { position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: gold; padding: 2px 8px; border-radius: 5px; font-size: 12px; white-space: nowrap; border: 1px solid gold; }
 
-    /* MODALS & INVENTAR */
+    /* MODALS */
     .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; z-index: 20000; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
     .menu-box { width: 650px; background: #0f172a; border: 3px solid #3b82f6; border-radius: 25px; padding: 25px; text-align: center; color: white; box-shadow: 0 0 30px rgba(59, 130, 246, 0.3); }
-    
     .inv-container { display: grid; grid-template-columns: 100px 1fr 100px; gap: 15px; }
     .inv-slot { background: #1e293b; border: 1px solid #334155; border-radius: 8px; height: 65px; display: flex; align-items: center; justify-content: center; font-size: 30px; }
     .loot-grid { grid-column: 1 / span 3; display: grid; grid-template-columns: repeat(9, 1fr); gap: 5px; margin-top: 15px; }
 
-    /* FF BATTLE UI */
-    #battle_ui { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 85%; height: 160px; background: rgba(0, 0, 150, 0.9); border: 4px solid #fff; border-radius: 10px; display: flex; padding: 10px; box-shadow: inset 0 0 20px #000; }
-    .battle-btn { background: none; border: none; color: white; text-align: left; font-size: 20px; cursor: pointer; padding: 8px; font-weight: bold; }
-    .battle-btn:hover { background: rgba(255,255,255,0.2); }
-
-    #hud { position: fixed; top: 20px; left: 20px; background: rgba(15, 23, 42, 0.95); padding: 15px; border-radius: 15px; border: 2px solid #3b82f6; z-index: 5000; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+    /* HUD */
+    #hud { position: fixed; top: 20px; left: 20px; background: rgba(15, 23, 42, 0.95); padding: 15px; border-radius: 15px; border: 2px solid #3b82f6; z-index: 5000; }
     .btn-action { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border: none; padding: 12px 24px; border-radius: 10px; cursor: pointer; font-weight: bold; }
 </style>
 </head>
@@ -49,96 +45,100 @@
 <div id="arena_scene">
     <div id="combatant_left" style="position:absolute; left:20%; top:50%; transform:translateY(-50%);"></div>
     <div id="combatant_right" style="position:absolute; right:20%; top:50%; transform:translateY(-50%);"></div>
-    <div id="battle_ui">
-        <div style="width:30%; border-right:3px solid white; display:flex; flex-direction:column;">
-            <button class="battle-btn" onclick="battleAction('Angriff')">⚔️ Angriff</button>
-            <button class="battle-btn" onclick="battleAction('Magie')">🪄 Magie</button>
-            <button class="battle-btn" onclick="battleAction('Flucht')">🏃 Flucht</button>
+    <div id="battle_ui" style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); width:80%; height:150px; background:rgba(0,0,150,0.9); border:3px solid white; display:flex;">
+        <div style="width:30%; border-right:2px solid white; display:flex; flex-direction:column; padding:10px;">
+            <button class="btn-action" style="margin:2px;" onclick="battleAction('Angriff')">⚔️ Angriff</button>
+            <button class="btn-action" style="margin:2px;" onclick="battleAction('Flucht')">🏃 Flucht</button>
         </div>
-        <div id="arenaLog" style="padding:15px; overflow-y:auto; flex-grow:1; font-family:monospace; color: #4ade80;">BATTLE LOG: Runde 1 beginnt...</div>
+        <div id="arenaLog" style="padding:15px; flex-grow:1; overflow-y:auto; font-family:monospace; color:#4ade80;">Kampf beginnt...</div>
     </div>
 </div>
 
 <div id="viewport">
     <div id="world" onclick="handleWorldClick(event)">
-        <div class="building" style="left:1500px; top:200px; width:250px; height:250px; background-image:url('steinbruch.png');" onclick="event.stopPropagation(); openBuilding('steinbruch')"><div class="label">Steinbruch</div></div>
+        <div class="building" style="left:1500px; top:200px; width:220px; height:220px; background-image:url('steinbruch.png');" onclick="event.stopPropagation(); openBuilding('steinbruch')"><div class="label">Steinbruch</div></div>
         <div class="building" style="left:1200px; top:750px; width:220px; height:220px; background-image:url('marktplatz.png');" onclick="event.stopPropagation(); openBuilding('markt')"><div class="label">Marktplatz</div></div>
         <div class="building" style="left:400px; top:300px; width:250px; height:250px; background-image:url('rathaus.png');" onclick="event.stopPropagation(); openBuilding('rathaus')"><div class="label">Rathaus</div></div>
         <div class="building" style="left:900px; top:200px; width:220px; height:220px; background-image:url('heilige_schmiede.png');" onclick="event.stopPropagation(); openBuilding('h_schmiede')"><div class="label">Heilige Schmiede</div></div>
-        <div class="building" style="left:700px; top:500px; width:200px; height:200px; background-image:url('schmiede.png');" onclick="event.stopPropagation(); openBuilding('schmiede')"><div class="label">Schmiede</div></div>
-        <div class="building" style="left:1600px; top:800px; width:300px; height:300px; background-image:url('arena.png');" onclick="event.stopPropagation(); openBuilding('arena')"><div class="label">PvP Arena</div></div>
-        
+        <div class="building" style="left:700px; top:500px; width:180px; height:180px; background-image:url('schmiede.png');" onclick="event.stopPropagation(); openBuilding('schmiede')"><div class="label">Schmiede</div></div>
+        <div class="building" style="left:1600px; top:800px; width:280px; height:280px; background-image:url('arena.png');" onclick="event.stopPropagation(); openBuilding('arena')"><div class="label">Arena</div></div>
         <div id="charLayer"></div>
     </div>
 </div>
 
 <div id="hud">
-    <div style="color:#facc15; font-weight:bold; font-size: 18px;">👑 <span id="playerName">Lädt...</span></div>
+    <div style="color:#facc15; font-weight:bold;">👑 <span id="playerName">Lädt...</span></div>
     <div style="font-size:12px; margin-top:5px;">
-        💎 LXP: <span id="lxpC">0</span> | 📈 EP: <span id="epC">0</span><br>
+        ❤️ HP: <span id="hpC">100</span> | 💎 LXP: <span id="lxpC">0</span><br>
         🪨 Stein: <span id="steinC">0</span> | 🪵 Holz: <span id="stockC">0</span>
     </div>
 </div>
 
 <div id="invModal" class="modal">
     <div class="menu-box">
-        <h2 style="color: #facc15; margin-top:0;">CHARAKTER STATUS</h2>
+        <h2 style="color: #facc15; margin-top:0;">INVENTAR & ALCHEMIE</h2>
         <div class="inv-container">
             <div>
                 <div class="inv-slot">🪖</div><div class="inv-slot">🧥</div><div class="inv-slot">👞</div>
             </div>
             <div style="text-align:center;">
-                <div id="invAvatar" style="font-size: 100px;">🥚</div>
+                <div id="invAvatar" style="font-size: 80px;">🥚</div>
+                <div style="margin:10px 0;">
+                    <button class="btn-action" style="font-size:10px; background:#10b981;" onclick="craftPotion()">🧪 Trank brauen (2x🌿, 1x🍄)</button>
+                </div>
                 <p id="invClass" style="font-weight:bold; color:#3b82f6;">Ei</p>
-                <div style="font-size:12px; color:#94a3b8;">HP: 100/100</div>
             </div>
             <div>
                 <div class="inv-slot">🗡️</div><div class="inv-slot">🛡️</div><div class="inv-slot">💍</div>
             </div>
             <div id="lootGrid" class="loot-grid"></div>
         </div>
-        <button class="btn-action" style="margin-top:20px;" onclick="toggleModal('invModal', false)">Schließen</button>
+        <button class="btn-action" style="margin-top:20px; background:#475569;" onclick="toggleModal('invModal', false)">Schließen</button>
     </div>
 </div>
 
 <div id="steinbruchModal" class="modal">
     <div class="menu-box">
-        <h2 style="color:#facc15;">STEINBRUCH</h2>
-        <p>KLICKE DEN STEIN ZUM ABBAUEN!</p>
-        <div id="clickStone" onclick="mineStone()" style="width:200px; height:200px; margin: 0 auto; cursor:pointer; background:url('16bit_stein.png') no-repeat center; background-size:contain; filter:drop-shadow(0 0 10px #555);">
-            <span style="font-size:100px;">🪨</span>
+        <h2>STEINBRUCH</h2>
+        <div id="clickStone" onclick="mineStone()" style="width:180px; height:180px; margin: 0 auto; cursor:pointer; background:url('16bit_stein.png') no-repeat center; background-size:contain;">
+            <span style="font-size:80px;">🪨</span>
         </div>
-        <p style="font-weight:bold; font-size:20px;">+1 Stein!</p>
-        <button class="btn-action" onclick="toggleModal('steinbruchModal', false)">Arbeit beenden</button>
+        <p>Klicke den Stein!</p>
+        <button class="btn-action" onclick="toggleModal('steinbruchModal', false)">Fertig</button>
     </div>
 </div>
 
 <div id="buildingModal" class="modal">
     <div class="menu-box">
-        <h2 id="buildingTitle" style="color:#facc15;">Gebäude</h2>
+        <h2 id="buildingTitle">Gebäude</h2>
         <div id="buildingContent"></div>
-        <br>
-        <button class="btn-action" onclick="toggleModal('buildingModal', false)">Verlassen</button>
+        <button class="btn-action" onclick="toggleModal('buildingModal', false)">Schließen</button>
     </div>
 </div>
 
 <script>
-// --- DIEBSTAHLSCHUTZ & INITIALISIERUNG ---
-const STREAMER_BOT_IP = "DEINE_IP_HIER"; // Platzhalter für Streamer.bot
-const ALLOWED_USER = "spawn2909";
-
 let data = JSON.parse(localStorage.getItem('nestData')) || {
-    name: "Held", lxp: 0, ep: 0, gras: 0, stock: 0, stein: 0, x: 960, y: 540,
-    currentClass: "Ei", emoji: "🥚", loot: [], hp: 100, maxHp: 100, atk: 10, def: 5, isSub: false
+    name: "Held", lxp: 0, ep: 0, gras: 0, stock: 0, stein: 0, pilz: 0, blume: 0, trank: 0,
+    x: 960, y: 540, currentClass: "Ei", emoji: "🥚", loot: [], hp: 100, maxHp: 100, atk: 10, def: 5
 };
 
 let zoom = 1.0;
 const world = document.getElementById('world');
 let isCombat = false;
 
+// ===== ZOOM FIX (ZENTRIERUNG AUF EI) =====
 window.addEventListener('wheel', (e) => {
     if(isCombat) return;
-    zoom = Math.min(Math.max(zoom + (e.deltaY > 0 ? -0.1 : 0.1), 0.3), 2.5);
+    e.preventDefault();
+    
+    // Zoom berechnen
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    let newZoom = Math.min(Math.max(zoom + delta, 0.52), 2.5); // minZoom 0.52 verhindert schwarze Ränder bei 1920px
+    
+    zoom = newZoom;
+    
+    // Dynamischer Transform-Origin auf die Spielerposition
+    world.style.transformOrigin = `${data.x}px ${data.y}px`;
     world.style.transform = `scale(${zoom})`;
 }, { passive: false });
 
@@ -151,21 +151,29 @@ function init() {
 function updateUI() {
     document.getElementById('playerName').textContent = data.name;
     document.getElementById('lxpC').textContent = data.lxp;
-    document.getElementById('epC').textContent = data.ep;
+    document.getElementById('hpC').textContent = data.hp;
     document.getElementById('steinC').textContent = data.stein;
     document.getElementById('stockC').textContent = data.stock;
     document.getElementById('invAvatar').textContent = data.emoji;
     document.getElementById('invClass').textContent = data.currentClass;
 
+    // Loot-Grid Update (Inhalt des Inventars)
     const grid = document.getElementById('lootGrid');
     grid.innerHTML = '';
-    for(let i=0; i<18; i++) { // 18 Slots (2 Zeilen à 9)
-        const s = document.createElement('div');
-        s.className = 'inv-slot';
-        s.style.height = "50px"; s.style.fontSize = "20px";
-        s.innerHTML = data.loot[i] || "";
-        grid.appendChild(s);
-    }
+    const items = [
+        {e: '🌿', c: data.gras}, {e: '🪵', c: data.stock}, {e: '🪨', c: data.stein},
+        {e: '🍄', c: data.pilz}, {e: '🌸', c: data.blume}, {e: '🧪', c: data.trank}
+    ];
+    items.forEach(item => {
+        if(item.c > 0) {
+            let slot = document.createElement('div');
+            slot.className = 'inv-slot';
+            slot.style.fontSize = "16px";
+            slot.innerHTML = `${item.e}<br><small>${item.c}</small>`;
+            if(item.e === '🧪') slot.onclick = usePotion;
+            grid.appendChild(slot);
+        }
+    });
     renderChar();
 }
 
@@ -174,110 +182,87 @@ function renderChar() {
     layer.innerHTML = '';
     const char = document.createElement('div');
     char.className = 'creature';
+    char.id = "mainChar";
     char.style.left = data.x + "px"; char.style.top = data.y + "px";
-    let glow = data.isSub ? "filter: drop-shadow(0 0 20px gold) brightness(1.2);" : "";
-    char.innerHTML = `<span class="avatar-emoji" style="${glow}">${data.emoji}</span><div class="name-tag">${data.name}</div>`;
+    char.innerHTML = `<span class="avatar-emoji">${data.emoji}</span><div class="name-tag">${data.name}</div>`;
     layer.appendChild(char);
 }
 
+// ===== ERWEITERTE LOOT-TABELLE & BEWEGUNG =====
 function handleWorldClick(e) {
     if(isCombat) return;
     const rect = world.getBoundingClientRect();
     data.x = (e.clientX - rect.left) / zoom;
     data.y = (e.clientY - rect.top) / zoom;
+
+    // Loot Wahrscheinlichkeiten
+    let rand = Math.random() * 100;
+    if(rand < 5) { // 5% Zufallskampf
+        startPvP("Wildschwein 🐗");
+    } else if(rand < 15) { // 10% Blumen/Pilze
+        if(Math.random() > 0.5) data.pilz++; else data.blume++;
+    } else if(rand < 30) { // 15% Holz/Gras
+        if(Math.random() > 0.5) data.stock++; else data.gras++;
+    }
     
-    if(Math.random() > 0.8) data.stock++; // Zufalls-Holz beim Laufen
     save();
 }
 
-// GEBÄUDE LOGIK
-function openBuilding(type) {
-    if(type === 'arena') { startPvP(); }
-    else if(type === 'steinbruch') { toggleModal('steinbruchModal', true); }
-    else if(type === 'markt') {
-        showMarket();
-    } else if(type === 'schmiede') {
-        showForge(false);
-    } else if(type === 'h_schmiede') {
-        showForge(true);
-    } else if(type === 'rathaus') {
-        showTownHall();
+function craftPotion() {
+    if(data.gras >= 2 && data.pilz >= 1) {
+        data.gras -= 2; data.pilz -= 1; data.trank++;
+        alert("🧪 Heiltrank gebraut!");
+        save();
+    } else alert("Zu wenig Zutaten!");
+}
+
+function usePotion() {
+    if(data.trank > 0) {
+        data.trank--;
+        data.hp = Math.min(data.maxHp, data.hp + 20);
+        save();
+        alert("❤️ 20 HP geheilt!");
     }
-}
-
-function showMarket() {
-    document.getElementById('buildingTitle').textContent = "MARKTPLATZ";
-    document.getElementById('buildingContent').innerHTML = `
-        <p>Tausche deine Ressourcen gegen LXP!</p>
-        <button class="btn-action" onclick="trade('stein', 10)">10 Steine ➔ 5 LXP</button><br><br>
-        <button class="btn-action" onclick="trade('stock', 10)">10 Holz ➔ 5 LXP</button>
-    `;
-    toggleModal('buildingModal', true);
-}
-
-function showForge(holy) {
-    document.getElementById('buildingTitle').textContent = holy ? "HEILIGE SCHMIEDE" : "DORF-SCHMIEDE";
-    let content = holy ? "<p style='color:gold'>Götter-Veredelung (Subs & Bits)</p>" : "<p>Normales Crafting für Follower</p>";
-    content += `<button class="btn-action" onclick="alert('Schmieden noch in Arbeit...')">🛠 Ausrüstung herstellen</button>`;
-    document.getElementById('buildingContent').innerHTML = content;
-    toggleModal('buildingModal', true);
-}
-
-function showTownHall() {
-    document.getElementById('buildingTitle').textContent = "RATHAUS";
-    document.getElementById('buildingContent').innerHTML = `
-        <p><b>Bürger-Status:</b> ${data.name}</p>
-        <p>Rang: ${data.currentClass}</p>
-        <button class="btn-action" onclick="alert('Statistiken folgen...')">📜 Dorf-Statistik</button>
-    `;
-    toggleModal('buildingModal', true);
 }
 
 function mineStone() {
-    const s = document.getElementById('clickStone');
-    s.style.transform = "scale(0.9) rotate(5deg)";
-    setTimeout(() => s.style.transform = "scale(1)", 100);
-    data.stein += 1;
+    data.stein++;
     save();
 }
 
-function trade(res, amt) {
-    if(data[res] >= amt) {
-        data[res] -= amt;
-        data.lxp += 5;
-        save();
-        alert("Handel erfolgreich!");
-        showMarket();
-    } else {
-        alert("Nicht genug Ressourcen!");
-    }
-}
-
-// BATTLE LOGIK (FF STYLE)
-function startPvP() {
+function startPvP(enemyName = "Gegner 👿") {
     isCombat = true;
     document.getElementById('arena_scene').style.display = 'block';
     document.getElementById('combatant_left').innerHTML = `<span style="font-size:100px;">${data.emoji}</span><br><b>${data.name}</b>`;
-    document.getElementById('combatant_right').innerHTML = `<span style="font-size:100px;">👿</span><br><b>PvP Gegner</b>`;
+    document.getElementById('combatant_right').innerHTML = `<span style="font-size:100px;">${enemyName.split(' ')[1]}</span><br><b>${enemyName}</b>`;
 }
 
 function battleAction(action) {
     const log = document.getElementById('arenaLog');
     if(action === 'Angriff') {
-        let dmg = Math.floor(data.atk * 1.5) - (Math.random() * 5);
-        log.innerHTML += `<br>> ${data.name} greift an für ${dmg} DMG!`;
+        let dmg = Math.floor(data.atk * 1.5);
+        log.innerHTML += `<br>> Treffer für ${dmg} DMG!`;
         setTimeout(() => {
-            log.innerHTML += `<br>> Gegner kontert! -8 HP`;
-            if(Math.random() > 0.7) { battleEnd(true); }
+            if(Math.random() > 0.5) { 
+                isCombat = false; 
+                document.getElementById('arena_scene').style.display='none'; 
+                data.lxp += 10; save(); 
+            } else { log.innerHTML += `<br>> Gegner kontert! -5 HP`; data.hp -= 5; updateUI(); }
         }, 800);
-    } else { battleEnd(false); }
+    } else { 
+        isCombat = false; 
+        document.getElementById('arena_scene').style.display='none'; 
+    }
 }
 
-function battleEnd(won) {
-    alert(won ? "SIEG!" : "Flucht...");
-    isCombat = false;
-    document.getElementById('arena_scene').style.display = 'none';
-    save();
+function openBuilding(type) {
+    if(type === 'arena') startPvP();
+    else if(type === 'steinbruch') toggleModal('steinbruchModal', true);
+    else {
+        document.getElementById('buildingTitle').textContent = type.toUpperCase();
+        document.getElementById('buildingContent').innerHTML = `<p>Willkommen im ${type}. Hier entsteht bald das Menü.</p>`;
+        toggleModal('buildingModal', true);
+    }
 }
 
 function toggleModal(id, show) { document.getElementById(id).style.display = show ? 'flex' : 'none'; }
@@ -287,7 +272,7 @@ function toggleInv(s) { toggleModal('invModal', s); }
 window.onload = init;
 </script>
 
-<button style="position:fixed; bottom:20px; right:20px; z-index:10000;" class="btn-action" onclick="toggleInv(true)">🎒 STATUS & INVENTAR</button>
+<button style="position:fixed; bottom:20px; right:20px; z-index:10000;" class="btn-action" onclick="toggleInv(true)">🎒 INVENTAR</button>
 
 </body>
 </html>
