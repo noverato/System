@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>The Nest: Isekai RPG Edition</title>
+    <title>The Nest: Isekai Arena Edition</title>
     <style>
         :root {
             --fantasy-bg: rgba(40, 30, 20, 0.95);
@@ -17,7 +17,7 @@
         #viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; display: flex; align-items: center; justify-content: center; }
         #world { width: 1920px; height: 1080px; background: url('./wald.png') no-repeat center; background-size: cover; position: absolute; transition: transform 0.1s ease-out; transform-origin: center center; }
         
-        /* Gebäude & Spieler */
+        /* Gebäude */
         .building { position: absolute; background-size: contain; background-repeat: no-repeat; background-position: center; cursor: pointer; transform: translate(-50%, -50%); transition: filter 0.3s; }
         .building:hover { filter: brightness(1.2) drop-shadow(0 0 10px gold); }
         .label { position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%); background: var(--fantasy-bg); color: var(--gold); padding: 4px 12px; border-radius: 8px; font-size: 14px; white-space: nowrap; border: 1px solid var(--gold); font-weight: bold; }
@@ -25,15 +25,12 @@
         .avatar-emoji { font-size: 60px; display: block; filter: drop-shadow(0 0 15px rgba(59, 130, 246, 0.8)); }
         .name-tag { font-size: 14px; font-weight: bold; color: #fff; background: rgba(15, 23, 42, 0.9); padding: 2px 12px; border-radius: 8px; border: 1px solid #3b82f6; margin-top: 5px; }
 
-        /* HUD */
+        /* UI */
         #hud { position: fixed; top: 20px; left: 20px; background: var(--fantasy-bg); padding: 15px; border-radius: 12px; border: var(--border); box-shadow: var(--shadow); z-index: 5000; min-width: 180px; }
-        
-        /* MODAL DESIGN */
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; z-index: 20000; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .mmo-panel { width: 850px; background: var(--fantasy-bg); border: var(--border); border-radius: 20px; box-shadow: var(--shadow); display: flex; overflow: hidden; position: relative; }
         
-        /* Split Panels */
-        .panel-left { flex: 2; padding: 25px; border-right: 1px solid rgba(255, 215, 0, 0.3); max-height: 80vh; overflow-y: auto; }
+        .panel-left { flex: 2; padding: 25px; border-right: 1px solid rgba(255, 215, 0, 0.3); max-height: 80vh; overflow-y: auto; text-align: center; }
         .panel-right { flex: 1; padding: 25px; background: rgba(20, 15, 10, 0.5); display: flex; flex-direction: column; gap: 15px; }
         
         .btn-action { background: var(--btn-grad); color: white; border: 1px solid var(--gold); padding: 10px 18px; border-radius: 12px; cursor: pointer; font-weight: bold; transition: all 0.3s; text-transform: uppercase; letter-spacing: 1px; }
@@ -42,8 +39,6 @@
 
         .item-row { background: rgba(0,0,0,0.3); border-radius: 10px; padding: 12px; margin-bottom: 10px; border: 1px solid rgba(255, 215, 0, 0.2); }
         .resource-badge { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: bold; color: gold; }
-        .req-met { color: #4ade80; }
-        .req-fail { color: #ef4444; }
     </style>
 </head>
 <body>
@@ -54,6 +49,9 @@
         <div class="building" style="left:1200px; top:750px; width:220px; height:220px; background-image:url('./marktplatz.png');" onclick="event.stopPropagation(); openBuilding('markt')"><div class="label">Marktplatz</div></div>
         <div class="building" style="left:400px; top:300px; width:250px; height:250px; background-image:url('./rathaus.png');" onclick="event.stopPropagation(); openBuilding('rathaus')"><div class="label">Rathaus</div></div>
         <div class="building" style="left:700px; top:500px; width:180px; height:180px; background-image:url('./schmiede.png');" onclick="event.stopPropagation(); openBuilding('schmiede')"><div class="label">Schmiede</div></div>
+        
+        <div class="building" style="left:1600px; top:800px; width:280px; height:280px; background-image:url('./arena.png');" onclick="event.stopPropagation(); openBuilding('arena')"><div class="label">Arena</div></div>
+        
         <div id="charLayer"></div>
     </div>
 </div>
@@ -98,12 +96,11 @@ let data = JSON.parse(localStorage.getItem('nestData')) || {
 
 let otherPlayers = {};
 let marketListings = {};
-let villageStoneCount = 0;
+let currentMonster = null; // Arena State
 
 window.onbeforeunload = () => { db.ref('players/' + data.name.replace(/\s+/g, '_')).remove(); };
 db.ref('players').on('value', snap => { otherPlayers = snap.val() || {}; render(); });
 db.ref('market').on('value', snap => { marketListings = snap.val() || {}; if(currentBuilding) updateModalContent(); });
-db.ref('world/villageStats/totalStone').on('value', snap => { villageStoneCount = snap.val() || 0; if(currentBuilding) updateModalContent(); });
 
 function sync() { db.ref('players/' + data.name.replace(/\s+/g, '_')).set(data); }
 
@@ -122,6 +119,12 @@ function render() {
     }
 }
 
+// ARENA GEGNER DATEN
+const monsters = [
+    { name: "Wald-Schleim", emoji: "🟢", hp: 35, reward: 5, loot: "slime" },
+    { name: "Skelett-Späher", emoji: "💀", hp: 60, reward: 10, loot: "bone" }
+];
+
 let currentBuilding = null;
 function openBuilding(b) { currentBuilding = b; toggleModal('gameModal', true); updateModalContent(); }
 
@@ -132,67 +135,65 @@ function updateModalContent() {
     
     right.innerHTML = `
         <div class="resource-badge">🪨 Stein: ${data.stein}</div>
-        <div class="resource-badge">🪵 Holz: ${data.wood || 0}</div>
-        <div class="resource-badge">⛓️ Eisen: ${data.iron || 0}</div>
         <div class="resource-badge">🦴 Knochen: ${data.bone}</div>
+        <div class="resource-badge">🟢 Schleim: ${data.slime}</div>
+        <div class="resource-badge">💎 LXP: ${data.lxp}</div>
     `;
 
-    if(currentBuilding === 'schmiede') {
-        left.innerHTML = `<h2 style="color:gold;">⚒️ DIE SCHMIEDE</h2>`;
-        left.innerHTML += craftRow('Knochendolch', '+5 ATK', {bone: 5, slime: 2}, 5);
-        left.innerHTML += craftRow('Eisenschwert', '+12 ATK', {iron: 8, wood: 5}, 12);
+    if(currentBuilding === 'arena') {
+        if(!currentMonster) {
+            left.innerHTML = `<h2 style="color:gold;">⚔️ DIE ARENA</h2>
+            <p>Bist du bereit für einen Kampf?</p>
+            <button class="btn-action" onclick="startPvE()">Zufallskampf starten</button>`;
+        } else {
+            left.innerHTML = `<h2 style="color:gold;">⚔️ KAMPF GEGEN ${currentMonster.name.toUpperCase()}</h2>
+            <div style="font-size:80px; margin: 20px;">${currentMonster.emoji}</div>
+            <div class="item-row">Gegner HP: <b>${currentMonster.hp}</b></div>
+            <button class="btn-action" onclick="attackEnemy()">Angreifen!</button>`;
+        }
     } 
+    else if(currentBuilding === 'schmiede') {
+        left.innerHTML = `<h2 style="color:gold;">⚒️ DIE SCHMIEDE</h2>
+        <div class="item-row">Knochendolch (+5 ATK)<br><button class="btn-action" onclick="finishCrafting(5, {bone:5})">Schmieden</button></div>`;
+    }
     else if(currentBuilding === 'markt') {
         left.innerHTML = `<h2 style="color:gold;">⚖️ MARKTPLATZ</h2>
-        <h4 style="color:silver;">🏘️ DORF-HANDEL</h4>
-        <div class="item-row"><span>10 Steine gegen 5 LXP</span> <button class="btn-action" onclick="tradeWithVillage('stein', 10, 5)">Tauschen</button></div>
-        <hr>
-        <h4 style="color:silver;">🛒 AUKTIONSHAUS</h4>
-        <div id="marketList"></div>
-        <button class="btn-action" style="margin-top:10px; background: #22c55e;" onclick="listOwnItem('trank', 25)">🧪 Item inserieren (25 LXP)</button>`;
-        const list = document.getElementById('marketList');
-        for(let key in marketListings) {
-            let item = marketListings[key];
-            list.innerHTML += `<div class="item-row"><span>${item.seller}: 1x ${item.type}</span><button class="btn-action" onclick="buyPlayerItem('${key}')">${item.price} LXP</button></div>`;
-        }
-    }
-    else if(currentBuilding === 'rathaus') {
-        left.innerHTML = `<h2 style="color:gold;">🏰 RATHAUS DES NESTES</h2>
-        <p style="font-style: italic; color: #ccc;">"Hier werden Legenden geboren."</p>
-        <div class="item-row">
-            <b>📜 DEIN STATUS:</b><br>
-            Held: ${data.name}<br>
-            Rang: ${data.lxp > 500 ? 'Meister-Ei' : 'Anfänger-Ei'}<br>
-            Angriffskraft: ${data.atk}
-        </div>
-        <div class="item-row" style="border: 1px solid #4ade80;">
-            <b>🌍 GEMEINSCHAFT:</b><br>
-            Gesammelte Steine: ${villageStoneCount}<br>
-            Dorf-Ziel: 500 für das nächste Level!
-        </div>`;
+        <div class="item-row">10 Steine ➔ 5 LXP <br> <button class="btn-action" onclick="tradeWithVillage('stein', 10, 5)">Tauschen</button></div>`;
     }
     else if(currentBuilding === 'steinbruch') {
         left.innerHTML = `<h2 style="color:gold;">⛏️ STEINBRUCH</h2>
-        <div style="font-size:100px; cursor:pointer;" onclick="harvest('stein')">🪨</div>
-        <p>Klicke zum Sammeln! (Dorf-Fortschritt: ${villageStoneCount})</p>`;
+        <div style="font-size:100px; cursor:pointer;" onclick="harvest('stein')">🪨</div>`;
     }
-    else if(currentBuilding === 'inventar') {
-        left.innerHTML = `<h2 style="color:gold;">🎒 DEIN RUCKSACK</h2>
-        <div class="item-row">Hier siehst du alle Schätze deiner Reise.</div>`;
-    }
+    else { left.innerHTML = `<h2 style="color:gold;">🎒 RUCKSACK</h2><p>Inventar wird geladen...</p>`; }
 }
 
-function craftRow(name, bonus, reqs, atkAdd) {
-    let metAll = true; let reqHtml = "";
-    for(let res in reqs) {
-        let has = data[res] || 0; let met = has >= reqs[res]; if(!met) metAll = false;
-        reqHtml += `<span class="${met?'req-met':'req-fail'}">${reqs[res]} ${res}</span> | `;
-    }
-    return `<div class="item-row"><b>${name}</b> (${bonus})<br><small>${reqHtml}</small><br>
-        <button class="btn-action" ${!metAll?'disabled':''} onclick="finishCrafting(${atkAdd}, ${JSON.stringify(reqs).replace(/"/g, '&quot;')})">Schmieden</button></div>`;
+// ARENA LOGIK
+function startPvE() {
+    currentMonster = {...monsters[Math.floor(Math.random() * monsters.length)]};
+    updateModalContent();
 }
 
+function attackEnemy() {
+    if(!currentMonster) return;
+    
+    // Schaden berechnen
+    let dmg = Math.floor(Math.random() * data.atk) + 5;
+    currentMonster.hp -= dmg;
+    
+    if(currentMonster.hp <= 0) {
+        // Sieg!
+        data.lxp += currentMonster.reward;
+        data[currentMonster.loot] = (data[currentMonster.loot] || 0) + 2;
+        alert(`Sieg! Du erhältst ${currentMonster.reward} LXP und 2x ${currentMonster.loot}!`);
+        currentMonster = null;
+        save(); sync();
+    }
+    updateModalContent();
+}
+
+// BASIS FUNKTIONEN
 function finishCrafting(add, cost) {
+    for(let res in cost) { if((data[res]||0) < cost[res]) return alert("Material fehlt!"); }
     for(let res in cost) data[res] -= cost[res];
     data.atk += add; save(); sync(); updateModalContent();
 }
@@ -203,7 +204,6 @@ function tradeWithVillage(item, qty, rew) {
 
 function harvest(item) {
     data[item] = (data[item] || 0) + 1;
-    if(item === 'stein') db.ref('world/villageStats/totalStone').transaction(c => (c || 0) + 1);
     save(); sync(); updateModalContent();
 }
 
@@ -214,11 +214,11 @@ function handleWorldClick(e) {
     save(); sync();
 }
 
-function toggleModal(id, s) { document.getElementById(id).style.display = s ? 'flex' : 'none'; if(!s) currentBuilding = null; }
+function toggleModal(id, s) { document.getElementById(id).style.display = s ? 'flex' : 'none'; if(!s) { currentBuilding = null; currentMonster = null; } }
 function updateUI() {
     document.getElementById('playerName').innerText = data.name;
     document.getElementById('hpC').innerText = data.hp;
-    document.getElementById('atkC').innerText = data.atk; // FIX: Schaden wird jetzt angezeigt!
+    document.getElementById('atkC').innerText = data.atk;
     document.getElementById('lxpC').innerText = data.lxp;
 }
 function save() { localStorage.setItem('nestData', JSON.stringify(data)); updateUI(); }
