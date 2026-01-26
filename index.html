@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>The Nest: Solo Leveling RPG Final</title>
+<title>The Nest: Solo Leveling RPG Master</title>
 <style>
     body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #000; color: #e0d8b0; }
     #viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; }
@@ -15,12 +15,8 @@
         position: absolute; transform-origin: 0 0; transition: transform 0.1s ease-out;
     }
 
-    /* ARENA INNEN (FF STYLE) */
-    #arena_scene {
-        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-        background: url('arena_innen.png') no-repeat center; background-size: cover;
-        display: none; z-index: 50000;
-    }
+    /* ARENA INNEN */
+    #arena_scene { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: url('arena_innen.png') no-repeat center; background-size: cover; display: none; z-index: 50000; }
 
     /* CHARAKTER */
     .creature { position: absolute; width: 80px; height: 100px; z-index: 1000; transition: left 0.8s ease-out, top 0.8s ease-out; text-align: center; transform: translate(-50%, -50%); }
@@ -28,24 +24,24 @@
     .name-tag { font-size: 14px; font-weight: bold; color: #fff; background: rgba(15, 23, 42, 0.9); padding: 2px 12px; border-radius: 8px; border: 1px solid #3b82f6; margin-top: 5px; }
 
     /* GEBÄUDE */
-    .building { position: absolute; background-size: contain; background-repeat: no-repeat; background-position: center; cursor: pointer; z-index: 10; transform: translate(-50%, -50%); border: 1px solid transparent; }
+    .building { position: absolute; background-size: contain; background-repeat: no-repeat; background-position: center; cursor: pointer; z-index: 10; transform: translate(-50%, -50%); }
     .label { position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: gold; padding: 2px 8px; border-radius: 5px; font-size: 12px; white-space: nowrap; border: 1px solid gold; }
 
+    /* MODALS & INVENTAR */
+    .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; z-index: 20000; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+    .menu-box { width: 650px; background: #0f172a; border: 3px solid #3b82f6; border-radius: 25px; padding: 25px; text-align: center; color: white; box-shadow: 0 0 30px rgba(59, 130, 246, 0.3); }
+    
+    .inv-container { display: grid; grid-template-columns: 100px 1fr 100px; gap: 15px; }
+    .inv-slot { background: #1e293b; border: 1px solid #334155; border-radius: 8px; height: 65px; display: flex; align-items: center; justify-content: center; font-size: 30px; }
+    .loot-grid { grid-column: 1 / span 3; display: grid; grid-template-columns: repeat(9, 1fr); gap: 5px; margin-top: 15px; }
+
     /* FF BATTLE UI */
-    #battle_ui {
-        position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-        width: 80%; height: 150px; background: rgba(0, 0, 150, 0.9);
-        border: 4px solid #fff; border-radius: 10px; display: flex; padding: 10px;
-        box-shadow: inset 0 0 20px #000; color: white;
-    }
-    .battle-menu { width: 30%; border-right: 2px solid #fff; display: flex; flex-direction: column; gap: 5px; }
-    .battle-log { width: 70%; padding: 0 20px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 14px; }
-    .battle-btn { background: none; border: none; color: white; text-align: left; font-size: 18px; cursor: pointer; padding: 5px; }
+    #battle_ui { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 85%; height: 160px; background: rgba(0, 0, 150, 0.9); border: 4px solid #fff; border-radius: 10px; display: flex; padding: 10px; box-shadow: inset 0 0 20px #000; }
+    .battle-btn { background: none; border: none; color: white; text-align: left; font-size: 20px; cursor: pointer; padding: 8px; font-weight: bold; }
     .battle-btn:hover { background: rgba(255,255,255,0.2); }
 
-    /* HUD */
-    #hud { position: fixed; top: 20px; left: 20px; background: rgba(15, 23, 42, 0.9); padding: 15px; border-radius: 15px; border: 2px solid #3b82f6; z-index: 5000; }
-    .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; z-index: 20000; align-items: center; justify-content: center; }
+    #hud { position: fixed; top: 20px; left: 20px; background: rgba(15, 23, 42, 0.95); padding: 15px; border-radius: 15px; border: 2px solid #3b82f6; z-index: 5000; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+    .btn-action { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border: none; padding: 12px 24px; border-radius: 10px; cursor: pointer; font-weight: bold; }
 </style>
 </head>
 <body>
@@ -53,15 +49,13 @@
 <div id="arena_scene">
     <div id="combatant_left" style="position:absolute; left:20%; top:50%; transform:translateY(-50%);"></div>
     <div id="combatant_right" style="position:absolute; right:20%; top:50%; transform:translateY(-50%);"></div>
-    
     <div id="battle_ui">
-        <div class="battle-menu">
+        <div style="width:30%; border-right:3px solid white; display:flex; flex-direction:column;">
             <button class="battle-btn" onclick="battleAction('Angriff')">⚔️ Angriff</button>
             <button class="battle-btn" onclick="battleAction('Magie')">🪄 Magie</button>
-            <button class="battle-btn" onclick="battleAction('Item')">🎒 Item</button>
             <button class="battle-btn" onclick="battleAction('Flucht')">🏃 Flucht</button>
         </div>
-        <div class="battle-log" id="arenaLog">Willkommen in der Arena! Bereite dich vor...</div>
+        <div id="arenaLog" style="padding:15px; overflow-y:auto; flex-grow:1; font-family:monospace; color: #4ade80;">BATTLE LOG: Runde 1 beginnt...</div>
     </div>
 </div>
 
@@ -79,17 +73,63 @@
 </div>
 
 <div id="hud">
-    <div style="color:#facc15; font-weight:bold; font-size:18px;">✨ <span id="playerName">Lädt...</span></div>
-    <div style="font-size:12px;">HP: <span id="hpCount">100</span>/<span id="maxHpCount">100</span> | MP: <span id="mpCount">20</span></div>
-    <div style="font-size:11px; color:#3b82f6;">LXP: <span id="lxp">0</span> | DEF: <span id="defCount">5</span></div>
+    <div style="color:#facc15; font-weight:bold; font-size: 18px;">👑 <span id="playerName">Lädt...</span></div>
+    <div style="font-size:12px; margin-top:5px;">
+        💎 LXP: <span id="lxpC">0</span> | 📈 EP: <span id="epC">0</span><br>
+        🪨 Stein: <span id="steinC">0</span> | 🪵 Holz: <span id="stockC">0</span>
+    </div>
+</div>
+
+<div id="invModal" class="modal">
+    <div class="menu-box">
+        <h2 style="color: #facc15; margin-top:0;">CHARAKTER STATUS</h2>
+        <div class="inv-container">
+            <div>
+                <div class="inv-slot">🪖</div><div class="inv-slot">🧥</div><div class="inv-slot">👞</div>
+            </div>
+            <div style="text-align:center;">
+                <div id="invAvatar" style="font-size: 100px;">🥚</div>
+                <p id="invClass" style="font-weight:bold; color:#3b82f6;">Ei</p>
+                <div style="font-size:12px; color:#94a3b8;">HP: 100/100</div>
+            </div>
+            <div>
+                <div class="inv-slot">🗡️</div><div class="inv-slot">🛡️</div><div class="inv-slot">💍</div>
+            </div>
+            <div id="lootGrid" class="loot-grid"></div>
+        </div>
+        <button class="btn-action" style="margin-top:20px;" onclick="toggleModal('invModal', false)">Schließen</button>
+    </div>
+</div>
+
+<div id="steinbruchModal" class="modal">
+    <div class="menu-box">
+        <h2 style="color:#facc15;">STEINBRUCH</h2>
+        <p>KLICKE DEN STEIN ZUM ABBAUEN!</p>
+        <div id="clickStone" onclick="mineStone()" style="width:200px; height:200px; margin: 0 auto; cursor:pointer; background:url('16bit_stein.png') no-repeat center; background-size:contain; filter:drop-shadow(0 0 10px #555);">
+            <span style="font-size:100px;">🪨</span>
+        </div>
+        <p style="font-weight:bold; font-size:20px;">+1 Stein!</p>
+        <button class="btn-action" onclick="toggleModal('steinbruchModal', false)">Arbeit beenden</button>
+    </div>
+</div>
+
+<div id="buildingModal" class="modal">
+    <div class="menu-box">
+        <h2 id="buildingTitle" style="color:#facc15;">Gebäude</h2>
+        <div id="buildingContent"></div>
+        <br>
+        <button class="btn-action" onclick="toggleModal('buildingModal', false)">Verlassen</button>
+    </div>
 </div>
 
 <script>
-// ERWEITERTE DATA STRUKTUR
+// --- DIEBSTAHLSCHUTZ & INITIALISIERUNG ---
+const STREAMER_BOT_IP = "DEINE_IP_HIER"; // Platzhalter für Streamer.bot
+const ALLOWED_USER = "spawn2909";
+
 let data = JSON.parse(localStorage.getItem('nestData')) || {
     name: "Held", lxp: 0, ep: 0, gras: 0, stock: 0, stein: 0, x: 960, y: 540,
-    currentClass: "Ei", emoji: "🥚", loot: [],
-    hp: 100, maxHp: 100, mp: 20, def: 5, atk: 10, isSub: false
+    currentClass: "Ei", emoji: "🥚", loot: [], hp: 100, maxHp: 100, atk: 10, def: 5, isSub: false
 };
 
 let zoom = 1.0;
@@ -98,7 +138,6 @@ let isCombat = false;
 
 window.addEventListener('wheel', (e) => {
     if(isCombat) return;
-    e.preventDefault();
     zoom = Math.min(Math.max(zoom + (e.deltaY > 0 ? -0.1 : 0.1), 0.3), 2.5);
     world.style.transform = `scale(${zoom})`;
 }, { passive: false });
@@ -107,16 +146,26 @@ function init() {
     const p = new URLSearchParams(window.location.search);
     if (p.get('user')) data.name = p.get('user');
     updateUI();
-    setInterval(autoCollect, 5000);
 }
 
 function updateUI() {
     document.getElementById('playerName').textContent = data.name;
-    document.getElementById('lxp').textContent = data.lxp;
-    document.getElementById('hpCount').textContent = data.hp;
-    document.getElementById('maxHpCount').textContent = data.maxHp;
-    document.getElementById('mpCount').textContent = data.mp;
-    document.getElementById('defCount').textContent = data.def;
+    document.getElementById('lxpC').textContent = data.lxp;
+    document.getElementById('epC').textContent = data.ep;
+    document.getElementById('steinC').textContent = data.stein;
+    document.getElementById('stockC').textContent = data.stock;
+    document.getElementById('invAvatar').textContent = data.emoji;
+    document.getElementById('invClass').textContent = data.currentClass;
+
+    const grid = document.getElementById('lootGrid');
+    grid.innerHTML = '';
+    for(let i=0; i<18; i++) { // 18 Slots (2 Zeilen à 9)
+        const s = document.createElement('div');
+        s.className = 'inv-slot';
+        s.style.height = "50px"; s.style.fontSize = "20px";
+        s.innerHTML = data.loot[i] || "";
+        grid.appendChild(s);
+    }
     renderChar();
 }
 
@@ -126,8 +175,6 @@ function renderChar() {
     const char = document.createElement('div');
     char.className = 'creature';
     char.style.left = data.x + "px"; char.style.top = data.y + "px";
-    
-    // Götter-Glow für Subs/Höhere Wesen
     let glow = data.isSub ? "filter: drop-shadow(0 0 20px gold) brightness(1.2);" : "";
     char.innerHTML = `<span class="avatar-emoji" style="${glow}">${data.emoji}</span><div class="name-tag">${data.name}</div>`;
     layer.appendChild(char);
@@ -138,68 +185,109 @@ function handleWorldClick(e) {
     const rect = world.getBoundingClientRect();
     data.x = (e.clientX - rect.left) / zoom;
     data.y = (e.clientY - rect.top) / zoom;
+    
+    if(Math.random() > 0.8) data.stock++; // Zufalls-Holz beim Laufen
     save();
 }
 
+// GEBÄUDE LOGIK
 function openBuilding(type) {
-    if(type === 'arena') {
-        startPvP();
-    } else {
-        alert("Menü für " + type + " öffnet sich...");
+    if(type === 'arena') { startPvP(); }
+    else if(type === 'steinbruch') { toggleModal('steinbruchModal', true); }
+    else if(type === 'markt') {
+        showMarket();
+    } else if(type === 'schmiede') {
+        showForge(false);
+    } else if(type === 'h_schmiede') {
+        showForge(true);
+    } else if(type === 'rathaus') {
+        showTownHall();
     }
 }
 
-// FF KAMPFSYSTEM
+function showMarket() {
+    document.getElementById('buildingTitle').textContent = "MARKTPLATZ";
+    document.getElementById('buildingContent').innerHTML = `
+        <p>Tausche deine Ressourcen gegen LXP!</p>
+        <button class="btn-action" onclick="trade('stein', 10)">10 Steine ➔ 5 LXP</button><br><br>
+        <button class="btn-action" onclick="trade('stock', 10)">10 Holz ➔ 5 LXP</button>
+    `;
+    toggleModal('buildingModal', true);
+}
+
+function showForge(holy) {
+    document.getElementById('buildingTitle').textContent = holy ? "HEILIGE SCHMIEDE" : "DORF-SCHMIEDE";
+    let content = holy ? "<p style='color:gold'>Götter-Veredelung (Subs & Bits)</p>" : "<p>Normales Crafting für Follower</p>";
+    content += `<button class="btn-action" onclick="alert('Schmieden noch in Arbeit...')">🛠 Ausrüstung herstellen</button>`;
+    document.getElementById('buildingContent').innerHTML = content;
+    toggleModal('buildingModal', true);
+}
+
+function showTownHall() {
+    document.getElementById('buildingTitle').textContent = "RATHAUS";
+    document.getElementById('buildingContent').innerHTML = `
+        <p><b>Bürger-Status:</b> ${data.name}</p>
+        <p>Rang: ${data.currentClass}</p>
+        <button class="btn-action" onclick="alert('Statistiken folgen...')">📜 Dorf-Statistik</button>
+    `;
+    toggleModal('buildingModal', true);
+}
+
+function mineStone() {
+    const s = document.getElementById('clickStone');
+    s.style.transform = "scale(0.9) rotate(5deg)";
+    setTimeout(() => s.style.transform = "scale(1)", 100);
+    data.stein += 1;
+    save();
+}
+
+function trade(res, amt) {
+    if(data[res] >= amt) {
+        data[res] -= amt;
+        data.lxp += 5;
+        save();
+        alert("Handel erfolgreich!");
+        showMarket();
+    } else {
+        alert("Nicht genug Ressourcen!");
+    }
+}
+
+// BATTLE LOGIK (FF STYLE)
 function startPvP() {
     isCombat = true;
     document.getElementById('arena_scene').style.display = 'block';
-    const log = document.getElementById('arenaLog');
-    log.innerHTML = "Ein Gegner fordert dich heraus! Wähle deine Aktion.";
-    
-    // Klone Charakter in die Arena
     document.getElementById('combatant_left').innerHTML = `<span style="font-size:100px;">${data.emoji}</span><br><b>${data.name}</b>`;
-    document.getElementById('combatant_right').innerHTML = `<span style="font-size:100px;">💀</span><br><b>PvP Gegner</b>`;
+    document.getElementById('combatant_right').innerHTML = `<span style="font-size:100px;">👿</span><br><b>PvP Gegner</b>`;
 }
 
 function battleAction(action) {
     const log = document.getElementById('arenaLog');
     if(action === 'Angriff') {
-        // SCHADENSFORMEL
-        let dmg = Math.floor((data.atk * 1.5) - (Math.random() * 5));
-        log.innerHTML += `<br>> ${data.name} greift an und macht ${dmg} Schaden!`;
-        
+        let dmg = Math.floor(data.atk * 1.5) - (Math.random() * 5);
+        log.innerHTML += `<br>> ${data.name} greift an für ${dmg} DMG!`;
         setTimeout(() => {
-            log.innerHTML += `<br>> Gegner kontert für 8 Schaden!`;
-            data.hp -= 8;
-            updateUI();
-            if(data.hp <= 0) battleEnd(false);
-            else if(Math.random() > 0.7) battleEnd(true); // Zufälliger Sieg für Demo
-        }, 1000);
-    }
-    if(action === 'Flucht') battleEnd(false);
+            log.innerHTML += `<br>> Gegner kontert! -8 HP`;
+            if(Math.random() > 0.7) { battleEnd(true); }
+        }, 800);
+    } else { battleEnd(false); }
 }
 
 function battleEnd(won) {
-    const log = document.getElementById('arenaLog');
-    log.innerHTML = won ? "SIEG! Du kehrst in den Wald zurück." : "Rückzug oder Niederlage...";
-    setTimeout(() => {
-        isCombat = false;
-        document.getElementById('arena_scene').style.display = 'none';
-        data.hp = data.maxHp; // Heal nach Kampf
-        updateUI();
-    }, 2000);
+    alert(won ? "SIEG!" : "Flucht...");
+    isCombat = false;
+    document.getElementById('arena_scene').style.display = 'none';
+    save();
 }
 
-function autoCollect() {
-    if(isCombat) return;
-    const dist = Math.hypot(data.x - 1500, data.y - 200);
-    if(dist < 180) { data.stein += 1; updateUI(); }
-}
-
-function toggleInv(s) { document.getElementById('invModal').style.display = s ? 'flex' : 'none'; }
+function toggleModal(id, show) { document.getElementById(id).style.display = show ? 'flex' : 'none'; }
 function save() { localStorage.setItem('nestData', JSON.stringify(data)); updateUI(); }
+function toggleInv(s) { toggleModal('invModal', s); }
 
 window.onload = init;
 </script>
+
+<button style="position:fixed; bottom:20px; right:20px; z-index:10000;" class="btn-action" onclick="toggleInv(true)">🎒 STATUS & INVENTAR</button>
+
 </body>
 </html>
