@@ -3,11 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>The Nest: Solo Leveling Multiplayer - NGROK EDITION</title>
+<title>The Nest: Solo Leveling Multiplayer - FIXED EDITION</title>
 <style>
     body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #000; color: #e0d8b0; }
     #viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; display: flex; align-items: center; justify-content: center; }
-    #world { width: 1920px; height: 1080px; background: url('./wald.png') no-repeat center; background-size: cover; position: absolute; transition: transform 0.1s ease-out; transform-origin: center center; }
+    #world { 
+        width: 1920px; height: 1080px; 
+        background: url('./wald.png') no-repeat center; background-size: cover;
+        position: absolute; transition: transform 0.1s ease-out;
+        transform-origin: center center; 
+    }
     
     /* Gebaeude */
     .building { position: absolute; background-size: contain; background-repeat: no-repeat; background-position: center; cursor: pointer; z-index: 10; transform: translate(-50%, -50%); }
@@ -36,7 +41,7 @@
 <div id="arena_scene">
     <div id="combatant_left" style="position:absolute; left:20%; top:50%; transform:translateY(-50%);"></div>
     <div id="combatant_right" style="position:absolute; right:20%; top:50%; transform:translateY(-50%);"></div>
-    <div id="battle_ui" style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); width:80%; height:160px; background:rgba(0,0,150,0.9); border:3px solid white; display:flex; padding:10px;">
+    <div id="battle_ui" style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); width:80%; height:160px; background:rgba(0, 0, 150, 0.9); border: 3px solid white; display:flex; padding:10px;">
         <div style="width:30%; border-right:2px solid white; display:flex; flex-direction:column;">
             <button class="btn-action" onclick="battleAction('Angriff')">⚔️ Angriff</button>
             <button class="btn-action" onclick="battleAction('Flucht')">🏃 Flucht</button>
@@ -53,6 +58,7 @@
         <div class="building" style="left:900px; top:200px; width:220px; height:220px; background-image:url('./heilige_schmiede.png');" onclick="event.stopPropagation(); openBuilding('h_schmiede')"><div class="label">H. Schmiede</div></div>
         <div class="building" style="left:700px; top:500px; width:180px; height:180px; background-image:url('./schmiede.png');" onclick="event.stopPropagation(); openBuilding('schmiede')"><div class="label">Schmiede</div></div>
         <div class="building" style="left:1600px; top:800px; width:280px; height:280px; background-image:url('./arena.png');" onclick="event.stopPropagation(); openBuilding('arena')"><div class="label">Arena</div></div>
+        
         <div id="charLayer"></div>
     </div>
 </div>
@@ -96,9 +102,8 @@ let zoom = 1.0;
 let isCombat = false;
 let socket;
 
-// === WEBSOCKET ÜBER NGROK (WSS) ===
+// === WEBSOCKET ÜBER NGROK ===
 function connect() {
-    // Hier ist deine ngrok-URL als sicherer WebSocket (wss) eingebaut!
     socket = new WebSocket("wss://sanjuana-unblissful-celine.ngrok-free.dev/");
 
     socket.onopen = () => {
@@ -111,6 +116,7 @@ function connect() {
         try {
             const raw = JSON.parse(e.data);
             const msg = raw.data || raw;
+            // Wir ignorieren Nachrichten von uns selbst, da wir uns lokal zeichnen (Fixed)
             if(msg.type === "updatePlayer" && msg.name !== data.name) {
                 otherPlayers[msg.name] = msg;
                 render();
@@ -135,30 +141,47 @@ function sync() {
     }
 }
 
-// === MULTIPLAYER RENDERING ===
+// === MULTIPLAYER RENDERING (SOFORT-SICHTBAR FIX) ===
 function render() {
+    // 1. Zuerst dich selbst lokal zeichnen
     updateOrCreateAvatar(data, true);
+    
+    // 2. Dann alle anderen aus dem Speicher zeichnen
     for (let name in otherPlayers) {
-        updateOrCreateAvatar(otherPlayers[name], false);
+        if(name !== data.name) {
+            updateOrCreateAvatar(otherPlayers[name], false);
+        }
     }
 }
 
 function updateOrCreateAvatar(pData, isMe) {
     const layer = document.getElementById('charLayer');
-    let avatar = document.getElementById("char_" + pData.name);
+    if(!layer) return;
+
+    // Name säubern für ID
+    const safeId = "char_" + pData.name.replace(/\s+/g, '_');
+    let avatar = document.getElementById(safeId);
+
     if (!avatar) {
         avatar = document.createElement('div');
-        avatar.id = "char_" + pData.name;
+        avatar.id = safeId;
         avatar.className = 'creature';
-        avatar.innerHTML = `<span class="avatar-emoji">${pData.emoji}</span><div class="name-tag" style="${isMe?'border-color:gold':''}">${pData.name}</div>`;
+        avatar.innerHTML = `
+            <span class="avatar-emoji">${pData.emoji || '🥚'}</span>
+            <div class="name-tag" style="${isMe ? 'border: 2px solid gold; box-shadow: 0 0 10px gold;' : ''}">${pData.name}</div>
+        `;
         layer.appendChild(avatar);
     }
+
     avatar.style.left = pData.x + "px";
     avatar.style.top = pData.y + "px";
     avatar.style.transform = `translate(-50%, -50%) scale(${1/zoom})`;
+    
+    // Eigenes Ei immer oben auf
+    if(isMe) avatar.style.zIndex = "2000";
 }
 
-// === SPIELLOGIK ===
+// === GAME LOGIK ===
 function handleWorldClick(e) {
     if(isCombat) return;
     const rect = document.getElementById('world').getBoundingClientRect();
@@ -189,7 +212,7 @@ function battleAction(act) {
         setTimeout(() => {
             let dmg = Math.floor(Math.random() * 10);
             data.hp -= dmg;
-            log.innerHTML += `<br>> Gegner kontert! -${dmg} HP`;
+            log.innerHTML += `<br>> Monster kontert! -${dmg} HP`;
             updateUI();
             log.scrollTop = log.scrollHeight;
         }, 600);
@@ -215,12 +238,14 @@ function updateUI() {
     document.getElementById('hpC').innerText = data.hp;
     document.getElementById('steinC').innerText = data.stein;
     const grid = document.getElementById('invGrid');
-    grid.innerHTML = `
-        <div class="inv-slot">🌿<br>${data.gras || 0}</div>
-        <div class="inv-slot">🍄<br>${data.pilz || 0}</div>
-        <div class="inv-slot">🪨<br>${data.stein || 0}</div>
-        <div class="inv-slot">💎<br>${data.lxp || 0}</div>
-    `;
+    if(grid) {
+        grid.innerHTML = `
+            <div class="inv-slot">🌿<br>${data.gras || 0}</div>
+            <div class="inv-slot">🍄<br>${data.pilz || 0}</div>
+            <div class="inv-slot">🪨<br>${data.stein || 0}</div>
+            <div class="inv-slot">💎<br>${data.lxp || 0}</div>
+        `;
+    }
     render();
 }
 
@@ -240,7 +265,7 @@ window.onwheel = (e) => {
     document.getElementById('world').style.transformOrigin = `${data.x}px ${data.y}px`;
     document.getElementById('world').style.transform = `scale(${zoom})`;
     render();
-};
+}, { passive: false };
 </script>
 </body>
 </html>
