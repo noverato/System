@@ -3,36 +3,49 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>The Nest: Solo Leveling Multiplayer - FIX</title>
+<title>The Nest: Solo Leveling Multiplayer Master</title>
 <style>
     body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #000; color: #e0d8b0; }
     #viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; display: flex; align-items: center; justify-content: center; }
-    #world { 
-        width: 1920px; height: 1080px; 
-        background: url('wald.png') no-repeat center; background-size: cover;
-        position: absolute; transition: transform 0.1s ease-out;
-        transform-origin: center center; 
-    }
+    #world { width: 1920px; height: 1080px; background: url('wald.png') no-repeat center; background-size: cover; position: absolute; transition: transform 0.1s ease-out; transform-origin: center center; }
+    
     /* Gebaeude */
     .building { position: absolute; background-size: contain; background-repeat: no-repeat; background-position: center; cursor: pointer; z-index: 10; transform: translate(-50%, -50%); }
     .label { position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: gold; padding: 2px 8px; border-radius: 5px; font-size: 12px; white-space: nowrap; border: 1px solid gold; }
     
-    /* Spieler */
+    /* Spieler & Eier */
     .creature { position: absolute; width: 80px; height: 100px; z-index: 1000; text-align: center; transform: translate(-50%, -50%); transition: left 0.8s ease-out, top 0.8s ease-out, transform 0.1s ease-out; }
     .avatar-emoji { font-size: 60px; display: block; filter: drop-shadow(0 0 15px rgba(59, 130, 246, 0.8)); }
     .name-tag { font-size: 14px; font-weight: bold; color: #fff; background: rgba(15, 23, 42, 0.9); padding: 2px 12px; border-radius: 8px; border: 1px solid #3b82f6; margin-top: 5px; }
     
-    /* UI */
+    /* UI & Modals */
     #hud { position: fixed; top: 20px; left: 20px; background: rgba(15, 23, 42, 0.95); padding: 15px; border-radius: 15px; border: 2px solid #3b82f6; z-index: 5000; }
     .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; z-index: 20000; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
     .menu-box { width: 600px; background: #0f172a; border: 3px solid #3b82f6; border-radius: 25px; padding: 25px; text-align: center; color: white; }
     .btn-action { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border: none; padding: 10px 20px; border-radius: 10px; cursor: pointer; font-weight: bold; margin: 5px; }
-    #connState { position: fixed; bottom: 10px; left: 10px; font-size: 10px; color: red; }
+    .inv-slot { background: #1e293b; border: 1px solid #334155; border-radius: 8px; height: 60px; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+    
+    #arena_scene { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: url('arena_innen.png') no-repeat center; background-size: cover; display: none; z-index: 50000; }
+    #connState { position: fixed; bottom: 10px; left: 10px; font-size: 10px; color: red; z-index: 10000; }
+    
+    .tab-bar { display: flex; justify-content: center; gap: 5px; margin-bottom: 15px; }
 </style>
 </head>
 <body>
 
 <div id="connState">Netzwerk: Getrennt</div>
+
+<div id="arena_scene">
+    <div id="combatant_left" style="position:absolute; left:20%; top:50%; transform:translateY(-50%);"></div>
+    <div id="combatant_right" style="position:absolute; right:20%; top:50%; transform:translateY(-50%);"></div>
+    <div id="battle_ui" style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); width:80%; height:160px; background:rgba(0,0,150,0.9); border:3px solid white; display:flex;">
+        <div style="width:30%; border-right:2px solid white; display:flex; flex-direction:column; padding:10px;">
+            <button class="btn-action" onclick="battleAction('Angriff')">⚔️ Angriff</button>
+            <button class="btn-action" onclick="battleAction('Flucht')">🏃 Flucht</button>
+        </div>
+        <div id="arenaLog" style="padding:15px; flex-grow:1; overflow-y:auto; font-family:monospace; color:#4ade80;">Kampf beginnt...</div>
+    </div>
+</div>
 
 <div id="viewport">
     <div id="world" onclick="handleWorldClick(event)">
@@ -42,72 +55,82 @@
         <div class="building" style="left:900px; top:200px; width:220px; height:220px; background-image:url('heilige_schmiede.png');" onclick="event.stopPropagation(); openBuilding('h_schmiede')"><div class="label">Heilige Schmiede</div></div>
         <div class="building" style="left:700px; top:500px; width:180px; height:180px; background-image:url('schmiede.png');" onclick="event.stopPropagation(); openBuilding('schmiede')"><div class="label">Schmiede</div></div>
         <div class="building" style="left:1600px; top:800px; width:280px; height:280px; background-image:url('arena.png');" onclick="event.stopPropagation(); openBuilding('arena')"><div class="label">Arena</div></div>
-        
         <div id="charLayer"></div>
     </div>
 </div>
 
 <div id="hud">
     <div style="color:#facc15; font-weight:bold;">👑 <span id="playerName">Lädt...</span></div>
-    <div>💎 LXP: <span id="lxpC">0</span> | 🪨 Stein: <span id="steinC">0</span></div>
-    <button class="btn-action" style="margin-top:10px" onclick="toggleModal('invModal', true)">🎒 Inventar</button>
+    <div style="font-size:11px;">❤️ HP: <span id="hpC">100</span> | 🪨 Stein: <span id="steinC">0</span></div>
+    <button class="btn-action" style="margin-top:5px; font-size:10px;" onclick="toggleModal('invModal', true)">🎒 Inventar</button>
 </div>
 
-<div id="invModal" class="modal"><div class="menu-box"><h2>DEIN INVENTAR</h2><div id="invGrid">Leer</div><br><button class="btn-action" onclick="toggleModal('invModal', false)">Schließen</button></div></div>
-<div id="steinbruchModal" class="modal"><div class="menu-box"><h2>STEINBRUCH</h2><p>Hier kannst du Steine klopfen...</p><button class="btn-action" onclick="data.stein++; updateUI(); save(); sync();">🪨 Stein abbauen</button><br><button class="btn-action" onclick="toggleModal('steinbruchModal', false)">Fertig</button></div></div>
+<div id="invModal" class="modal">
+    <div class="menu-box">
+        <h2 style="color:#facc15;">INVENTAR & ALCHEMIE</h2>
+        <div id="invGrid" style="display:grid; grid-template-columns: repeat(4, 1fr); gap:5px; margin-bottom:15px;"></div>
+        <button class="btn-action" onclick="craft('normal')">🧪 Trank brauen</button>
+        <button class="btn-action" onclick="toggleModal('invModal', false)">Schließen</button>
+    </div>
+</div>
+
+<div id="steinbruchModal" class="modal">
+    <div class="menu-box">
+        <h2>STEINBRUCH</h2>
+        <div onclick="data.stein++; updateUI(); save(); sync();" style="font-size:80px; cursor:pointer; margin:20px;">🪨</div>
+        <button class="btn-action" onclick="toggleModal('steinbruchModal', false)">Fertig</button>
+    </div>
+</div>
+
+<div id="buildingModal" class="modal">
+    <div class="menu-box">
+        <h2 id="buildingTitle">Gebäude</h2>
+        <div id="buildingContent"></div>
+        <button class="btn-action" onclick="toggleModal('buildingModal', false)">Verlassen</button>
+    </div>
+</div>
 
 <script>
 let data = JSON.parse(localStorage.getItem('nestData')) || {
-    name: "Held", x: 960, y: 540, stein: 0, lxp: 0, emoji: "🥚", hp: 100
+    name: "Held", x: 960, y: 540, stein: 0, gras: 0, pilz: 0, bgras: 0, trank: 0, lxp: 0, hp: 100, maxHp: 100, emoji: "🥚", atk: 12
 };
 let otherPlayers = {};
 let zoom = 1.0;
+let isCombat = false;
 let socket;
 
+// === WEBSOCKET ===
 function connect() {
     socket = new WebSocket("ws://127.0.0.1:8080/");
     socket.onopen = () => {
         document.getElementById('connState').innerText = "Netzwerk: Verbunden";
         document.getElementById('connState').style.color = "green";
-        sync(); 
+        sync();
     };
     socket.onmessage = (e) => {
         try {
             const raw = JSON.parse(e.data);
-            const msg = raw.data || raw; 
+            const msg = raw.data || raw;
             if(msg.type === "updatePlayer" && msg.name !== data.name) {
-                // Update Spieler-Datenbank
                 otherPlayers[msg.name] = msg;
-                // Zeichne Avatare neu
                 render();
             }
-        } catch(err) { console.log("Netzwerk-Fehler:", err); }
+        } catch(err) {}
     };
-    socket.onclose = () => { 
-        document.getElementById('connState').innerText = "Netzwerk: Getrennt";
-        document.getElementById('connState').style.color = "red";
-        setTimeout(connect, 5000); 
-    };
+    socket.onclose = () => { setTimeout(connect, 5000); };
 }
 
 function sync() {
     if(socket && socket.readyState === 1) {
         socket.send(JSON.stringify({
-            request: "DoAction",
-            actionName: "Multiplayer", 
-            args: {
-                type: "updatePlayer",
-                name: data.name,
-                x: data.x,
-                y: data.y,
-                emoji: data.emoji
-            }
+            request: "DoAction", actionName: "Multiplayer",
+            args: { type: "updatePlayer", name: data.name, x: data.x, y: data.y, emoji: data.emoji }
         }));
     }
 }
 
+// === SPIELER DARSTELLUNG ===
 function render() {
-    // Wir nutzen updateOrCreateAvatar für saubere Performance ohne Flackern
     updateOrCreateAvatar(data, true);
     for (let name in otherPlayers) {
         updateOrCreateAvatar(otherPlayers[name], false);
@@ -117,41 +140,86 @@ function render() {
 function updateOrCreateAvatar(pData, isMe) {
     const layer = document.getElementById('charLayer');
     let avatar = document.getElementById("char_" + pData.name);
-
     if (!avatar) {
         avatar = document.createElement('div');
         avatar.id = "char_" + pData.name;
         avatar.className = 'creature';
-        avatar.innerHTML = `
-            <span class="avatar-emoji">${pData.emoji || '🥚'}</span>
-            <div class="name-tag" style="${isMe ? 'border-color: gold;' : ''}">${pData.name}</div>
-        `;
+        avatar.innerHTML = `<span class="avatar-emoji">${pData.emoji}</span><div class="name-tag" style="${isMe?'border-color:gold':''}">${pData.name}</div>`;
         layer.appendChild(avatar);
     }
-
     avatar.style.left = pData.x + "px";
     avatar.style.top = pData.y + "px";
-    avatar.style.transform = `translate(-50%, -50%) scale(${1 / zoom})`;
+    avatar.style.transform = `translate(-50%, -50%) scale(${1/zoom})`;
 }
 
+// === GAME LOGIK ===
 function handleWorldClick(e) {
+    if(isCombat) return;
     const rect = document.getElementById('world').getBoundingClientRect();
     data.x = (e.clientX - rect.left) / zoom;
     data.y = (e.clientY - rect.top) / zoom;
+    
+    let r = Math.random() * 100;
+    if(r < 5) startPvP();
+    else if(r < 15) data.gras++;
+    else if(r < 25) data.pilz++;
+    
     save();
     sync();
 }
 
-function updateUI() {
-    document.getElementById('playerName').innerText = data.name;
-    document.getElementById('steinC').innerText = data.stein;
-    document.getElementById('lxpC').innerText = data.lxp;
-    render();
+function startPvP(enemy = "Wildschwein 🐗") {
+    isCombat = true;
+    document.getElementById('arena_scene').style.display = 'block';
+    document.getElementById('combatant_left').innerHTML = `<span style="font-size:100px;">${data.emoji}</span>`;
+    document.getElementById('combatant_right').innerHTML = `<span style="font-size:100px;">🐗</span>`;
+}
+
+function battleAction(act) {
+    const log = document.getElementById('arenaLog');
+    if(act === 'Flucht') { isCombat = false; document.getElementById('arena_scene').style.display = 'none'; }
+    else {
+        log.innerHTML += `<br>> Du greifst an!`;
+        setTimeout(() => {
+            let dmg = Math.floor(Math.random() * 10);
+            data.hp -= dmg;
+            log.innerHTML += `<br>> Monster kontert! -${dmg} HP`;
+            updateUI();
+            log.scrollTop = log.scrollHeight;
+        }, 600);
+    }
 }
 
 function openBuilding(b) {
     if(b === 'steinbruch') toggleModal('steinbruchModal', true);
-    else alert(b + " wird noch ausgebaut!");
+    else if(b === 'arena') startPvP();
+    else if(b === 'markt') {
+        document.getElementById('buildingTitle').innerText = "MARKTPLATZ";
+        document.getElementById('buildingContent').innerHTML = `<button class="btn-action" onclick="trade('stein', 10, 5)">10x Stein ➔ 5 LXP</button>`;
+        toggleModal('buildingModal', true);
+    }
+}
+
+function trade(item, qty, rew) {
+    if(data[item] >= qty) { data[item] -= qty; data.lxp += rew; save(); }
+}
+
+function craft(type) {
+    if(data.gras >= 2 && data.pilz >= 1) { data.gras -= 2; data.pilz -= 1; data.trank++; save(); alert("Trank fertig!"); }
+}
+
+function updateUI() {
+    document.getElementById('playerName').innerText = data.name;
+    document.getElementById('hpC').innerText = data.hp;
+    document.getElementById('steinC').innerText = data.stein;
+    const grid = document.getElementById('invGrid');
+    grid.innerHTML = `
+        <div class="inv-slot">🌿<br>${data.gras}</div>
+        <div class="inv-slot">🍄<br>${data.pilz}</div>
+        <div class="inv-slot">🧪<br>${data.trank}</div>
+        <div class="inv-slot">💎<br>${data.lxp}</div>
+    `;
+    render();
 }
 
 function toggleModal(id, show) { document.getElementById(id).style.display = show ? 'flex' : 'none'; }
@@ -165,9 +233,7 @@ window.onload = () => {
 };
 
 window.onwheel = (e) => {
-    e.preventDefault();
     zoom = Math.min(Math.max(zoom + (e.deltaY > 0 ? -0.1 : 0.1), 0.5), 2.0);
-    document.getElementById('world').style.transformOrigin = `${data.x}px ${data.y}px`;
     document.getElementById('world').style.transform = `scale(${zoom})`;
     render();
 };
