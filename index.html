@@ -18,7 +18,7 @@
     .label { position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: gold; padding: 2px 8px; border-radius: 5px; font-size: 12px; white-space: nowrap; border: 1px solid gold; }
     
     /* Spieler */
-    .creature { position: absolute; width: 80px; height: 100px; z-index: 1000; text-align: center; transform: translate(-50%, -50%); transition: left 0.5s linear, top 0.5s linear; }
+    .creature { position: absolute; width: 80px; height: 100px; z-index: 1000; text-align: center; transform: translate(-50%, -50%); transition: left 0.8s ease-out, top 0.8s ease-out, transform 0.1s ease-out; }
     .avatar-emoji { font-size: 60px; display: block; filter: drop-shadow(0 0 15px rgba(59, 130, 246, 0.8)); }
     .name-tag { font-size: 14px; font-weight: bold; color: #fff; background: rgba(15, 23, 42, 0.9); padding: 2px 12px; border-radius: 8px; border: 1px solid #3b82f6; margin-top: 5px; }
     
@@ -74,20 +74,24 @@ function connect() {
     socket.onmessage = (e) => {
         try {
             const raw = JSON.parse(e.data);
-            // Wichtig: Streamer.bot schickt oft Daten in 'data' oder direkt
             const msg = raw.data || raw; 
             if(msg.type === "updatePlayer" && msg.name !== data.name) {
+                // Update Spieler-Datenbank
                 otherPlayers[msg.name] = msg;
+                // Zeichne Avatare neu
                 render();
             }
         } catch(err) { console.log("Netzwerk-Fehler:", err); }
     };
-    socket.onclose = () => { setTimeout(connect, 5000); };
+    socket.onclose = () => { 
+        document.getElementById('connState').innerText = "Netzwerk: Getrennt";
+        document.getElementById('connState').style.color = "red";
+        setTimeout(connect, 5000); 
+    };
 }
 
 function sync() {
     if(socket && socket.readyState === 1) {
-        // Wir senden das Paket so, dass dein C# Script es verarbeiten kann
         socket.send(JSON.stringify({
             request: "DoAction",
             actionName: "Multiplayer", 
@@ -103,26 +107,31 @@ function sync() {
 }
 
 function render() {
-    const layer = document.getElementById('charLayer');
-    layer.innerHTML = '';
-    
-    // Selbst zeichnen
-    draw(data, layer, true);
-    
-    // Andere zeichnen
-    Object.values(otherPlayers).forEach(p => {
-        draw(p, layer, false);
-    });
+    // Wir nutzen updateOrCreateAvatar für saubere Performance ohne Flackern
+    updateOrCreateAvatar(data, true);
+    for (let name in otherPlayers) {
+        updateOrCreateAvatar(otherPlayers[name], false);
+    }
 }
 
-function draw(p, layer, isMe) {
-    const el = document.createElement('div');
-    el.className = 'creature';
-    el.style.left = p.x + "px";
-    el.style.top = p.y + "px";
-    el.style.transform = `translate(-50%, -50%) scale(${1/zoom})`;
-    el.innerHTML = `<span class="avatar-emoji">${p.emoji}</span><div class="name-tag" style="${isMe?'border-color:gold':''}">${p.name}</div>`;
-    layer.appendChild(el);
+function updateOrCreateAvatar(pData, isMe) {
+    const layer = document.getElementById('charLayer');
+    let avatar = document.getElementById("char_" + pData.name);
+
+    if (!avatar) {
+        avatar = document.createElement('div');
+        avatar.id = "char_" + pData.name;
+        avatar.className = 'creature';
+        avatar.innerHTML = `
+            <span class="avatar-emoji">${pData.emoji || '🥚'}</span>
+            <div class="name-tag" style="${isMe ? 'border-color: gold;' : ''}">${pData.name}</div>
+        `;
+        layer.appendChild(avatar);
+    }
+
+    avatar.style.left = pData.x + "px";
+    avatar.style.top = pData.y + "px";
+    avatar.style.transform = `translate(-50%, -50%) scale(${1 / zoom})`;
 }
 
 function handleWorldClick(e) {
@@ -156,7 +165,9 @@ window.onload = () => {
 };
 
 window.onwheel = (e) => {
+    e.preventDefault();
     zoom = Math.min(Math.max(zoom + (e.deltaY > 0 ? -0.1 : 0.1), 0.5), 2.0);
+    document.getElementById('world').style.transformOrigin = `${data.x}px ${data.y}px`;
     document.getElementById('world').style.transform = `scale(${zoom})`;
     render();
 };
