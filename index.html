@@ -129,8 +129,6 @@ let data = JSON.parse(localStorage.getItem('nestData')) || {
 let currentHP, maxHP, battleAtk;
 let combat = { active: false, enemyHP: 100, enemyMaxHP: 100 };
 
-window.onbeforeunload = () => { if(myID) db.ref('players/' + myID).remove(); };
-
 function sync() { 
     if(myID) {
         db.ref('players/' + myID).update({
@@ -149,6 +147,7 @@ window.onload = () => {
     
     myID = data.name.replace(/\s+/g, '_');
 
+    // STATS BERECHNUNG
     maxHP = 100 + (data.followDays * 2);
     battleAtk = 5 + (data.followDays / 10);
     currentHP = maxHP;
@@ -156,6 +155,12 @@ window.onload = () => {
     if(data.followDays >= 10) { data.emoji = "🦅"; document.getElementById('hudLevel').innerText = "Evolution: Greif"; }
     else if(data.followDays >= 5) { data.emoji = "🐥"; document.getElementById('hudLevel').innerText = "Evolution: Küken"; }
     else { data.emoji = "🥚"; document.getElementById('hudLevel').innerText = "Evolution: Ei"; }
+
+    // --- DATENSCHUTZ FIX: onDisconnect ---
+    // Registriert das automatische Löschen beim Verlassen der Seite
+    const playerRef = db.ref('players/' + myID);
+    playerRef.onDisconnect().remove();
+    // -------------------------------------
 
     sync();
 
@@ -176,7 +181,7 @@ window.onload = () => {
         }
     });
 
-    // SIMULTAN ARENA LISTENER (Sync für beide Spieler)
+    // SIMULTAN ARENA LISTENER
     db.ref('players/' + myID + '/matchActive').on('value', snap => {
         if(snap.val() === true) {
             db.ref('players/' + myID + '/opponentID').once('value', oSnap => {
