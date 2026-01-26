@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>The Nest: Isekai RPG - EXPLORE EDITION</title>
+    <title>The Nest: Isekai RPG - ECONOMY EDITION</title>
     <style>
         :root { --fantasy-bg: rgba(40, 30, 20, 0.95); --gold: #ffd700; --border: 2px solid #ffd700; --shadow: 0 0 15px rgba(255, 215, 0, 0.4); --btn-grad: linear-gradient(135deg, #b8860b, #8b4513); }
         body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Crimson Text', serif; background: #000; color: #fdf5e6; }
@@ -25,9 +25,11 @@
         .mmo-panel { width: 850px; background: var(--fantasy-bg); border: var(--border); border-radius: 20px; display: flex; overflow: hidden; }
         .btn-action { background: var(--btn-grad); color: white; border: 1px solid var(--gold); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 5px; font-size: 12px; }
         
-        .recipe-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,215,0,0.3); padding: 10px; margin-bottom: 10px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; }
-        .recipe-info { font-size: 13px; }
-        #miniInv div { background: rgba(255,215,0,0.1); margin: 4px 0; padding: 5px; border-radius: 5px; border-left: 3px solid var(--gold); font-size: 14px; }
+        .recipe-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px; }
+        .recipe-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,215,0,0.3); padding: 12px; border-radius: 10px; display: flex; flex-direction: column; justify-content: space-between; transition: 0.3s; }
+        .recipe-card.affinity { border-color: var(--gold); background: rgba(255, 215, 0, 0.1); box-shadow: 0 0 10px rgba(255, 215, 0, 0.2); }
+        .recipe-info { font-size: 13px; margin-bottom: 8px; }
+        #miniInv div { background: rgba(255,215,0,0.1); margin: 4px 0; padding: 5px; border-radius: 5px; border-left: 3px solid var(--gold); font-size: 13px; }
     </style>
 </head>
 <body>
@@ -45,7 +47,7 @@
 <div id="hud">
     <div style="color:gold; font-size: 18px; font-weight:bold;">👑 <span id="playerName">Held</span></div>
     <div id="hudClass" style="font-size:12px; color: #3b82f6; font-weight: bold; text-transform: uppercase;">Novize</div>
-    <div style="font-size:11px; color:#4ade80; margin-top: 5px;">💎 LXP: <span id="lxpC">0</span></div>
+    <div style="font-size:11px; color:#4ade80; margin-top: 5px;">💎 LXP: <span id="lxpC">0</span> | ⭐ LVL: <span id="lvlTotal">0</span></div>
 </div>
 
 <div id="gameModal" class="modal">
@@ -76,104 +78,127 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 const LOOT_POOL = {
-    wald: ['Stock', 'Gras', 'Moos', 'Pilz', 'Feder'],
-    steinbruch: ['Kiesel', 'Feuerstein', 'Lehm', 'Eisenerz']
+    wald: ['Stock', 'Gras', 'Moos', 'Pilz', 'Feder', 'Harz', 'Schattenstein'],
+    steinbruch: ['Kiesel', 'Feuerstein', 'Lehm', 'Eisenerz', 'Edelstein']
 };
 
 const CRAFTING_RECIPES = {
-    'Leinen': { needs: { 'Gras': 3 }, lxp: 5 },
-    'Pfeile': { needs: { 'Stock': 2, 'Feder': 1 }, lxp: 10 },
-    'Eisendolch': { needs: { 'Eisenerz': 3, 'Stock': 1 }, lxp: 25 },
-    'Schleifstein': { needs: { 'Kiesel': 5 }, lxp: 15 }
+    // TIER 1 & 2 (0-5 Level)
+    'Leinen': { tier: 1, needs: { 'Gras': 3 }, lxp: 5, aff: 'craftsman' },
+    'Schleifstein': { tier: 1, needs: { 'Kiesel': 3 }, lxp: 5, aff: 'warrior' },
+    'Einfacher Dolch': { tier: 2, needs: { 'Eisenerz': 1, 'Schleifstein': 1 }, lxp: 10, aff: 'shadow' },
+    'Holzpfeile': { tier: 2, needs: { 'Stock': 2, 'Feder': 1 }, lxp: 5, aff: 'ranger' },
+    'Wanderstab': { tier: 2, needs: { 'Stock': 3, 'Harz': 1 }, lxp: 10, aff: 'mage' },
+    'Verband': { tier: 1, needs: { 'Moos': 2, 'Leinen': 1 }, lxp: 5 },
+
+    // TIER 3 & 4 (6-10 Level)
+    'Eisenschwert': { tier: 3, needs: { 'Einfacher Dolch': 1, 'Eisenerz': 3, 'Schleifstein': 1 }, lxp: 20, aff: 'warrior' },
+    'Langbogen': { tier: 3, needs: { 'Stock': 5, 'Leinen': 2, 'Harz': 2 }, lxp: 25, aff: 'ranger' },
+    'Lederrüstung': { tier: 3, needs: { 'Leinen': 5, 'Harz': 3, 'Moos': 3 }, lxp: 30 },
+    'Magie-Fokus': { tier: 4, needs: { 'Edelstein': 3, 'Harz': 1, 'Stock': 1 }, lxp: 40, aff: 'mage' },
+    'Große Fackel': { tier: 3, needs: { 'Stock': 2, 'Harz': 3 }, lxp: 15 },
+    'Alchemistenglas': { tier: 4, needs: { 'Edelstein': 2, 'Feuerstein': 1 }, lxp: 20, aff: 'mage' },
+
+    // TIER 5 & 6 (11-19 Level)
+    'Runenklinge': { tier: 5, needs: { 'Eisenschwert': 1, 'Edelstein': 5 }, lxp: 10, aff: 'warrior' },
+    'Schattenbogen': { tier: 5, needs: { 'Langbogen': 1, 'Schattenstein': 3, 'Harz': 5 }, lxp: 40, aff: 'ranger' },
+    'Lich-Roben': { tier: 6, needs: { 'Leinen': 10, 'Edelstein': 5, 'Pilz': 5 }, lxp: 50, aff: 'mage' },
+    'Meister-Werkzeug': { tier: 5, needs: { 'Eisenerz': 5, 'Feuerstein': 5 }, lxp: 10, aff: 'craftsman' },
+    'Phönix-Feder': { tier: 6, needs: { 'Feder': 10, 'Feuerstein': 5, 'Edelstein': 5 }, lxp: 100 },
+
+    // TIER 7 (20+ Level)
+    'Götterdämmerung': { tier: 7, needs: { 'Runenklinge': 1, 'Eisenerz': 20 }, lxp: 50, aff: 'warrior' },
+    'Welteschen-Stab': { tier: 7, needs: { 'Stock': 10, 'Harz': 10, 'Edelstein': 20 }, lxp: 50, aff: 'mage' },
+    'Äther-Rüstung': { tier: 7, needs: { 'Leinen': 20, 'Edelstein': 10, 'Harz': 10 }, lxp: 50 }
 };
 
 const defaultData = {
     name: "Held", x: 960, y: 540, lxp: 0, emoji: "🥚",
     inventar: {},
-    stats: { warrior: 0, mage: 0, ranger: 0, craftsman: 0, shadow: 0, className: "Novize" }
+    stats: { warrior: 0, mage: 0, ranger: 0, craftsman: 0, shadow: 0, totalEvoLevel: 0, className: "Novize" }
 };
 
 let rawStored = JSON.parse(localStorage.getItem('nestData')) || {};
 let data = { ...defaultData, ...rawStored, stats: { ...defaultData.stats, ...(rawStored.stats || {}) }, inventar: { ...(rawStored.inventar || {}) } };
 let myID = "";
 
-// --- NEUE WORLD-CLICK SAMMEL LOGIK ---
 function checkLootOnMove(x, y) {
-    let area = "";
-    // Steinbruch-Zone: Oben Rechts (x > 1200, y < 450)
-    if (x > 1200 && y < 450) {
-        area = "steinbruch";
-    } else {
-        area = "wald";
-    }
-
-    let chance = 0.3;
-    const currentClass = (data.stats.className || "Novize").toLowerCase();
-    if (area === 'wald' && (currentClass.includes("ranger") || currentClass.includes("waldläufer"))) {
-        chance = 0.5;
-    }
+    let area = (x > 1200 && y < 450) ? "steinbruch" : "wald";
+    let chance = (area === 'wald' && data.stats.className.toLowerCase().includes("ranger")) ? 0.5 : 0.25;
 
     if (Math.random() < chance) {
-        const pool = LOOT_POOL[area];
-        const item = pool[Math.floor(Math.random() * pool.length)];
+        let pool = LOOT_POOL[area];
+        // Schattenstein Chance (10% innerhalb des Loots)
+        let item = (Math.random() < 0.1 && area === 'wald') ? 'Schattenstein' : pool[Math.floor(Math.random() * pool.length)];
         data.inventar[item] = (data.inventar[item] || 0) + 1;
-        
-        // Benachrichtigung im HUD oder via Alert (hier dezent via HUD-Farbe simuliert oder kleiner Text)
-        if (item === 'Pilz') { 
-            data.lxp += 5; 
-            console.log("🍄 Pilz gefunden! +5 LXP");
-        }
+        if (item === 'Pilz') data.lxp += 5;
         renderInventory();
         save();
     }
 }
 
 function craftItem(itemName) {
-    const recipe = CRAFTING_RECIPES[itemName];
-    const currentClass = (data.stats.className || "Novize").toLowerCase();
-    const isCraftsman = currentClass.includes("handwerker") || currentClass.includes("craftsman");
-    let finalLxpCost = isCraftsman ? Math.floor(recipe.lxp * 0.8) : recipe.lxp;
+    const r = CRAFTING_RECIPES[itemName];
+    const isCraftsman = data.stats.className.toLowerCase().includes("craftsman");
+    let finalLxp = isCraftsman ? Math.floor(r.lxp * 0.8) : r.lxp;
 
-    for (let mat in recipe.needs) {
-        if ((data.inventar[mat] || 0) < recipe.needs[mat]) { alert("Nicht genug Material!"); return; }
+    let missing = [];
+    for (let mat in r.needs) {
+        let have = data.inventar[mat] || 0;
+        if (have < r.needs[mat]) missing.push(`${r.needs[mat] - have}x ${mat}`);
     }
-    if (data.lxp < finalLxpCost) { alert("Nicht genug LXP!"); return; }
 
-    data.lxp -= finalLxpCost;
-    for (let mat in recipe.needs) { data.inventar[mat] -= recipe.needs[mat]; }
+    if (missing.length > 0) { alert(`Dir fehlen noch: ${missing.join(", ")}!`); return; }
+    if (data.lxp < finalLxp) { alert(`Nicht genug LXP! Kosten: ${finalLxp}`); return; }
+
+    data.lxp -= finalLxp;
+    for (let mat in r.needs) data.inventar[mat] -= r.needs[mat];
     data.inventar[itemName] = (data.inventar[itemName] || 0) + 1;
     save();
-    openBuilding('wald'); 
-}
-
-function renderInventory() {
-    const invDiv = document.getElementById('miniInv');
-    invDiv.innerHTML = '';
-    for (const item in data.inventar) {
-        if (data.inventar[item] > 0) invDiv.innerHTML += `<div>${item} x${data.inventar[item]}</div>`;
-    }
+    openBuilding('wald');
 }
 
 function openBuilding(b) {
     toggleModal('gameModal', true);
     renderInventory();
     const left = document.getElementById('modalLeft');
+    const totalLvl = data.stats.totalEvoLevel;
+    
     if (b === 'wald') {
-        let h = `<h2>Wald-Schmiede</h2><h3>📜 Rezepte</h3>`;
+        let h = `<h2>Wald-Schmiede</h2><div class="recipe-grid">`;
         for (let name in CRAFTING_RECIPES) {
             const r = CRAFTING_RECIPES[name];
-            h += `<div class="recipe-card"><div class="recipe-info"><strong>${name}</strong><br><small>${r.lxp} LXP</small></div><button class="btn-action" onclick="craftItem('${name}')">Schmieden</button></div>`;
+            // Tier-Sichtbarkeit Logik
+            let canSee = false;
+            if (r.tier <= 2 && totalLvl <= 5) canSee = true;
+            else if (r.tier <= 4 && totalLvl >= 6) canSee = true;
+            else if (r.tier <= 6 && totalLvl >= 11) canSee = true;
+            else if (r.tier === 7 && totalLvl >= 20) canSee = true;
+
+            if (!canSee) continue;
+
+            let isAffinity = (r.aff && data.stats.className.toLowerCase().includes(r.aff));
+            let needsTxt = Object.entries(r.needs).map(([i, q]) => `${q}x ${i}`).join(", ");
+            
+            h += `
+                <div class="recipe-card ${isAffinity ? 'affinity' : ''}">
+                    <div class="recipe-info">
+                        <strong>${name}</strong> ${isAffinity ? '⭐' : ''}<br>
+                        <small>${needsTxt}</small>
+                    </div>
+                    <button class="btn-action" onclick="craftItem('${name}')">${r.lxp} LXP</button>
+                </div>`;
         }
+        h += `</div>`;
         left.innerHTML = h;
-    } else {
-        left.innerHTML = `<h2>${b}</h2><p>Menü aktiv.</p>`;
-    }
+    } else { left.innerHTML = `<h2>${b}</h2><p>Aktuell keine Rezepte hier.</p>`; }
 }
 
 function calculateClassName() {
     let stats = data.stats;
     let paths = ["warrior", "mage", "ranger", "craftsman", "shadow"];
     let sorted = paths.map(p => ({key: p, val: stats[p] || 0})).sort((a,b) => b.val - a.val);
+    data.stats.totalEvoLevel = paths.reduce((sum, p) => sum + (stats[p] || 0), 0);
     data.stats.className = (sorted[0].val > 0) ? sorted[0].key : "Novize";
     return data.stats.className;
 }
@@ -182,8 +207,15 @@ function sync() { if(myID) db.ref('players/' + myID).update(data); }
 function save() { calculateClassName(); localStorage.setItem('nestData', JSON.stringify(data)); updateUI(); sync(); }
 function updateUI() {
     document.getElementById('playerName').innerText = data.name;
-    document.getElementById('hudClass').innerText = data.stats.className || "Novize";
+    document.getElementById('hudClass').innerText = data.stats.className;
     document.getElementById('lxpC').innerText = data.lxp;
+    document.getElementById('lvlTotal').innerText = data.stats.totalEvoLevel;
+}
+
+function renderInventory() {
+    const invDiv = document.getElementById('miniInv');
+    invDiv.innerHTML = '';
+    for (const item in data.inventar) { if (data.inventar[item] > 0) invDiv.innerHTML += `<div>${item} x${data.inventar[item]}</div>`; }
 }
 
 window.onload = () => {
@@ -192,7 +224,6 @@ window.onload = () => {
     myID = data.name.replace(/\s+/g, '_');
     db.ref('players/' + myID).onDisconnect().remove();
     save();
-    renderInventory();
     db.ref('players').on('value', snap => { renderPlayers(snap.val()); });
 };
 
@@ -206,27 +237,19 @@ function renderPlayers(players) {
         const div = document.createElement('div'); 
         div.className = 'creature';
         div.style.left = p.x + "px"; div.style.top = p.y + "px";
-        let visual = `<img src="Ei.png" onerror="this.outerHTML='🥚'">`;
-        if(p.emoji !== "🥚") visual = `<span style="font-size:50px;">${p.emoji}</span>`;
-        div.innerHTML = `${visual}<div class="name-tag">${p.name}<span class="class-tag">${p.stats ? p.stats.className : 'Novize'}</span></div>`;
+        const cN = (p.stats && p.stats.className) ? p.stats.className : "Novize";
+        div.innerHTML = `<img src="Ei.png" onerror="this.outerHTML='🥚'"><div class="name-tag">${p.name}<span class="class-tag">${cN}</span></div>`;
         layer.appendChild(div);
     }
 }
 
-// --- INTEGRIERTES LAUFEN & SAMMELN ---
 function handleWorldClick(e) {
     if(document.getElementById('gameModal').style.display === 'flex') return;
     const rect = document.getElementById('world').getBoundingClientRect();
-    const clickX = (e.clientX - rect.left);
-    const clickY = (e.clientY - rect.top);
-    
-    // Position aktualisieren
-    data.x = clickX;
-    data.y = clickY;
-    
-    // Sammel-Logik auslösen
-    checkLootOnMove(clickX, clickY);
-    
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    data.x = x; data.y = y;
+    checkLootOnMove(x, y);
     save();
 }
 
