@@ -147,7 +147,6 @@ window.onload = () => {
     
     myID = data.name.replace(/\s+/g, '_');
 
-    // STATS BERECHNUNG
     maxHP = 100 + (data.followDays * 2);
     battleAtk = 5 + (data.followDays / 10);
     currentHP = maxHP;
@@ -156,11 +155,8 @@ window.onload = () => {
     else if(data.followDays >= 5) { data.emoji = "🐥"; document.getElementById('hudLevel').innerText = "Evolution: Küken"; }
     else { data.emoji = "🥚"; document.getElementById('hudLevel').innerText = "Evolution: Ei"; }
 
-    // --- DATENSCHUTZ FIX: onDisconnect ---
-    // Registriert das automatische Löschen beim Verlassen der Seite
     const playerRef = db.ref('players/' + myID);
     playerRef.onDisconnect().remove();
-    // -------------------------------------
 
     sync();
 
@@ -208,6 +204,12 @@ function renderPlayers(players) {
 
     for(let id in players) {
         const p = players[id]; 
+
+        // --- FILTER LOGIK: HIER WIRD DER OBS-HOST AUSGEBLENDET ---
+        // Falls der Name 'Held' lautet, wird die Grafik nicht erstellt.
+        if (p.name === "Held") continue; 
+        // ---------------------------------------------------------
+
         const isMe = (p.name === data.name);
         const div = document.createElement('div'); 
         div.className = 'creature';
