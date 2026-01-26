@@ -80,7 +80,6 @@ const LOOT_POOL = {
     steinbruch: ['Kiesel', 'Feuerstein', 'Lehm', 'Eisenerz']
 };
 
-// --- CRAFTING REZEPTE ---
 const CRAFTING_RECIPES = {
     'Leinen': { needs: { 'Gras': 3 }, lxp: 5 },
     'Pfeile': { needs: { 'Stock': 2, 'Feder': 1 }, lxp: 10 },
@@ -88,16 +87,45 @@ const CRAFTING_RECIPES = {
     'Schleifstein': { needs: { 'Kiesel': 5 }, lxp: 15 }
 };
 
-let myID = "";
-let data = JSON.parse(localStorage.getItem('nestData')) || {
+// --- ROBUSTE INITIALISIERUNG ---
+const defaultData = {
     name: "Held", x: 960, y: 540, lxp: 0, emoji: "🥚",
     inventar: {},
     stats: { warrior: 0, mage: 0, ranger: 0, craftsman: 0, shadow: 0, className: "Novize" }
 };
 
+let rawStored = JSON.parse(localStorage.getItem('nestData')) || {};
+// Merge defaults mit gespeicherten Daten (stellt sicher, dass stats immer da ist)
+let data = { 
+    ...defaultData, 
+    ...rawStored,
+    stats: { ...defaultData.stats, ...(rawStored.stats || {}) },
+    inventar: { ...(rawStored.inventar || {}) }
+};
+
+let myID = "";
+
+function calculateClassName() {
+    // Sicherheits-Check falls stats im Laufzeit-Objekt fehlt
+    if (!data.stats) data.stats = { ...defaultData.stats };
+    
+    let stats = data.stats;
+    let paths = ["warrior", "mage", "ranger", "craftsman", "shadow"];
+    
+    // Sicherstellen, dass jeder Pfad zumindest 0 hat
+    let sorted = paths.map(p => ({
+        key: p, 
+        val: (stats[p] !== undefined) ? stats[p] : 0
+    })).sort((a,b) => b.val - a.val);
+    
+    data.stats.className = (sorted[0].val > 0) ? sorted[0].key : "Novize";
+    return data.stats.className;
+}
+
 function collectLoot(area) {
     let chance = 0.3;
-    if (area === 'wald' && data.stats.className.toLowerCase().includes("ranger")) chance = 0.5;
+    const className = data.stats.className || "Novize";
+    if (area === 'wald' && className.toLowerCase().includes("ranger")) chance = 0.5;
 
     if (Math.random() < chance) {
         const pool = LOOT_POOL[area];
@@ -110,15 +138,13 @@ function collectLoot(area) {
     } else { alert("Nichts gefunden..."); }
 }
 
-// --- CRAFTING FUNKTION ---
 function craftItem(itemName) {
     const recipe = CRAFTING_RECIPES[itemName];
-    const isCraftsman = data.stats.className.toLowerCase().includes("handwerker") || data.stats.className.toLowerCase().includes("craftsman");
+    const currentClass = (data.stats.className || "Novize").toLowerCase();
+    const isCraftsman = currentClass.includes("handwerker") || currentClass.includes("craftsman");
     
-    // Boni: 20% Rabatt auf LXP
     let finalLxpCost = isCraftsman ? Math.floor(recipe.lxp * 0.8) : recipe.lxp;
 
-    // Check Materialien
     for (let material in recipe.needs) {
         if ((data.inventar[material] || 0) < recipe.needs[material]) {
             alert(`Fehlendes Material: ${material}`);
@@ -126,13 +152,8 @@ function craftItem(itemName) {
         }
     }
 
-    // Check LXP
-    if (data.lxp < finalLxpCost) {
-        alert("Nicht genug LXP!");
-        return;
-    }
+    if (data.lxp < finalLxpCost) { alert("Nicht genug LXP!"); return; }
 
-    // Abziehen & Hinzufügen
     data.lxp -= finalLxpCost;
     for (let material in recipe.needs) {
         data.inventar[material] -= recipe.needs[material];
@@ -141,11 +162,12 @@ function craftItem(itemName) {
 
     alert(`🔨 Erfolg! ${itemName} hergestellt.`);
     save();
-    openBuilding('wald'); // UI Refresh
+    openBuilding('wald'); 
 }
 
 function renderInventory() {
     const invDiv = document.getElementById('miniInv');
+    if(!invDiv) return;
     invDiv.innerHTML = '';
     for (const item in data.inventar) {
         if (data.inventar[item] > 0) invDiv.innerHTML += `<div>${item} x${data.inventar[item]}</div>`;
@@ -158,19 +180,13 @@ function openBuilding(b) {
     const left = document.getElementById('modalLeft');
     
     if (b === 'wald') {
-        let recipesHtml = `<h2>Wald-Schmiede</h2><p>Sammle Materialien oder stelle Items her.</p>
-        <button class="btn-action" style="width:100%; margin-bottom:20px;" onclick="collectLoot('wald')">🌿 Umgebung absuchen</button>
-        <h3>📜 Handwerks-Rezepte</h3>`;
-        
+        let recipesHtml = `<h2>Wald-Schmiede</h2><button class="btn-action" style="width:100%; margin-bottom:20px;" onclick="collectLoot('wald')">🌿 Umgebung absuchen</button><h3>📜 Rezepte</h3>`;
         for (let name in CRAFTING_RECIPES) {
             const r = CRAFTING_RECIPES[name];
             let needsTxt = Object.entries(r.needs).map(([item, qty]) => `${qty}x ${item}`).join(", ");
             recipesHtml += `
                 <div class="recipe-card">
-                    <div class="recipe-info">
-                        <strong>${name}</strong><br>
-                        <small>Bedarf: ${needsTxt} | Kosten: ${r.lxp} LXP</small>
-                    </div>
+                    <div class="recipe-info"><strong>${name}</strong><br><small>${needsTxt} | ${r.lxp} LXP</small></div>
                     <button class="btn-action" onclick="craftItem('${name}')">Herstellen</button>
                 </div>`;
         }
@@ -178,16 +194,8 @@ function openBuilding(b) {
     } else if (b === 'steinbruch') {
         left.innerHTML = `<h2>Steinbruch</h2><button class="btn-action" onclick="collectLoot('steinbruch')">⛏️ Graben</button>`;
     } else {
-        left.innerHTML = `<h2>${b}</h2><p>Hier gibt es aktuell nichts zu tun.</p>`;
+        left.innerHTML = `<h2>Rathaus</h2><p>Verwalte deine Evolution.</p>`;
     }
-}
-
-function calculateClassName() {
-    let stats = data.stats;
-    let paths = ["warrior", "mage", "ranger", "craftsman", "shadow"];
-    let sorted = paths.map(p => ({key: p, val: stats[p] || 0})).sort((a,b) => b.val - a.val);
-    data.stats.className = (sorted[0].val > 0) ? sorted[0].key : "Novize";
-    return data.stats.className;
 }
 
 function sync() { if(myID) db.ref('players/' + myID).update(data); }
@@ -201,7 +209,7 @@ function save() {
 
 function updateUI() {
     document.getElementById('playerName').innerText = data.name;
-    document.getElementById('hudClass').innerText = data.stats.className;
+    document.getElementById('hudClass').innerText = data.stats.className || "Novize";
     document.getElementById('lxpC').innerText = data.lxp;
 }
 
@@ -209,24 +217,37 @@ window.onload = () => {
     const p = new URLSearchParams(window.location.search);
     if(p.get('user')) data.name = p.get('user');
     myID = data.name.replace(/\s+/g, '_');
+    
     db.ref('players/' + myID).onDisconnect().remove();
+    
+    // WICHTIG: Erster Sync um Stats-Objekt in DB zu erzwingen
     save();
+    
     db.ref('players').on('value', snap => { renderPlayers(snap.val()); });
 };
 
 function renderPlayers(players) {
     const layer = document.getElementById('charLayer'); 
+    if(!layer) return;
     layer.innerHTML = '';
+    if(!players) return;
+
     for(let id in players) {
         const p = players[id]; 
         const isMe = (id === myID);
         if (p.name === "Held" && !isMe) continue; 
+
         const div = document.createElement('div'); 
         div.className = 'creature';
         div.style.left = p.x + "px"; div.style.top = p.y + "px";
+        
+        // SICHERHEITS-ABFRAGE FÜR FREMDE SPIELER
+        const cName = (p.stats && p.stats.className) ? p.stats.className : "Novize";
+
         let visual = `<img src="Ei.png" onerror="this.outerHTML='🥚'">`;
         if(p.emoji !== "🥚") visual = `<span style="font-size:50px;">${p.emoji}</span>`;
-        div.innerHTML = `${visual}<div class="name-tag">${p.name}<span class="class-tag">${p.stats.className}</span></div>`;
+        
+        div.innerHTML = `${visual}<div class="name-tag">${p.name}<span class="class-tag">${cName}</span></div>`;
         layer.appendChild(div);
     }
 }
