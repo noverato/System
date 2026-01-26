@@ -19,14 +19,14 @@
     .name-tag { font-size: 14px; font-weight: bold; color: #fff; background: rgba(15, 23, 42, 0.9); padding: 2px 12px; border-radius: 8px; border: 1px solid #3b82f6; margin-top: 5px; }
     .building { position: absolute; background-size: contain; background-repeat: no-repeat; background-position: center; cursor: pointer; z-index: 10; transform: translate(-50%, -50%); }
     .label { position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: gold; padding: 2px 8px; border-radius: 5px; font-size: 12px; white-space: nowrap; border: 1px solid gold; }
-    .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; z-index: 20000; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
-    .menu-box { width: 650px; background: #0f172a; border: 3px solid #3b82f6; border-radius: 25px; padding: 25px; text-align: center; color: white; box-shadow: 0 0 30px rgba(59, 130, 246, 0.3); }
     #hud { position: fixed; top: 20px; left: 20px; background: rgba(15, 23, 42, 0.95); padding: 15px; border-radius: 15px; border: 2px solid #3b82f6; z-index: 5000; }
     .btn-action { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border: none; padding: 10px 20px; border-radius: 10px; cursor: pointer; font-weight: bold; margin: 2px; }
-    .inv-slot { background: #1e293b; border: 1px solid #334155; border-radius: 8px; height: 65px; display: flex; align-items: center; justify-content: center; font-size: 30px; }
+    #connectionStatus { position: fixed; bottom: 10px; left: 10px; font-size: 10px; color: #ef4444; z-index: 10000; }
 </style>
 </head>
 <body>
+
+<div id="connectionStatus">Netzwerk: Getrennt</div>
 
 <div id="arena_scene">
     <div id="combatant_left" style="position:absolute; left:20%; top:50%; transform:translateY(-50%);"></div>
@@ -45,63 +45,73 @@
         <div class="building" style="left:1500px; top:200px; width:220px; height:220px; background-image:url('steinbruch.png');" onclick="event.stopPropagation(); openBuilding('steinbruch')"><div class="label">Steinbruch</div></div>
         <div class="building" style="left:1200px; top:750px; width:220px; height:220px; background-image:url('marktplatz.png');" onclick="event.stopPropagation(); openBuilding('markt')"><div class="label">Marktplatz</div></div>
         <div class="building" style="left:400px; top:300px; width:250px; height:250px; background-image:url('rathaus.png');" onclick="event.stopPropagation(); openBuilding('rathaus')"><div class="label">Rathaus</div></div>
-        <div class="building" style="left:900px; top:200px; width:220px; height:220px; background-image:url('heilige_schmiede.png');" onclick="event.stopPropagation(); openBuilding('h_schmiede')"><div class="label">Heilige Schmiede</div></div>
-        <div class="building" style="left:700px; top:500px; width:180px; height:180px; background-image:url('schmiede.png');" onclick="event.stopPropagation(); openBuilding('schmiede')"><div class="label">Schmiede</div></div>
-        <div class="building" style="left:1600px; top:800px; width:280px; height:280px; background-image:url('arena.png');" onclick="event.stopPropagation(); openBuilding('arena')"><div class="label">Arena</div></div>
         <div id="charLayer"></div>
     </div>
 </div>
 
 <div id="hud">
     <div style="color:#facc15; font-weight:bold;">👑 <span id="playerName">Lädt...</span></div>
-    <div style="font-size:11px; margin-top:5px;">
-        ❤️ HP: <span id="hpC">100</span> | 💎 LXP: <span id="lxpC">0</span><br>
-        🪨 Stein: <span id="steinC">0</span> | 🌿 Gras: <span id="grasC">0</span>
-    </div>
+    <div style="font-size:11px;">❤️ HP: <span id="hpC">100</span> | 🪨 Stein: <span id="steinC">0</span></div>
 </div>
 
 <script>
-// --- MULTIPLAYER DATEN ---
 let data = JSON.parse(localStorage.getItem('nestData')) || {
     name: "Held", lxp: 0, ep: 0, gras: 0, bgras: 0, stein: 0, pilz: 0, trank: 0,
     x: 960, y: 540, currentClass: "Ei", emoji: "🥚", hp: 100, maxHp: 100, atk: 12, def: 5
 };
 
-// Hier werden die anderen Spieler gespeichert
 let otherPlayers = {}; 
-
 let zoom = 1.0;
 const world = document.getElementById('world');
 let isCombat = false;
+let socket;
 
-window.addEventListener('wheel', (e) => {
-    if(isCombat) return;
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? -0.1 : 0.1;
-    zoom = Math.min(Math.max(zoom + delta, 0.52), 2.5);
-    world.style.transformOrigin = `${data.x}px ${data.y}px`;
-    world.style.transform = `scale(${zoom})`;
-    updateCreatureScales();
-}, { passive: false });
+// === WEBSOCKET VERBINDUNG (STREAMER.BOT) ===
+function connectWebSocket() {
+    // Port 8080 ist Standard bei Streamer.bot - ggf. anpassen!
+    socket = new WebSocket("ws://127.0.0.1:8080/");
 
-function updateUI() {
-    document.getElementById('playerName').textContent = data.name;
-    document.getElementById('lxpC').textContent = data.lxp;
-    document.getElementById('hpC').textContent = data.hp;
-    document.getElementById('steinC').textContent = data.stein;
-    document.getElementById('grasC').textContent = data.gras;
-    renderPlayers();
+    socket.onopen = () => {
+        document.getElementById('connectionStatus').textContent = "Netzwerk: Verbunden";
+        document.getElementById('connectionStatus').style.color = "#22c55e";
+        // Sende initial deine Position
+        broadcastPosition();
+    };
+
+    socket.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        // Wenn der Bot Positionsdaten von anderen schickt:
+        if(msg.type === "updatePlayer") {
+            otherPlayers[msg.data.name] = msg.data;
+            renderPlayers();
+        }
+    };
+
+    socket.onclose = () => {
+        document.getElementById('connectionStatus').textContent = "Netzwerk: Getrennt - Reconnect...";
+        document.getElementById('connectionStatus').style.color = "#ef4444";
+        setTimeout(connectWebSocket, 5000);
+    };
 }
 
-// === MULTIPLAYER RENDERING ===
+function broadcastPosition() {
+    if(socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({
+            request: "DoAction",
+            actionId: "DEINE_ACTION_ID_HIER", // Optionale Streamer.bot Action
+            args: {
+                type: "updatePlayer",
+                data: { name: data.name, x: data.x, y: data.y, emoji: data.emoji }
+            }
+        }));
+    }
+}
+
+// === SPIELER RENDERN ===
 function renderPlayers() {
     const layer = document.getElementById('charLayer');
     layer.innerHTML = '';
-    
-    // Zeichne dich selbst
-    drawCreature(data, layer, true);
-
-    // Zeichne andere (Diese Daten müssen später von deinem Bot kommen)
+    drawCreature(data, layer, true); // Du selbst
     Object.values(otherPlayers).forEach(p => {
         if(p.name !== data.name) drawCreature(p, layer, false);
     });
@@ -113,7 +123,6 @@ function drawCreature(pData, layer, isMe) {
     char.style.left = pData.x + "px";
     char.style.top = pData.y + "px";
     char.style.transform = `translate(-50%, -50%) scale(${1 / zoom})`;
-    
     char.innerHTML = `
         <span class="avatar-emoji">${pData.emoji || '🥚'}</span>
         <div class="name-tag" style="${isMe ? 'border-color: gold;' : ''}">${pData.name}</div>
@@ -126,47 +135,36 @@ function handleWorldClick(e) {
     const rect = world.getBoundingClientRect();
     data.x = (e.clientX - rect.left) / zoom;
     data.y = (e.clientY - rect.top) / zoom;
-    
-    // Netzwerk-Update simulieren:
-    // Hier müsste ein Befehl an Streamer.bot stehen: sendPosition(data.x, data.y);
-    
+    broadcastPosition(); // Sende neue Position an den Bot
     save();
 }
 
-function updateCreatureScales() {
-    document.querySelectorAll('.creature').forEach(p => {
-        p.style.transform = `translate(-50%, -50%) scale(${1 / zoom})`;
-    });
+window.addEventListener('wheel', (e) => {
+    if(isCombat) return;
+    e.preventDefault();
+    zoom = Math.min(Math.max(zoom + (e.deltaY > 0 ? -0.1 : 0.1), 0.52), 2.5);
+    world.style.transformOrigin = `${data.x}px ${data.y}px`;
+    world.style.transform = `scale(${zoom})`;
+    document.querySelectorAll('.creature').forEach(p => p.style.transform = `translate(-50%, -50%) scale(${1 / zoom})`);
+}, { passive: false });
+
+function updateUI() {
+    document.getElementById('playerName').textContent = data.name;
+    document.getElementById('hpC').textContent = data.hp;
+    document.getElementById('steinC').textContent = data.stein;
+    renderPlayers();
 }
 
-function startPvP(enemy = "Monster 👿") {
-    isCombat = true;
-    document.getElementById('arena_scene').style.display = 'block';
-    document.getElementById('combatant_left').innerHTML = `<span style="font-size:100px;">${data.emoji}</span><br><b>${data.name}</b>`;
-    document.getElementById('combatant_right').innerHTML = `<span style="font-size:100px;">👿</span><br><b>${enemy}</b>`;
-}
-
-function battleAction(action) {
-    if(action === 'Flucht') { isCombat = false; document.getElementById('arena_scene').style.display='none'; }
-    else { document.getElementById('arenaLog').innerHTML += "<br>Angriff!"; }
-}
-
-function openBuilding(type) {
-    if(type === 'arena') startPvP();
-    else alert(type + " Menü öffnet sich...");
-}
-
-function save() { 
-    localStorage.setItem('nestData', JSON.stringify(data)); 
-    updateUI(); 
-}
+function save() { localStorage.setItem('nestData', JSON.stringify(data)); updateUI(); }
+function openBuilding(t) { alert(t + " Menü"); }
+function toggleModal(id, show) { document.getElementById(id).style.display = show ? 'flex' : 'none'; }
 
 window.onload = () => {
     const p = new URLSearchParams(window.location.search);
     if (p.get('user')) data.name = p.get('user');
     updateUI();
+    connectWebSocket(); // Starte die Verbindung
 };
 </script>
-
 </body>
 </html>
