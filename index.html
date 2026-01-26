@@ -11,7 +11,6 @@
         #viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; display: flex; align-items: center; justify-content: center; }
         #world { width: 1920px; height: 1080px; background: url('./wald.png') no-repeat center; background-size: cover; position: absolute; transition: transform 0.1s ease-out; transform-origin: center center; z-index: 1; }
         
-        /* SPIELER GRAFIKEN IM VORDERGRUND */
         #charLayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1000; }
         .creature { position: absolute; width: 80px; height: 100px; text-align: center; transform: translate(-50%, -50%); transition: left 0.6s ease-out, top 0.6s ease-out; pointer-events: auto; cursor: crosshair; }
         .creature img { height: 80px; filter: drop-shadow(0 0 8px rgba(0,0,0,0.6)); }
@@ -52,7 +51,7 @@
     <div id="combatScene">
         <div class="combat-unit">
             <h2 id="pNameDisp" style="color: gold; margin:0;">DU</h2>
-            <div id="playerVisual" style="height: 120px; font-size: 80px; display: flex; align-items: center; justify-content: center;"></div>
+            <div id="playerVisual" style="height: 120px; display: flex; align-items: center; justify-content: center;"></div>
             <div class="hp-bar-bg">
                 <div id="playerHPFill" class="bar-fill-hp"></div>
                 <div class="hp-text" id="pHPText">100 / 100</div>
@@ -60,7 +59,7 @@
         </div>
         <div class="combat-unit">
             <h2 id="enemyNameDisp" style="color: white; margin:0;">GEGNER</h2>
-            <div id="enemyVisual" style="font-size: 80px; display: flex; align-items: center; justify-content: center;">🐗</div>
+            <div id="enemyVisual" style="height: 120px; display: flex; align-items: center; justify-content: center;"></div>
             <div class="hp-bar-bg">
                 <div id="enemyHPFill" class="bar-fill-hp"></div>
                 <div class="hp-text" id="eHPText">100 / 100</div>
@@ -150,7 +149,6 @@ window.onload = () => {
     
     myID = data.name.replace(/\s+/g, '_');
 
-    // FORMELN
     maxHP = 100 + (data.followDays * 2);
     battleAtk = 5 + (data.followDays / 10);
     currentHP = maxHP;
@@ -159,24 +157,40 @@ window.onload = () => {
     else if(data.followDays >= 5) { data.emoji = "🐥"; document.getElementById('hudLevel').innerText = "Evolution: Küken"; }
     else { data.emoji = "🥚"; document.getElementById('hudLevel').innerText = "Evolution: Ei"; }
 
-    // INITIALER LOGIN TRIGGER
     sync();
 
-    // SPIELER SNAPSHOT
     db.ref('players').on('value', snap => { renderPlayers(snap.val()); });
 
+    // CHALLENGE LISTENER
     db.ref('players/' + myID + '/challengePending').on('value', snap => {
         if(snap.val() === true) {
-            if(confirm("⚔️ HERAUSFORDERUNG! Kampf annehmen?")) {
-                db.ref('players/' + myID).update({ challengePending: false, matchActive: true });
-            } else {
-                db.ref('players/' + myID).update({ challengePending: false });
-            }
+            db.ref('players/' + myID + '/challengerName').once('value', cSnap => {
+                let challenger = cSnap.val();
+                if(confirm("⚔️ HERAUSFORDERUNG von " + challenger + "! Kampf annehmen?")) {
+                    db.ref('players/' + challenger).update({ matchActive: true, opponentID: myID });
+                    db.ref('players/' + myID).update({ challengePending: false, matchActive: true, opponentID: challenger });
+                } else {
+                    db.ref('players/' + myID).update({ challengePending: false });
+                }
+            });
         }
     });
 
+    // SIMULTAN ARENA LISTENER (Sync für beide Spieler)
     db.ref('players/' + myID + '/matchActive').on('value', snap => {
-        if(snap.val() === true) startArenaFight({ name: "Herausforderer", emoji: "⚔️", hp: 150 });
+        if(snap.val() === true) {
+            db.ref('players/' + myID + '/opponentID').once('value', oSnap => {
+                let oppID = oSnap.val();
+                db.ref('players/' + oppID).once('value', dSnap => {
+                    let oppData = dSnap.val();
+                    startArenaFight({ 
+                        name: oppData.name, 
+                        emoji: oppData.emoji, 
+                        hp: 100 + (oppData.followDays * 2) 
+                    });
+                });
+            });
+        }
     });
 
     updateUI();
@@ -190,21 +204,14 @@ function renderPlayers(players) {
     for(let id in players) {
         const p = players[id]; 
         const isMe = (p.name === data.name);
-        
         const div = document.createElement('div'); 
         div.className = 'creature';
         div.style.left = p.x + "px"; 
         div.style.top = p.y + "px";
+        div.style.zIndex = isMe ? "1001" : "1000";
 
-        // Grafik-Check: Wenn Ei, dann Ei.png nutzen
         let visual = p.emoji === "🥚" ? `<img src="Ei.png">` : `<span style="font-size:60px;">${p.emoji}</span>`;
-        
-        div.innerHTML = `
-            ${visual}
-            <div class="name-tag" style="${isMe ? 'border-color: gold; color: gold;' : ''}">
-                ${p.name} (EP: ${p.ep || 0})
-            </div>
-        `;
+        div.innerHTML = `${visual}<div class="name-tag" style="${isMe ? 'border-color: gold; color: gold;' : ''}">${p.name} (LVL ${p.followDays || 0})</div>`;
 
         if(!isMe) {
             div.onclick = (e) => {
@@ -215,7 +222,10 @@ function renderPlayers(players) {
                 menu.style.top = e.clientY + "px";
                 document.getElementById('pvpTargetName').innerText = p.name;
                 document.getElementById('pvpChallengeBtn').onclick = () => {
-                    db.ref('players/' + p.name.replace(/\s+/g, '_')).update({ challengePending: true });
+                    db.ref('players/' + p.name.replace(/\s+/g, '_')).update({ 
+                        challengePending: true, 
+                        challengerName: data.name 
+                    });
                     alert("Herausforderung verschickt!");
                     menu.style.display = 'none';
                 };
@@ -230,12 +240,14 @@ function startArenaFight(target = null) {
     combat.enemyMaxHP = target ? target.hp : 100;
     combat.enemyHP = combat.enemyMaxHP;
     document.getElementById('arenaLayer').style.display = 'flex';
-    document.getElementById('pNameDisp').innerText = `${data.name.toUpperCase()} (EP: ${data.followDays})`;
-    document.getElementById('enemyNameDisp').innerText = target ? target.name : "WALDKREATUR";
+    document.getElementById('pNameDisp').innerText = `${data.name.toUpperCase()}`;
+    document.getElementById('enemyNameDisp').innerText = target ? target.name.toUpperCase() : "GEGNER";
     
     const pVis = document.getElementById('playerVisual');
-    pVis.innerHTML = data.emoji === "🥚" ? `<img src="Ei.png" style="height:100px;">` : data.emoji;
-    document.getElementById('enemyVisual').innerText = target ? target.emoji : "🐗";
+    pVis.innerHTML = data.emoji === "🥚" ? `<img src="Ei.png" style="height:100px;">` : `<span style="font-size:80px;">${data.emoji}</span>`;
+    
+    const eVis = document.getElementById('enemyVisual');
+    eVis.innerHTML = target ? (target.emoji === "🥚" ? `<img src="Ei.png" style="height:100px;">` : `<span style="font-size:80px;">${target.emoji}</span>`) : "🐗";
     
     updateArenaUI();
 }
@@ -254,9 +266,7 @@ function arenaAction(type) {
     if(combat.enemyHP <= 0) {
         alert("SIEG!");
         data.lxp += 10;
-        document.getElementById('arenaLayer').style.display = 'none';
-        combat.active = false;
-        db.ref('players/' + myID).update({ matchActive: false });
+        arenaAction('flee');
         save();
     } else {
         setTimeout(() => {
@@ -266,9 +276,7 @@ function arenaAction(type) {
             if(currentHP <= 0) {
                 alert("Besiegt!");
                 currentHP = maxHP;
-                document.getElementById('arenaLayer').style.display = 'none';
-                combat.active = false;
-                db.ref('players/' + myID).update({ matchActive: false });
+                arenaAction('flee');
             }
             updateArenaUI();
         }, 500);
@@ -287,11 +295,11 @@ function updateArenaUI() {
 function openBuilding(b) {
     if(b === 'arena') { startArenaFight(); return; }
     toggleModal('gameModal', true);
-    document.getElementById('miniInv').innerHTML = `🪨 Steine: ${data.stein}<br>🦴 Knochen: ${data.bone}`;
+    document.getElementById('miniInv').innerHTML = `🪨 Steine: ${data.stein}`;
     const left = document.getElementById('modalLeft');
     if(b === 'steinbruch') left.innerHTML = `<h2>Steinbruch</h2><button class="btn-action" onclick="data.stein++; save(); openBuilding('steinbruch')">Sammeln</button>`;
     else if(b === 'markt') left.innerHTML = `<h2>Marktplatz</h2><button class="btn-action" onclick="if(data.stein>=10){data.stein-=10;data.lxp+=5;save();openBuilding('markt')}">10 Stein -> 5 LXP</button>`;
-    else left.innerHTML = `<h2>${b}</h2><p>Keine Aktion verfügbar.</p>`;
+    else left.innerHTML = `<h2>${b}</h2><p>Aktuell keine Aktion.</p>`;
 }
 
 function handleWorldClick(e) {
