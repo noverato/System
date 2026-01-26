@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>The Nest: Isekai RPG - ARENA REPAIR</title>
+    <title>The Nest: Isekai RPG - ARENA PRO MAX</title>
     <style>
         :root { --fantasy-bg: rgba(40, 30, 20, 0.95); --gold: #ffd700; --border: 2px solid #ffd700; --shadow: 0 0 15px rgba(255, 215, 0, 0.4); --btn-grad: linear-gradient(135deg, #b8860b, #8b4513); }
         body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Crimson Text', serif; background: #000; color: #fdf5e6; }
@@ -14,41 +14,68 @@
         .creature { position: absolute; width: 80px; height: 100px; z-index: 1000; text-align: center; transform: translate(-50%, -50%); transition: left 0.6s ease-out, top 0.6s ease-out; }
         .name-tag { font-size: 14px; font-weight: bold; color: #fff; background: rgba(15, 23, 42, 0.9); padding: 2px 12px; border-radius: 8px; border: 1px solid #3b82f6; margin-top: 5px; }
 
-        /* ARENA LAYER */
-        #arenaLayer { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: url('./arena_innen.png') no-repeat center; background-size: cover; z-index: 60000; display: none; flex-direction: column; justify-content: flex-end; align-items: center; }
-        #battleMenu { width: 90%; height: 200px; background: rgba(0, 0, 50, 0.95); border: 4px solid #fff; border-radius: 10px; margin-bottom: 20px; display: grid; grid-template-columns: 250px 1fr; padding: 10px; box-sizing: border-box; }
-        .battle-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .btn-battle { background: #000080; color: white; border: 2px solid #fff; font-family: monospace; font-size: 18px; cursor: pointer; text-align: left; padding: 5px 15px; }
+        /* ARENA LAYER PRO MAX */
+        #arenaLayer { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: url('./arena_innen.png') no-repeat center; background-size: cover; z-index: 60000; display: none; flex-direction: column; justify-content: space-between; align-items: center; padding: 40px 0; box-sizing: border-box; }
+        #combatScene { display: flex; width: 90%; justify-content: space-between; align-items: center; margin-bottom: auto; margin-top: 20px; }
+        .combat-unit { text-align: center; width: 300px; }
+        
+        /* Fixed Bar Styles */
+        .hp-bar-bg, .mp-bar-bg { width: 100%; height: 20px; background: #222; border: 2px solid #fff; border-radius: 5px; margin-top: 10px; overflow: hidden; position: relative; box-shadow: 0 0 5px #000; }
+        .mp-bar-bg { height: 15px; margin-top: 5px; }
+        .bar-fill-hp { height: 100%; background: linear-gradient(90deg, #800, #f00); width: 100%; transition: width 0.4s ease-in-out; }
+        .bar-fill-mp { height: 100%; background: linear-gradient(90deg, #008, #00f); width: 100%; transition: width 0.4s ease-in-out; }
+        .bar-text { position: absolute; width: 100%; top: 0; left: 0; font-size: 12px; line-height: 20px; color: white; font-weight: bold; text-shadow: 1px 1px 2px black; pointer-events: none; }
+        
+        #battleMenu { width: 95%; height: 180px; background: rgba(0, 0, 40, 0.95); border: 4px solid #fff; border-radius: 10px; display: grid; grid-template-columns: 300px 1fr; padding: 10px; box-sizing: border-box; }
+        .battle-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .btn-battle { background: #0000a0; color: white; border: 2px solid #fff; font-family: 'Crimson Text', serif; font-size: 18px; cursor: pointer; padding: 8px; text-align: left; }
         .btn-battle:hover { background: #fff; color: #000; }
-        .btn-battle:disabled { opacity: 0.5; cursor: not-allowed; }
-        #battleLog { border-left: 2px solid #fff; padding: 10px; overflow-y: auto; font-family: monospace; font-size: 16px; color: #00ff00; text-align: left; }
+        .btn-battle:disabled { opacity: 0.5; }
+        #battleLog { border-left: 2px solid #fff; padding: 10px; overflow-y: auto; font-family: monospace; font-size: 16px; color: #00ff00; text-align: left; background: rgba(0,0,0,0.3); }
 
-        /* HUD & MODALS */
+        /* HUD & VILLAGE (EINGEFROREN) */
         #hud { position: fixed; top: 20px; left: 20px; background: var(--fantasy-bg); padding: 15px; border-radius: 12px; border: var(--border); z-index: 5000; min-width: 180px; }
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; z-index: 20000; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
-        .mmo-panel { width: 850px; background: var(--fantasy-bg); border: var(--border); border-radius: 20px; display: flex; overflow: hidden; box-shadow: var(--shadow); }
+        .mmo-panel { width: 850px; background: var(--fantasy-bg); border: var(--border); border-radius: 20px; display: flex; overflow: hidden; }
         .panel-left { flex: 2; padding: 25px; border-right: 1px solid rgba(255, 215, 0, 0.3); max-height: 70vh; overflow-y: auto; }
         .panel-right { flex: 1; padding: 25px; background: rgba(20, 15, 10, 0.5); display: flex; flex-direction: column; }
         .btn-action { background: var(--btn-grad); color: white; border: 1px solid var(--gold); padding: 10px 18px; border-radius: 12px; cursor: pointer; font-weight: bold; }
-        .item-row { background: rgba(0,0,0,0.3); border-radius: 10px; padding: 10px; margin-bottom: 8px; border: 1px solid rgba(255,215,0,0.2); }
     </style>
 </head>
 <body>
 
 <div id="arenaLayer">
-    <div id="enemyDisplay" style="margin-bottom: auto; margin-top: 50px; text-align: center;">
-        <div id="enemyEmoji" style="font-size: 120px;">🐗</div>
-        <h2 id="enemyName" style="color: white; text-shadow: 2px 2px #000;">Gegner</h2>
-        <div id="enemyHPBar" style="width: 300px; height: 20px; background: #500; border: 2px solid #fff;">
-            <div id="enemyHPFill" style="width: 100%; height: 100%; background: #f00;"></div>
+    <div id="combatScene">
+        <div class="combat-unit">
+            <h2 id="pNameDisp" style="color: gold; text-shadow: 2px 2px #000; margin:0;">DICH</h2>
+            <div id="playerVisual" style="height: 150px; display: flex; align-items: center; justify-content: center;">
+                </div>
+            <div class="hp-bar-bg">
+                <div id="playerHPFill" class="bar-fill-hp"></div>
+                <div class="bar-text" id="pHPText">100 / 100</div>
+            </div>
+            <div class="mp-bar-bg">
+                <div id="playerMPFill" class="bar-fill-mp"></div>
+                <div class="bar-text" id="pMPText">100 / 100</div>
+            </div>
+        </div>
+
+        <div class="combat-unit">
+            <h2 id="enemyName" style="color: white; text-shadow: 2px 2px #000; margin:0;">Gegner</h2>
+            <div id="enemyEmoji" style="font-size: 100px; height: 150px; display: flex; align-items: center; justify-content: center;">🐗</div>
+            <div class="hp-bar-bg">
+                <div id="enemyHPFill" class="bar-fill-hp"></div>
+                <div class="bar-text" id="eHPText">0 / 0</div>
+            </div>
         </div>
     </div>
+
     <div id="battleMenu">
         <div class="battle-buttons">
             <button id="btnAtk" class="btn-battle" onclick="arenaAction('attack')">⚔️ ANGRIFF</button>
-            <button id="btnMag" class="btn-battle" onclick="arenaAction('magic')">🔮 MAGIE</button>
+            <button id="btnMag" class="btn-battle" onclick="arenaAction('magic')">🔮 MAGIE (20 MP)</button>
             <button id="btnItm" class="btn-battle" onclick="arenaAction('item')">🎒 TRANK</button>
-            <button id="btnFlee" class="btn-battle" onclick="arenaAction('flee')">🏃 FLUCHT</button>
+            <button class="btn-battle" onclick="arenaAction('flee')">🏃 FLUCHT</button>
         </div>
         <div id="battleLog">> Kampf bereit...</div>
     </div>
@@ -68,17 +95,14 @@
 <div id="hud">
     <div style="color:gold; font-size: 18px; font-weight:bold;">👑 <span id="playerName">Held</span></div>
     <div style="font-size:14px; margin-top:5px;">❤️ HP: <span id="hpC">100</span> | ⚔️ ATK: <span id="atkC">12</span></div>
-    <div style="font-size:14px; color:#4ade80;">💎 LXP: <span id="lxpC">0</span></div>
+    <div style="font-size:14px; color:#3b82f6;">⭐ EP: <span id="epC">0</span></div>
+    <div style="font-size:12px; color:#4ade80;">💎 LXP: <span id="lxpC">0</span></div>
 </div>
 
 <div id="gameModal" class="modal">
     <div class="mmo-panel">
         <div class="panel-left" id="modalLeft"></div>
-        <div class="panel-right">
-            <h3 style="color:gold;">🎒 STATUS</h3>
-            <div id="miniInv" style="font-size:14px;"></div>
-            <button class="btn-action" style="margin-top:auto;" onclick="toggleModal('gameModal', false)">Schließen X</button>
-        </div>
+        <div class="panel-right"><h3 style="color:gold;">🎒 STATUS</h3><div id="miniInv" style="font-size:14px;"></div><button class="btn-action" style="margin-top:auto;" onclick="toggleModal('gameModal', false)">Schließen X</button></div>
     </div>
 </div>
 
@@ -99,8 +123,10 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 let data = JSON.parse(localStorage.getItem('nestData')) || {
-    name: "Held", x: 960, y: 540, stein: 0, bone: 0, slime: 0, blood: 0, trank: 1, lxp: 0, hp: 100, atk: 12, emoji: "🥚"
+    name: "Held", x: 960, y: 540, stein: 0, bone: 0, slime: 0, blood: 0, trank: 1, lxp: 0, ep: 0, hp: 100, mp: 100, atk: 12, emoji: "🥚"
 };
+if(!data.ep) data.ep = 0;
+if(!data.mp) data.mp = 100;
 
 let combat = { active: false, enemyHP: 0, enemyMaxHP: 0, enemyName: "", enemyAtk: 0, turn: "player" };
 const monsterPool = [
@@ -111,117 +137,84 @@ const monsterPool = [
 
 window.onbeforeunload = () => { db.ref('players/' + data.name.replace(/\s+/g, '_')).remove(); };
 db.ref('players').on('value', snap => { renderPlayers(snap.val()); });
-
 function sync() { db.ref('players/' + data.name.replace(/\s+/g, '_')).set(data); }
 
-/* --- DORF-LOGIK (RESTORED) --- */
-function openBuilding(b) {
-    if(b === 'arena') { startArenaFight(); return; }
-    toggleModal('gameModal', true);
-    updateVillageUI(b);
-}
-
+/* VILLAGE FUNCTIONS */
+function openBuilding(b) { if(b === 'arena') { startArenaFight(); return; } toggleModal('gameModal', true); updateVillageUI(b); }
 function updateVillageUI(b) {
     const left = document.getElementById('modalLeft');
     const right = document.getElementById('miniInv');
     right.innerHTML = `🪨 Steine: ${data.stein}<br>🦴 Knochen: ${data.bone}<br>🧪 Tränke: ${data.trank}`;
-
-    if(b === 'steinbruch') {
-        left.innerHTML = `<h2>⛏️ Steinbruch</h2><div style="font-size:80px; cursor:pointer;" onclick="harvest()">🪨</div><p>Klicke zum Abbauen!</p>`;
-    } else if(b === 'schmiede') {
-        left.innerHTML = `<h2>⚒️ Schmiede</h2><div class="item-row">Knochendolch (+5 ATK)<br>Kosten: 5 Knochen<br><button class="btn-action" onclick="craft('dagger')">Schmieden</button></div>`;
-    } else if(b === 'markt') {
-        left.innerHTML = `<h2>⚖️ Marktplatz</h2><div class="item-row">10 Steine ➔ 5 LXP<br><button class="btn-action" onclick="sell('stein')">Verkaufen</button></div>`;
-    } else if(b === 'rathaus') {
-        left.innerHTML = `<h2>🏰 Rathaus</h2><p>Willkommen, ${data.name}. Dein Fortschritt ist sicher.</p>`;
-    }
+    if(b === 'steinbruch') left.innerHTML = `<h2>⛏️ Steinbruch</h2><div style="font-size:80px; cursor:pointer;" onclick="harvest()">🪨</div>`;
+    else if(b === 'schmiede') left.innerHTML = `<h2>⚒️ Schmiede</h2><button class="btn-action" onclick="craft('dagger')">Schmieden</button>`;
+    else if(b === 'markt') left.innerHTML = `<h2>⚖️ Marktplatz</h2><button class="btn-action" onclick="sell('stein')">Verkaufen</button>`;
+    else if(b === 'rathaus') left.innerHTML = `<h2>🏰 Rathaus</h2><p>Willkommen, ${data.name}.</p>`;
 }
-
 function harvest() { data.stein++; save(); updateVillageUI('steinbruch'); }
 function sell(item) { if(data[item] >= 10) { data[item]-=10; data.lxp+=5; save(); updateVillageUI('markt'); } }
-function craft(type) { if(data.bone >= 5) { data.bone-=5; data.atk+=5; save(); updateVillageUI('schmiede'); } else { alert("Material fehlt!"); } }
+function craft(type) { if(data.bone >= 5) { data.bone-=5; data.atk+=5; save(); updateVillageUI('schmiede'); } }
 
-/* --- ARENA-FIX (REPARIERT) --- */
+/* ARENA PRO FUNCTIONS */
 function startArenaFight() {
     let enemy = monsterPool[Math.floor(Math.random() * monsterPool.length)];
-    combat = { 
-        active: true, 
-        turn: "player", 
-        enemyName: enemy.name,
-        enemyEmoji: enemy.emoji,
-        enemyHP: enemy.hp, 
-        enemyMaxHP: enemy.hp, 
-        enemyAtk: enemy.atk,
-        reward: enemy.reward,
-        loot: enemy.loot
-    };
+    combat = { active: true, turn: "player", ...enemy, enemyHP: enemy.hp, enemyMaxHP: enemy.hp, enemyAtk: enemy.atk };
     
     document.getElementById('arenaLayer').style.display = 'flex';
-    document.getElementById('enemyName').innerText = combat.enemyName;
-    document.getElementById('enemyEmoji').innerText = combat.enemyEmoji;
-    document.getElementById('battleLog').innerHTML = `> Ein ${combat.enemyName} greift an!`;
-    setButtons(true);
+    document.getElementById('pNameDisp').innerText = data.name.toUpperCase();
+    document.getElementById('enemyName').innerText = combat.name.toUpperCase();
+    document.getElementById('enemyEmoji').innerText = combat.emoji;
+    
+    // SPIELER-BILD LADEN (Variable für hochgeladenes PNG)
+    const pVis = document.getElementById('playerVisual');
+    pVis.innerHTML = `<img src="./eier-bild.png" style="height:100%; filter: drop-shadow(0 0 10px gold);">`;
+
+    document.getElementById('battleLog').innerHTML = `> Ein ${combat.name} versperrt dir den Weg!`;
     updateArenaUI();
 }
 
 function arenaAction(type) {
-    if(!combat.active) return;
+    if(!combat.active || combat.turn !== "player") return;
     const log = document.getElementById('battleLog');
 
-    if(type === 'flee') {
-        document.getElementById('arenaLayer').style.display = 'none';
-        combat.active = false;
-        return;
-    }
-
-    if(combat.turn !== "player") return;
+    if(type === 'flee') { document.getElementById('arenaLayer').style.display = 'none'; combat.active = false; return; }
 
     if(type === 'attack') {
         let dmg = Math.floor(Math.random() * data.atk) + 5;
         combat.enemyHP -= dmg;
         log.innerHTML += `<br>> Du triffst für ${dmg} Schaden!`;
     } else if(type === 'magic') {
-        combat.enemyHP -= 25;
-        log.innerHTML += `<br>> Magie trifft für 25 Schaden!`;
+        if(data.mp >= 20) {
+            data.mp -= 20; combat.enemyHP -= 30;
+            log.innerHTML += `<br>> Magie-Explosion trifft für 30 Schaden!`;
+        } else { log.innerHTML += `<br>> Zu wenig MP!`; return; }
     } else if(type === 'item') {
         if(data.trank > 0) { data.hp = 100; data.trank--; log.innerHTML += `<br>> Trank genutzt! HP voll.`; }
-        else { log.innerHTML += `<br>> Kein Trank vorhanden!`; }
+        else { log.innerHTML += `<br>> Kein Trank vorhanden!`; return; }
     }
 
-    log.scrollTop = log.scrollHeight;
     updateArenaUI();
-
     if(combat.enemyHP <= 0) {
-        log.innerHTML += `<br>> SIEG! +${combat.reward} LXP & Loot erhalten!`;
-        data.lxp += combat.reward;
-        data[combat.loot] = (data[combat.loot] || 0) + 1;
-        save();
-        setTimeout(() => { document.getElementById('arenaLayer').style.display = 'none'; combat.active = false; }, 1500);
+        log.innerHTML += `<br><span style="color:gold;">> SIEG! +20 EP & Beute!</span>`;
+        data.ep += 20; data.lxp += combat.reward; data[combat.loot] = (data[combat.loot] || 0) + 1;
+        save(); setTimeout(() => { document.getElementById('arenaLayer').style.display = 'none'; combat.active = false; }, 2000);
         return;
     }
 
-    // GEGENANGRIFF NACH 500MS
+    // Gegner Konter nach 1 Sekunde für besseren Stream-Read
     combat.turn = "enemy";
     setButtons(false);
-    
     setTimeout(() => {
         if(!combat.active) return;
         let eDmg = Math.floor(Math.random() * combat.enemyAtk);
         data.hp -= eDmg;
-        log.innerHTML += `<br><span style="color:red;">> ${combat.enemyName} trifft dich für ${eDmg}!</span>`;
-        log.scrollTop = log.scrollHeight;
+        log.innerHTML += `<br><span style="color:red;">> ${combat.name} trifft dich für ${eDmg}!</span>`;
         updateArenaUI();
-
         if(data.hp <= 0) {
-            alert("Du wurdest besiegt!");
-            data.hp = 100;
-            document.getElementById('arenaLayer').style.display = 'none';
-            combat.active = false;
-        } else {
-            combat.turn = "player";
-            setButtons(true);
-        }
-    }, 500);
+            alert("Du wurdest besiegt!"); data.hp = 100; data.mp = 100;
+            document.getElementById('arenaLayer').style.display = 'none'; combat.active = false;
+        } else { combat.turn = "player"; setButtons(true); }
+        log.scrollTop = log.scrollHeight;
+    }, 1000);
 }
 
 function setButtons(on) {
@@ -231,12 +224,19 @@ function setButtons(on) {
 }
 
 function updateArenaUI() {
-    let perc = (combat.enemyHP / combat.enemyMaxHP) * 100;
-    document.getElementById('enemyHPFill').style.width = Math.max(0, perc) + "%";
+    // Player HP
+    document.getElementById('playerHPFill').style.width = Math.max(0, (data.hp / 100) * 100) + "%";
+    document.getElementById('pHPText').innerText = data.hp + " / 100";
+    // Player MP
+    document.getElementById('playerMPFill').style.width = Math.max(0, (data.mp / 100) * 100) + "%";
+    document.getElementById('pMPText').innerText = data.mp + " / 100";
+    // Enemy HP
+    document.getElementById('enemyHPFill').style.width = Math.max(0, (combat.enemyHP / combat.enemyMaxHP) * 100) + "%";
+    document.getElementById('eHPText').innerText = combat.enemyHP + " / " + combat.enemyMaxHP;
     updateUI();
 }
 
-/* --- CORE SYSTEM --- */
+/* SYSTEM CORE */
 function handleWorldClick(e) {
     if(combat.active) return;
     const rect = document.getElementById('world').getBoundingClientRect();
@@ -259,6 +259,7 @@ function updateUI() {
     document.getElementById('hpC').innerText = data.hp;
     document.getElementById('atkC').innerText = data.atk;
     document.getElementById('lxpC').innerText = data.lxp;
+    document.getElementById('epC').innerText = data.ep;
 }
 function save() { localStorage.setItem('nestData', JSON.stringify(data)); updateUI(); sync(); }
 window.onload = () => { 
