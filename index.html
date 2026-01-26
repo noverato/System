@@ -15,14 +15,14 @@
         transform-origin: center center; 
     }
 
-    /* ARENA - JETZT STANDARDMÄSSIG AUSGEBLENDET */
-    #arena_scene { 
-        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; 
-        background: url('arena_innen.png') no-repeat center; background-size: cover; 
-        display: none; z-index: 50000; 
-    }
+    #arena_scene { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: url('arena_innen.png') no-repeat center; background-size: cover; display: none; z-index: 50000; }
 
-    .creature { position: absolute; width: 80px; height: 100px; z-index: 1000; transition: left 0.8s ease-out, top 0.8s ease-out; text-align: center; transform: translate(-50%, -50%); }
+    .creature { 
+        position: absolute; width: 80px; height: 100px; z-index: 1000; 
+        transition: left 0.8s ease-out, top 0.8s ease-out, transform 0.1s ease-out; 
+        text-align: center; 
+        transform: translate(-50%, -50%) scale(1); /* Basis-Transform */
+    }
     .avatar-emoji { font-size: 60px; display: block; filter: drop-shadow(0 0 15px rgba(59, 130, 246, 0.8)); }
     .name-tag { font-size: 14px; font-weight: bold; color: #fff; background: rgba(15, 23, 42, 0.9); padding: 2px 12px; border-radius: 8px; border: 1px solid #3b82f6; margin-top: 5px; }
 
@@ -37,11 +37,11 @@
     .tab-btn.active { background: #2563eb; color: white; border-color: #60a5fa; }
     
     #hud { position: fixed; top: 20px; left: 20px; background: rgba(15, 23, 42, 0.95); padding: 15px; border-radius: 15px; border: 2px solid #3b82f6; z-index: 5000; }
-    .btn-action { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border: none; padding: 12px 24px; border-radius: 10px; cursor: pointer; font-weight: bold; }
+    .btn-action { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border: none; padding: 10px 20px; border-radius: 10px; cursor: pointer; font-weight: bold; margin: 2px; }
     .inv-slot { background: #1e293b; border: 1px solid #334155; border-radius: 8px; height: 65px; display: flex; align-items: center; justify-content: center; font-size: 30px; }
     .loot-grid { grid-column: 1 / span 3; display: grid; grid-template-columns: repeat(9, 1fr); gap: 5px; margin-top: 15px; }
 
-    #battle_ui { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 80%; height: 150px; background: rgba(0, 0, 150, 0.9); border: 3px solid white; display: flex; }
+    #battle_ui { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 80%; height: 160px; background: rgba(0, 0, 150, 0.9); border: 3px solid white; display: flex; }
 </style>
 </head>
 <body>
@@ -51,8 +51,8 @@
     <div id="combatant_right" style="position:absolute; right:20%; top:50%; transform:translateY(-50%);"></div>
     <div id="battle_ui">
         <div style="width:30%; border-right:2px solid white; display:flex; flex-direction:column; padding:10px;">
-            <button class="btn-action" style="margin:2px;" onclick="battleAction('Angriff')">⚔️ Angriff</button>
-            <button class="btn-action" style="margin:2px;" onclick="battleAction('Flucht')">🏃 Flucht</button>
+            <button class="btn-action" onclick="battleAction('Angriff')">⚔️ Angriff</button>
+            <button class="btn-action" onclick="battleAction('Flucht')">🏃 Flucht</button>
         </div>
         <div id="arenaLog" style="padding:15px; flex-grow:1; overflow-y:auto; font-family:monospace; color:#4ade80;">Kampf beginnt...</div>
     </div>
@@ -76,19 +76,37 @@
         <div>❤️ HP: <span id="hpC">100</span></div>
         <div>💎 LXP: <span id="lxpC">0</span></div>
         <div>🪨 Stein: <span id="steinC">0</span></div>
-        <div>🪵 Holz: <span id="stockC">0</span></div>
-        <div>🍄 Pilz: <span id="pilzC">0</span></div>
-        <div>🧪 Trank: <span id="trankC">0</span></div>
+        <div>🌿 Gras: <span id="grasC">0</span></div>
+        <div>🌱 B-Gras: <span id="bgrasC">0</span></div>
+        <div>🧪 Tränke: <span id="trankC">0</span></div>
+    </div>
+</div>
+
+<div id="invModal" class="modal">
+    <div class="menu-box">
+        <h2 style="color: #facc15; margin-top:0;">INVENTAR & ALCHEMIE</h2>
+        <div class="inv-container">
+            <div><div class="inv-slot">🪖</div><div class="inv-slot">🧥</div><div class="inv-slot">👞</div></div>
+            <div style="text-align:center;">
+                <div id="invAvatar" style="font-size: 80px;">🥚</div>
+                <div style="display:flex; flex-direction:column; gap:5px; margin-top:10px;">
+                    <button class="btn-action" style="font-size:10px; background:#10b981;" onclick="craft('normal')">🧪 Trank (2x🌿, 1x🍄)</button>
+                    <button class="btn-action" style="font-size:10px; background:#8b5cf6;" onclick="craft('super')">🌟 Super-Trank (3x🌱)</button>
+                </div>
+                <p id="invClass" style="font-weight:bold; color:#3b82f6; margin:5px 0;">Ei</p>
+            </div>
+            <div><div class="inv-slot">🗡️</div><div class="inv-slot">🛡️</div><div class="inv-slot">💍</div></div>
+            <div id="lootGrid" class="loot-grid"></div>
+        </div>
+        <button class="btn-action" style="margin-top:20px;" onclick="toggleModal('invModal', false)">Schließen</button>
     </div>
 </div>
 
 <div id="steinbruchModal" class="modal">
     <div class="menu-box">
         <h2 style="color:#facc15;">STEINBRUCH</h2>
-        <div id="clickStone" onclick="mineStone()" style="width:180px; height:180px; margin: 20px auto; cursor:pointer; background:url('16bit_stein.png') no-repeat center; background-size:contain;">
-            <span style="font-size:80px;">🪨</span>
-        </div>
-        <p>Klicke den Stein zum Abbauen!</p>
+        <div id="clickStone" onclick="mineStone()" style="width:180px; height:180px; margin: 20px auto; cursor:pointer; background:url('16bit_stein.png') no-repeat center; background-size:contain;"><span style="font-size:80px;">🪨</span></div>
+        <p>Klicke zum Abbauen!</p>
         <button class="btn-action" onclick="toggleModal('steinbruchModal', false)">Fertig</button>
     </div>
 </div>
@@ -101,40 +119,33 @@
     </div>
 </div>
 
-<div id="invModal" class="modal">
-    <div class="menu-box">
-        <h2 style="color: #facc15; margin-top:0;">INVENTAR & ALCHEMIE</h2>
-        <div class="inv-container">
-            <div><div class="inv-slot">🪖</div><div class="inv-slot">🧥</div><div class="inv-slot">👞</div></div>
-            <div style="text-align:center;">
-                <div id="invAvatar" style="font-size: 80px;">🥚</div>
-                <button class="btn-action" style="font-size:10px; background:#10b981;" onclick="craftPotion()">🧪 Trank brauen</button>
-                <p id="invClass" style="font-weight:bold; color:#3b82f6;">Ei</p>
-            </div>
-            <div><div class="inv-slot">🗡️</div><div class="inv-slot">🛡️</div><div class="inv-slot">💍</div></div>
-            <div id="lootGrid" class="loot-grid"></div>
-        </div>
-        <button class="btn-action" style="margin-top:20px;" onclick="toggleModal('invModal', false)">Schließen</button>
-    </div>
-</div>
-
 <script>
 let data = JSON.parse(localStorage.getItem('nestData')) || {
-    name: "Held", lxp: 0, ep: 0, gras: 0, stock: 0, stein: 0, pilz: 0, blume: 0, trank: 0,
-    x: 960, y: 540, currentClass: "Ei", emoji: "🥚", loot: [], hp: 100, maxHp: 100, atk: 10, def: 5
+    name: "Held", lxp: 0, ep: 0, gras: 0, bgras: 0, stein: 0, pilz: 0, trank: 0, strank: 0,
+    x: 960, y: 540, currentClass: "Ei", emoji: "🥚", loot: [], hp: 100, maxHp: 100, atk: 12, def: 5
 };
 
 let zoom = 1.0;
 const world = document.getElementById('world');
 let isCombat = false;
 
+// ===== ZOOM LOGIK MIT INVERSER SKALIERUNG =====
 window.addEventListener('wheel', (e) => {
     if(isCombat) return;
     e.preventDefault();
     const delta = e.deltaY > 0 ? -0.1 : 0.1;
     zoom = Math.min(Math.max(zoom + delta, 0.52), 2.5);
+    
+    // Zentrierung auf Ei erhalten
     world.style.transformOrigin = `${data.x}px ${data.y}px`;
     world.style.transform = `scale(${zoom})`;
+
+    // INVERSE SKALIERUNG DER SPIELER
+    const players = document.querySelectorAll('.creature');
+    players.forEach(p => {
+        // Skaliert das Ei entgegengesetzt zum Zoom
+        p.style.transform = `translate(-50%, -50%) scale(${1 / zoom})`;
+    });
 }, { passive: false });
 
 function updateUI() {
@@ -142,78 +153,21 @@ function updateUI() {
     document.getElementById('lxpC').textContent = data.lxp;
     document.getElementById('hpC').textContent = data.hp;
     document.getElementById('steinC').textContent = data.stein;
-    document.getElementById('stockC').textContent = data.stock;
-    document.getElementById('pilzC').textContent = data.pilz || 0;
-    document.getElementById('trankC').textContent = data.trank || 0;
+    document.getElementById('grasC').textContent = data.gras;
+    document.getElementById('bgrasC').textContent = data.bgras;
+    document.getElementById('trankC').textContent = (data.trank || 0) + (data.strank || 0);
     document.getElementById('invAvatar').textContent = data.emoji;
     document.getElementById('invClass').textContent = data.currentClass;
     
     const grid = document.getElementById('lootGrid');
     grid.innerHTML = '';
-    const items = [{e:'🌿', c:data.gras}, {e:'🪵', c:data.stock}, {e:'🪨', c:data.stein}, {e:'🍄', c:data.pilz}, {e:'🧪', c:data.trank}];
+    const items = [
+        {e:'🌿', c:data.gras}, {e:'🌱', c:data.bgras}, {e:'🪨', c:data.stein}, 
+        {e:'🍄', c:data.pilz}, {e:'🧪', c:data.trank}, {e:'🌟', c:data.strank}
+    ];
     items.forEach(i => { if(i.c > 0) { let s = document.createElement('div'); s.className='inv-slot'; s.innerHTML=`${i.e}<br><small>${i.c}</small>`; grid.appendChild(s); }});
     
     renderChar();
-}
-
-function openBuilding(type) {
-    if(type === 'arena') {
-        startPvP();
-    } else if(type === 'steinbruch') {
-        toggleModal('steinbruchModal', true);
-    } else if(type === 'markt') {
-        showMarketUI();
-    } else {
-        document.getElementById('buildingTitle').textContent = type.toUpperCase();
-        document.getElementById('buildingContent').innerHTML = "Hier entsteht bald das Menü.";
-        toggleModal('buildingModal', true);
-    }
-}
-
-function showMarketUI() {
-    document.getElementById('buildingTitle').textContent = "MARKTPLATZ ⚖️";
-    document.getElementById('buildingContent').innerHTML = `
-        <div class="tab-bar">
-            <button id="tabRes" class="tab-btn active" onclick="switchTab('res')">Ressourcenhandel</button>
-            <button id="tabPlayer" class="tab-btn" onclick="switchTab('player')">Spielermarkt</button>
-        </div>
-        <div id="tabContent"></div>
-    `;
-    switchTab('res');
-    toggleModal('buildingModal', true);
-}
-
-function switchTab(tab) {
-    const content = document.getElementById('tabContent');
-    document.getElementById('tabRes').classList.toggle('active', tab === 'res');
-    document.getElementById('tabPlayer').classList.toggle('active', tab === 'player');
-    if(tab === 'res') {
-        content.innerHTML = `<button class="btn-action" onclick="tradeMarket('stein', 10, 5)">10x 🪨 ➔ 5 LXP</button>`;
-    } else {
-        content.innerHTML = `<p>Spieler-Handel (Bald verfügbar)</p>`;
-    }
-}
-
-function mineStone() {
-    data.stein++;
-    save();
-}
-
-function startPvP(enemyName = "Gegner 👿") {
-    isCombat = true;
-    document.getElementById('arena_scene').style.display = 'block';
-    document.getElementById('combatant_left').innerHTML = `<span style="font-size:100px;">${data.emoji}</span><br><b>${data.name}</b>`;
-    document.getElementById('combatant_right').innerHTML = `<span style="font-size:100px;">👿</span><br><b>Monster</b>`;
-}
-
-function battleAction(action) {
-    if(action === 'Flucht') {
-        isCombat = false;
-        document.getElementById('arena_scene').style.display = 'none';
-    } else {
-        document.getElementById('arenaLog').innerHTML += "<br>Du greifst an!";
-        // Später Kampf-Logik
-    }
 }
 
 function handleWorldClick(e) {
@@ -221,30 +175,105 @@ function handleWorldClick(e) {
     const rect = world.getBoundingClientRect();
     data.x = (e.clientX - rect.left) / zoom;
     data.y = (e.clientY - rect.top) / zoom;
+    
     let r = Math.random() * 100;
-    if(r < 5) startPvP();
-    else if(r < 15) data.pilz++;
-    else if(r < 30) data.stock++;
+    if(r < 5) { // 5% Chance Kampf
+        const monsters = ["Wildschwein 🐗", "Schattenwolf 🐺", "Goblin 👺"];
+        startPvP(monsters[Math.floor(Math.random()*monsters.length)]);
+    }
+    else if(r < 15) data.gras++;     // 10% Chance Gras (15-5)
+    else if(r < 25) data.bgras++;    // 10% Chance Blumengras (25-15)
+    else if(r < 35) data.pilz++;     // Pilz-Chance erhalten
+    
     save();
 }
 
-function tradeMarket(item, amount, reward) {
-    if(data[item] >= amount) { data[item] -= amount; data.lxp += reward; save(); }
+function craft(type) {
+    if(type === 'normal' && data.gras >= 2 && data.pilz >= 1) {
+        data.gras -= 2; data.pilz -= 1; data.trank = (data.trank || 0) + 1;
+        alert("🧪 Heiltrank gebraut!");
+    } else if(type === 'super' && data.bgras >= 3) {
+        data.bgras -= 3; data.strank = (data.strank || 0) + 1;
+        alert("🌟 Super-Trank gebraut!");
+    } else {
+        alert("Nicht genügend Ressourcen!");
+    }
+    save();
 }
+
+// ARENA AUTO-SCROLL FIX
+function battleAction(action) {
+    const log = document.getElementById('arenaLog');
+    if(!isCombat) return;
+
+    if(action === 'Flucht') {
+        log.innerHTML += "<br>Fluchtversuch...";
+        setTimeout(() => { isCombat = false; document.getElementById('arena_scene').style.display = 'none'; }, 1000);
+    } else if(action === 'Angriff') {
+        let dmg = Math.floor(data.atk * 1.2) + Math.floor(Math.random() * 5);
+        log.innerHTML += `<br>> <span style="color:#facc15">Du</span> triffst für ${dmg} DMG!`;
+        
+        // SCROLL ZUM ENDE
+        log.scrollTop = log.scrollHeight;
+
+        setTimeout(() => {
+            if(!isCombat) return;
+            let mDmg = Math.floor(Math.random() * 7) + 3;
+            data.hp -= mDmg;
+            log.innerHTML += `<br>> <span style="color:#ef4444">Gegner</span> kontert mit ${mDmg} DMG!`;
+            log.scrollTop = log.scrollHeight; // NOCHMAL SCROLLEN
+            updateUI();
+            if(data.hp <= 0) {
+                log.innerHTML += `<br><b>KO! Rückzug zum Nest.</b>`;
+                setTimeout(() => { data.hp = data.maxHp; isCombat = false; document.getElementById('arena_scene').style.display = 'none'; save(); }, 2000);
+            }
+        }, 600);
+    }
+}
+
+// Hilfsfunktionen (Speichern, Modals, Marktplatz etc. wie gehabt)
+function openBuilding(type) {
+    if(type === 'arena') startPvP();
+    else if(type === 'steinbruch') toggleModal('steinbruchModal', true);
+    else if(type === 'markt') showMarketUI();
+    else {
+        document.getElementById('buildingTitle').textContent = type.toUpperCase();
+        document.getElementById('buildingContent').innerHTML = "Menü folgt...";
+        toggleModal('buildingModal', true);
+    }
+}
+
+function startPvP(enemyName = "Monster 👿") {
+    isCombat = true;
+    document.getElementById('arena_scene').style.display = 'block';
+    const log = document.getElementById('arenaLog');
+    log.innerHTML = `Ein ${enemyName} erscheint!`;
+    document.getElementById('combatant_left').innerHTML = `<span style="font-size:100px;">${data.emoji}</span><br><b>${data.name}</b>`;
+    const emoji = enemyName.split(' ').pop();
+    document.getElementById('combatant_right').innerHTML = `<span style="font-size:100px;">${emoji}</span><br><b>${enemyName}</b>`;
+}
+
+function toggleModal(id, show) { document.getElementById(id).style.display = show ? 'flex' : 'none'; }
+function save() { localStorage.setItem('nestData', JSON.stringify(data)); updateUI(); }
+function mineStone() { data.stein++; save(); }
+function showMarketUI() {
+    document.getElementById('buildingTitle').textContent = "MARKTPLATZ";
+    document.getElementById('buildingContent').innerHTML = `<button class="btn-action" onclick="tradeMarket('stein', 10, 5)">10x 🪨 ➔ 5 LXP</button>`;
+    toggleModal('buildingModal', true);
+}
+function tradeMarket(item, amount, reward) { if(data[item] >= amount) { data[item] -= amount; data.lxp += reward; save(); } }
 
 function renderChar() { 
     const layer = document.getElementById('charLayer'); 
     layer.innerHTML = ''; 
     const char = document.createElement('div'); 
     char.className = 'creature'; 
-    char.style.left = data.x + "px"; char.style.top = data.y + "px"; 
+    char.style.left = data.x + "px"; char.style.top = data.y + "px";
+    // Initiale inverse Skalierung anwenden
+    char.style.transform = `translate(-50%, -50%) scale(${1 / zoom})`;
     char.innerHTML = `<span class="avatar-emoji">${data.emoji}</span><div class="name-tag">${data.name}</div>`; 
     layer.appendChild(char); 
 }
-
-function toggleModal(id, show) { document.getElementById(id).style.display = show ? 'flex' : 'none'; }
-function save() { localStorage.setItem('nestData', JSON.stringify(data)); updateUI(); }
-function craftPotion() { if(data.gras >= 2 && data.pilz >= 1) { data.gras -= 2; data.pilz -= 1; data.trank++; save(); alert("Trank bereit!"); } }
 
 window.onload = function() { updateUI(); };
 </script>
