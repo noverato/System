@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>The Nest: Solo Leveling Multiplayer - CLOUD EDITION</title>
+    <title>The Nest: Solo Leveling Master Edition</title>
     <style>
         body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #000; color: #e0d8b0; }
         #viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; display: flex; align-items: center; justify-content: center; }
@@ -18,44 +18,59 @@
         .building { position: absolute; background-size: contain; background-repeat: no-repeat; background-position: center; cursor: pointer; z-index: 10; transform: translate(-50%, -50%); }
         .label { position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: gold; padding: 2px 8px; border-radius: 5px; font-size: 12px; white-space: nowrap; border: 1px solid gold; }
         
-        /* Spieler & Eier */
-        .creature { position: absolute; width: 80px; height: 100px; z-index: 1000; text-align: center; transform: translate(-50%, -50%); transition: left 0.5s ease-out, top 0.5s ease-out; }
+        /* Spieler-Avatare */
+        .creature { position: absolute; width: 80px; height: 100px; text-align: center; transform: translate(-50%, -50%); transition: left 0.6s ease-out, top 0.6s ease-out; cursor: pointer; }
         .avatar-emoji { font-size: 60px; display: block; filter: drop-shadow(0 0 15px rgba(59, 130, 246, 0.8)); }
         .name-tag { font-size: 14px; font-weight: bold; color: #fff; background: rgba(15, 23, 42, 0.9); padding: 2px 12px; border-radius: 8px; border: 1px solid #3b82f6; margin-top: 5px; }
         
-        /* UI */
-        #hud { position: fixed; top: 20px; left: 20px; background: rgba(15, 23, 42, 0.95); padding: 15px; border-radius: 15px; border: 2px solid #3b82f6; z-index: 5000; }
+        /* Benutzeroberfläche (HUD) */
+        #hud { position: fixed; top: 20px; left: 20px; background: rgba(15, 23, 42, 0.95); padding: 15px; border-radius: 15px; border: 2px solid #3b82f6; z-index: 5000; min-width: 150px; }
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; z-index: 20000; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .menu-box { width: 600px; background: #0f172a; border: 3px solid #3b82f6; border-radius: 25px; padding: 25px; text-align: center; color: white; }
         .btn-action { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border: none; padding: 10px 20px; border-radius: 10px; cursor: pointer; font-weight: bold; margin: 5px; }
-        #statusInfo { position: fixed; bottom: 10px; right: 10px; font-size: 10px; color: #4ade80; opacity: 0.5; }
+
+        #arena_scene { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: url('./arena_innen.png') no-repeat center; background-size: cover; display: none; z-index: 50000; }
     </style>
 </head>
 <body>
+
+<div id="arena_scene">
+    <div id="combatant_left" style="position:absolute; left:20%; top:50%; transform:translateY(-50%);"></div>
+    <div id="combatant_right" style="position:absolute; right:20%; top:50%; transform:translateY(-50%);"></div>
+    <div id="battle_ui" style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); width:80%; height:160px; background:rgba(0,0,150,0.9); border:3px solid white; display:flex; padding:10px;">
+        <div style="width:30%; border-right:2px solid white; display:flex; flex-direction:column;">
+            <button class="btn-action" onclick="battleAction('Angriff')">⚔️ Angriff</button>
+            <button class="btn-action" onclick="battleAction('Flucht')">🏃 Flucht</button>
+        </div>
+        <div id="arenaLog" style="flex-grow:1; padding:10px; overflow-y:auto; font-family:monospace; color:lightgreen;">Kampfbereit...</div>
+    </div>
+</div>
 
 <div id="viewport">
     <div id="world" onclick="handleWorldClick(event)">
         <div class="building" style="left:1500px; top:200px; width:220px; height:220px; background-image:url('./steinbruch.png');" onclick="event.stopPropagation(); openBuilding('steinbruch')"><div class="label">Steinbruch</div></div>
         <div class="building" style="left:1200px; top:750px; width:220px; height:220px; background-image:url('./marktplatz.png');" onclick="event.stopPropagation(); openBuilding('markt')"><div class="label">Marktplatz</div></div>
         <div class="building" style="left:400px; top:300px; width:250px; height:250px; background-image:url('./rathaus.png');" onclick="event.stopPropagation(); openBuilding('rathaus')"><div class="label">Rathaus</div></div>
-        
         <div id="charLayer"></div>
     </div>
 </div>
 
 <div id="hud">
     <div style="color:gold; font-weight:bold;">👑 <span id="playerName">Lädt...</span></div>
-    <div style="font-size:11px;">❤️ HP: <span id="hpC">100</span> | 🪨 Steine: <span id="steinC">0</span></div>
+    <div style="font-size:11px;">❤️ HP: <span id="hpC">100</span> | 💎 LXP: <span id="lxpC">0</span></div>
+    <div style="font-size:11px;">🪨 Steine: <span id="steinC">0</span></div> 
+    <div style="font-size:10px; color:#4ade80; margin-top:5px;">🏘️ Dorf-Steine: <span id="villageStoneC">0</span></div>
+    <button class="btn-action" style="margin-top:5px; font-size:10px;" onclick="toggleModal('invModal', true)">🎒 Inventar</button>
 </div>
 
-<div id="statusInfo">Cloud-Sync Aktiv</div>
-
-<div id="steinbruchModal" class="modal">
+<div id="rathausModal" class="modal">
     <div class="menu-box">
-        <h2>STEINBRUCH</h2>
-        <p>Klicke den Stein!</p>
-        <div onclick="addStone()" style="font-size:80px; cursor:pointer; margin:20px;">🪨</div>
-        <button class="btn-action" onclick="toggleModal('steinbruchModal', false)">Schließen</button>
+        <h2 style="color:gold;">RATHAUS</h2>
+        <div style="background:#1e293b; padding:10px; border-radius:10px; margin-bottom:15px; border:1px solid gold;">
+            📢 <span id="welcomeMessage">Willkommen in The Nest!</span>
+        </div>
+        <p>Verwalte deine Community und deinen Fortschritt.</p>
+        <button class="btn-action" onclick="toggleModal('rathausModal', false)">Verlassen</button>
     </div>
 </div>
 
@@ -63,7 +78,6 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
-// --- DEINE FIREBASE KONFIGURATION ---
 const firebaseConfig = {
   apiKey: "AIzaSyCKNXJ-ouAOAcLr5ut-EemWQI8_zJxhqa8",
   authDomain: "thenest-81de6.firebaseapp.com",
@@ -74,118 +88,108 @@ const firebaseConfig = {
   appId: "1:785821659645:web:684460a421d3c9dcaee994"
 };
 
-// Initialisierung
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// Lokale Daten
 let data = JSON.parse(localStorage.getItem('nestData')) || {
-    name: "Held", x: 960, y: 540, stein: 0, lxp: 0, emoji: "🥚", hp: 100
+    name: "Held", x: 960, y: 540, stein: 0, gras: 0, pilz: 0, trank: 0, lxp: 0, hp: 100, maxHp: 100, emoji: "🥚", atk: 12
 };
 
 let otherPlayers = {};
 let zoom = 1.0;
-const world = document.getElementById('world');
+let isCombat = false;
 
-// --- CLOUD SYNC: DEINE POSITION SENDEN ---
+// 1. GHOST-SCHUTZ: Spieler löschen beim Schließen
+window.onbeforeunload = () => {
+    db.ref('players/' + data.name.replace(/\s+/g, '_')).remove();
+};
+
 function sync() {
-    // Schreibt direkt in deine Cloud-Datenbank
-    const safeName = data.name.replace(/\s+/g, '_');
-    db.ref('players/' + safeName).set({
-        name: data.name,
-        x: data.x,
-        y: data.y,
-        emoji: data.emoji,
-        hp: data.hp,
-        lastActive: Date.now()
+    db.ref('players/' + data.name.replace(/\s+/g, '_')).set({
+        name: data.name, x: data.x, y: data.y, emoji: data.emoji, hp: data.hp, lastJoined: Date.now()
     });
 }
 
-// --- CLOUD EMPFANG: ANDERE SPIELER SEHEN ---
 db.ref('players').on('value', (snapshot) => {
-    const players = snapshot.val();
-    if (players) {
-        otherPlayers = players;
-        render(); // Alle neu zeichnen
+    const players = snapshot.val() || {};
+    otherPlayers = players;
+    
+    // Willkommens-Logik: Wer ist am neuesten?
+    let newestName = "";
+    let latestTime = 0;
+    for(let id in players) {
+        if(players[id].lastJoined > latestTime) {
+            latestTime = players[id].lastJoined;
+            newestName = players[id].name;
+        }
     }
+    if(newestName) document.getElementById('welcomeMessage').innerText = "Neuester Bewohner: " + newestName + " 🐣";
+
+    render();
 });
 
 function render() {
     const layer = document.getElementById('charLayer');
     layer.innerHTML = ''; 
-    
     for (let id in otherPlayers) {
         const p = otherPlayers[id];
         const isMe = (p.name === data.name);
-        
-        // Element erstellen
         const avatar = document.createElement('div');
         avatar.className = 'creature';
-        avatar.style.left = p.x + "px";
-        avatar.style.top = p.y + "px";
+        avatar.style.left = p.x + "px"; avatar.style.top = p.y + "px";
         avatar.style.transform = `translate(-50%, -50%) scale(${1/zoom})`;
         
-        avatar.innerHTML = `
-            <span class="avatar-emoji">${p.emoji}</span>
-            <div class="name-tag" style="${isMe ? 'border: 2px solid gold;' : ''}">${p.name}</div>
-        `;
+        // 2. VISUELLE TIEFE: Eigenes Ei immer oben
+        avatar.style.zIndex = isMe ? "2000" : "1000";
+        
+        avatar.onclick = (e) => { e.stopPropagation(); interactWithPlayer(p.name); };
+        avatar.innerHTML = `<span class="avatar-emoji">${p.emoji}</span><div class="name-tag" style="${isMe ? 'border-color: gold; box-shadow: 0 0 10px gold;' : ''}">${p.name}</div>`;
         layer.appendChild(avatar);
     }
 }
 
-// --- GAME LOGIK ---
-function handleWorldClick(e) {
-    const rect = world.getBoundingClientRect();
-    data.x = (e.clientX - rect.left) / zoom;
-    data.y = (e.clientY - rect.top) / zoom;
-    
-    save(); 
-    sync(); // Sofort an Cloud senden
+// Globaler Dorf-Zähler
+db.ref('world/villageStats/totalStone').on('value', (snapshot) => {
+    document.getElementById('villageStoneC').innerText = snapshot.val() || 0;
+});
+
+function harvest(item) {
+    data[item]++;
+    if (item === 'stein') db.ref('world/villageStats/totalStone').transaction(c => (c || 0) + 1);
+    updateUI(); save(); sync();
 }
 
-function addStone() {
-    data.stein++;
-    updateUI();
-    save();
-    sync();
+function handleWorldClick(e) {
+    if(isCombat) return;
+    const rect = document.getElementById('world').getBoundingClientRect();
+    data.x = (e.clientX - rect.left) / zoom;
+    data.y = (e.clientY - rect.top) / zoom;
+    save(); sync();
 }
 
 function updateUI() {
     document.getElementById('playerName').innerText = data.name;
-    document.getElementById('steinC').innerText = data.stein;
     document.getElementById('hpC').innerText = data.hp;
+    document.getElementById('lxpC').innerText = data.lxp;
+    document.getElementById('steinC').innerText = data.stein;
 }
 
-function save() {
-    localStorage.setItem('nestData', JSON.stringify(data));
-    updateUI();
-}
-
-function openBuilding(b) {
-    if(b === 'steinbruch') toggleModal('steinbruchModal', true);
-    else alert(b + " wird ausgebaut!");
-}
-
-function toggleModal(id, show) {
-    document.getElementById(id).style.display = show ? 'flex' : 'none';
-}
-
-// Zoom
-window.addEventListener('wheel', (e) => {
-    e.preventDefault();
-    zoom = Math.min(Math.max(zoom + (e.deltaY > 0 ? -0.1 : 0.1), 0.5), 2.0);
-    world.style.transformOrigin = `${data.x}px ${data.y}px`;
-    world.style.transform = `scale(${zoom})`;
-    render();
-}, { passive: false });
+function toggleModal(id, show) { document.getElementById(id).style.display = show ? 'flex' : 'none'; }
+function openBuilding(b) { if(b === 'rathaus') toggleModal('rathausModal', true); else alert(b); }
+function save() { localStorage.setItem('nestData', JSON.stringify(data)); updateUI(); }
 
 window.onload = () => {
     const p = new URLSearchParams(window.location.search);
     if(p.get('user')) data.name = p.get('user');
-    updateUI();
-    sync(); // Einmal beim Start anmelden
+    updateUI(); sync();
 };
-</script>
 
+window.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    zoom = Math.min(Math.max(zoom + (e.deltaY > 0 ? -0.1 : 0.1), 0.5), 2.5);
+    document.getElementById('world').style.transform = `scale(${zoom})`;
+    render();
+}, { passive: false });
+</script>
 </body>
 </html>
