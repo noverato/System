@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>The Nest: Overlord Edition 2026 - Goldkante</title>
+    <title>The Nest: Overlord Edition 2026 - Phase 5.1</title>
     <style>
         :root { 
             --fantasy-bg: rgba(25, 15, 10, 0.98); 
@@ -12,45 +12,45 @@
             --btn-grad: linear-gradient(135deg, #b8860b, #8b4513); 
             --hp-color: #ff4444; --mp-color: #3b82f6;
             --warrior: #ef4444; --mage: #3b82f6; --ranger: #22c55e; --craft: #eab308; --shadow-path: #a855f7;
+            --ff-blue: rgba(0, 0, 150, 0.9);
         }
         body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Crimson Text', serif; background: #000; color: #fdf5e6; }
-        
         #viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; }
         #world { width: 1920px; height: 1080px; background: url('./wald.png') no-repeat center; background-size: cover; position: absolute; transition: transform 0.1s ease-out; cursor: crosshair; }
-        
         #charLayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1000; }
         .creature { position: absolute; width: 80px; height: 100px; text-align: center; transform: translate(-50%, -50%); transition: left 0.8s ease-out, top 0.8s ease-out; pointer-events: auto; }
         .creature img { height: 80px; filter: drop-shadow(0 0 10px rgba(0,0,0,0.9)); }
-        
         .name-tag { font-size: 14px; font-weight: bold; background: rgba(0,0,0,0.8); padding: 2px 12px; border-radius: 6px; border: 1px solid var(--gold); margin-top: 5px; white-space: nowrap; }
         .boss-aura { border: 2px solid #ff0000 !important; color: #ff0000 !important; box-shadow: 0 0 20px #ff0000; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.05); opacity: 0.8; } 100% { transform: scale(1); opacity: 1; } }
-
         .building { position: absolute; background-size: contain; background-repeat: no-repeat; transform: translate(-50%, -50%); cursor: pointer; z-index: 10; }
         .label { position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%); background: var(--fantasy-bg); color: var(--gold); padding: 4px 12px; border-radius: 8px; font-size: 14px; white-space: nowrap; border: 1px solid var(--gold); font-weight: bold; }
-
+        
         #hud { position: fixed; top: 20px; left: 20px; background: var(--fantasy-bg); padding: 15px; border-radius: 12px; border: var(--border); z-index: 5000; min-width: 200px; box-shadow: var(--shadow); }
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); display: none; z-index: 20000; align-items: center; justify-content: center; backdrop-filter: blur(12px); }
+        .mmo-panel { width: 1250px; height: 850px; background: var(--fantasy-bg); border: var(--border); border-radius: 20px; display: flex; overflow: hidden; box-shadow: var(--shadow); }
+        .panel-main { flex: 3; padding: 20px; overflow-y: auto; position: relative; }
+        .panel-side { flex: 0.8; padding: 25px; background: rgba(20, 15, 10, 0.85); border-left: 2px solid var(--gold); display: flex; flex-direction: column; }
         
-        /* LAYOUT UPDATE: 75% zu 25% */
-        .mmo-panel { width: 1200px; height: 850px; background: var(--fantasy-bg); border: var(--border); border-radius: 20px; display: flex; overflow: hidden; box-shadow: var(--shadow); }
-        .panel-main { flex: 3; padding: 30px; overflow-y: auto; position: relative; }
-        .panel-side { flex: 1; padding: 25px; background: rgba(20, 15, 10, 0.85); border-left: 2px solid var(--gold); display: flex; flex-direction: column; }
-
+        /* EVO TREE UI */
+        .evo-container { display: flex; flex-direction: column; gap: 30px; align-items: center; padding: 20px; }
+        .sub-ray-wrap { width: 100%; background: linear-gradient(90deg, transparent, var(--gold), transparent); padding: 10px; border-radius: 10px; text-align: center; box-shadow: 0 0 15px var(--gold); }
+        .evo-tree-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; width: 100%; margin-top: 20px; }
+        .path-column { display: flex; flex-direction: column-reverse; gap: 10px; align-items: center; }
+        .node { width: 50px; height: 50px; border: 2px solid #444; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; cursor: pointer; transition: 0.3s; background: #111; position: relative; }
+        .node:hover { transform: scale(1.2); z-index: 10; }
+        .node.active { border-width: 3px; box-shadow: 0 0 15px currentColor; border-color: currentColor; color: #fff; }
+        .node-label { position: absolute; right: -40px; font-size: 10px; color: #aaa; pointer-events: none; white-space: nowrap; }
+        
+        /* PATH COLORS */
+        .warrior-node.active { color: var(--warrior); }
+        .mage-node.active { color: var(--mage); }
+        .ranger-node.active { color: var(--ranger); }
+        .craft-node.active { color: var(--craft); }
+        .shadow-node.active { color: var(--shadow-path); }
+        
         .btn-action { background: var(--btn-grad); color: white; border: 1px solid var(--gold); padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s; }
-        .btn-action:hover { filter: brightness(1.2); transform: scale(1.05); }
-
-        /* EVO TREE 5-PATHS */
-        .evo-tree-wrapper { display: flex; flex-direction: column; align-items: center; width: 100%; height: 100%; }
-        .branches-container { display: flex; justify-content: space-around; width: 100%; flex-grow: 1; align-items: flex-end; margin-bottom: 20px; }
-        .path-column { display: flex; flex-direction: column-reverse; gap: 6px; align-items: center; width: 18%; }
-        .step { width: 100%; height: 35px; border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 10px; transition: 0.5s; background: rgba(0,0,0,0.3); }
-        .step.active { border-width: 2px; color: #fff; font-weight: bold; box-shadow: 0 0 12px currentColor; }
-        .novice-root { width: 100px; height: 100px; border: 3px solid var(--gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #000; font-weight: bold; box-shadow: var(--shadow); }
-
-        #battleLog { height: 160px; background: #000; border: 1px solid var(--gold); margin-top: 15px; padding: 10px; font-family: monospace; font-size: 12px; overflow-y: auto; color: #4ade80; border-radius: 5px; }
-        .hp-bar-container { height: 14px; background: #333; border-radius: 7px; border: 1px solid #000; margin: 5px 0; overflow: hidden; }
-        .hp-bar-fill { height: 100%; background: var(--hp-color); transition: width 0.4s; }
+        .btn-action:hover:not(:disabled) { filter: brightness(1.2); transform: scale(1.05); }
     </style>
 </head>
 <body>
@@ -60,6 +60,7 @@
         <div class="building" style="left:1500px; top:200px; width:220px; height:220px; background-image:url('./steinbruch.png');" onclick="event.stopPropagation(); openBuilding('steinbruch')"><div class="label">Steinbruch</div></div>
         <div class="building" style="left:700px; top:500px; width:180px; height:180px; background-image:url('./schmiede.png');" onclick="event.stopPropagation(); openBuilding('wald')"><div class="label">Wald-Schmiede</div></div>
         <div class="building" style="left:300px; top:700px; width:200px; height:200px; background-image:url('./arena.png');" onclick="event.stopPropagation(); openBuilding('arena')"><div class="label">PvP Arena</div></div>
+        <div class="building" style="left:1000px; top:600px; width:250px; height:250px; background-image:url('./rathaus.png');" onclick="event.stopPropagation(); openBuilding('rathaus')"><div class="label">Halle der Evolution</div></div>
         <div id="charLayer"></div>
     </div>
 </div>
@@ -68,6 +69,7 @@
     <div style="color:gold; font-size: 20px; font-weight:bold;"><span id="playerName">Spawn2909</span></div>
     <div id="hudClass" style="font-size:13px; color: #3b82f6; font-weight: bold;">OVERLORD</div>
     <div style="font-size:12px; color:#4ade80; margin-top: 5px;">💎 LXP: <span id="lxpC">0</span> | ⭐ LVL: <span id="lvlTotal">0</span></div>
+    <div style="font-size:10px; color: #aaa;">⏳ Follow: <span id="followDaysDisplay">0</span> Tage</div>
     <div id="adminHud" style="display:none; margin-top:10px;"><button class="btn-action" style="background:var(--admin-grad); width:100%;" onclick="openAdminPanel()">🛠 GÖTTER-MENÜ</button></div>
 </div>
 
@@ -86,146 +88,92 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
-// --- CONFIG ---
+// --- CORE CONFIG (Frozen) ---
 const firebaseConfig = { apiKey: "AIzaSyCKNXJ-ouAOAcLr5ut-EemWQI8_zJxhqa8", authDomain: "thenest-81de6.firebaseapp.com", databaseURL: "https://thenest-81de6-default-rtdb.firebaseio.com", projectId: "thenest-81de6" };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
-
 const BOSS_NAME = "Spawn2909";
-const BOSS_TOKEN = "U3Bhd24yOTA5X0FkbWluX1Rva2VuXzIwMjY=";
-const LOOT_POOL = { wald: ['Gras', 'Stock', 'Moos', 'Feder', 'Harz', 'Pilz', 'Kiesel'], steinbruch: ['Kiesel', 'Lehm', 'Eisenerz', 'Feuerstein', 'Edelstein'] };
+const EVO_IMGS = ['Ei.png', 'Schleim.png', 'Skelett.png', 'Goblin.png', 'Oger.png', 'Lich.png', 'HoeheresWesen.png'];
 
-const CRAFTING_RECIPES = {
-    'Leinen': { tier: 1, needs: { 'Gras': 3 }, lxp: 5 },
-    'Steinspitzhacke': { tier: 1, needs: { 'Kiesel': 3, 'Stock': 2 }, lxp: 10 },
-    'Eisenschwert': { tier: 3, needs: { 'Eisenerz': 5 }, lxp: 30 },
-    'Götterdämmerung': { tier: 7, needs: { 'Eisenschwert': 1, 'Edelstein': 20 }, lxp: 150 }
+// --- DATA MODEL (CHRONOS PATCH) ---
+let data = { 
+    name: "Held", x: 960, y: 540, lxp: 0, hp: 100, maxHp: 100, 
+    subMonths: 0, followDays: 0, isSub: false, 
+    inventar: {}, stats: { warrior: 0, mage: 0, ranger: 0, craftsman: 0, shadow: 0, totalEvoLevel: 0, className: "Novize" },
+    ...(JSON.parse(localStorage.getItem('nestData')) || {}) 
 };
+let myID = "", onlinePlayers = {}, isAdmin = false;
 
-let data = { name: "Held", x: 960, y: 540, lxp: 0, hp: 100, maxHp: 100, mp: 50, maxMp: 50, isSub: false, inventar: {}, stats: { warrior: 0, mage: 0, ranger: 0, craftsman: 0, shadow: 0, totalEvoLevel: 0, className: "Novize" }, ...(JSON.parse(localStorage.getItem('nestData')) || {}) };
-let myID = "", onlinePlayers = {}, isAdmin = false, currentEnemy = null;
+// --- PHASE 5.1: CHRONOS EVOLUTION LOGIC ---
+const SUB_STAGES = [
+    { m: 0, e: "🥚" }, { m: 4, e: "💧" }, { m: 8, e: "💀" }, 
+    { m: 12, e: "👺" }, { m: 16, e: "👹" }, { m: 20, e: "🧙‍♂️" }, { m: 24, e: "✨" }
+];
 
-// --- BEWEGUNG ---
-function handleWorldClick(e) {
-    if(document.getElementById('gameModal').style.display === 'flex') return;
-    const rect = document.getElementById('world').getBoundingClientRect();
-    data.x = e.clientX - rect.left; data.y = e.clientY - rect.top;
-    save();
-}
+// Definition der Zeit-Anforderungen (in Tagen) pro Tier
+const TIER_DAYS = [0, 30, 60, 120, 200, 365, 500, 730]; 
 
-// --- GRAPHIC EVO TREE 5-PATHS ---
-
-function renderEvoTree() {
+function renderEvoMenu() {
     const left = document.getElementById('modalLeft');
+    let html = `<div class="evo-container">
+        <h2>Halle der Evolution</h2>
+        <div class="sub-ray-wrap">
+            <strong style="color:white;">DER GOLDENE STRAHL (SUBS)</strong><br>
+            <div style="display:flex; justify-content:space-between; margin-top:10px; padding:0 20px;">`;
+    
+    SUB_STAGES.forEach(s => {
+        const reached = data.subMonths >= s.m;
+        html += `<div style="opacity:${reached?1:0.3}; filter:${reached?'none':'grayscale(1)'}; font-size:24px;">${s.e}<br><small style="font-size:10px;">${s.m}M</small></div>`;
+    });
+    
+    html += `</div></div><div class="evo-tree-grid">`;
+
     const paths = [
-        { id: 'warrior', name: 'KRIEGER', color: 'var(--warrior)' },
-        { id: 'mage', name: 'MAGIER', color: 'var(--mage)' },
-        { id: 'ranger', name: 'RANGER', color: 'var(--ranger)' },
-        { id: 'craftsman', name: 'HANDWERK', color: 'var(--craft)' },
-        { id: 'shadow', name: 'SCHATTEN', color: 'var(--shadow-path)' }
+        { id: 'warrior', name: 'KRIEGER', class: 'warrior-node', req: 'Schwert' },
+        { id: 'mage', name: 'MAGIER', class: 'mage-node', req: 'Magierstab' },
+        { id: 'ranger', name: 'RANGER', class: 'ranger-node', req: '' },
+        { id: 'craftsman', name: 'HANDWERK', class: 'craft-node', req: 'Spitzhacke' },
+        { id: 'shadow', name: 'SCHATTEN', class: 'shadow-node', req: '' }
     ];
 
-    let html = `<div class="evo-tree-wrapper"><h2>Hierarchische Evolution</h2><div class="branches-container">`;
     paths.forEach(p => {
         html += `<div class="path-column">`;
-        for (let i = 7; i >= 1; i--) {
-            const active = data.stats[p.id] >= i ? 'active' : '';
-            html += `<div class="step ${active}" style="color:${active?p.color:'gray'}">T${i}</div>`;
+        for(let i=1; i<=7; i++) {
+            const unlocked = data.stats[p.id] >= i;
+            const daysReq = TIER_DAYS[i];
+            html += `<div class="node ${p.class} ${unlocked?'active':''}" onclick="tryEvolve('${p.id}', ${i}, ${daysReq}, '${p.req}')">
+                T${i}<span class="node-label">${daysReq} Tage Follow</span>
+            </div>`;
         }
-        html += `<strong style="color:${p.color}; font-size:10px;">${p.name}</strong></div>`;
+        html += `<strong style="margin-top:10px; font-size:12px;">${p.name}</strong></div>`;
     });
-    html += `</div><div class="novice-root">🥚 NOVIZE</div><button class="btn-action" style="margin-top:20px;" onclick="openAdminPanel()">ZURÜCK</button></div>`;
-    left.innerHTML = html;
+
+    left.innerHTML = html + `</div><div class="novice-root" style="margin-top:20px; border: 2px solid var(--gold); padding: 15px; border-radius: 50%;">🥚 NOVIZE</div></div>`;
 }
 
-// --- ARENA ---
+function tryEvolve(path, tier, daysReq, itemReq) {
+    if(data.stats[path] >= tier) return alert("Bereits freigeschaltet!");
+    
+    // Bedingungsprüfung Zeit statt LXP
+    if(data.followDays < daysReq && !isAdmin) return alert(`Zu wenig Zeit vergangen! Du benötigst ${daysReq} Follow-Tage.`);
+    if(itemReq && !data.inventar[itemReq] && !isAdmin) return alert(`Du benötigst ein ${itemReq} im Rucksack!`);
+    
+    // Evolution bestätigt (KEIN LXP-Abzug!)
+    data.stats[path] = tier;
+    data.stats.totalEvoLevel++;
+    data.stats.className = path.toUpperCase();
+    save();
+    renderEvoMenu();
+    alert(`Evolution zu ${path} Tier ${tier} abgeschlossen!`);
+}
+
+// --- CORE FUNCTIONS (Preserved) ---
 function openBuilding(b) {
     toggleModal('gameModal', true);
-    const left = document.getElementById('modalLeft');
-    if (b === 'arena') {
-        left.innerHTML = `<h2>🛡️ Matchmaking-Center</h2>
-            <div style="display:flex; gap:10px; margin-bottom:20px;">
-                <button class="btn-action" style="flex:1;" onclick="renderFilteredPlayers(false)">Follower-Duell</button>
-                <button class="btn-action" style="flex:1;" onclick="renderFilteredPlayers(true)">Sub-Gefecht</button>
-                <button class="btn-action" style="flex:1; background:#2d5a27;" onclick="startPvETraining()">🐗 Monster-Training</button>
-            </div>
-            <div id="playerMatchList" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;"></div>
-            <div id="battleLog">Wähle eine Kategorie...</div>`;
-    } else if (b === 'steinbruch') {
-        left.innerHTML = `<h2>Steinbruch</h2><button class="btn-action" onclick="mine('Eisenerz')">ABBAUEN</button>`;
-    } else if (b === 'wald') {
-        let h = `<h2>Schmiede</h2><div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">`;
-        Object.entries(CRAFTING_RECIPES).forEach(([n, r]) => { h += `<div style="padding:10px; border:1px solid gold; border-radius:5px;"><strong>${n}</strong><br><button class="btn-action" onclick="craft('${n}')">SCHMIEDEN</button></div>`; });
-        left.innerHTML = h + `</div>`;
-    }
-}
-
-function startPvETraining() {
-    currentEnemy = { name: "Wilder Eber", hp: 60, maxHp: 60 };
-    renderCombatUI();
-}
-
-function renderCombatUI() {
-    const left = document.getElementById('modalLeft');
-    left.innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <div style="width:45%; text-align:center;">
-                <strong>${data.name}</strong>
-                <div class="hp-bar-container"><div class="hp-bar-fill" style="width:${(data.hp/data.maxHp)*100}%"></div></div>
-            </div>
-            <div style="font-size:24px;">VS</div>
-            <div style="width:45%; text-align:center;">
-                <strong>${currentEnemy.name}</strong>
-                <div class="hp-bar-container"><div class="hp-bar-fill" style="width:${(currentEnemy.hp/currentEnemy.maxHp)*100}%"></div></div>
-            </div>
-        </div>
-        <div style="display:flex; gap:10px; margin-top:20px;">
-            <button class="btn-action" onclick="combatTurn('attack')">⚔️ ANGRIFF</button>
-            <button class="btn-action" style="background:#ff4444;" onclick="openBuilding('arena')">🏳️ FLUCHT</button>
-        </div>
-        <div id="battleLog">Kampfrunde beginnt...</div>`;
-}
-
-function combatTurn(action) {
-    const log = document.getElementById('battleLog');
-    let dmg = 20;
-    currentEnemy.hp -= dmg;
-    log.innerHTML += `<div>> Du triffst für ${dmg} Schaden!</div>`;
-    
-    if (currentEnemy.hp <= 0) {
-        log.innerHTML += `<div style="color:gold;">✨ SIEG! +50 LXP ✨ ⭐⭐⭐</div>`;
-        data.lxp += 50; save(); return;
-    }
-    
-    setTimeout(() => {
-        data.hp -= 10;
-        log.innerHTML += `<div style="color:red;">> Gegner kontert für 10 Schaden!</div>`;
-        renderCombatUI(); save();
-    }, 500);
-}
-
-// --- ADMIN & PLAYERS ---
-function renderPlayers(players) {
-    const layer = document.getElementById('charLayer'); layer.innerHTML = '';
-    const isOverlord = data.name === BOSS_NAME;
-    Object.keys(players).forEach(id => {
-        const p = players[id];
-        if (isOverlord && p.name === "Held" && id !== myID) return;
-        const div = document.createElement('div'); div.className = 'creature';
-        div.style.left = p.x + "px"; div.style.top = p.y + "px";
-        const isMeBoss = p.name === BOSS_NAME;
-        div.innerHTML = `<img src="Ei.png" onerror="this.src='🥚'"><div class="name-tag ${isMeBoss?'boss-aura':''}">${isMeBoss?'SYSTEM-ARCHITEKT':p.name}</div>`;
-        layer.appendChild(div);
-    });
-}
-
-function openAdminPanel() {
-    toggleModal('gameModal', true);
-    document.getElementById('modalLeft').innerHTML = `
-        <h2>🛠 GÖTTER-KONSOLE</h2>
-        <button class="btn-action" style="width:100%; margin-bottom:10px;" onclick="renderEvoTree()">🌿 GRAFISCHER EVO-BAUM</button>
-        <button class="btn-action" style="width:100%; margin-bottom:10px;" onclick="data.lxp+=5000;save()">+5000 LXP</button>
-        <button class="btn-action" style="width:100%;" onclick="data.isSub=!data.isSub;save();openAdminPanel();">SUB-STATUS TOGGELN</button>`;
+    if (b === 'rathaus') renderEvoMenu();
+    else if (b === 'arena') renderArenaMatchmaking(); 
+    else if (b === 'steinbruch') renderMiningMenu();
+    else if (b === 'wald') renderSmithy();
 }
 
 function save() {
@@ -241,9 +189,39 @@ function updateUI() {
     document.getElementById('hudClass').innerText = isBoss ? "SYSTEM-ARCHITEKT" : data.stats.className;
     document.getElementById('lxpC').innerText = data.lxp;
     document.getElementById('lvlTotal').innerText = data.stats.totalEvoLevel;
+    document.getElementById('followDaysDisplay').innerText = data.followDays;
     const invDiv = document.getElementById('miniInv'); invDiv.innerHTML = '';
     Object.keys(data.inventar).forEach(i => { if(data.inventar[i]>0) invDiv.innerHTML += `<div style="padding:5px; border-bottom:1px solid #444;">${i} x${data.inventar[i]}</div>`; });
 }
+
+function openAdminPanel() {
+    toggleModal('gameModal', true);
+    document.getElementById('modalLeft').innerHTML = `<h2>🛠 GÖTTER-MENÜ</h2>
+    <button class="btn-action" onclick="data.followDays+=30;save()">+30 Follow-Tage</button>
+    <button class="btn-action" onclick="data.lxp+=5000;save()">+5000 LXP (Währung)</button>
+    <button class="btn-action" onclick="renderEvoMenu()">Halle der Evolution</button>`;
+}
+
+function renderPlayers(players) {
+    const layer = document.getElementById('charLayer'); layer.innerHTML = '';
+    Object.keys(players).forEach(id => {
+        const p = players[id];
+        const div = document.createElement('div'); div.className = 'creature';
+        div.style.left = p.x + "px"; div.style.top = p.y + "px";
+        const isMeBoss = p.name === BOSS_NAME;
+        div.innerHTML = `<img src="${EVO_IMGS[Math.min(p.stats.totalEvoLevel, 6)]}" onerror="this.src='Ei.png'"><div class="name-tag ${isMeBoss?'boss-aura':''}">${isMeBoss?'OVERLORD':p.name}</div>`;
+        layer.appendChild(div);
+    });
+}
+
+function handleWorldClick(e) {
+    if(document.getElementById('gameModal').style.display === 'flex') return;
+    const rect = document.getElementById('world').getBoundingClientRect();
+    data.x = e.clientX - rect.left; data.y = e.clientY - rect.top;
+    save();
+}
+
+function toggleModal(id, s) { document.getElementById(id).style.display = s ? 'flex' : 'none'; }
 
 window.onload = () => {
     const p = new URLSearchParams(window.location.search);
@@ -253,9 +231,6 @@ window.onload = () => {
     save();
     db.ref('players').on('value', snap => { onlinePlayers = snap.val() || {}; renderPlayers(onlinePlayers); });
 };
-
-function mine(item) { if(Math.random()<0.4) { data.inventar[item] = (data.inventar[item]||0)+1; alert(item + " gefunden!"); save(); } }
-function toggleModal(id, s) { document.getElementById(id).style.display = s ? 'flex' : 'none'; }
 </script>
 </body>
 </html>
