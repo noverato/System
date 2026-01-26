@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>The Nest: Isekai RPG - CRAFTING EDITION</title>
+    <title>The Nest: Isekai RPG - EXPLORE EDITION</title>
     <style>
         :root { --fantasy-bg: rgba(40, 30, 20, 0.95); --gold: #ffd700; --border: 2px solid #ffd700; --shadow: 0 0 15px rgba(255, 215, 0, 0.4); --btn-grad: linear-gradient(135deg, #b8860b, #8b4513); }
         body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Crimson Text', serif; background: #000; color: #fdf5e6; }
         
         #viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; display: flex; align-items: center; justify-content: center; }
-        #world { width: 1920px; height: 1080px; background: url('./wald.png') no-repeat center; background-size: cover; position: absolute; transition: transform 0.1s ease-out; transform-origin: center center; z-index: 1; }
+        #world { width: 1920px; height: 1080px; background: url('./wald.png') no-repeat center; background-size: cover; position: absolute; transition: transform 0.1s ease-out; transform-origin: center center; z-index: 1; cursor: pointer; }
         
         #charLayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1000; }
         .creature { position: absolute; width: 80px; height: 100px; text-align: center; transform: translate(-50%, -50%); transition: left 0.6s ease-out, top 0.6s ease-out; pointer-events: auto; }
@@ -87,7 +87,6 @@ const CRAFTING_RECIPES = {
     'Schleifstein': { needs: { 'Kiesel': 5 }, lxp: 15 }
 };
 
-// --- ROBUSTE INITIALISIERUNG ---
 const defaultData = {
     name: "Held", x: 960, y: 540, lxp: 0, emoji: "🥚",
     inventar: {},
@@ -95,79 +94,60 @@ const defaultData = {
 };
 
 let rawStored = JSON.parse(localStorage.getItem('nestData')) || {};
-// Merge defaults mit gespeicherten Daten (stellt sicher, dass stats immer da ist)
-let data = { 
-    ...defaultData, 
-    ...rawStored,
-    stats: { ...defaultData.stats, ...(rawStored.stats || {}) },
-    inventar: { ...(rawStored.inventar || {}) }
-};
-
+let data = { ...defaultData, ...rawStored, stats: { ...defaultData.stats, ...(rawStored.stats || {}) }, inventar: { ...(rawStored.inventar || {}) } };
 let myID = "";
 
-function calculateClassName() {
-    // Sicherheits-Check falls stats im Laufzeit-Objekt fehlt
-    if (!data.stats) data.stats = { ...defaultData.stats };
-    
-    let stats = data.stats;
-    let paths = ["warrior", "mage", "ranger", "craftsman", "shadow"];
-    
-    // Sicherstellen, dass jeder Pfad zumindest 0 hat
-    let sorted = paths.map(p => ({
-        key: p, 
-        val: (stats[p] !== undefined) ? stats[p] : 0
-    })).sort((a,b) => b.val - a.val);
-    
-    data.stats.className = (sorted[0].val > 0) ? sorted[0].key : "Novize";
-    return data.stats.className;
-}
+// --- NEUE WORLD-CLICK SAMMEL LOGIK ---
+function checkLootOnMove(x, y) {
+    let area = "";
+    // Steinbruch-Zone: Oben Rechts (x > 1200, y < 450)
+    if (x > 1200 && y < 450) {
+        area = "steinbruch";
+    } else {
+        area = "wald";
+    }
 
-function collectLoot(area) {
     let chance = 0.3;
-    const className = data.stats.className || "Novize";
-    if (area === 'wald' && className.toLowerCase().includes("ranger")) chance = 0.5;
+    const currentClass = (data.stats.className || "Novize").toLowerCase();
+    if (area === 'wald' && (currentClass.includes("ranger") || currentClass.includes("waldläufer"))) {
+        chance = 0.5;
+    }
 
     if (Math.random() < chance) {
         const pool = LOOT_POOL[area];
         const item = pool[Math.floor(Math.random() * pool.length)];
         data.inventar[item] = (data.inventar[item] || 0) + 1;
-        if (item === 'Pilz') { data.lxp += 5; alert("🍄 Ein Pilz! (+5 LXP)"); }
-        else { alert(`📦 Gefunden: ${item}`); }
-        save();
+        
+        // Benachrichtigung im HUD oder via Alert (hier dezent via HUD-Farbe simuliert oder kleiner Text)
+        if (item === 'Pilz') { 
+            data.lxp += 5; 
+            console.log("🍄 Pilz gefunden! +5 LXP");
+        }
         renderInventory();
-    } else { alert("Nichts gefunden..."); }
+        save();
+    }
 }
 
 function craftItem(itemName) {
     const recipe = CRAFTING_RECIPES[itemName];
     const currentClass = (data.stats.className || "Novize").toLowerCase();
     const isCraftsman = currentClass.includes("handwerker") || currentClass.includes("craftsman");
-    
     let finalLxpCost = isCraftsman ? Math.floor(recipe.lxp * 0.8) : recipe.lxp;
 
-    for (let material in recipe.needs) {
-        if ((data.inventar[material] || 0) < recipe.needs[material]) {
-            alert(`Fehlendes Material: ${material}`);
-            return;
-        }
+    for (let mat in recipe.needs) {
+        if ((data.inventar[mat] || 0) < recipe.needs[mat]) { alert("Nicht genug Material!"); return; }
     }
-
     if (data.lxp < finalLxpCost) { alert("Nicht genug LXP!"); return; }
 
     data.lxp -= finalLxpCost;
-    for (let material in recipe.needs) {
-        data.inventar[material] -= recipe.needs[material];
-    }
+    for (let mat in recipe.needs) { data.inventar[mat] -= recipe.needs[mat]; }
     data.inventar[itemName] = (data.inventar[itemName] || 0) + 1;
-
-    alert(`🔨 Erfolg! ${itemName} hergestellt.`);
     save();
     openBuilding('wald'); 
 }
 
 function renderInventory() {
     const invDiv = document.getElementById('miniInv');
-    if(!invDiv) return;
     invDiv.innerHTML = '';
     for (const item in data.inventar) {
         if (data.inventar[item] > 0) invDiv.innerHTML += `<div>${item} x${data.inventar[item]}</div>`;
@@ -178,35 +158,28 @@ function openBuilding(b) {
     toggleModal('gameModal', true);
     renderInventory();
     const left = document.getElementById('modalLeft');
-    
     if (b === 'wald') {
-        let recipesHtml = `<h2>Wald-Schmiede</h2><button class="btn-action" style="width:100%; margin-bottom:20px;" onclick="collectLoot('wald')">🌿 Umgebung absuchen</button><h3>📜 Rezepte</h3>`;
+        let h = `<h2>Wald-Schmiede</h2><h3>📜 Rezepte</h3>`;
         for (let name in CRAFTING_RECIPES) {
             const r = CRAFTING_RECIPES[name];
-            let needsTxt = Object.entries(r.needs).map(([item, qty]) => `${qty}x ${item}`).join(", ");
-            recipesHtml += `
-                <div class="recipe-card">
-                    <div class="recipe-info"><strong>${name}</strong><br><small>${needsTxt} | ${r.lxp} LXP</small></div>
-                    <button class="btn-action" onclick="craftItem('${name}')">Herstellen</button>
-                </div>`;
+            h += `<div class="recipe-card"><div class="recipe-info"><strong>${name}</strong><br><small>${r.lxp} LXP</small></div><button class="btn-action" onclick="craftItem('${name}')">Schmieden</button></div>`;
         }
-        left.innerHTML = recipesHtml;
-    } else if (b === 'steinbruch') {
-        left.innerHTML = `<h2>Steinbruch</h2><button class="btn-action" onclick="collectLoot('steinbruch')">⛏️ Graben</button>`;
+        left.innerHTML = h;
     } else {
-        left.innerHTML = `<h2>Rathaus</h2><p>Verwalte deine Evolution.</p>`;
+        left.innerHTML = `<h2>${b}</h2><p>Menü aktiv.</p>`;
     }
 }
 
-function sync() { if(myID) db.ref('players/' + myID).update(data); }
-
-function save() { 
-    calculateClassName();
-    localStorage.setItem('nestData', JSON.stringify(data)); 
-    updateUI(); 
-    sync(); 
+function calculateClassName() {
+    let stats = data.stats;
+    let paths = ["warrior", "mage", "ranger", "craftsman", "shadow"];
+    let sorted = paths.map(p => ({key: p, val: stats[p] || 0})).sort((a,b) => b.val - a.val);
+    data.stats.className = (sorted[0].val > 0) ? sorted[0].key : "Novize";
+    return data.stats.className;
 }
 
+function sync() { if(myID) db.ref('players/' + myID).update(data); }
+function save() { calculateClassName(); localStorage.setItem('nestData', JSON.stringify(data)); updateUI(); sync(); }
 function updateUI() {
     document.getElementById('playerName').innerText = data.name;
     document.getElementById('hudClass').innerText = data.stats.className || "Novize";
@@ -217,45 +190,43 @@ window.onload = () => {
     const p = new URLSearchParams(window.location.search);
     if(p.get('user')) data.name = p.get('user');
     myID = data.name.replace(/\s+/g, '_');
-    
     db.ref('players/' + myID).onDisconnect().remove();
-    
-    // WICHTIG: Erster Sync um Stats-Objekt in DB zu erzwingen
     save();
-    
+    renderInventory();
     db.ref('players').on('value', snap => { renderPlayers(snap.val()); });
 };
 
 function renderPlayers(players) {
     const layer = document.getElementById('charLayer'); 
-    if(!layer) return;
     layer.innerHTML = '';
-    if(!players) return;
-
     for(let id in players) {
         const p = players[id]; 
         const isMe = (id === myID);
         if (p.name === "Held" && !isMe) continue; 
-
         const div = document.createElement('div'); 
         div.className = 'creature';
         div.style.left = p.x + "px"; div.style.top = p.y + "px";
-        
-        // SICHERHEITS-ABFRAGE FÜR FREMDE SPIELER
-        const cName = (p.stats && p.stats.className) ? p.stats.className : "Novize";
-
         let visual = `<img src="Ei.png" onerror="this.outerHTML='🥚'">`;
         if(p.emoji !== "🥚") visual = `<span style="font-size:50px;">${p.emoji}</span>`;
-        
-        div.innerHTML = `${visual}<div class="name-tag">${p.name}<span class="class-tag">${cName}</span></div>`;
+        div.innerHTML = `${visual}<div class="name-tag">${p.name}<span class="class-tag">${p.stats ? p.stats.className : 'Novize'}</span></div>`;
         layer.appendChild(div);
     }
 }
 
+// --- INTEGRIERTES LAUFEN & SAMMELN ---
 function handleWorldClick(e) {
     if(document.getElementById('gameModal').style.display === 'flex') return;
     const rect = document.getElementById('world').getBoundingClientRect();
-    data.x = (e.clientX - rect.left); data.y = (e.clientY - rect.top);
+    const clickX = (e.clientX - rect.left);
+    const clickY = (e.clientY - rect.top);
+    
+    // Position aktualisieren
+    data.x = clickX;
+    data.y = clickY;
+    
+    // Sammel-Logik auslösen
+    checkLootOnMove(clickX, clickY);
+    
     save();
 }
 
