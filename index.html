@@ -3,69 +3,86 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>The Nest: Solo Leveling Pro-Edition</title>
+    <title>The Nest: Solo Leveling Legends</title>
     <style>
         body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #000; color: #e0d8b0; }
         #viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; display: flex; align-items: center; justify-content: center; }
         #world { width: 1920px; height: 1080px; background: url('./wald.png') no-repeat center; background-size: cover; position: absolute; transition: transform 0.1s ease-out; transform-origin: center center; }
         
-        /* Gebäude & Spieler */
+        /* SPIELER & GEBÄUDE */
         .building { position: absolute; background-size: contain; background-repeat: no-repeat; background-position: center; cursor: pointer; z-index: 10; transform: translate(-50%, -50%); }
         .label { position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: gold; padding: 2px 8px; border-radius: 5px; font-size: 12px; white-space: nowrap; border: 1px solid gold; }
-        .creature { position: absolute; width: 80px; height: 100px; z-index: 1000; text-align: center; transform: translate(-50%, -50%); transition: left 0.6s ease-out, top 0.6s ease-out; cursor: pointer; }
+        .creature { position: absolute; width: 80px; height: 100px; z-index: 1000; text-align: center; transform: translate(-50%, -50%); transition: left 0.6s ease-out, top 0.6s ease-out; }
         .avatar-emoji { font-size: 60px; display: block; filter: drop-shadow(0 0 15px rgba(59, 130, 246, 0.8)); }
         .name-tag { font-size: 14px; font-weight: bold; color: #fff; background: rgba(15, 23, 42, 0.9); padding: 2px 12px; border-radius: 8px; border: 1px solid #3b82f6; margin-top: 5px; }
         
-        /* HUD & Ticker */
+        /* HUD & TICKER */
         #hud { position: fixed; top: 20px; left: 20px; background: rgba(15, 23, 42, 0.95); padding: 15px; border-radius: 15px; border: 2px solid #3b82f6; z-index: 5000; min-width: 180px; }
-        #ticker { position: fixed; top: 0; width: 100%; background: rgba(37, 99, 235, 0.8); color: white; padding: 5px; text-align: center; font-size: 12px; font-weight: bold; z-index: 6000; white-space: nowrap; overflow: hidden; display: none; }
+        #ticker { position: fixed; top: 0; width: 100%; background: rgba(220, 38, 38, 0.8); color: white; padding: 5px; text-align: center; font-size: 12px; font-weight: bold; z-index: 6000; display: none; }
         
-        /* Modals */
+        /* MODALS */
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; z-index: 20000; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .menu-box { width: 650px; background: #0f172a; border: 3px solid #3b82f6; border-radius: 25px; padding: 25px; text-align: center; color: white; max-height: 85vh; overflow-y: auto; }
-        .btn-action { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border: none; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-weight: bold; margin: 5px; transition: 0.2s; }
-        .btn-action:hover { transform: scale(1.05); }
-        .market-item { background: #1e293b; padding: 12px; border-radius: 10px; margin: 8px 0; display: flex; justify-content: space-between; align-items: center; border: 1px solid #334155; }
-        .inv-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 15px; }
-        .inv-slot { background: #1e293b; padding: 10px; border-radius: 8px; border: 1px solid #334155; }
+        .btn-action { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border: none; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-weight: bold; margin: 5px; }
+        
+        /* ARENA & BESTENLISTE */
+        #arena_scene { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: url('./arena_innen.png') no-repeat center; background-size: cover; display: none; z-index: 50000; }
+        .leaderboard-entry { background: #1e293b; margin: 5px 0; padding: 10px; border-radius: 10px; display: flex; justify-content: space-between; border-left: 4px solid gold; }
     </style>
 </head>
 <body>
 
-<div id="ticker">📢 Lade Markt-News...</div>
+<div id="ticker">📢 Monster gesichtet!</div>
 
 <div id="viewport">
     <div id="world" onclick="handleWorldClick(event)">
         <div class="building" style="left:1500px; top:200px; width:220px; height:220px; background-image:url('./steinbruch.png');" onclick="event.stopPropagation(); openBuilding('steinbruch')"><div class="label">Steinbruch</div></div>
-        <div class="building" style="left:1200px; top:750px; width:220px; height:220px; background-image:url('./marktplatz.png');" onclick="event.stopPropagation(); openBuilding('markt')"><div class="label">Marktplatz</div></div>
         <div class="building" style="left:400px; top:300px; width:250px; height:250px; background-image:url('./rathaus.png');" onclick="event.stopPropagation(); openBuilding('rathaus')"><div class="label">Rathaus</div></div>
+        <div class="building" style="left:700px; top:500px; width:180px; height:180px; background-image:url('./schmiede.png');" onclick="event.stopPropagation(); openBuilding('schmiede')"><div class="label">Schmiede</div></div>
         <div id="charLayer"></div>
     </div>
 </div>
 
 <div id="hud">
     <div style="color:gold; font-weight:bold;">👑 <span id="playerName">Lädt...</span></div>
-    <div style="font-size:11px; margin: 5px 0;">❤️ HP: <span id="hpC">100</span> | 💎 LXP: <span id="lxpC">0</span></div>
-    <div style="font-size:11px; color:#94a3b8;">🪨 Steine: <span id="steinC">0</span> | 🧪 Tränke: <span id="trankC">0</span></div>
-    <div style="font-size:10px; color:#4ade80; margin-top:5px;">🏘️ Dorf-Steine: <span id="villageStoneC">0</span></div>
-    <button class="btn-action" style="font-size:10px; width:100%; margin-top:10px;" onclick="openBuilding('inventar')">🎒 Inventar öffnen</button>
+    <div style="font-size:11px;">❤️ HP: <span id="hpC">100</span> | ⚔️ ATK: <span id="atkC">12</span></div>
+    <div style="font-size:11px; color:#4ade80;">💎 LXP: <span id="lxpC">0</span></div>
+    <button class="btn-action" style="font-size:10px; width:100%;" onclick="openBuilding('inventar')">🎒 Inventar</button>
 </div>
 
-<div id="invModal" class="modal"><div class="menu-box"><h2 style="color:gold;">🎒 DEIN RUCKSACK</h2><div id="invGrid" class="inv-grid"></div><br><button class="btn-action" onclick="toggleModal('invModal', false)">Schließen</button></div></div>
-
-<div id="marketModal" class="modal">
-    <div class="menu-box">
-        <h2 style="color:gold;">⚖️ MARKTPLATZ</h2>
-        <div style="display:flex; gap:10px; justify-content:center; margin-bottom:15px;">
-            <button class="btn-action" onclick="showMarketTab('sell')">Verkaufen</button>
-            <button class="btn-action" onclick="showMarketTab('buy')">Auktionshaus</button>
+<div id="arena_scene">
+    <div id="combatant_left" style="position:absolute; left:20%; top:50%; transform:translateY(-50%);"></div>
+    <div id="combatant_right" style="position:absolute; right:20%; top:50%; transform:translateY(-50%);"></div>
+    <div id="battle_ui" style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); width:80%; height:160px; background:rgba(0,0,50,0.9); border:2px solid gold; display:flex; padding:10px;">
+        <div style="width:30%; border-right:2px solid gold; display:flex; flex-direction:column;">
+            <button class="btn-action" onclick="battleStep()">⚔️ Schlag</button>
+            <button class="btn-action" onclick="endBattle()">🏃 Flucht</button>
         </div>
-        <div id="marketContent"></div>
-        <br><button class="btn-action" onclick="toggleModal('marketModal', false)">Verlassen</button>
+        <div id="arenaLog" style="flex-grow:1; padding:10px; overflow-y:auto; font-family:monospace; color:lightgreen;">Kampfbereit...</div>
     </div>
 </div>
 
-<div id="steinbruchModal" class="modal"><div class="menu-box"><h2>⛏️ STEINBRUCH</h2><div onclick="harvest('stein')" style="font-size:80px; cursor:pointer; margin:20px;">🪨</div><p>Klicke zum Sammeln!</p><button class="btn-action" onclick="toggleModal('steinbruchModal', false)">Fertig</button></div></div>
+<div id="rathausModal" class="modal">
+    <div class="menu-box">
+        <h2 style="color:gold;">🏆 BESTENLISTE (TOP 5 ATK)</h2>
+        <div id="leaderboardContent">Lade Helden...</div>
+        <br>
+        <button class="btn-action" onclick="toggleModal('rathausModal', false)">Schließen</button>
+    </div>
+</div>
+
+<div id="schmiedeModal" class="modal">
+    <div class="menu-box">
+        <h2 style="color:gold;">⚒️ SCHMIEDE</h2>
+        <div style="background:#1e293b; padding:10px; border-radius:10px; border:1px solid gold; margin-bottom:15px;">
+            <span>🦴 <b>Knochendolch</b> (+5 ATK)<br><small>5 Knochen, 2 Schleim</small></span><br>
+            <button class="btn-action" onclick="craftEquipment('dagger', {bone:5, slime:2}, 5)">Schmieden</button>
+        </div>
+        <button class="btn-action" onclick="toggleModal('schmiedeModal', false)">Schließen</button>
+    </div>
+</div>
+
+<div id="invModal" class="modal"><div class="menu-box"><h2 style="color:gold;">🎒 RUCKSACK</h2><div id="invGrid" style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px;"></div><br><button class="btn-action" onclick="toggleModal('invModal', false)">Schließen</button></div></div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
@@ -80,38 +97,28 @@ const firebaseConfig = {
   messagingSenderId: "785821659645",
   appId: "1:785821659645:web:684460a421d3c9dcaee994"
 };
-
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 let data = JSON.parse(localStorage.getItem('nestData')) || {
-    name: "Held", x: 960, y: 540, stein: 0, gras: 0, pilz: 0, trank: 0, lxp: 0, hp: 100, emoji: "🥚"
+    name: "Held", x: 960, y: 540, stein: 0, gras: 0, slime: 0, bone: 0, trank: 0, lxp: 0, hp: 100, atk: 12, emoji: "🥚"
 };
 
-let otherPlayers = {};
-let marketListings = {};
+let currentEnemy = null;
 let zoom = 1.0;
+let otherPlayers = {};
 
-// GHOST-SCHUTZ
+// GHOST-PROTECTION
 window.onbeforeunload = () => { db.ref('players/' + data.name.replace(/\s+/g, '_')).remove(); };
 
-// CLOUD LISTENERS
-db.ref('players').on('value', snap => { otherPlayers = snap.val() || {}; render(); });
-db.ref('market').on('value', snap => { marketListings = snap.val() || {}; if(document.getElementById('marketModal').style.display === 'flex') showMarketTab('buy'); });
-db.ref('world/villageStats/totalStone').on('value', snap => { document.getElementById('villageStoneC').innerText = snap.val() || 0; });
-
-// TICKER LOGIK
-db.ref('ticker').on('value', snap => {
-    const msg = snap.val();
-    if(msg) {
-        const t = document.getElementById('ticker');
-        t.innerText = "📢 " + msg;
-        t.style.display = 'block';
-        setTimeout(() => { t.style.display = 'none'; }, 8000);
-    }
-});
-
+// SYNC & RENDER
 function sync() { db.ref('players/' + data.name.replace(/\s+/g, '_')).set(data); }
+
+db.ref('players').on('value', snap => {
+    otherPlayers = snap.val() || {};
+    updateLeaderboard();
+    render();
+});
 
 function render() {
     const layer = document.getElementById('charLayer');
@@ -124,103 +131,75 @@ function render() {
         avatar.style.left = p.x + "px"; avatar.style.top = p.y + "px";
         avatar.style.zIndex = isMe ? "2000" : "1000";
         avatar.style.transform = `translate(-50%, -50%) scale(${1/zoom})`;
-        avatar.innerHTML = `<span class="avatar-emoji">${p.emoji}</span><div class="name-tag" style="${isMe?'border-color:gold; box-shadow: 0 0 10px gold;':''}">${p.name}</div>`;
+        avatar.innerHTML = `<span class="avatar-emoji">${p.emoji}</span><div class="name-tag" style="${isMe?'border-color:gold; box-shadow:0 0 10px gold;':''}">${p.name} (ATK:${p.atk})</div>`;
         layer.appendChild(avatar);
     }
 }
 
-// MARKT FUNKTIONEN
-function showMarketTab(tab) {
-    const content = document.getElementById('marketContent');
-    if(tab === 'sell') {
-        content.innerHTML = `
-            <h3>An Dorf verkaufen</h3>
-            <div class="market-item"><span>10x 🪨 Stein</span> <button class="btn-action" onclick="sellToVillage('stein', 10, 5)">+5 LXP</button></div>
-            <hr>
-            <h3>Auktionshaus Inserat</h3>
-            <p>1x 🧪 Trank für 25 LXP anbieten?</p>
-            <button class="btn-action" onclick="listOnMarket('trank', 25)">🧪 Trank inserieren</button>
-        `;
-    } else {
-        content.innerHTML = `<h3>Angebote von Spielern</h3><div id="marketList"></div>`;
-        const list = document.getElementById('marketList');
-        for(let key in marketListings) {
-            const item = marketListings[key];
-            list.innerHTML += `
-                <div class="market-item">
-                    <span><b>${item.seller}</b>: 1x ${item.type}</span>
-                    <button class="btn-action" onclick="buyFromMarket('${key}')" ${data.lxp < item.price ? 'disabled' : ''}>Kaufen für ${item.price} LXP</button>
-                </div>`;
-        }
-    }
+// BESTENLISTE LOGIK
+function updateLeaderboard() {
+    let sorted = Object.values(otherPlayers).sort((a, b) => b.atk - a.atk).slice(0, 5);
+    const container = document.getElementById('leaderboardContent');
+    if(!container) return;
+    container.innerHTML = "";
+    sorted.forEach((p, index) => {
+        container.innerHTML += `<div class="leaderboard-entry"><span>#${index+1} ${p.name}</span><b>${p.atk} ATK</b></div>`;
+    });
 }
 
-function sellToVillage(item, qty, rew) {
-    if(data[item] >= qty) { data[item] -= qty; data.lxp += rew; save(); sync(); alert("Verkauft!"); showMarketTab('sell'); }
-}
-
-function listOnMarket(type, price) {
-    if(data[type] >= 1) {
-        data[type]--;
-        db.ref('market').push({ seller: data.name, type: type, price: price });
-        db.ref('ticker').set(`${data.name} hat ein Inserat für ${type} erstellt! 💰`);
-        save(); sync(); alert("Inseriert!");
-    }
-}
-
-function buyFromMarket(key) {
-    const item = marketListings[key];
-    if(data.lxp >= item.price) {
-        data.lxp -= item.price;
-        data[item.type] = (data[item.type] || 0) + 1;
-        // LXP TRANSFER AN VERKÄUFER
-        const sellerKey = item.seller.replace(/\s+/g, '_');
-        db.ref('players/' + sellerKey + '/lxp').transaction(c => (c || 0) + item.price);
-        db.ref('ticker').set(`${data.name} hat ${item.type} von ${item.seller} gekauft! 🎉`);
-        db.ref('market/' + key).remove();
-        save(); sync(); alert("Gekauft! LXP wurde übertragen.");
-    }
-}
-
-// BASIS FUNKTIONEN
-function harvest(item) {
-    data[item]++;
-    if(item === 'stein') db.ref('world/villageStats/totalStone').transaction(c => (c || 0) + 1);
-    updateUI(); save(); sync();
-}
-
+// GAMEPLAY
 function handleWorldClick(e) {
     const rect = document.getElementById('world').getBoundingClientRect();
     data.x = (e.clientX - rect.left) / zoom;
     data.y = (e.clientY - rect.top) / zoom;
+    if (Math.random() < 0.15) startMonsterBattle();
     save(); sync();
 }
 
-function openBuilding(b) {
-    if(b === 'steinbruch') toggleModal('steinbruchModal', true);
-    else if(b === 'markt') { toggleModal('marketModal', true); showMarketTab('sell'); }
-    else if(b === 'inventar') {
-        toggleModal('invModal', true);
-        document.getElementById('invGrid').innerHTML = `
-            <div class="inv-slot">🪨<br>${data.stein}</div>
-            <div class="inv-slot">🌿<br>${data.gras}</div>
-            <div class="inv-slot">🍄<br>${data.pilz}</div>
-            <div class="inv-slot">🧪<br>${data.trank}</div>
-        `;
+function startMonsterBattle() {
+    currentEnemy = { name: "Skelett", hp: 40, atk: 7, emoji: "💀", loot: "bone" };
+    document.getElementById('arena_scene').style.display = 'block';
+    document.getElementById('combatant_left').innerHTML = `<span style="font-size:80px;">${data.emoji}</span><br>${data.name}`;
+    document.getElementById('combatant_right').innerHTML = `<span style="font-size:80px;">💀</span><br>Skelett`;
+}
+
+function battleStep() {
+    let dmg = Math.floor(Math.random() * data.atk) + 5;
+    currentEnemy.hp -= dmg;
+    document.getElementById('arenaLog').innerHTML += `<br>> Treffer: ${dmg} Schaden!`;
+    if(currentEnemy.hp <= 0) {
+        data.bone += 2; data.lxp += 5; alert("Sieg! +2 Knochen"); endBattle();
+    } else {
+        setTimeout(() => { data.hp -= 5; updateUI(); }, 400);
     }
-    else if(b === 'rathaus') alert("Rathaus: Bewohner-Zahl: " + (Object.keys(otherPlayers).length + 1));
+}
+
+function endBattle() { document.getElementById('arena_scene').style.display = 'none'; save(); sync(); }
+
+function craftEquipment(name, costs, bonus) {
+    for (let res in costs) { if (data[res] < costs[res]) { alert("Fehlende Ressourcen!"); return; } }
+    for (let res in costs) { data[res] -= costs[res]; }
+    data.atk += bonus;
+    save(); sync(); alert("Geschmiedet! ATK + " + bonus);
+}
+
+function openBuilding(b) {
+    if(b === 'rathaus') toggleModal('rathausModal', true);
+    if(b === 'schmiede') toggleModal('schmiedeModal', true);
+    if(b === 'inventar') {
+        toggleModal('invModal', true);
+        document.getElementById('invGrid').innerHTML = `<div class="inv-slot">🦴: ${data.bone}</div><div class="inv-slot">🪨: ${data.stein}</div>`;
+    }
+}
+
+function updateUI() {
+    document.getElementById('playerName').innerText = data.name; // FIX: Name wird jetzt aktualisiert
+    document.getElementById('hpC').innerText = data.hp;
+    document.getElementById('atkC').innerText = data.atk;
+    document.getElementById('lxpC').innerText = data.lxp;
 }
 
 function toggleModal(id, s) { document.getElementById(id).style.display = s ? 'flex' : 'none'; }
-
-function updateUI() {
-    document.getElementById('playerName').innerText = data.name;
-    document.getElementById('hpC').innerText = data.hp;
-    document.getElementById('lxpC').innerText = data.lxp;
-    document.getElementById('steinC').innerText = data.stein;
-    document.getElementById('trankC').innerText = data.trank;
-}
-
 function save() { localStorage.setItem('nestData', JSON.stringify(data)); updateUI(); }
 
 window.onload = () => {
