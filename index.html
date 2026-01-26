@@ -7,17 +7,21 @@
     <style>
         :root { --fantasy-bg: rgba(40, 30, 20, 0.95); --gold: #ffd700; --border: 2px solid #ffd700; --shadow: 0 0 15px rgba(255, 215, 0, 0.4); --btn-grad: linear-gradient(135deg, #b8860b, #8b4513); }
         body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Crimson Text', serif; background: #000; color: #fdf5e6; }
+        
         #viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; display: flex; align-items: center; justify-content: center; }
-        #world { width: 1920px; height: 1080px; background: url('./wald.png') no-repeat center; background-size: cover; position: absolute; transition: transform 0.1s ease-out; transform-origin: center center; }
-        .building { position: absolute; background-size: contain; background-repeat: no-repeat; background-position: center; cursor: pointer; transform: translate(-50%, -50%); }
-        .label { position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%); background: var(--fantasy-bg); color: var(--gold); padding: 4px 12px; border-radius: 8px; font-size: 14px; white-space: nowrap; border: 1px solid var(--gold); font-weight: bold; }
-        .creature { position: absolute; width: 80px; height: 100px; z-index: 1000; text-align: center; transform: translate(-50%, -50%); transition: left 0.6s ease-out, top 0.6s ease-out; cursor: crosshair; }
-        .name-tag { font-size: 14px; font-weight: bold; color: #fff; background: rgba(15, 23, 42, 0.9); padding: 2px 12px; border-radius: 8px; border: 1px solid #3b82f6; margin-top: 5px; }
+        #world { width: 1920px; height: 1080px; background: url('./wald.png') no-repeat center; background-size: cover; position: absolute; transition: transform 0.1s ease-out; transform-origin: center center; z-index: 1; }
+        
+        /* SPIELER GRAFIKEN IM VORDERGRUND */
+        #charLayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1000; }
+        .creature { position: absolute; width: 80px; height: 100px; text-align: center; transform: translate(-50%, -50%); transition: left 0.6s ease-out, top 0.6s ease-out; pointer-events: auto; cursor: crosshair; }
+        .creature img { height: 80px; filter: drop-shadow(0 0 8px rgba(0,0,0,0.6)); }
+        .name-tag { font-size: 14px; font-weight: bold; color: #fff; background: rgba(15, 23, 42, 0.9); padding: 2px 12px; border-radius: 8px; border: 1px solid #3b82f6; margin-top: 5px; white-space: nowrap; }
 
-        /* PvP MENU */
+        .building { position: absolute; background-size: contain; background-repeat: no-repeat; background-position: center; cursor: pointer; transform: translate(-50%, -50%); z-index: 10; }
+        .label { position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%); background: var(--fantasy-bg); color: var(--gold); padding: 4px 12px; border-radius: 8px; font-size: 14px; white-space: nowrap; border: 1px solid var(--gold); font-weight: bold; }
+
         #pvpMenu { position: fixed; background: var(--fantasy-bg); border: var(--border); padding: 15px; border-radius: 12px; z-index: 70000; display: none; flex-direction: column; gap: 8px; box-shadow: var(--shadow); }
 
-        /* ARENA LAYER */
         #arenaLayer { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: url('./arena_innen.png') no-repeat center; background-size: cover; z-index: 60000; display: none; flex-direction: column; justify-content: space-between; align-items: center; padding: 40px 0; box-sizing: border-box; }
         #combatScene { display: flex; width: 90%; justify-content: space-between; align-items: center; margin-bottom: auto; margin-top: 20px; }
         .combat-unit { text-align: center; width: 300px; }
@@ -30,12 +34,9 @@
         .btn-battle { background: #0000a0; color: white; border: 2px solid #fff; cursor: pointer; font-size: 18px; }
         #battleLog { border-left: 2px solid #fff; padding: 10px; overflow-y: auto; color: #00ff00; font-family: monospace; font-size: 15px; }
 
-        /* HUD & MODALS */
         #hud { position: fixed; top: 20px; left: 20px; background: var(--fantasy-bg); padding: 15px; border-radius: 12px; border: var(--border); z-index: 5000; min-width: 180px; }
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; z-index: 20000; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .mmo-panel { width: 850px; background: var(--fantasy-bg); border: var(--border); border-radius: 20px; display: flex; overflow: hidden; }
-        .panel-left { flex: 2; padding: 25px; border-right: 1px solid rgba(255, 215, 0, 0.3); max-height: 70vh; overflow-y: auto; }
-        .panel-right { flex: 1; padding: 25px; background: rgba(20, 15, 10, 0.5); display: flex; flex-direction: column; }
         .btn-action { background: var(--btn-grad); color: white; border: 1px solid var(--gold); padding: 10px 18px; border-radius: 12px; cursor: pointer; font-weight: bold; }
     </style>
 </head>
@@ -51,7 +52,7 @@
     <div id="combatScene">
         <div class="combat-unit">
             <h2 id="pNameDisp" style="color: gold; margin:0;">DU</h2>
-            <div id="playerVisual" style="height: 120px; font-size: 80px;">🥚</div>
+            <div id="playerVisual" style="height: 120px; font-size: 80px; display: flex; align-items: center; justify-content: center;"></div>
             <div class="hp-bar-bg">
                 <div id="playerHPFill" class="bar-fill-hp"></div>
                 <div class="hp-text" id="pHPText">100 / 100</div>
@@ -59,7 +60,7 @@
         </div>
         <div class="combat-unit">
             <h2 id="enemyNameDisp" style="color: white; margin:0;">GEGNER</h2>
-            <div id="enemyVisual" style="font-size: 80px;">🐗</div>
+            <div id="enemyVisual" style="font-size: 80px; display: flex; align-items: center; justify-content: center;">🐗</div>
             <div class="hp-bar-bg">
                 <div id="enemyHPFill" class="bar-fill-hp"></div>
                 <div class="hp-text" id="eHPText">100 / 100</div>
@@ -96,8 +97,12 @@
 
 <div id="gameModal" class="modal">
     <div class="mmo-panel">
-        <div class="panel-left" id="modalLeft"></div>
-        <div class="panel-right"><h3 style="color:gold;">🎒 RUCKSACK</h3><div id="miniInv" style="font-size:14px;"></div><button class="btn-action" style="margin-top:auto;" onclick="toggleModal('gameModal', false)">Schließen X</button></div>
+        <div style="flex:2; padding:25px;" id="modalLeft"></div>
+        <div style="flex:1; padding:25px; background:rgba(20,15,10,0.5);">
+            <h3 style="color:gold;">🎒 RUCKSACK</h3>
+            <div id="miniInv"></div>
+            <button class="btn-action" style="margin-top:auto;" onclick="toggleModal('gameModal', false)">Schließen X</button>
+        </div>
     </div>
 </div>
 
@@ -122,21 +127,20 @@ let data = JSON.parse(localStorage.getItem('nestData')) || {
     name: "Held", x: 960, y: 540, stein: 0, lxp: 0, followDays: 0, bone: 0, trank: 1, emoji: "🥚"
 };
 
-// KAMPFWERTE & STATS
-let currentHP = 100;
-let maxHP = 100;
-let battleAtk = 5;
+let currentHP, maxHP, battleAtk;
 let combat = { active: false, enemyHP: 100, enemyMaxHP: 100 };
 
 window.onbeforeunload = () => { if(myID) db.ref('players/' + myID).remove(); };
 
 function sync() { 
-    if(myID) db.ref('players/' + myID).update({
-        ...data,
-        maxHP: maxHP,
-        currentHP: currentHP,
-        ep: data.followDays
-    }); 
+    if(myID) {
+        db.ref('players/' + myID).update({
+            ...data,
+            maxHP: maxHP,
+            currentHP: currentHP,
+            ep: data.followDays
+        });
+    }
 }
 
 window.onload = () => {
@@ -146,17 +150,21 @@ window.onload = () => {
     
     myID = data.name.replace(/\s+/g, '_');
 
-    // STATS BERECHNUNG NACH FORMEL
+    // FORMELN
     maxHP = 100 + (data.followDays * 2);
     battleAtk = 5 + (data.followDays / 10);
     currentHP = maxHP;
 
-    // EVOLUTION TRIGGER
     if(data.followDays >= 10) { data.emoji = "🦅"; document.getElementById('hudLevel').innerText = "Evolution: Greif"; }
     else if(data.followDays >= 5) { data.emoji = "🐥"; document.getElementById('hudLevel').innerText = "Evolution: Küken"; }
     else { data.emoji = "🥚"; document.getElementById('hudLevel').innerText = "Evolution: Ei"; }
 
-    // PvP LISTENERS
+    // INITIALER LOGIN TRIGGER
+    sync();
+
+    // SPIELER SNAPSHOT
+    db.ref('players').on('value', snap => { renderPlayers(snap.val()); });
+
     db.ref('players/' + myID + '/challengePending').on('value', snap => {
         if(snap.val() === true) {
             if(confirm("⚔️ HERAUSFORDERUNG! Kampf annehmen?")) {
@@ -172,18 +180,61 @@ window.onload = () => {
     });
 
     updateUI();
-    sync();
 };
+
+function renderPlayers(players) {
+    const layer = document.getElementById('charLayer'); 
+    layer.innerHTML = '';
+    if(!players) return;
+
+    for(let id in players) {
+        const p = players[id]; 
+        const isMe = (p.name === data.name);
+        
+        const div = document.createElement('div'); 
+        div.className = 'creature';
+        div.style.left = p.x + "px"; 
+        div.style.top = p.y + "px";
+
+        // Grafik-Check: Wenn Ei, dann Ei.png nutzen
+        let visual = p.emoji === "🥚" ? `<img src="Ei.png">` : `<span style="font-size:60px;">${p.emoji}</span>`;
+        
+        div.innerHTML = `
+            ${visual}
+            <div class="name-tag" style="${isMe ? 'border-color: gold; color: gold;' : ''}">
+                ${p.name} (EP: ${p.ep || 0})
+            </div>
+        `;
+
+        if(!isMe) {
+            div.onclick = (e) => {
+                e.stopPropagation();
+                const menu = document.getElementById('pvpMenu');
+                menu.style.display = 'flex';
+                menu.style.left = e.clientX + "px"; 
+                menu.style.top = e.clientY + "px";
+                document.getElementById('pvpTargetName').innerText = p.name;
+                document.getElementById('pvpChallengeBtn').onclick = () => {
+                    db.ref('players/' + p.name.replace(/\s+/g, '_')).update({ challengePending: true });
+                    alert("Herausforderung verschickt!");
+                    menu.style.display = 'none';
+                };
+            };
+        }
+        layer.appendChild(div);
+    }
+}
 
 function startArenaFight(target = null) {
     combat.active = true;
     combat.enemyMaxHP = target ? target.hp : 100;
     combat.enemyHP = combat.enemyMaxHP;
-    
     document.getElementById('arenaLayer').style.display = 'flex';
     document.getElementById('pNameDisp').innerText = `${data.name.toUpperCase()} (EP: ${data.followDays})`;
     document.getElementById('enemyNameDisp').innerText = target ? target.name : "WALDKREATUR";
-    document.getElementById('playerVisual').innerText = data.emoji;
+    
+    const pVis = document.getElementById('playerVisual');
+    pVis.innerHTML = data.emoji === "🥚" ? `<img src="Ei.png" style="height:100px;">` : data.emoji;
     document.getElementById('enemyVisual').innerText = target ? target.emoji : "🐗";
     
     updateArenaUI();
@@ -196,8 +247,6 @@ function arenaAction(type) {
         db.ref('players/' + myID).update({ matchActive: false });
         return;
     }
-    
-    // SCHADEN BERECHNEN
     let dmg = Math.floor(Math.random() * battleAtk) + 5;
     combat.enemyHP -= dmg;
     document.getElementById('battleLog').innerHTML += `<br>> Treffer für ${dmg} Schaden!`;
@@ -242,37 +291,15 @@ function openBuilding(b) {
     const left = document.getElementById('modalLeft');
     if(b === 'steinbruch') left.innerHTML = `<h2>Steinbruch</h2><button class="btn-action" onclick="data.stein++; save(); openBuilding('steinbruch')">Sammeln</button>`;
     else if(b === 'markt') left.innerHTML = `<h2>Marktplatz</h2><button class="btn-action" onclick="if(data.stein>=10){data.stein-=10;data.lxp+=5;save();openBuilding('markt')}">10 Stein -> 5 LXP</button>`;
-    else left.innerHTML = `<h2>${b}</h2><p>Aktuell keine Interaktion.</p>`;
+    else left.innerHTML = `<h2>${b}</h2><p>Keine Aktion verfügbar.</p>`;
 }
 
 function handleWorldClick(e) {
     if(combat.active || document.getElementById('gameModal').style.display === 'flex') return;
     const rect = document.getElementById('world').getBoundingClientRect();
-    data.x = (e.clientX - rect.left); data.y = (e.clientY - rect.top);
-    save(); sync();
-}
-
-function renderPlayers(players) {
-    const layer = document.getElementById('charLayer'); layer.innerHTML = '';
-    for(let id in players) {
-        const p = players[id]; const isMe = (p.name === data.name);
-        const div = document.createElement('div'); div.className = 'creature';
-        div.style.left = p.x + "px"; div.style.top = p.y + "px";
-        div.innerHTML = `<span>${p.emoji}</span><div class="name-tag">${p.name} (EP: ${p.ep || 0})</div>`;
-        if(!isMe) div.onclick = (e) => {
-            e.stopPropagation();
-            const menu = document.getElementById('pvpMenu');
-            menu.style.display = 'flex';
-            menu.style.left = e.clientX + "px"; menu.style.top = e.clientY + "px";
-            document.getElementById('pvpTargetName').innerText = p.name;
-            document.getElementById('pvpChallengeBtn').onclick = () => {
-                db.ref('players/' + p.name.replace(/\s+/g, '_')).update({ challengePending: true });
-                alert("Herausforderung verschickt!");
-                menu.style.display = 'none';
-            };
-        };
-        layer.appendChild(div);
-    }
+    data.x = (e.clientX - rect.left); 
+    data.y = (e.clientY - rect.top);
+    save(); 
 }
 
 function toggleModal(id, s) { document.getElementById(id).style.display = s ? 'flex' : 'none'; }
@@ -285,7 +312,11 @@ function updateUI() {
     document.getElementById('lxpC').innerText = data.lxp;
 }
 
-function save() { localStorage.setItem('nestData', JSON.stringify(data)); updateUI(); sync(); }
+function save() { 
+    localStorage.setItem('nestData', JSON.stringify(data)); 
+    updateUI(); 
+    sync(); 
+}
 </script>
 </body>
 </html>
