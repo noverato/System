@@ -1,177 +1,191 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>The Nest: Admin Debug Edition</title>
-<style>
-    body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #000; color: #e0d8b0; }
-    #viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; display: flex; align-items: center; justify-content: center; }
-    #world { width: 1920px; height: 1080px; background: url('./wald.png') no-repeat center; background-size: cover; position: absolute; transition: transform 0.1s ease-out; transform-origin: center center; }
-    
-    /* SPIELER & GEBÄUDE */
-    .creature { position: absolute; width: 80px; height: 100px; z-index: 1000; text-align: center; transform: translate(-50%, -50%); transition: left 0.8s ease-out, top 0.8s ease-out; }
-    .avatar-emoji { font-size: 60px; display: block; filter: drop-shadow(0 0 15px rgba(59, 130, 246, 0.8)); }
-    .name-tag { font-size: 14px; font-weight: bold; color: #fff; background: rgba(15, 23, 42, 0.9); padding: 2px 12px; border-radius: 8px; border: 1px solid #3b82f6; margin-top: 5px; }
-    
-    /* ADMIN DEBUG CONSOLE */
-    #adminDebug { 
-        position: fixed; top: 110px; left: 20px; 
-        background: rgba(15, 23, 42, 0.7); 
-        border: 1px solid #ef4444; 
-        color: #4ade80; 
-        padding: 10px; 
-        font-family: 'Courier New', monospace; 
-        font-size: 10px; 
-        border-radius: 8px; 
-        z-index: 9999; 
-        display: none; /* Nur für Admin sichtbar */
-        pointer-events: none;
-    }
-
-    #hud { position: fixed; top: 20px; left: 20px; background: rgba(15, 23, 42, 0.95); padding: 15px; border-radius: 15px; border: 2px solid #3b82f6; z-index: 5000; }
-    #connState { position: fixed; bottom: 10px; left: 10px; font-size: 10px; color: red; z-index: 10000; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>The Nest: Solo Leveling Multiplayer - CLOUD EDITION</title>
+    <style>
+        body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #000; color: #e0d8b0; }
+        #viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; display: flex; align-items: center; justify-content: center; }
+        #world { 
+            width: 1920px; height: 1080px; 
+            background: url('./wald.png') no-repeat center; background-size: cover;
+            position: absolute; transition: transform 0.1s ease-out;
+            transform-origin: center center; 
+        }
+        
+        /* Gebäude */
+        .building { position: absolute; background-size: contain; background-repeat: no-repeat; background-position: center; cursor: pointer; z-index: 10; transform: translate(-50%, -50%); }
+        .label { position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: gold; padding: 2px 8px; border-radius: 5px; font-size: 12px; white-space: nowrap; border: 1px solid gold; }
+        
+        /* Spieler & Eier */
+        .creature { position: absolute; width: 80px; height: 100px; z-index: 1000; text-align: center; transform: translate(-50%, -50%); transition: left 0.5s ease-out, top 0.5s ease-out; }
+        .avatar-emoji { font-size: 60px; display: block; filter: drop-shadow(0 0 15px rgba(59, 130, 246, 0.8)); }
+        .name-tag { font-size: 14px; font-weight: bold; color: #fff; background: rgba(15, 23, 42, 0.9); padding: 2px 12px; border-radius: 8px; border: 1px solid #3b82f6; margin-top: 5px; }
+        
+        /* UI */
+        #hud { position: fixed; top: 20px; left: 20px; background: rgba(15, 23, 42, 0.95); padding: 15px; border-radius: 15px; border: 2px solid #3b82f6; z-index: 5000; }
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; z-index: 20000; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+        .menu-box { width: 600px; background: #0f172a; border: 3px solid #3b82f6; border-radius: 25px; padding: 25px; text-align: center; color: white; }
+        .btn-action { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border: none; padding: 10px 20px; border-radius: 10px; cursor: pointer; font-weight: bold; margin: 5px; }
+        #statusInfo { position: fixed; bottom: 10px; right: 10px; font-size: 10px; color: #4ade80; opacity: 0.5; }
+    </style>
 </head>
 <body>
 
-<div id="connState">Netzwerk: Getrennt</div>
-
-<div id="adminDebug">
-    [SYSTEM STATUS]<br>
-    URL: <span id="debugUrl">---</span><br>
-    LETZTER PKT: <span id="debugLast">Keiner</span><br>
-    EIER ONLINE: <span id="debugCount">0</span>
-</div>
-
 <div id="viewport">
     <div id="world" onclick="handleWorldClick(event)">
+        <div class="building" style="left:1500px; top:200px; width:220px; height:220px; background-image:url('./steinbruch.png');" onclick="event.stopPropagation(); openBuilding('steinbruch')"><div class="label">Steinbruch</div></div>
+        <div class="building" style="left:1200px; top:750px; width:220px; height:220px; background-image:url('./marktplatz.png');" onclick="event.stopPropagation(); openBuilding('markt')"><div class="label">Marktplatz</div></div>
+        <div class="building" style="left:400px; top:300px; width:250px; height:250px; background-image:url('./rathaus.png');" onclick="event.stopPropagation(); openBuilding('rathaus')"><div class="label">Rathaus</div></div>
+        
         <div id="charLayer"></div>
     </div>
 </div>
 
 <div id="hud">
-    <div style="color:#facc15; font-weight:bold;">👑 <span id="playerName">Lädt...</span></div>
+    <div style="color:gold; font-weight:bold;">👑 <span id="playerName">Lädt...</span></div>
     <div style="font-size:11px;">❤️ HP: <span id="hpC">100</span> | 🪨 Steine: <span id="steinC">0</span></div>
 </div>
 
+<div id="statusInfo">Cloud-Sync Aktiv</div>
+
+<div id="steinbruchModal" class="modal">
+    <div class="menu-box">
+        <h2>STEINBRUCH</h2>
+        <p>Klicke den Stein!</p>
+        <div onclick="addStone()" style="font-size:80px; cursor:pointer; margin:20px;">🪨</div>
+        <button class="btn-action" onclick="toggleModal('steinbruchModal', false)">Schließen</button>
+    </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
 <script>
+// --- DEINE FIREBASE KONFIGURATION ---
+const firebaseConfig = {
+  apiKey: "AIzaSyCKNXJ-ouAOAcLr5ut-EemWQI8_zJxhqa8",
+  authDomain: "thenest-81de6.firebaseapp.com",
+  databaseURL: "https://thenest-81de6-default-rtdb.firebaseio.com",
+  projectId: "thenest-81de6",
+  storageBucket: "thenest-81de6.firebasestorage.app",
+  messagingSenderId: "785821659645",
+  appId: "1:785821659645:web:684460a421d3c9dcaee994"
+};
+
+// Initialisierung
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// Lokale Daten
 let data = JSON.parse(localStorage.getItem('nestData')) || {
-    name: "Held", x: 960, y: 540, stein: 0, emoji: "🥚", hp: 100
+    name: "Held", x: 960, y: 540, stein: 0, lxp: 0, emoji: "🥚", hp: 100
 };
 
 let otherPlayers = {};
 let zoom = 1.0;
-let socket;
-let isAdmin = false;
-let ngrokUrl = "wss://sanjuana-unblissful-celine.ngrok-free.dev/";
+const world = document.getElementById('world');
 
-function connect() {
-    socket = new WebSocket(ngrokUrl);
-
-    socket.onopen = () => {
-        document.getElementById('connState').innerText = "Netzwerk: Verbunden";
-        document.getElementById('connState').style.color = "green";
-        if(isAdmin) document.getElementById('debugUrl').innerText = ngrokUrl;
-        sync();
-    };
-
-    socket.onmessage = (e) => {
-        try {
-            const raw = JSON.parse(e.data);
-            const msg = raw.data || raw;
-            
-            if(msg.type === "updatePlayer" && msg.name !== data.name) {
-                otherPlayers[msg.name] = msg;
-                
-                // DEBUG UPDATE
-                if(isAdmin) {
-                    document.getElementById('debugLast').innerText = msg.name + " (" + Math.floor(msg.x) + "/" + Math.floor(msg.y) + ")";
-                    document.getElementById('debugCount').innerText = Object.keys(otherPlayers).length + 1;
-                }
-                
-                render();
-            }
-        } catch(err) {}
-    };
-
-    socket.onclose = () => { setTimeout(connect, 5000); };
-}
-
+// --- CLOUD SYNC: DEINE POSITION SENDEN ---
 function sync() {
-    if(socket && socket.readyState === 1) {
-        socket.send(JSON.stringify({
-            request: "DoAction", 
-            actionName: "Multiplayer",
-            args: { type: "updatePlayer", name: data.name, x: data.x, y: data.y, emoji: data.emoji }
-        }));
-    }
+    // Schreibt direkt in deine Cloud-Datenbank
+    const safeName = data.name.replace(/\s+/g, '_');
+    db.ref('players/' + safeName).set({
+        name: data.name,
+        x: data.x,
+        y: data.y,
+        emoji: data.emoji,
+        hp: data.hp,
+        lastActive: Date.now()
+    });
 }
+
+// --- CLOUD EMPFANG: ANDERE SPIELER SEHEN ---
+db.ref('players').on('value', (snapshot) => {
+    const players = snapshot.val();
+    if (players) {
+        otherPlayers = players;
+        render(); // Alle neu zeichnen
+    }
+});
 
 function render() {
-    updateOrCreateAvatar(data, true);
-    for (let name in otherPlayers) {
-        if(name !== data.name) updateOrCreateAvatar(otherPlayers[name], false);
-    }
-}
-
-function updateOrCreateAvatar(pData, isMe) {
     const layer = document.getElementById('charLayer');
-    const safeId = "char_" + pData.name.replace(/\s+/g, '_');
-    let avatar = document.getElementById(safeId);
-
-    if (!avatar) {
-        avatar = document.createElement('div');
-        avatar.id = safeId;
+    layer.innerHTML = ''; 
+    
+    for (let id in otherPlayers) {
+        const p = otherPlayers[id];
+        const isMe = (p.name === data.name);
+        
+        // Element erstellen
+        const avatar = document.createElement('div');
         avatar.className = 'creature';
-        avatar.innerHTML = `<span class="avatar-emoji">${pData.emoji}</span><div class="name-tag" style="${isMe?'border: 2px solid gold;':''}">${pData.name}</div>`;
+        avatar.style.left = p.x + "px";
+        avatar.style.top = p.y + "px";
+        avatar.style.transform = `translate(-50%, -50%) scale(${1/zoom})`;
+        
+        avatar.innerHTML = `
+            <span class="avatar-emoji">${p.emoji}</span>
+            <div class="name-tag" style="${isMe ? 'border: 2px solid gold;' : ''}">${p.name}</div>
+        `;
         layer.appendChild(avatar);
     }
-    avatar.style.left = pData.x + "px";
-    avatar.style.top = pData.y + "px";
-    avatar.style.transform = `translate(-50%, -50%) scale(${1/zoom})`;
-    if(isMe) avatar.style.zIndex = "2000";
 }
 
+// --- GAME LOGIK ---
 function handleWorldClick(e) {
-    const rect = document.getElementById('world').getBoundingClientRect();
+    const rect = world.getBoundingClientRect();
     data.x = (e.clientX - rect.left) / zoom;
     data.y = (e.clientY - rect.top) / zoom;
+    
+    save(); 
+    sync(); // Sofort an Cloud senden
+}
+
+function addStone() {
+    data.stein++;
+    updateUI();
     save();
     sync();
 }
 
 function updateUI() {
     document.getElementById('playerName').innerText = data.name;
-    document.getElementById('hpC').innerText = data.hp;
     document.getElementById('steinC').innerText = data.stein;
-    render();
+    document.getElementById('hpC').innerText = data.hp;
 }
 
-function save() { localStorage.setItem('nestData', JSON.stringify(data)); updateUI(); }
-
-window.onload = () => {
-    const p = new URLSearchParams(window.location.search);
-    const userParam = p.get('user');
-    
-    if(userParam) data.name = userParam;
-
-    // ADMIN CHECK LOGIK
-    if(data.name === "Spawn2909" || localStorage.getItem('adminKey') === 'true') {
-        isAdmin = true;
-        document.getElementById('adminDebug').style.display = 'block';
-    }
-
+function save() {
+    localStorage.setItem('nestData', JSON.stringify(data));
     updateUI();
-    connect();
-};
+}
 
+function openBuilding(b) {
+    if(b === 'steinbruch') toggleModal('steinbruchModal', true);
+    else alert(b + " wird ausgebaut!");
+}
+
+function toggleModal(id, show) {
+    document.getElementById(id).style.display = show ? 'flex' : 'none';
+}
+
+// Zoom
 window.addEventListener('wheel', (e) => {
     e.preventDefault();
     zoom = Math.min(Math.max(zoom + (e.deltaY > 0 ? -0.1 : 0.1), 0.5), 2.0);
-    document.getElementById('world').style.transform = `scale(${zoom})`;
+    world.style.transformOrigin = `${data.x}px ${data.y}px`;
+    world.style.transform = `scale(${zoom})`;
     render();
 }, { passive: false });
+
+window.onload = () => {
+    const p = new URLSearchParams(window.location.search);
+    if(p.get('user')) data.name = p.get('user');
+    updateUI();
+    sync(); // Einmal beim Start anmelden
+};
 </script>
+
 </body>
 </html>
