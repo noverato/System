@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>The Nest: Overlord Edition 2026 - Phase 5.1</title>
+    <title>The Nest: Overlord Edition 2026 - Reparierter Build</title>
     <style>
         :root { 
             --fantasy-bg: rgba(25, 15, 10, 0.98); 
@@ -25,32 +25,30 @@
         @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.05); opacity: 0.8; } 100% { transform: scale(1); opacity: 1; } }
         .building { position: absolute; background-size: contain; background-repeat: no-repeat; transform: translate(-50%, -50%); cursor: pointer; z-index: 10; }
         .label { position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%); background: var(--fantasy-bg); color: var(--gold); padding: 4px 12px; border-radius: 8px; font-size: 14px; white-space: nowrap; border: 1px solid var(--gold); font-weight: bold; }
-        
         #hud { position: fixed; top: 20px; left: 20px; background: var(--fantasy-bg); padding: 15px; border-radius: 12px; border: var(--border); z-index: 5000; min-width: 200px; box-shadow: var(--shadow); }
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); display: none; z-index: 20000; align-items: center; justify-content: center; backdrop-filter: blur(12px); }
         .mmo-panel { width: 1250px; height: 850px; background: var(--fantasy-bg); border: var(--border); border-radius: 20px; display: flex; overflow: hidden; box-shadow: var(--shadow); }
         .panel-main { flex: 3; padding: 20px; overflow-y: auto; position: relative; }
         .panel-side { flex: 0.8; padding: 25px; background: rgba(20, 15, 10, 0.85); border-left: 2px solid var(--gold); display: flex; flex-direction: column; }
-        
-        /* EVO TREE UI */
+        .btn-action { background: var(--btn-grad); color: white; border: 1px solid var(--gold); padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s; }
+        .btn-action:hover:not(:disabled) { filter: brightness(1.2); transform: scale(1.05); }
+        .btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
+        .progress-container { width: 100%; height: 20px; background: #222; border: 1px solid var(--gold); border-radius: 10px; margin-top: 15px; display: none; overflow: hidden; }
+        .progress-bar { width: 0%; height: 100%; background: var(--gold); transition: width 3s linear; }
+        #arenaStage { width: 100%; height: 100%; background: url('./arena_innen.png') no-repeat center; background-size: cover; position: relative; display: flex; align-items: center; justify-content: space-around; overflow: hidden; }
+        .combatant-wrap { display: flex; flex-direction: column; align-items: center; width: 300px; z-index: 5; }
+        .combatant-img { width: 180px; height: 180px; object-fit: contain; filter: drop-shadow(0 0 15px rgba(0,0,0,0.5)); }
+        #ffMenu { position: absolute; bottom: 0; left: 0; width: 100%; height: 200px; background: var(--ff-blue); border-top: 4px solid #fff; display: flex; box-sizing: border-box; }
+        .ff-buttons { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 20px; }
+        .ff-status { flex: 1; padding: 20px; border-left: 2px solid #fff; display: flex; flex-direction: column; justify-content: center; }
+        .bar-wrap { height: 16px; background: #000; border: 2px solid #fff; border-radius: 4px; overflow: hidden; margin-bottom: 8px; }
         .evo-container { display: flex; flex-direction: column; gap: 30px; align-items: center; padding: 20px; }
         .sub-ray-wrap { width: 100%; background: linear-gradient(90deg, transparent, var(--gold), transparent); padding: 10px; border-radius: 10px; text-align: center; box-shadow: 0 0 15px var(--gold); }
         .evo-tree-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; width: 100%; margin-top: 20px; }
         .path-column { display: flex; flex-direction: column-reverse; gap: 10px; align-items: center; }
         .node { width: 50px; height: 50px; border: 2px solid #444; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; cursor: pointer; transition: 0.3s; background: #111; position: relative; }
-        .node:hover { transform: scale(1.2); z-index: 10; }
         .node.active { border-width: 3px; box-shadow: 0 0 15px currentColor; border-color: currentColor; color: #fff; }
         .node-label { position: absolute; right: -40px; font-size: 10px; color: #aaa; pointer-events: none; white-space: nowrap; }
-        
-        /* PATH COLORS */
-        .warrior-node.active { color: var(--warrior); }
-        .mage-node.active { color: var(--mage); }
-        .ranger-node.active { color: var(--ranger); }
-        .craft-node.active { color: var(--craft); }
-        .shadow-node.active { color: var(--shadow-path); }
-        
-        .btn-action { background: var(--btn-grad); color: white; border: 1px solid var(--gold); padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s; }
-        .btn-action:hover:not(:disabled) { filter: brightness(1.2); transform: scale(1.05); }
     </style>
 </head>
 <body>
@@ -88,99 +86,190 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
-// --- CORE CONFIG (Frozen) ---
+// --- CONFIG & CONSTANTS ---
 const firebaseConfig = { apiKey: "AIzaSyCKNXJ-ouAOAcLr5ut-EemWQI8_zJxhqa8", authDomain: "thenest-81de6.firebaseapp.com", databaseURL: "https://thenest-81de6-default-rtdb.firebaseio.com", projectId: "thenest-81de6" };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const BOSS_NAME = "Spawn2909";
 const EVO_IMGS = ['Ei.png', 'Schleim.png', 'Skelett.png', 'Goblin.png', 'Oger.png', 'Lich.png', 'HoeheresWesen.png'];
-
-// --- DATA MODEL (CHRONOS PATCH) ---
-let data = { 
-    name: "Held", x: 960, y: 540, lxp: 0, hp: 100, maxHp: 100, 
-    subMonths: 0, followDays: 0, isSub: false, 
-    inventar: {}, stats: { warrior: 0, mage: 0, ranger: 0, craftsman: 0, shadow: 0, totalEvoLevel: 0, className: "Novize" },
-    ...(JSON.parse(localStorage.getItem('nestData')) || {}) 
-};
-let myID = "", onlinePlayers = {}, isAdmin = false;
-
-// --- PHASE 5.1: CHRONOS EVOLUTION LOGIC ---
-const SUB_STAGES = [
-    { m: 0, e: "🥚" }, { m: 4, e: "💧" }, { m: 8, e: "💀" }, 
-    { m: 12, e: "👺" }, { m: 16, e: "👹" }, { m: 20, e: "🧙‍♂️" }, { m: 24, e: "✨" }
+const MONSTERS = [
+    { name: "Waldschleim", hp: 40, maxHp: 40, lxp: 15, img: 'Monster1.png' },
+    { name: "Frost-Wolf", hp: 80, maxHp: 80, lxp: 35, img: 'Monster2.png' },
+    { name: "Finster-Goblin", hp: 120, maxHp: 120, lxp: 60, img: 'Monster3.png' }
+];
+const CRAFTING_DATA = [
+    { name: "Spitzhacke", needs: { "Eisenerz": 3 }, minLvl: 0, desc: "Baut Erze ab." },
+    { name: "Schwert", needs: { "Eisenerz": 5, "Kupfererz": 2 }, minLvl: 2, desc: "+10 DMG." },
+    { name: "Rüstung", needs: { "Eisenerz": 8, "Kupfererz": 5 }, minLvl: 3, desc: "-5 DMG erhalten." },
+    { name: "Magierstab", needs: { "Golderz": 3 }, minLvl: 5, subOnly: true, desc: "Sub-Exklusiv." }
 ];
 
-// Definition der Zeit-Anforderungen (in Tagen) pro Tier
-const TIER_DAYS = [0, 30, 60, 120, 200, 365, 500, 730]; 
+let data = { 
+    name: "Held", x: 960, y: 540, lxp: 0, hp: 100, maxHp: 100, mp: 50, maxMp: 50, 
+    followDays: 0, subMonths: 0, isSub: false, inventar: {}, 
+    stats: { warrior: 0, mage: 0, ranger: 0, craftsman: 0, shadow: 0, totalEvoLevel: 0, className: "Novize" },
+    ...(JSON.parse(localStorage.getItem('nestData')) || {}) 
+};
+let myID = "", onlinePlayers = {}, isAdmin = false, currentEnemy = null, isActionLocked = false, isMining = false;
 
+// --- ROUTER FIX ---
+function openBuilding(b) {
+    toggleModal('gameModal', true);
+    if (b === 'steinbruch') renderMiningMenu();
+    else if (b === 'wald') renderSmithy();
+    else if (b === 'arena') renderArenaMatchmaking();
+    else if (b === 'rathaus') renderEvoMenu();
+}
+
+// --- ARENA MODULE ---
+function renderArenaMatchmaking() {
+    const left = document.getElementById('modalLeft');
+    let html = `<div style="padding:20px;"><h2>🛡️ Arena-Matchmaking</h2>
+        <button class="btn-action" style="width:100%;" onclick="startCombat(null, true)">🐗 Monster-Training</button>
+        <div id="pvpList" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:20px;">`;
+    let found = false;
+    Object.keys(onlinePlayers).forEach(id => {
+        const p = onlinePlayers[id];
+        if (id !== myID && p.isSub === data.isSub) {
+            html += `<div style="padding:10px; border:1px solid gold; border-radius:5px;">
+                <strong>${p.name}</strong><br><button class="btn-action" onclick="startCombat(onlinePlayers['${id}'], false)">Duell</button>
+            </div>`;
+            found = true;
+        }
+    });
+    if(!found) html += `<p>Warte auf würdige Gegner...</p>`;
+    left.innerHTML = html + `</div></div>`;
+}
+
+function startCombat(enemy, isMonster) {
+    if (isMonster) {
+        currentEnemy = { ...MONSTERS[Math.floor(Math.random() * MONSTERS.length)], isMonster: true };
+    } else {
+        currentEnemy = { ...enemy, isMonster: false, img: EVO_IMGS[enemy.stats.totalEvoLevel] || 'Ei.png' };
+    }
+    isActionLocked = false;
+    renderCombatStage();
+}
+
+function renderCombatStage() {
+    const left = document.getElementById('modalLeft');
+    const isEgg = data.stats.totalEvoLevel === 0;
+    left.innerHTML = `
+        <div id="arenaStage">
+            <div class="combatant-wrap"><img src="${EVO_IMGS[data.stats.totalEvoLevel] || 'Ei.png'}" class="combatant-img"><br><strong>${data.name}</strong></div>
+            <div class="combatant-wrap"><img src="${currentEnemy.img || 'Monster1.png'}" class="combatant-img"><br><strong>${currentEnemy.name}</strong></div>
+            <div id="ffMenu">
+                <div class="ff-buttons">
+                    <button class="btn-action" onclick="executeCombatAction('attack')" ${isActionLocked?'disabled':''}>ATTACKE</button>
+                    <button class="btn-action" onclick="openBuilding('arena')">FLUCHT</button>
+                </div>
+                <div class="ff-status" style="visibility: ${isEgg ? 'hidden' : 'visible'};">
+                    <span>HP: ${data.hp}/${data.maxHp}</span>
+                    <div class="bar-wrap"><div class="hp-bar-fill" style="width:${(data.hp/data.maxHp)*100}%; background:var(--hp-color);"></div></div>
+                </div>
+            </div>
+            <div id="battleLog" style="position:absolute; top:10px; left:10px; color:white;">Kampf beginnt...</div>
+        </div>`;
+}
+
+function executeCombatAction(type) {
+    if(isActionLocked) return;
+    isActionLocked = true;
+    renderCombatStage();
+    const log = document.getElementById('battleLog');
+    let dmg = 15 + (data.inventar['Schwert'] ? 10 : 0);
+    log.innerHTML = `<div>> ${data.name} trifft für ${dmg} DMG!</div>`;
+    setTimeout(() => {
+        currentEnemy.hp -= dmg;
+        if (currentEnemy.hp <= 0) {
+            let lxpGain = currentEnemy.isMonster ? currentEnemy.lxp : 50;
+            alert(`Sieg! +${lxpGain} LXP`); data.lxp += lxpGain; save(); return openBuilding('arena');
+        }
+        setTimeout(() => {
+            let eDmg = 12 - (data.inventar['Rüstung'] ? 5 : 0);
+            data.hp -= eDmg;
+            log.innerHTML += `<div style="color:red;">> ${currentEnemy.name} kontert für ${eDmg}!</div>`;
+            if (data.hp <= 0) { data.hp = data.maxHp; alert("Niederlage..."); save(); return openBuilding('arena'); }
+            isActionLocked = false; renderCombatStage(); save();
+        }, 1000);
+    }, 800);
+}
+
+// --- MINING MODULE ---
+function renderMiningMenu() {
+    document.getElementById('modalLeft').innerHTML = `<div style="padding:30px;">
+        <h2>Steinbruch</h2><p>Du benötigst eine <b>Spitzhacke</b>.</p>
+        <button class="btn-action" id="mineBtn" onclick="startMining()">⛏️ Abbau starten</button>
+        <div class="progress-container" id="mineProgress" style="display:block;"><div class="progress-bar" id="mineBar"></div></div>
+        <div id="mineLog" style="margin-top:10px;"></div></div>`;
+}
+
+function startMining() {
+    if (isMining) return;
+    if (!data.inventar['Spitzhacke'] && !isAdmin) return document.getElementById('mineLog').innerText = "❌ Keine Spitzhacke!";
+    isMining = true; document.getElementById('mineBtn').disabled = true;
+    document.getElementById('mineBar').style.width = '100%';
+    setTimeout(() => {
+        let roll = Math.random();
+        let item = roll > 0.9 ? "Golderz" : (roll > 0.6 ? "Kupfererz" : "Eisenerz");
+        data.inventar[item] = (data.inventar[item] || 0) + 1;
+        data.lxp += 5; save();
+        document.getElementById('mineLog').innerText = `✅ Gefunden: ${item}! (+5 LXP)`;
+        document.getElementById('mineBar').style.width = '0%';
+        document.getElementById('mineBtn').disabled = false; isMining = false;
+    }, 3000);
+}
+
+// --- SMITHY MODULE ---
+function renderSmithy() {
+    let html = `<div style="padding:30px;"><h2>Wald-Schmiede</h2>`;
+    CRAFTING_DATA.forEach(recipe => {
+        const canSee = (data.stats.totalEvoLevel >= recipe.minLvl) && (!recipe.subOnly || data.isSub || isAdmin);
+        if (canSee) {
+            let canCraft = true;
+            Object.entries(recipe.needs).forEach(([item, qty]) => { if((data.inventar[item]||0) < qty) canCraft = false; });
+            html += `<div style="border:1px solid gold; padding:10px; margin:5px; display:flex; justify-content:space-between;">
+                <div><b>${recipe.name}</b><br><small>${recipe.desc}</small></div>
+                <button class="btn-action" ${!canCraft?'disabled':''} onclick="craftItem('${recipe.name}')">SCHMIEDEN</button>
+            </div>`;
+        }
+    });
+    document.getElementById('modalLeft').innerHTML = html + `</div>`;
+}
+
+function craftItem(name) {
+    const r = CRAFTING_DATA.find(i => i.name === name);
+    Object.entries(r.needs).forEach(([item, qty]) => data.inventar[item] -= qty);
+    data.inventar[name] = (data.inventar[name] || 0) + 1;
+    save(); renderSmithy();
+}
+
+// --- EVOLUTION MODULE ---
 function renderEvoMenu() {
     const left = document.getElementById('modalLeft');
-    let html = `<div class="evo-container">
-        <h2>Halle der Evolution</h2>
-        <div class="sub-ray-wrap">
-            <strong style="color:white;">DER GOLDENE STRAHL (SUBS)</strong><br>
-            <div style="display:flex; justify-content:space-between; margin-top:10px; padding:0 20px;">`;
-    
-    SUB_STAGES.forEach(s => {
-        const reached = data.subMonths >= s.m;
-        html += `<div style="opacity:${reached?1:0.3}; filter:${reached?'none':'grayscale(1)'}; font-size:24px;">${s.e}<br><small style="font-size:10px;">${s.m}M</small></div>`;
-    });
-    
-    html += `</div></div><div class="evo-tree-grid">`;
-
-    const paths = [
-        { id: 'warrior', name: 'KRIEGER', class: 'warrior-node', req: 'Schwert' },
-        { id: 'mage', name: 'MAGIER', class: 'mage-node', req: 'Magierstab' },
-        { id: 'ranger', name: 'RANGER', class: 'ranger-node', req: '' },
-        { id: 'craftsman', name: 'HANDWERK', class: 'craft-node', req: 'Spitzhacke' },
-        { id: 'shadow', name: 'SCHATTEN', class: 'shadow-node', req: '' }
-    ];
-
+    let html = `<div class="evo-container"><h2>Evolution</h2><div class="evo-tree-grid">`;
+    const paths = [{id:'warrior', name:'KRIEGER', color: 'var(--warrior)'}, {id:'mage', name:'MAGIER', color: 'var(--mage)'}, {id:'ranger', name:'RANGER', color: 'var(--ranger)'}, {id:'craftsman', name:'HANDWERK', color: 'var(--craft)'}, {id:'shadow', name:'SCHATTEN', color: 'var(--shadow-path)'}];
     paths.forEach(p => {
         html += `<div class="path-column">`;
         for(let i=1; i<=7; i++) {
             const unlocked = data.stats[p.id] >= i;
-            const daysReq = TIER_DAYS[i];
-            html += `<div class="node ${p.class} ${unlocked?'active':''}" onclick="tryEvolve('${p.id}', ${i}, ${daysReq}, '${p.req}')">
-                T${i}<span class="node-label">${daysReq} Tage Follow</span>
-            </div>`;
+            html += `<div class="node" style="border-color:${unlocked?p.color:'#444'}" onclick="tryEvolve('${p.id}', ${i}, ${i*30})">T${i}</div>`;
         }
-        html += `<strong style="margin-top:10px; font-size:12px;">${p.name}</strong></div>`;
+        html += `<b>${p.name}</b></div>`;
     });
-
-    left.innerHTML = html + `</div><div class="novice-root" style="margin-top:20px; border: 2px solid var(--gold); padding: 15px; border-radius: 50%;">🥚 NOVIZE</div></div>`;
+    left.innerHTML = html + `</div></div>`;
 }
 
-function tryEvolve(path, tier, daysReq, itemReq) {
-    if(data.stats[path] >= tier) return alert("Bereits freigeschaltet!");
-    
-    // Bedingungsprüfung Zeit statt LXP
-    if(data.followDays < daysReq && !isAdmin) return alert(`Zu wenig Zeit vergangen! Du benötigst ${daysReq} Follow-Tage.`);
-    if(itemReq && !data.inventar[itemReq] && !isAdmin) return alert(`Du benötigst ein ${itemReq} im Rucksack!`);
-    
-    // Evolution bestätigt (KEIN LXP-Abzug!)
-    data.stats[path] = tier;
-    data.stats.totalEvoLevel++;
-    data.stats.className = path.toUpperCase();
-    save();
-    renderEvoMenu();
-    alert(`Evolution zu ${path} Tier ${tier} abgeschlossen!`);
+function tryEvolve(path, tier, days) {
+    if(data.followDays < days && !isAdmin) return alert(`${days} Tage benötigt!`);
+    data.stats[path] = tier; data.stats.totalEvoLevel++; save(); renderEvoMenu();
 }
 
-// --- CORE FUNCTIONS (Preserved) ---
-function openBuilding(b) {
-    toggleModal('gameModal', true);
-    if (b === 'rathaus') renderEvoMenu();
-    else if (b === 'arena') renderArenaMatchmaking(); 
-    else if (b === 'steinbruch') renderMiningMenu();
-    else if (b === 'wald') renderSmithy();
-}
-
+// --- SYSTEM CORE ---
 function save() {
     if (data.name === BOSS_NAME) isAdmin = true;
     localStorage.setItem('nestData', JSON.stringify(data));
-    updateUI();
-    if (myID) db.ref('players/' + myID).update(data);
+    updateUI(); if (myID) db.ref('players/' + myID).update(data);
 }
 
 function updateUI() {
@@ -194,22 +283,14 @@ function updateUI() {
     Object.keys(data.inventar).forEach(i => { if(data.inventar[i]>0) invDiv.innerHTML += `<div style="padding:5px; border-bottom:1px solid #444;">${i} x${data.inventar[i]}</div>`; });
 }
 
-function openAdminPanel() {
-    toggleModal('gameModal', true);
-    document.getElementById('modalLeft').innerHTML = `<h2>🛠 GÖTTER-MENÜ</h2>
-    <button class="btn-action" onclick="data.followDays+=30;save()">+30 Follow-Tage</button>
-    <button class="btn-action" onclick="data.lxp+=5000;save()">+5000 LXP (Währung)</button>
-    <button class="btn-action" onclick="renderEvoMenu()">Halle der Evolution</button>`;
-}
-
 function renderPlayers(players) {
     const layer = document.getElementById('charLayer'); layer.innerHTML = '';
     Object.keys(players).forEach(id => {
         const p = players[id];
         const div = document.createElement('div'); div.className = 'creature';
         div.style.left = p.x + "px"; div.style.top = p.y + "px";
-        const isMeBoss = p.name === BOSS_NAME;
-        div.innerHTML = `<img src="${EVO_IMGS[Math.min(p.stats.totalEvoLevel, 6)]}" onerror="this.src='Ei.png'"><div class="name-tag ${isMeBoss?'boss-aura':''}">${isMeBoss?'OVERLORD':p.name}</div>`;
+        const imgIdx = Math.min(p.stats.totalEvoLevel, 6);
+        div.innerHTML = `<img src="${EVO_IMGS[imgIdx]}"><div class="name-tag ${p.name===BOSS_NAME?'boss-aura':''}">${p.name===BOSS_NAME?'OVERLORD':p.name}</div>`;
         layer.appendChild(div);
     });
 }
@@ -217,8 +298,15 @@ function renderPlayers(players) {
 function handleWorldClick(e) {
     if(document.getElementById('gameModal').style.display === 'flex') return;
     const rect = document.getElementById('world').getBoundingClientRect();
-    data.x = e.clientX - rect.left; data.y = e.clientY - rect.top;
-    save();
+    data.x = e.clientX - rect.left; data.y = e.clientY - rect.top; save();
+}
+
+function openAdminPanel() {
+    toggleModal('gameModal', true);
+    document.getElementById('modalLeft').innerHTML = `<h2>🛠 GÖTTER-MENÜ</h2>
+    <button class="btn-action" onclick="data.followDays+=30;save()">+30 Tage</button>
+    <button class="btn-action" onclick="data.lxp+=5000;save()">+5000 LXP</button>
+    <button class="btn-action" onclick="data.inventar['Spitzhacke']=1;save()">Spitzhacke geben</button>`;
 }
 
 function toggleModal(id, s) { document.getElementById(id).style.display = s ? 'flex' : 'none'; }
