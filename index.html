@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>The Nest: Isekai RPG - LOOT & HYBRID EDITION</title>
+    <title>The Nest: Isekai RPG - CRAFTING EDITION</title>
     <style>
         :root { --fantasy-bg: rgba(40, 30, 20, 0.95); --gold: #ffd700; --border: 2px solid #ffd700; --shadow: 0 0 15px rgba(255, 215, 0, 0.4); --btn-grad: linear-gradient(135deg, #b8860b, #8b4513); }
         body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Crimson Text', serif; background: #000; color: #fdf5e6; }
@@ -12,7 +12,7 @@
         #world { width: 1920px; height: 1080px; background: url('./wald.png') no-repeat center; background-size: cover; position: absolute; transition: transform 0.1s ease-out; transform-origin: center center; z-index: 1; }
         
         #charLayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1000; }
-        .creature { position: absolute; width: 80px; height: 100px; text-align: center; transform: translate(-50%, -50%); transition: left 0.6s ease-out, top 0.6s ease-out; pointer-events: auto; cursor: crosshair; }
+        .creature { position: absolute; width: 80px; height: 100px; text-align: center; transform: translate(-50%, -50%); transition: left 0.6s ease-out, top 0.6s ease-out; pointer-events: auto; }
         .creature img { height: 80px; filter: drop-shadow(0 0 8px rgba(0,0,0,0.6)); }
         .name-tag { font-size: 14px; font-weight: bold; color: #fff; background: rgba(15, 23, 42, 0.9); padding: 2px 12px; border-radius: 8px; border: 1px solid #3b82f6; margin-top: 5px; white-space: nowrap; }
         .class-tag { font-size: 10px; color: var(--gold); display: block; margin-top: 2px; text-transform: uppercase; }
@@ -23,8 +23,10 @@
         #hud { position: fixed; top: 20px; left: 20px; background: var(--fantasy-bg); padding: 15px; border-radius: 12px; border: var(--border); z-index: 5000; min-width: 180px; }
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; z-index: 20000; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .mmo-panel { width: 850px; background: var(--fantasy-bg); border: var(--border); border-radius: 20px; display: flex; overflow: hidden; }
-        .btn-action { background: var(--btn-grad); color: white; border: 1px solid var(--gold); padding: 10px 18px; border-radius: 12px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        .btn-action { background: var(--btn-grad); color: white; border: 1px solid var(--gold); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 5px; font-size: 12px; }
         
+        .recipe-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,215,0,0.3); padding: 10px; margin-bottom: 10px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .recipe-info { font-size: 13px; }
         #miniInv div { background: rgba(255,215,0,0.1); margin: 4px 0; padding: 5px; border-radius: 5px; border-left: 3px solid var(--gold); font-size: 14px; }
     </style>
 </head>
@@ -43,13 +45,12 @@
 <div id="hud">
     <div style="color:gold; font-size: 18px; font-weight:bold;">👑 <span id="playerName">Held</span></div>
     <div id="hudClass" style="font-size:12px; color: #3b82f6; font-weight: bold; text-transform: uppercase;">Novize</div>
-    <div style="font-size:13px; margin-top:5px;">❤️ HP: <span id="hpC">100</span> | ⚔️ ATK: <span id="atkC">5</span></div>
-    <div style="font-size:11px; color:#4ade80;">💎 LXP: <span id="lxpC">0</span> | ⭐ LVL: <span id="lvlTotal">0</span></div>
+    <div style="font-size:11px; color:#4ade80; margin-top: 5px;">💎 LXP: <span id="lxpC">0</span></div>
 </div>
 
 <div id="gameModal" class="modal">
     <div class="mmo-panel">
-        <div style="flex:2; padding:25px;" id="modalLeft"></div>
+        <div style="flex:2; padding:25px; overflow-y: auto; max-height: 80vh;" id="modalLeft"></div>
         <div style="flex:1; padding:25px; background:rgba(20,15,10,0.5); display: flex; flex-direction: column;">
             <h3 style="color:gold; margin-top:0;">🎒 RUCKSACK</h3>
             <div id="miniInv" style="overflow-y: auto; flex-grow: 1;"></div>
@@ -74,62 +75,81 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// --- LOOT POOL ---
 const LOOT_POOL = {
     wald: ['Stock', 'Gras', 'Moos', 'Pilz', 'Feder'],
     steinbruch: ['Kiesel', 'Feuerstein', 'Lehm', 'Eisenerz']
 };
 
+// --- CRAFTING REZEPTE ---
+const CRAFTING_RECIPES = {
+    'Leinen': { needs: { 'Gras': 3 }, lxp: 5 },
+    'Pfeile': { needs: { 'Stock': 2, 'Feder': 1 }, lxp: 10 },
+    'Eisendolch': { needs: { 'Eisenerz': 3, 'Stock': 1 }, lxp: 25 },
+    'Schleifstein': { needs: { 'Kiesel': 5 }, lxp: 15 }
+};
+
 let myID = "";
 let data = JSON.parse(localStorage.getItem('nestData')) || {
-    name: "Held", x: 960, y: 540, stein: 0, lxp: 0, followDays: 0, emoji: "🥚",
-    inventar: {}, // Neues Inventar-Objekt
+    name: "Held", x: 960, y: 540, lxp: 0, emoji: "🥚",
+    inventar: {},
     stats: { warrior: 0, mage: 0, ranger: 0, craftsman: 0, shadow: 0, className: "Novize" }
 };
 
-// --- LOOT FUNKTION ---
 function collectLoot(area) {
     let chance = 0.3;
-    const currentClass = data.stats.className;
-    
-    // Hybrid-Vorteil Check
-    if (area === 'wald' && (currentClass.includes("Waldläufer") || currentClass.includes("Nymphe"))) {
-        chance = 0.5;
-    }
+    if (area === 'wald' && data.stats.className.toLowerCase().includes("ranger")) chance = 0.5;
 
     if (Math.random() < chance) {
         const pool = LOOT_POOL[area];
         const item = pool[Math.floor(Math.random() * pool.length)];
-
-        // Speichern
         data.inventar[item] = (data.inventar[item] || 0) + 1;
-
-        // Pilz-Spezial
-        if (item === 'Pilz') {
-            data.lxp += 5;
-            alert("🍄 Ein Pilz! (+5 LXP)");
-        } else {
-            alert(`📦 Du hast gefunden: ${item}`);
-        }
-        
+        if (item === 'Pilz') { data.lxp += 5; alert("🍄 Ein Pilz! (+5 LXP)"); }
+        else { alert(`📦 Gefunden: ${item}`); }
         save();
         renderInventory();
-    } else {
-        alert("Nichts gefunden... versuch es nochmal!");
+    } else { alert("Nichts gefunden..."); }
+}
+
+// --- CRAFTING FUNKTION ---
+function craftItem(itemName) {
+    const recipe = CRAFTING_RECIPES[itemName];
+    const isCraftsman = data.stats.className.toLowerCase().includes("handwerker") || data.stats.className.toLowerCase().includes("craftsman");
+    
+    // Boni: 20% Rabatt auf LXP
+    let finalLxpCost = isCraftsman ? Math.floor(recipe.lxp * 0.8) : recipe.lxp;
+
+    // Check Materialien
+    for (let material in recipe.needs) {
+        if ((data.inventar[material] || 0) < recipe.needs[material]) {
+            alert(`Fehlendes Material: ${material}`);
+            return;
+        }
     }
+
+    // Check LXP
+    if (data.lxp < finalLxpCost) {
+        alert("Nicht genug LXP!");
+        return;
+    }
+
+    // Abziehen & Hinzufügen
+    data.lxp -= finalLxpCost;
+    for (let material in recipe.needs) {
+        data.inventar[material] -= recipe.needs[material];
+    }
+    data.inventar[itemName] = (data.inventar[itemName] || 0) + 1;
+
+    alert(`🔨 Erfolg! ${itemName} hergestellt.`);
+    save();
+    openBuilding('wald'); // UI Refresh
 }
 
 function renderInventory() {
     const invDiv = document.getElementById('miniInv');
     invDiv.innerHTML = '';
-    let hasItems = false;
     for (const item in data.inventar) {
-        if (data.inventar[item] > 0) {
-            invDiv.innerHTML += `<div>${item} x${data.inventar[item]}</div>`;
-            hasItems = true;
-        }
+        if (data.inventar[item] > 0) invDiv.innerHTML += `<div>${item} x${data.inventar[item]}</div>`;
     }
-    if (!hasItems) invDiv.innerHTML = '<span style="color:gray;">Leer</span>';
 }
 
 function openBuilding(b) {
@@ -137,47 +157,46 @@ function openBuilding(b) {
     renderInventory();
     const left = document.getElementById('modalLeft');
     
-    if (b === 'steinbruch') {
-        left.innerHTML = `<h2>Steinbruch</h2><p>Hier kannst du nach Erzen graben.</p>
-        <button class="btn-action" onclick="collectLoot('steinbruch')">⛏️ Graben</button>`;
-    } else if (b === 'wald') {
-        left.innerHTML = `<h2>Tiefer Wald</h2><p>Vorsicht vor den Schatten...</p>
-        <button class="btn-action" onclick="collectLoot('wald')">🌿 Sammeln</button>`;
-    } else if (b === 'markt') {
-        left.innerHTML = `<h2>Marktplatz</h2><p>Tausche deine Funde gegen LXP.</p>
-        <button class="btn-action" onclick="alert('Demnächst verfügbar!')">Handeln</button>`;
+    if (b === 'wald') {
+        let recipesHtml = `<h2>Wald-Schmiede</h2><p>Sammle Materialien oder stelle Items her.</p>
+        <button class="btn-action" style="width:100%; margin-bottom:20px;" onclick="collectLoot('wald')">🌿 Umgebung absuchen</button>
+        <h3>📜 Handwerks-Rezepte</h3>`;
+        
+        for (let name in CRAFTING_RECIPES) {
+            const r = CRAFTING_RECIPES[name];
+            let needsTxt = Object.entries(r.needs).map(([item, qty]) => `${qty}x ${item}`).join(", ");
+            recipesHtml += `
+                <div class="recipe-card">
+                    <div class="recipe-info">
+                        <strong>${name}</strong><br>
+                        <small>Bedarf: ${needsTxt} | Kosten: ${r.lxp} LXP</small>
+                    </div>
+                    <button class="btn-action" onclick="craftItem('${name}')">Herstellen</button>
+                </div>`;
+        }
+        left.innerHTML = recipesHtml;
+    } else if (b === 'steinbruch') {
+        left.innerHTML = `<h2>Steinbruch</h2><button class="btn-action" onclick="collectLoot('steinbruch')">⛏️ Graben</button>`;
     } else {
-        left.innerHTML = `<h2>${b}</h2><p>Ein mysteriöser Ort.</p>`;
+        left.innerHTML = `<h2>${b}</h2><p>Hier gibt es aktuell nichts zu tun.</p>`;
     }
 }
-
-// ... (calculateClassName und sync Funktionen wie zuvor) ...
 
 function calculateClassName() {
     let stats = data.stats;
     let paths = ["warrior", "mage", "ranger", "craftsman", "shadow"];
-    let sorted = paths.map(p => ({key: p, val: stats[p]})).sort((a,b) => b.val - a.val);
-    let primary = sorted[0];
-    let secondary = sorted[1];
-    
-    // Einfache Dummy-Logik für Demo (erweiterbar mit deiner Matrix)
-    let name = primary.val > 0 ? primary.key : "Novize";
-    if (secondary && secondary.val > 0) name = "Waldläufer"; // Beispiel Trigger für Loot-Buff
-    
-    stats.className = name;
-    return name;
+    let sorted = paths.map(p => ({key: p, val: stats[p] || 0})).sort((a,b) => b.val - a.val);
+    data.stats.className = (sorted[0].val > 0) ? sorted[0].key : "Novize";
+    return data.stats.className;
 }
 
-function sync() { 
-    if(myID) {
-        db.ref('players/' + myID).update({ ...data });
-    }
-}
+function sync() { if(myID) db.ref('players/' + myID).update(data); }
 
-function save() {
-    localStorage.setItem('nestData', JSON.stringify(data));
-    updateUI();
-    sync();
+function save() { 
+    calculateClassName();
+    localStorage.setItem('nestData', JSON.stringify(data)); 
+    updateUI(); 
+    sync(); 
 }
 
 function updateUI() {
@@ -187,16 +206,35 @@ function updateUI() {
 }
 
 window.onload = () => {
-    // Initialisierung wie gewohnt...
+    const p = new URLSearchParams(window.location.search);
+    if(p.get('user')) data.name = p.get('user');
     myID = data.name.replace(/\s+/g, '_');
-    updateUI();
-    renderInventory();
+    db.ref('players/' + myID).onDisconnect().remove();
+    save();
+    db.ref('players').on('value', snap => { renderPlayers(snap.val()); });
 };
 
+function renderPlayers(players) {
+    const layer = document.getElementById('charLayer'); 
+    layer.innerHTML = '';
+    for(let id in players) {
+        const p = players[id]; 
+        const isMe = (id === myID);
+        if (p.name === "Held" && !isMe) continue; 
+        const div = document.createElement('div'); 
+        div.className = 'creature';
+        div.style.left = p.x + "px"; div.style.top = p.y + "px";
+        let visual = `<img src="Ei.png" onerror="this.outerHTML='🥚'">`;
+        if(p.emoji !== "🥚") visual = `<span style="font-size:50px;">${p.emoji}</span>`;
+        div.innerHTML = `${visual}<div class="name-tag">${p.name}<span class="class-tag">${p.stats.className}</span></div>`;
+        layer.appendChild(div);
+    }
+}
+
 function handleWorldClick(e) {
+    if(document.getElementById('gameModal').style.display === 'flex') return;
     const rect = document.getElementById('world').getBoundingClientRect();
-    data.x = (e.clientX - rect.left); 
-    data.y = (e.clientY - rect.top);
+    data.x = (e.clientX - rect.left); data.y = (e.clientY - rect.top);
     save();
 }
 
