@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>The Nest: Solo Leveling Multiplayer</title>
+<title>The Nest: Solo Leveling Multiplayer - FIX</title>
 <style>
     body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #000; color: #e0d8b0; }
     #viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; display: flex; align-items: center; justify-content: center; }
@@ -13,157 +13,152 @@
         position: absolute; transition: transform 0.1s ease-out;
         transform-origin: center center; 
     }
-    #arena_scene { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: url('arena_innen.png') no-repeat center; background-size: cover; display: none; z-index: 50000; }
-    .creature { position: absolute; width: 80px; height: 100px; z-index: 1000; transition: left 0.8s ease-out, top 0.8s ease-out, transform 0.1s ease-out; text-align: center; transform: translate(-50%, -50%) scale(1); }
-    .avatar-emoji { font-size: 60px; display: block; filter: drop-shadow(0 0 15px rgba(59, 130, 246, 0.8)); }
-    .name-tag { font-size: 14px; font-weight: bold; color: #fff; background: rgba(15, 23, 42, 0.9); padding: 2px 12px; border-radius: 8px; border: 1px solid #3b82f6; margin-top: 5px; }
+    /* Gebaeude */
     .building { position: absolute; background-size: contain; background-repeat: no-repeat; background-position: center; cursor: pointer; z-index: 10; transform: translate(-50%, -50%); }
     .label { position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: gold; padding: 2px 8px; border-radius: 5px; font-size: 12px; white-space: nowrap; border: 1px solid gold; }
+    
+    /* Spieler */
+    .creature { position: absolute; width: 80px; height: 100px; z-index: 1000; text-align: center; transform: translate(-50%, -50%); transition: left 0.5s linear, top 0.5s linear; }
+    .avatar-emoji { font-size: 60px; display: block; filter: drop-shadow(0 0 15px rgba(59, 130, 246, 0.8)); }
+    .name-tag { font-size: 14px; font-weight: bold; color: #fff; background: rgba(15, 23, 42, 0.9); padding: 2px 12px; border-radius: 8px; border: 1px solid #3b82f6; margin-top: 5px; }
+    
+    /* UI */
     #hud { position: fixed; top: 20px; left: 20px; background: rgba(15, 23, 42, 0.95); padding: 15px; border-radius: 15px; border: 2px solid #3b82f6; z-index: 5000; }
-    .btn-action { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border: none; padding: 10px 20px; border-radius: 10px; cursor: pointer; font-weight: bold; margin: 2px; }
-    #connectionStatus { position: fixed; bottom: 10px; left: 10px; font-size: 10px; color: #ef4444; z-index: 10000; }
+    .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; z-index: 20000; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+    .menu-box { width: 600px; background: #0f172a; border: 3px solid #3b82f6; border-radius: 25px; padding: 25px; text-align: center; color: white; }
+    .btn-action { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border: none; padding: 10px 20px; border-radius: 10px; cursor: pointer; font-weight: bold; margin: 5px; }
+    #connState { position: fixed; bottom: 10px; left: 10px; font-size: 10px; color: red; }
 </style>
 </head>
 <body>
 
-<div id="connectionStatus">Netzwerk: Getrennt</div>
-
-<div id="arena_scene">
-    <div id="combatant_left" style="position:absolute; left:20%; top:50%; transform:translateY(-50%);"></div>
-    <div id="combatant_right" style="position:absolute; right:20%; top:50%; transform:translateY(-50%);"></div>
-    <div id="battle_ui" style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); width:80%; height:150px; background:rgba(0,0,150,0.9); border:3px solid white; display:flex;">
-        <div style="width:30%; border-right:2px solid white; display:flex; flex-direction:column; padding:10px;">
-            <button class="btn-action" onclick="battleAction('Angriff')">⚔️ Angriff</button>
-            <button class="btn-action" onclick="battleAction('Flucht')">🏃 Flucht</button>
-        </div>
-        <div id="arenaLog" style="padding:15px; flex-grow:1; overflow-y:auto; font-family:monospace; color:#4ade80;">Kampf beginnt...</div>
-    </div>
-</div>
+<div id="connState">Netzwerk: Getrennt</div>
 
 <div id="viewport">
     <div id="world" onclick="handleWorldClick(event)">
         <div class="building" style="left:1500px; top:200px; width:220px; height:220px; background-image:url('steinbruch.png');" onclick="event.stopPropagation(); openBuilding('steinbruch')"><div class="label">Steinbruch</div></div>
         <div class="building" style="left:1200px; top:750px; width:220px; height:220px; background-image:url('marktplatz.png');" onclick="event.stopPropagation(); openBuilding('markt')"><div class="label">Marktplatz</div></div>
         <div class="building" style="left:400px; top:300px; width:250px; height:250px; background-image:url('rathaus.png');" onclick="event.stopPropagation(); openBuilding('rathaus')"><div class="label">Rathaus</div></div>
+        <div class="building" style="left:900px; top:200px; width:220px; height:220px; background-image:url('heilige_schmiede.png');" onclick="event.stopPropagation(); openBuilding('h_schmiede')"><div class="label">Heilige Schmiede</div></div>
+        <div class="building" style="left:700px; top:500px; width:180px; height:180px; background-image:url('schmiede.png');" onclick="event.stopPropagation(); openBuilding('schmiede')"><div class="label">Schmiede</div></div>
+        <div class="building" style="left:1600px; top:800px; width:280px; height:280px; background-image:url('arena.png');" onclick="event.stopPropagation(); openBuilding('arena')"><div class="label">Arena</div></div>
+        
         <div id="charLayer"></div>
     </div>
 </div>
 
 <div id="hud">
     <div style="color:#facc15; font-weight:bold;">👑 <span id="playerName">Lädt...</span></div>
-    <div style="font-size:11px;">❤️ HP: <span id="hpC">100</span> | 🪨 Stein: <span id="steinC">0</span></div>
+    <div>💎 LXP: <span id="lxpC">0</span> | 🪨 Stein: <span id="steinC">0</span></div>
+    <button class="btn-action" style="margin-top:10px" onclick="toggleModal('invModal', true)">🎒 Inventar</button>
 </div>
+
+<div id="invModal" class="modal"><div class="menu-box"><h2>DEIN INVENTAR</h2><div id="invGrid">Leer</div><br><button class="btn-action" onclick="toggleModal('invModal', false)">Schließen</button></div></div>
+<div id="steinbruchModal" class="modal"><div class="menu-box"><h2>STEINBRUCH</h2><p>Hier kannst du Steine klopfen...</p><button class="btn-action" onclick="data.stein++; updateUI(); save(); sync();">🪨 Stein abbauen</button><br><button class="btn-action" onclick="toggleModal('steinbruchModal', false)">Fertig</button></div></div>
 
 <script>
 let data = JSON.parse(localStorage.getItem('nestData')) || {
-    name: "Held", lxp: 0, ep: 0, gras: 0, bgras: 0, stein: 0, pilz: 0, trank: 0,
-    x: 960, y: 540, currentClass: "Ei", emoji: "🥚", hp: 100, maxHp: 100, atk: 12, def: 5
+    name: "Held", x: 960, y: 540, stein: 0, lxp: 0, emoji: "🥚", hp: 100
 };
-
-let otherPlayers = {}; 
+let otherPlayers = {};
 let zoom = 1.0;
-const world = document.getElementById('world');
-let isCombat = false;
 let socket;
 
-// === WEBSOCKET VERBINDUNG (STREAMER.BOT) ===
-function connectWebSocket() {
-    // Port 8080 ist Standard bei Streamer.bot - ggf. anpassen!
+function connect() {
     socket = new WebSocket("ws://127.0.0.1:8080/");
-
     socket.onopen = () => {
-        document.getElementById('connectionStatus').textContent = "Netzwerk: Verbunden";
-        document.getElementById('connectionStatus').style.color = "#22c55e";
-        // Sende initial deine Position
-        broadcastPosition();
+        document.getElementById('connState').innerText = "Netzwerk: Verbunden";
+        document.getElementById('connState').style.color = "green";
+        sync(); 
     };
-
-    socket.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
-        // Wenn der Bot Positionsdaten von anderen schickt:
-        if(msg.type === "updatePlayer") {
-            otherPlayers[msg.data.name] = msg.data;
-            renderPlayers();
-        }
+    socket.onmessage = (e) => {
+        try {
+            const raw = JSON.parse(e.data);
+            // Wichtig: Streamer.bot schickt oft Daten in 'data' oder direkt
+            const msg = raw.data || raw; 
+            if(msg.type === "updatePlayer" && msg.name !== data.name) {
+                otherPlayers[msg.name] = msg;
+                render();
+            }
+        } catch(err) { console.log("Netzwerk-Fehler:", err); }
     };
-
-    socket.onclose = () => {
-        document.getElementById('connectionStatus').textContent = "Netzwerk: Getrennt - Reconnect...";
-        document.getElementById('connectionStatus').style.color = "#ef4444";
-        setTimeout(connectWebSocket, 5000);
-    };
+    socket.onclose = () => { setTimeout(connect, 5000); };
 }
 
-function broadcastPosition() {
-    if(socket && socket.readyState === WebSocket.OPEN) {
+function sync() {
+    if(socket && socket.readyState === 1) {
+        // Wir senden das Paket so, dass dein C# Script es verarbeiten kann
         socket.send(JSON.stringify({
             request: "DoAction",
-            actionId: "DEINE_ACTION_ID_HIER", // Optionale Streamer.bot Action
+            actionName: "Multiplayer", 
             args: {
                 type: "updatePlayer",
-                data: { name: data.name, x: data.x, y: data.y, emoji: data.emoji }
+                name: data.name,
+                x: data.x,
+                y: data.y,
+                emoji: data.emoji
             }
         }));
     }
 }
 
-// === SPIELER RENDERN ===
-function renderPlayers() {
+function render() {
     const layer = document.getElementById('charLayer');
     layer.innerHTML = '';
-    drawCreature(data, layer, true); // Du selbst
+    
+    // Selbst zeichnen
+    draw(data, layer, true);
+    
+    // Andere zeichnen
     Object.values(otherPlayers).forEach(p => {
-        if(p.name !== data.name) drawCreature(p, layer, false);
+        draw(p, layer, false);
     });
 }
 
-function drawCreature(pData, layer, isMe) {
-    const char = document.createElement('div');
-    char.className = 'creature';
-    char.style.left = pData.x + "px";
-    char.style.top = pData.y + "px";
-    char.style.transform = `translate(-50%, -50%) scale(${1 / zoom})`;
-    char.innerHTML = `
-        <span class="avatar-emoji">${pData.emoji || '🥚'}</span>
-        <div class="name-tag" style="${isMe ? 'border-color: gold;' : ''}">${pData.name}</div>
-    `;
-    layer.appendChild(char);
+function draw(p, layer, isMe) {
+    const el = document.createElement('div');
+    el.className = 'creature';
+    el.style.left = p.x + "px";
+    el.style.top = p.y + "px";
+    el.style.transform = `translate(-50%, -50%) scale(${1/zoom})`;
+    el.innerHTML = `<span class="avatar-emoji">${p.emoji}</span><div class="name-tag" style="${isMe?'border-color:gold':''}">${p.name}</div>`;
+    layer.appendChild(el);
 }
 
 function handleWorldClick(e) {
-    if(isCombat) return;
-    const rect = world.getBoundingClientRect();
+    const rect = document.getElementById('world').getBoundingClientRect();
     data.x = (e.clientX - rect.left) / zoom;
     data.y = (e.clientY - rect.top) / zoom;
-    broadcastPosition(); // Sende neue Position an den Bot
     save();
+    sync();
 }
-
-window.addEventListener('wheel', (e) => {
-    if(isCombat) return;
-    e.preventDefault();
-    zoom = Math.min(Math.max(zoom + (e.deltaY > 0 ? -0.1 : 0.1), 0.52), 2.5);
-    world.style.transformOrigin = `${data.x}px ${data.y}px`;
-    world.style.transform = `scale(${zoom})`;
-    document.querySelectorAll('.creature').forEach(p => p.style.transform = `translate(-50%, -50%) scale(${1 / zoom})`);
-}, { passive: false });
 
 function updateUI() {
-    document.getElementById('playerName').textContent = data.name;
-    document.getElementById('hpC').textContent = data.hp;
-    document.getElementById('steinC').textContent = data.stein;
-    renderPlayers();
+    document.getElementById('playerName').innerText = data.name;
+    document.getElementById('steinC').innerText = data.stein;
+    document.getElementById('lxpC').innerText = data.lxp;
+    render();
 }
 
-function save() { localStorage.setItem('nestData', JSON.stringify(data)); updateUI(); }
-function openBuilding(t) { alert(t + " Menü"); }
+function openBuilding(b) {
+    if(b === 'steinbruch') toggleModal('steinbruchModal', true);
+    else alert(b + " wird noch ausgebaut!");
+}
+
 function toggleModal(id, show) { document.getElementById(id).style.display = show ? 'flex' : 'none'; }
+function save() { localStorage.setItem('nestData', JSON.stringify(data)); updateUI(); }
 
 window.onload = () => {
     const p = new URLSearchParams(window.location.search);
-    if (p.get('user')) data.name = p.get('user');
+    if(p.get('user')) data.name = p.get('user');
     updateUI();
-    connectWebSocket(); // Starte die Verbindung
+    connect();
+};
+
+window.onwheel = (e) => {
+    zoom = Math.min(Math.max(zoom + (e.deltaY > 0 ? -0.1 : 0.1), 0.5), 2.0);
+    document.getElementById('world').style.transform = `scale(${zoom})`;
+    render();
 };
 </script>
 </body>
