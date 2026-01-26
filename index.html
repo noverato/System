@@ -24,12 +24,18 @@
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; z-index: 20000; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .mmo-panel { width: 850px; background: var(--fantasy-bg); border: var(--border); border-radius: 20px; display: flex; overflow: hidden; }
         .btn-action { background: var(--btn-grad); color: white; border: 1px solid var(--gold); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 5px; font-size: 12px; }
-        
+        .btn-action:disabled { background: #555; border-color: #777; color: #aaa; cursor: not-allowed; }
+
         .recipe-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px; }
         .recipe-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,215,0,0.3); padding: 12px; border-radius: 10px; display: flex; flex-direction: column; justify-content: space-between; transition: 0.3s; }
         .recipe-card.affinity { border-color: var(--gold); background: rgba(255, 215, 0, 0.1); box-shadow: 0 0 10px rgba(255, 215, 0, 0.2); }
         .recipe-info { font-size: 13px; margin-bottom: 8px; }
         #miniInv div { background: rgba(255,215,0,0.1); margin: 4px 0; padding: 5px; border-radius: 5px; border-left: 3px solid var(--gold); font-size: 13px; }
+        
+        /* Steinbruch spezifische Styles */
+        .mining-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 10px; }
+        .mining-node { background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); text-align: center; }
+        .req-text { font-size: 10px; color: #ff4444; display: block; margin-top: 4px; }
     </style>
 </head>
 <body>
@@ -83,30 +89,23 @@ const LOOT_POOL = {
 };
 
 const CRAFTING_RECIPES = {
-    // TIER 1 & 2 (0-5 Level)
     'Leinen': { tier: 1, needs: { 'Gras': 3 }, lxp: 5, aff: 'craftsman' },
     'Schleifstein': { tier: 1, needs: { 'Kiesel': 3 }, lxp: 5, aff: 'warrior' },
     'Einfacher Dolch': { tier: 2, needs: { 'Eisenerz': 1, 'Schleifstein': 1 }, lxp: 10, aff: 'shadow' },
     'Holzpfeile': { tier: 2, needs: { 'Stock': 2, 'Feder': 1 }, lxp: 5, aff: 'ranger' },
     'Wanderstab': { tier: 2, needs: { 'Stock': 3, 'Harz': 1 }, lxp: 10, aff: 'mage' },
     'Verband': { tier: 1, needs: { 'Moos': 2, 'Leinen': 1 }, lxp: 5 },
-
-    // TIER 3 & 4 (6-10 Level)
     'Eisenschwert': { tier: 3, needs: { 'Einfacher Dolch': 1, 'Eisenerz': 3, 'Schleifstein': 1 }, lxp: 20, aff: 'warrior' },
     'Langbogen': { tier: 3, needs: { 'Stock': 5, 'Leinen': 2, 'Harz': 2 }, lxp: 25, aff: 'ranger' },
     'Lederrüstung': { tier: 3, needs: { 'Leinen': 5, 'Harz': 3, 'Moos': 3 }, lxp: 30 },
     'Magie-Fokus': { tier: 4, needs: { 'Edelstein': 3, 'Harz': 1, 'Stock': 1 }, lxp: 40, aff: 'mage' },
     'Große Fackel': { tier: 3, needs: { 'Stock': 2, 'Harz': 3 }, lxp: 15 },
     'Alchemistenglas': { tier: 4, needs: { 'Edelstein': 2, 'Feuerstein': 1 }, lxp: 20, aff: 'mage' },
-
-    // TIER 5 & 6 (11-19 Level)
     'Runenklinge': { tier: 5, needs: { 'Eisenschwert': 1, 'Edelstein': 5 }, lxp: 10, aff: 'warrior' },
     'Schattenbogen': { tier: 5, needs: { 'Langbogen': 1, 'Schattenstein': 3, 'Harz': 5 }, lxp: 40, aff: 'ranger' },
     'Lich-Roben': { tier: 6, needs: { 'Leinen': 10, 'Edelstein': 5, 'Pilz': 5 }, lxp: 50, aff: 'mage' },
     'Meister-Werkzeug': { tier: 5, needs: { 'Eisenerz': 5, 'Feuerstein': 5 }, lxp: 10, aff: 'craftsman' },
     'Phönix-Feder': { tier: 6, needs: { 'Feder': 10, 'Feuerstein': 5, 'Edelstein': 5 }, lxp: 100 },
-
-    // TIER 7 (20+ Level)
     'Götterdämmerung': { tier: 7, needs: { 'Runenklinge': 1, 'Eisenerz': 20 }, lxp: 50, aff: 'warrior' },
     'Welteschen-Stab': { tier: 7, needs: { 'Stock': 10, 'Harz': 10, 'Edelstein': 20 }, lxp: 50, aff: 'mage' },
     'Äther-Rüstung': { tier: 7, needs: { 'Leinen': 20, 'Edelstein': 10, 'Harz': 10 }, lxp: 50 }
@@ -122,13 +121,27 @@ let rawStored = JSON.parse(localStorage.getItem('nestData')) || {};
 let data = { ...defaultData, ...rawStored, stats: { ...defaultData.stats, ...(rawStored.stats || {}) }, inventar: { ...(rawStored.inventar || {}) } };
 let myID = "";
 
+// --- NEUE STEINBRUCH FUNKTION ---
+function mineMaterial(item) {
+    if (Math.random() < 0.3) {
+        data.inventar[item] = (data.inventar[item] || 0) + 1;
+        alert(`🍀 Erfolg! Du hast ${item} gefunden.`);
+        renderInventory();
+        save();
+    } else {
+        alert("💨 Nichts gefunden. Versuchs nochmal!");
+    }
+    openBuilding('steinbruch'); // UI Refresh
+}
+
 function checkLootOnMove(x, y) {
     let area = (x > 1200 && y < 450) ? "steinbruch" : "wald";
-    let chance = (area === 'wald' && data.stats.className.toLowerCase().includes("ranger")) ? 0.5 : 0.25;
+    // Deaktivieren des passiven Loots für Steinbruch, da jetzt interaktiv
+    if (area === "steinbruch") return;
 
+    let chance = (area === 'wald' && data.stats.className.toLowerCase().includes("ranger")) ? 0.5 : 0.25;
     if (Math.random() < chance) {
         let pool = LOOT_POOL[area];
-        // Schattenstein Chance (10% innerhalb des Loots)
         let item = (Math.random() < 0.1 && area === 'wald') ? 'Schattenstein' : pool[Math.floor(Math.random() * pool.length)];
         data.inventar[item] = (data.inventar[item] || 0) + 1;
         if (item === 'Pilz') data.lxp += 5;
@@ -141,16 +154,13 @@ function craftItem(itemName) {
     const r = CRAFTING_RECIPES[itemName];
     const isCraftsman = data.stats.className.toLowerCase().includes("craftsman");
     let finalLxp = isCraftsman ? Math.floor(r.lxp * 0.8) : r.lxp;
-
     let missing = [];
     for (let mat in r.needs) {
         let have = data.inventar[mat] || 0;
         if (have < r.needs[mat]) missing.push(`${r.needs[mat] - have}x ${mat}`);
     }
-
     if (missing.length > 0) { alert(`Dir fehlen noch: ${missing.join(", ")}!`); return; }
     if (data.lxp < finalLxp) { alert(`Nicht genug LXP! Kosten: ${finalLxp}`); return; }
-
     data.lxp -= finalLxp;
     for (let mat in r.needs) data.inventar[mat] -= r.needs[mat];
     data.inventar[itemName] = (data.inventar[itemName] || 0) + 1;
@@ -164,30 +174,52 @@ function openBuilding(b) {
     const left = document.getElementById('modalLeft');
     const totalLvl = data.stats.totalEvoLevel;
     
-    if (b === 'wald') {
+    if (b === 'steinbruch') {
+        const hasStonePick = (data.inventar['Steinspitzhacke'] > 0);
+        const hasIronPick = (data.inventar['Eisenspitzhacke'] > 0);
+
+        left.innerHTML = `
+            <h2>Steinbruch</h2>
+            <p>Wähle ein Material zum Sammeln. Seltene Erze benötigen besseres Werkzeug.</p>
+            <div class="mining-grid">
+                <div class="mining-node">
+                    <strong>Kiesel</strong>
+                    <button class="btn-action" onclick="mineMaterial('Kiesel')">Sammeln</button>
+                </div>
+                <div class="mining-node">
+                    <strong>Lehm</strong>
+                    <button class="btn-action" onclick="mineMaterial('Lehm')">Sammeln</button>
+                </div>
+                <div class="mining-node">
+                    <strong>Eisenerz</strong>
+                    <button class="btn-action" ${!hasStonePick ? 'disabled' : ''} onclick="mineMaterial('Eisenerz')">Sammeln</button>
+                    ${!hasStonePick ? '<span class="req-text">Benötigt: Steinspitzhacke</span>' : ''}
+                </div>
+                <div class="mining-node">
+                    <strong>Feuerstein</strong>
+                    <button class="btn-action" ${!hasStonePick ? 'disabled' : ''} onclick="mineMaterial('Feuerstein')">Sammeln</button>
+                    ${!hasStonePick ? '<span class="req-text">Benötigt: Steinspitzhacke</span>' : ''}
+                </div>
+                <div class="mining-node" style="grid-column: span 2;">
+                    <strong>Edelsteine</strong>
+                    <button class="btn-action" ${!hasIronPick ? 'disabled' : ''} onclick="mineMaterial('Edelstein')">Sammeln</button>
+                    ${!hasIronPick ? '<span class="req-text">Benötigt: Eisenspitzhacke</span>' : ''}
+                </div>
+            </div>
+        `;
+    } else if (b === 'wald') {
         let h = `<h2>Wald-Schmiede</h2><div class="recipe-grid">`;
         for (let name in CRAFTING_RECIPES) {
             const r = CRAFTING_RECIPES[name];
-            // Tier-Sichtbarkeit Logik
             let canSee = false;
             if (r.tier <= 2 && totalLvl <= 5) canSee = true;
             else if (r.tier <= 4 && totalLvl >= 6) canSee = true;
             else if (r.tier <= 6 && totalLvl >= 11) canSee = true;
             else if (r.tier === 7 && totalLvl >= 20) canSee = true;
-
             if (!canSee) continue;
-
             let isAffinity = (r.aff && data.stats.className.toLowerCase().includes(r.aff));
             let needsTxt = Object.entries(r.needs).map(([i, q]) => `${q}x ${i}`).join(", ");
-            
-            h += `
-                <div class="recipe-card ${isAffinity ? 'affinity' : ''}">
-                    <div class="recipe-info">
-                        <strong>${name}</strong> ${isAffinity ? '⭐' : ''}<br>
-                        <small>${needsTxt}</small>
-                    </div>
-                    <button class="btn-action" onclick="craftItem('${name}')">${r.lxp} LXP</button>
-                </div>`;
+            h += `<div class="recipe-card ${isAffinity ? 'affinity' : ''}"><div class="recipe-info"><strong>${name}</strong> ${isAffinity ? '⭐' : ''}<br><small>${needsTxt}</small></div><button class="btn-action" onclick="craftItem('${name}')">${r.lxp} LXP</button></div>`;
         }
         h += `</div>`;
         left.innerHTML = h;
@@ -211,13 +243,11 @@ function updateUI() {
     document.getElementById('lxpC').innerText = data.lxp;
     document.getElementById('lvlTotal').innerText = data.stats.totalEvoLevel;
 }
-
 function renderInventory() {
     const invDiv = document.getElementById('miniInv');
     invDiv.innerHTML = '';
     for (const item in data.inventar) { if (data.inventar[item] > 0) invDiv.innerHTML += `<div>${item} x${data.inventar[item]}</div>`; }
 }
-
 window.onload = () => {
     const p = new URLSearchParams(window.location.search);
     if(p.get('user')) data.name = p.get('user');
@@ -226,7 +256,6 @@ window.onload = () => {
     save();
     db.ref('players').on('value', snap => { renderPlayers(snap.val()); });
 };
-
 function renderPlayers(players) {
     const layer = document.getElementById('charLayer'); 
     layer.innerHTML = '';
@@ -242,7 +271,6 @@ function renderPlayers(players) {
         layer.appendChild(div);
     }
 }
-
 function handleWorldClick(e) {
     if(document.getElementById('gameModal').style.display === 'flex') return;
     const rect = document.getElementById('world').getBoundingClientRect();
@@ -252,7 +280,6 @@ function handleWorldClick(e) {
     checkLootOnMove(x, y);
     save();
 }
-
 function toggleModal(id, s) { document.getElementById(id).style.display = s ? 'flex' : 'none'; }
 </script>
 </body>
