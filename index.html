@@ -3,42 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>The Nest: Solo Leveling Legends</title>
+    <title>The Nest: Solo Leveling Legends - Final Fix</title>
     <style>
         body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #000; color: #e0d8b0; }
         #viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; display: flex; align-items: center; justify-content: center; }
         #world { width: 1920px; height: 1080px; background: url('./wald.png') no-repeat center; background-size: cover; position: absolute; transition: transform 0.1s ease-out; transform-origin: center center; }
         
-        /* SPIELER & GEBÄUDE */
-        .building { position: absolute; background-size: contain; background-repeat: no-repeat; background-position: center; cursor: pointer; z-index: 10; transform: translate(-50%, -50%); }
+        /* Gebäude Ebenen-Fix */
+        .building { position: absolute; background-size: contain; background-repeat: no-repeat; background-position: center; cursor: pointer; transform: translate(-50%, -50%); }
         .label { position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: gold; padding: 2px 8px; border-radius: 5px; font-size: 12px; white-space: nowrap; border: 1px solid gold; }
+        
+        /* Spieler */
         .creature { position: absolute; width: 80px; height: 100px; z-index: 1000; text-align: center; transform: translate(-50%, -50%); transition: left 0.6s ease-out, top 0.6s ease-out; }
         .avatar-emoji { font-size: 60px; display: block; filter: drop-shadow(0 0 15px rgba(59, 130, 246, 0.8)); }
         .name-tag { font-size: 14px; font-weight: bold; color: #fff; background: rgba(15, 23, 42, 0.9); padding: 2px 12px; border-radius: 8px; border: 1px solid #3b82f6; margin-top: 5px; }
         
-        /* HUD & TICKER */
+        /* UI */
         #hud { position: fixed; top: 20px; left: 20px; background: rgba(15, 23, 42, 0.95); padding: 15px; border-radius: 15px; border: 2px solid #3b82f6; z-index: 5000; min-width: 180px; }
-        #ticker { position: fixed; top: 0; width: 100%; background: rgba(220, 38, 38, 0.8); color: white; padding: 5px; text-align: center; font-size: 12px; font-weight: bold; z-index: 6000; display: none; }
-        
-        /* MODALS */
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; z-index: 20000; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .menu-box { width: 650px; background: #0f172a; border: 3px solid #3b82f6; border-radius: 25px; padding: 25px; text-align: center; color: white; max-height: 85vh; overflow-y: auto; }
         .btn-action { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border: none; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-weight: bold; margin: 5px; }
         
-        /* ARENA & BESTENLISTE */
         #arena_scene { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: url('./arena_innen.png') no-repeat center; background-size: cover; display: none; z-index: 50000; }
-        .leaderboard-entry { background: #1e293b; margin: 5px 0; padding: 10px; border-radius: 10px; display: flex; justify-content: space-between; border-left: 4px solid gold; }
+        .market-item { background: #1e293b; padding: 12px; border-radius: 10px; margin: 8px 0; display: flex; justify-content: space-between; align-items: center; border: 1px solid #334155; }
     </style>
 </head>
 <body>
 
-<div id="ticker">📢 Monster gesichtet!</div>
-
 <div id="viewport">
     <div id="world" onclick="handleWorldClick(event)">
-        <div class="building" style="left:1500px; top:200px; width:220px; height:220px; background-image:url('./steinbruch.png');" onclick="event.stopPropagation(); openBuilding('steinbruch')"><div class="label">Steinbruch</div></div>
-        <div class="building" style="left:400px; top:300px; width:250px; height:250px; background-image:url('./rathaus.png');" onclick="event.stopPropagation(); openBuilding('rathaus')"><div class="label">Rathaus</div></div>
-        <div class="building" style="left:700px; top:500px; width:180px; height:180px; background-image:url('./schmiede.png');" onclick="event.stopPropagation(); openBuilding('schmiede')"><div class="label">Schmiede</div></div>
+        <div class="building" style="left:1500px; top:200px; width:220px; height:220px; background-image:url('./steinbruch.png'); z-index:11;" onclick="event.stopPropagation(); openBuilding('steinbruch')"><div class="label">Steinbruch</div></div>
+        <div class="building" style="left:1200px; top:750px; width:220px; height:220px; background-image:url('./marktplatz.png'); z-index:15;" onclick="event.stopPropagation(); openBuilding('markt')"><div class="label">Marktplatz</div></div>
+        <div class="building" style="left:400px; top:300px; width:250px; height:250px; background-image:url('./rathaus.png'); z-index:11;" onclick="event.stopPropagation(); openBuilding('rathaus')"><div class="label">Rathaus</div></div>
+        <div class="building" style="left:700px; top:500px; width:180px; height:180px; background-image:url('./schmiede.png'); z-index:12;" onclick="event.stopPropagation(); openBuilding('schmiede')"><div class="label">Schmiede</div></div>
+        
         <div id="charLayer"></div>
     </div>
 </div>
@@ -47,7 +45,7 @@
     <div style="color:gold; font-weight:bold;">👑 <span id="playerName">Lädt...</span></div>
     <div style="font-size:11px;">❤️ HP: <span id="hpC">100</span> | ⚔️ ATK: <span id="atkC">12</span></div>
     <div style="font-size:11px; color:#4ade80;">💎 LXP: <span id="lxpC">0</span></div>
-    <button class="btn-action" style="font-size:10px; width:100%;" onclick="openBuilding('inventar')">🎒 Inventar</button>
+    <button class="btn-action" style="font-size:10px; width:100%; margin-top:5px;" onclick="openBuilding('inventar')">🎒 Inventar</button>
 </div>
 
 <div id="arena_scene">
@@ -62,27 +60,28 @@
     </div>
 </div>
 
-<div id="rathausModal" class="modal">
+<div id="marketModal" class="modal">
     <div class="menu-box">
-        <h2 style="color:gold;">🏆 BESTENLISTE (TOP 5 ATK)</h2>
-        <div id="leaderboardContent">Lade Helden...</div>
-        <br>
-        <button class="btn-action" onclick="toggleModal('rathausModal', false)">Schließen</button>
+        <h2 style="color:gold;">⚖️ MARKTPLATZ</h2>
+        <div id="marketContent"></div>
+        <br><button class="btn-action" onclick="toggleModal('marketModal', false)">Schließen</button>
     </div>
 </div>
 
 <div id="schmiedeModal" class="modal">
     <div class="menu-box">
         <h2 style="color:gold;">⚒️ SCHMIEDE</h2>
-        <div style="background:#1e293b; padding:10px; border-radius:10px; border:1px solid gold; margin-bottom:15px;">
-            <span>🦴 <b>Knochendolch</b> (+5 ATK)<br><small>5 Knochen, 2 Schleim</small></span><br>
+        <div style="background:#1e293b; padding:10px; border-radius:10px; border:1px solid gold;">
+            <span>🦴 <b>Knochendolch</b> (+5 ATK)</span><br>
             <button class="btn-action" onclick="craftEquipment('dagger', {bone:5, slime:2}, 5)">Schmieden</button>
         </div>
-        <button class="btn-action" onclick="toggleModal('schmiedeModal', false)">Schließen</button>
+        <br><button class="btn-action" onclick="toggleModal('schmiedeModal', false)">Schließen</button>
     </div>
 </div>
 
-<div id="invModal" class="modal"><div class="menu-box"><h2 style="color:gold;">🎒 RUCKSACK</h2><div id="invGrid" style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px;"></div><br><button class="btn-action" onclick="toggleModal('invModal', false)">Schließen</button></div></div>
+<div id="steinbruchModal" class="modal"><div class="menu-box"><h2>⛏️ STEINBRUCH</h2><div onclick="harvest('stein')" style="font-size:80px; cursor:pointer;">🪨</div><br><button class="btn-action" onclick="toggleModal('steinbruchModal', false)">Schließen</button></div></div>
+
+<div id="invModal" class="modal"><div class="menu-box"><h2 style="color:gold;">🎒 RUCKSACK</h2><div id="invGrid" style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px;"></div><br><button class="btn-action" onclick="toggleModal('invModal', false)">Schließen</button></div></div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
@@ -108,17 +107,11 @@ let currentEnemy = null;
 let zoom = 1.0;
 let otherPlayers = {};
 
-// GHOST-PROTECTION
 window.onbeforeunload = () => { db.ref('players/' + data.name.replace(/\s+/g, '_')).remove(); };
 
-// SYNC & RENDER
 function sync() { db.ref('players/' + data.name.replace(/\s+/g, '_')).set(data); }
 
-db.ref('players').on('value', snap => {
-    otherPlayers = snap.val() || {};
-    updateLeaderboard();
-    render();
-});
+db.ref('players').on('value', snap => { otherPlayers = snap.val() || {}; render(); });
 
 function render() {
     const layer = document.getElementById('charLayer');
@@ -131,69 +124,80 @@ function render() {
         avatar.style.left = p.x + "px"; avatar.style.top = p.y + "px";
         avatar.style.zIndex = isMe ? "2000" : "1000";
         avatar.style.transform = `translate(-50%, -50%) scale(${1/zoom})`;
-        avatar.innerHTML = `<span class="avatar-emoji">${p.emoji}</span><div class="name-tag" style="${isMe?'border-color:gold; box-shadow:0 0 10px gold;':''}">${p.name} (ATK:${p.atk})</div>`;
+        avatar.innerHTML = `<span class="avatar-emoji">${p.emoji}</span><div class="name-tag" style="${isMe?'border-color:gold;':''}">${p.name} (ATK:${p.atk || 12})</div>`;
         layer.appendChild(avatar);
     }
 }
 
-// BESTENLISTE LOGIK
-function updateLeaderboard() {
-    let sorted = Object.values(otherPlayers).sort((a, b) => b.atk - a.atk).slice(0, 5);
-    const container = document.getElementById('leaderboardContent');
-    if(!container) return;
-    container.innerHTML = "";
-    sorted.forEach((p, index) => {
-        container.innerHTML += `<div class="leaderboard-entry"><span>#${index+1} ${p.name}</span><b>${p.atk} ATK</b></div>`;
-    });
-}
-
-// GAMEPLAY
-function handleWorldClick(e) {
-    const rect = document.getElementById('world').getBoundingClientRect();
-    data.x = (e.clientX - rect.left) / zoom;
-    data.y = (e.clientY - rect.top) / zoom;
-    if (Math.random() < 0.15) startMonsterBattle();
-    save(); sync();
-}
-
+// GEFICKTE KAMPF-LOGIK
 function startMonsterBattle() {
-    currentEnemy = { name: "Skelett", hp: 40, atk: 7, emoji: "💀", loot: "bone" };
+    currentEnemy = { name: "Wald-Skelett", hp: 45, atk: 8, emoji: "💀", loot: "bone" };
     document.getElementById('arena_scene').style.display = 'block';
     document.getElementById('combatant_left').innerHTML = `<span style="font-size:80px;">${data.emoji}</span><br>${data.name}`;
     document.getElementById('combatant_right').innerHTML = `<span style="font-size:80px;">💀</span><br>Skelett`;
+    document.getElementById('arenaLog').innerHTML = "Ein Skelett versperrt den Weg!";
 }
 
 function battleStep() {
-    let dmg = Math.floor(Math.random() * data.atk) + 5;
+    let playerAtk = data.atk || 12;
+    let dmg = Math.floor(Math.random() * playerAtk) + 5;
     currentEnemy.hp -= dmg;
-    document.getElementById('arenaLog').innerHTML += `<br>> Treffer: ${dmg} Schaden!`;
+    
+    const log = document.getElementById('arenaLog');
+    log.innerHTML += `<br><span style="color:orange;">⚔️ Du triffst für ${dmg} Schaden!</span>`;
+    log.scrollTop = log.scrollHeight;
+
     if(currentEnemy.hp <= 0) {
-        data.bone += 2; data.lxp += 5; alert("Sieg! +2 Knochen"); endBattle();
+        data[currentEnemy.loot] = (data[currentEnemy.loot] || 0) + 2; 
+        data.lxp += 10; 
+        alert("Sieg! Du hast " + currentEnemy.loot + " erbeutet."); 
+        endBattle();
     } else {
-        setTimeout(() => { data.hp -= 5; updateUI(); }, 400);
+        setTimeout(() => { 
+            let eDmg = Math.floor(Math.random() * currentEnemy.atk);
+            data.hp -= eDmg; 
+            updateUI(); 
+            log.innerHTML += `<br><span style="color:red;">💥 ${currentEnemy.name} trifft dich für ${eDmg}!</span>`;
+            log.scrollTop = log.scrollHeight;
+            if(data.hp <= 0) { alert("Besiegt!"); data.hp = 100; endBattle(); }
+        }, 400);
     }
 }
 
 function endBattle() { document.getElementById('arena_scene').style.display = 'none'; save(); sync(); }
 
-function craftEquipment(name, costs, bonus) {
-    for (let res in costs) { if (data[res] < costs[res]) { alert("Fehlende Ressourcen!"); return; } }
-    for (let res in costs) { data[res] -= costs[res]; }
-    data.atk += bonus;
-    save(); sync(); alert("Geschmiedet! ATK + " + bonus);
-}
-
+// BUILDINGS
 function openBuilding(b) {
-    if(b === 'rathaus') toggleModal('rathausModal', true);
-    if(b === 'schmiede') toggleModal('schmiedeModal', true);
-    if(b === 'inventar') {
+    if(b === 'steinbruch') toggleModal('steinbruchModal', true);
+    else if(b === 'markt') { 
+        toggleModal('marketModal', true); 
+        document.getElementById('marketContent').innerHTML = `<h3>Dorf-Handel</h3><p>10 Steine ➔ 5 LXP</p><button class="btn-action" onclick="sell('stein', 10, 5)">Verkaufen</button>`;
+    }
+    else if(b === 'schmiede') toggleModal('schmiedeModal', true);
+    else if(b === 'inventar') {
         toggleModal('invModal', true);
-        document.getElementById('invGrid').innerHTML = `<div class="inv-slot">🦴: ${data.bone}</div><div class="inv-slot">🪨: ${data.stein}</div>`;
+        document.getElementById('invGrid').innerHTML = `<div class="inv-slot">🪨: ${data.stein}</div><div class="inv-slot">🦴: ${data.bone}</div><div class="inv-slot">🌿: ${data.gras}</div>`;
     }
 }
 
+function sell(item, qty, rew) { if(data[item] >= qty) { data[item] -= qty; data.lxp += rew; save(); sync(); } }
+function harvest(item) { data[item]++; save(); sync(); }
+function handleWorldClick(e) {
+    const rect = document.getElementById('world').getBoundingClientRect();
+    data.x = (e.clientX - rect.left) / zoom;
+    data.y = (e.clientY - rect.top) / zoom;
+    if(Math.random() < 0.12) startMonsterBattle();
+    save(); sync();
+}
+
+function craftEquipment(n, c, b) {
+    for(let r in c) { if(data[r] < c[r]) return alert("Material fehlt!"); }
+    for(let r in c) { data[r] -= c[r]; }
+    data.atk += b; save(); sync(); alert("Erfolg!");
+}
+
 function updateUI() {
-    document.getElementById('playerName').innerText = data.name; // FIX: Name wird jetzt aktualisiert
+    document.getElementById('playerName').innerText = data.name;
     document.getElementById('hpC').innerText = data.hp;
     document.getElementById('atkC').innerText = data.atk;
     document.getElementById('lxpC').innerText = data.lxp;
