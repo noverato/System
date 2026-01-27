@@ -18,7 +18,18 @@
         #viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; }
         #world { width: 1920px; height: 1080px; background: url('./wald.png') no-repeat center; background-size: cover; position: absolute; transition: transform 0.1s ease-out; cursor: crosshair; }
         #charLayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1000; }
-        .creature { position: absolute; width: 80px; height: 100px; text-align: center; transform: translate(-50%, -50%); transition: left 0.8s ease-out, top 0.8s ease-out; pointer-events: auto; }
+        
+        /* UPGRADE 1: Sanftes Gleiten */
+        .creature { 
+            position: absolute; 
+            width: 80px; 
+            height: 100px; 
+            text-align: center; 
+            transform: translate(-50%, -50%); 
+            transition: all 0.6s ease-out; 
+            pointer-events: auto; 
+        }
+        
         .creature img { height: 80px; filter: drop-shadow(0 0 10px rgba(0,0,0,0.9)); }
         .name-tag { font-size: 14px; font-weight: bold; background: rgba(0,0,0,0.8); padding: 2px 12px; border-radius: 6px; border: 1px solid var(--gold); margin-top: 5px; white-space: nowrap; }
         .boss-aura { border: 2px solid #ff0000 !important; color: #ff0000 !important; box-shadow: 0 0 20px #ff0000; animation: pulse 1.5s infinite; }
@@ -49,7 +60,6 @@
         #playerHpFill { background: linear-gradient(to right, #8a2be2, #4b0082) !important; box-shadow: 0 0 15px #8a2be2; height: 100%; transition: width 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         #enemyHpFill { background: linear-gradient(to right, #ff4500, #ff0000) !important; box-shadow: 0 0 15px #ff4500; height: 100%; transition: width 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         
-        /* Evo Styles */
         .evo-choice-box { display: flex; gap: 20px; justify-content: center; margin-top: 30px; }
         .evo-card { background: rgba(0,0,0,0.5); border: 1px solid gold; padding: 20px; border-radius: 10px; text-align: center; width: 200px; cursor: pointer; transition: 0.3s; }
         .evo-card:hover { transform: translateY(-10px); background: rgba(255,215,0,0.1); }
@@ -99,7 +109,7 @@
 
 <script>
 // ==========================================
-// SECTION 0: EVOLUTION DATA MATRIX
+// SECTION 0: EVOLUTION DATA MATRIX (ERHALTEN)
 // ==========================================
 const EVO_DATA = {
     "Ei": { hp: 50, atk: 5, def: 5 },
@@ -247,7 +257,7 @@ const EVO_DATA = {
 };
 
 // ==========================================
-// SECTION 1: CONFIG
+// SECTION 1: CONFIG & UPGRADE 2
 // ==========================================
 const firebaseConfig = { apiKey: "AIzaSyCKNXJ-ouAOAcLr5ut-EemWQI8_zJxhqa8", authDomain: "thenest-81de6.firebaseapp.com", databaseURL: "https://thenest-81de6-default-rtdb.firebaseio.com", projectId: "thenest-81de6" };
 firebase.initializeApp(firebaseConfig);
@@ -256,19 +266,21 @@ const db = firebase.database();
 const TWITCH_CLIENT_ID = "futhxsgrshkh2h6cqywavg5cous3q0";
 const BROADCASTER_ID = "573773653";
 const REDIRECT_URI = "https://noverato.github.io/System";
-
 const EVO_IMGS = ['Ei.png', 'Schleim.png', 'Skelett.png', 'Goblin.png', 'Oger.png', 'Lich.png', 'HoeheresWesen.png'];
 
 let twitchToken = "";
 let isLoadingFollower = true; 
 let isIdentified = false; 
-let healsUsedInCombat = 0; // TRACKER FÜR HEILUNGEN
+let verifiedID = ""; // UPGRADE 2: Absolute Wahrheit
+let healsUsedInCombat = 0; 
+
 let data = { 
     name: "Held", x: 960, y: 540, lxp: 0, hp: 100, maxHp: 100, mp: 50, maxMp: 50, 
     followDays: 0, isFollower: false, inventar: {}, 
-    stats: { atk: 5, def: 5, totalEvoLevel: 0, currentLevel: 0, className: "Novize", path: "Neutral" },
+    stats: { atk: 5, def: 5, totalEvoLevel: 0, currentLevel: 0, className: "Ei", path: "Neutral" },
     battleAction: "none", battleReady: false, hidden: false
 };
+
 let myID = "", onlinePlayers = {}, isAdmin = false, currentEnemy = null, isActionLocked = false, activeBattleID = null;
 
 // ==========================================
@@ -321,7 +333,7 @@ function updateBaseStats() {
 }
 
 // ==========================================
-// SECTION 2: IDENTITY
+// SECTION 2: IDENTITY & UPGRADE 2
 // ==========================================
 function checkTwitchAuth() {
     const hash = window.location.hash.substring(1);
@@ -335,8 +347,8 @@ function checkTwitchAuth() {
     return false;
 }
 
-function redirectToTwitch(userName) {
-    const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${TWITCH_CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=token&scope=moderator:read:followers&state=${userName}`;
+function redirectToTwitch() {
+    const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${TWITCH_CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=token&scope=moderator:read:followers`;
     window.location.href = authUrl;
 }
 
@@ -349,14 +361,18 @@ async function initTwitchSession() {
         const result = await resp.json();
         if (result.data && result.data.length > 0) {
             const twitchUser = result.data[0];
-            if (twitchUser.id) {
-                data.name = twitchUser.display_name;
-                myID = twitchUser.id;
-                isIdentified = true; 
-                if (myID === BROADCASTER_ID) isAdmin = true;
-                await loadUserData(); 
-                await validateTwitchFollower(myID);
-            }
+            
+            // UPGRADE 2: verifiedID ist die einzige Quelle
+            verifiedID = twitchUser.id; 
+            myID = verifiedID; // Synchronisation mit altem Code
+            data.name = twitchUser.display_name;
+            isIdentified = true; 
+            
+            // UPGRADE 3: Hardcoded Admin Check
+            isAdmin = (verifiedID === BROADCASTER_ID); 
+            
+            await loadUserData(); 
+            await validateTwitchFollower(verifiedID);
         }
     } catch (err) { console.error("Twitch Session Error:", err); }
     updateUI();
@@ -384,12 +400,12 @@ async function validateTwitchFollower(userID) {
 }
 
 // ==========================================
-// SECTION 3: FIREBASE CORE
+// SECTION 3: FIREBASE & UPGRADE 2/3
 // ==========================================
 async function loadUserData() {
-    if (!myID) return;
+    if (!verifiedID) return;
     try {
-        const snapshot = await db.ref('players/' + myID).once('value');
+        const snapshot = await db.ref('players/' + verifiedID).once('value');
         if (snapshot.exists()) {
             const dbData = snapshot.val();
             data.lxp = dbData.lxp || 0;
@@ -405,21 +421,22 @@ async function loadUserData() {
 }
 
 function save() {
-    localStorage.setItem('nestData', JSON.stringify(data));
+    if (!isIdentified || !verifiedID || isLoadingFollower) return;
     updateUI(); 
-    if (isIdentified && myID && !isLoadingFollower) {
-        db.ref('players/' + myID).update({
-            hp: data.hp, maxHp: data.maxHp, lxp: data.lxp, x: data.x, y: data.y, name: data.name,
-            stats: data.stats, inventar: data.inventar, 
-            isFollower: data.isFollower, followDays: data.followDays, 
-            battleAction: data.battleAction, battleReady: data.battleReady, hidden: data.hidden,
-            lastSeen: Date.now()
-        });
-    }
+    db.ref('players/' + verifiedID).update({
+        hp: data.hp, maxHp: data.maxHp, lxp: data.lxp, x: data.x, y: data.y, name: data.name,
+        stats: data.stats, inventar: data.inventar, 
+        isFollower: data.isFollower, followDays: data.followDays, 
+        battleAction: data.battleAction, battleReady: data.battleReady, hidden: data.hidden,
+        lastSeen: Date.now()
+    });
 }
 
 function updateUI() {
-    document.getElementById('playerName').innerText = isAdmin ? "OVERLORD Spawn2909" : (isLoadingFollower ? "Magie wirkt..." : data.name);
+    // UPGRADE 3: Admin Sichtbarkeit hart gekoppelt
+    isAdmin = (verifiedID === BROADCASTER_ID);
+    
+    document.getElementById('playerName').innerText = isAdmin ? "OVERLORD " + data.name : (isLoadingFollower ? "Magie wirkt..." : data.name);
     let title = data.stats.className || "Novize";
     document.getElementById('hudClass').innerText = isAdmin ? "SYSTEM-ARCHITEKT" : title;
     document.getElementById('lxpC').innerText = data.lxp;
@@ -427,7 +444,10 @@ function updateUI() {
     document.getElementById('followDaysDisplay').innerText = data.followDays;
     const followDisplay = document.getElementById('isFollower');
     followDisplay.innerText = isLoadingFollower ? "Prüfe..." : (data.isFollower ? "Ja" : "Nein");
+    
     if(isAdmin) document.getElementById('adminHud').style.display = 'block';
+    else document.getElementById('adminHud').style.display = 'none';
+
     const invDiv = document.getElementById('miniInv'); invDiv.innerHTML = '';
     if(data.inventar) {
         Object.keys(data.inventar).forEach(i => { if(data.inventar[i]>0) invDiv.innerHTML += `<div style="padding:5px; border-bottom:1px solid #444;">${i} x${data.inventar[i]}</div>`; });
@@ -435,8 +455,8 @@ function updateUI() {
 }
 
 function exitGame() {
-    if(myID) {
-        db.ref('players/' + myID).remove().then(() => {
+    if(verifiedID) {
+        db.ref('players/' + verifiedID).remove().then(() => {
             localStorage.removeItem('nestData');
             location.href = REDIRECT_URI;
         });
@@ -448,8 +468,11 @@ function renderPlayers(players) {
     Object.keys(players).forEach(id => {
         const p = players[id];
         if (p.hidden || !p.name || (Date.now() - (p.lastSeen || 0) > 60000)) return;
-        const div = document.createElement('div'); div.className = 'creature';
-        div.style.left = p.x + "px"; div.style.top = p.y + "px";
+        const div = document.createElement('div'); 
+        div.className = 'creature';
+        div.setAttribute('data-id', id); // Für QuerySelector
+        div.style.left = p.x + "px"; 
+        div.style.top = p.y + "px";
         const isBoss = (id === BROADCASTER_ID);
         const imgIdx = Math.min(Math.max((p.stats?.totalEvoLevel || 0), 0), 6);
         const imgSrc = isBoss ? 'Overlord.png' : EVO_IMGS[imgIdx];
@@ -459,10 +482,10 @@ function renderPlayers(players) {
 }
 
 // ==========================================
-// SECTION 4: ARENA & KAMPF
+// SECTION 4: KAMPF-LOGIK (ERHALTEN)
 // ==========================================
 function listenForChallenges() {
-    if (!myID) return;
+    if (!verifiedID) return;
     db.ref('battles').on('value', snap => {
         const allBattles = snap.val() || {};
         if (activeBattleID) {
@@ -474,7 +497,7 @@ function listenForChallenges() {
         }
         Object.keys(allBattles).forEach(bID => {
             const battle = allBattles[bID];
-            if (battle.defenderID === myID && battle.status === 'pending' && !activeBattleID) {
+            if (battle.defenderID === verifiedID && battle.status === 'pending' && !activeBattleID) {
                 document.getElementById('battleInvite').style.display = 'block';
                 document.getElementById('inviteText').innerText = battle.attackerName + " fordert dich!";
                 document.getElementById('btnAcceptInvite').onclick = () => {
@@ -482,14 +505,14 @@ function listenForChallenges() {
                     document.getElementById('battleInvite').style.display = 'none';
                 };
             }
-            if ((battle.attackerID === myID || battle.defenderID === myID) && battle.status === 'active') {
+            if ((battle.attackerID === verifiedID || battle.defenderID === verifiedID) && battle.status === 'active') {
                 if (!currentEnemy || activeBattleID !== bID) {
                     activeBattleID = bID;
-                    const oppID = (battle.attackerID === myID) ? battle.defenderID : battle.attackerID;
+                    const oppID = (battle.attackerID === verifiedID) ? battle.defenderID : battle.attackerID;
                     if(onlinePlayers[oppID]) {
                         toggleModal('gameModal', true);
                         startCombat(onlinePlayers[oppID], false, oppID);
-                        db.ref(`battles/${bID}/actions/${myID}`).update({ inArena: true });
+                        db.ref(`battles/${bID}/actions/${verifiedID}`).update({ inArena: true });
                     }
                 }
             }
@@ -500,12 +523,11 @@ function listenForChallenges() {
 function startCombat(enemy, isMonster, enemyID = null) {
     if(document.getElementById('gameModal').style.display !== 'flex') toggleModal('gameModal', true);
     isActionLocked = false;
-    healsUsedInCombat = 0; // RESET HEILUNGEN BEI KAMPFSTART
+    healsUsedInCombat = 0; 
     
     if (isMonster) {
-        // MONSTER STATS & VARIATION
         const baseAtk = 25;
-        const variation = 0.9 + Math.random() * 0.2; // +/- 10%
+        const variation = 0.9 + Math.random() * 0.2; 
         currentEnemy = { 
             name: "Waldschleim", 
             hp: 50, 
@@ -553,21 +575,16 @@ function renderCombatStage() {
 
 function executeCombatAction(type) {
     if (isActionLocked) return;
-
     if (type === 'heal') {
-        if (healsUsedInCombat >= 3) {
-            alert("Du hast keine Heiltränke mehr!");
-            return;
-        }
+        if (healsUsedInCombat >= 3) { alert("Keine Heilung mehr!"); return; }
         healsUsedInCombat++;
     }
-
     isActionLocked = true;
     if (currentEnemy.isMonster) {
         data.battleAction = type;
         setTimeout(resolveBattleTurn, 1200);
     } else {
-        db.ref(`battles/${activeBattleID}/actions/${myID}`).update({ type: type, ready: true });
+        db.ref(`battles/${activeBattleID}/actions/${verifiedID}`).update({ type: type, ready: true });
     }
 }
 
@@ -576,32 +593,23 @@ function resolveBattleTurn() {
     const playerDef = data.stats.def || 5;
     const monsterAtk = currentEnemy.atk || 20;
     const log = document.getElementById('battleLog');
-    
     let turnReport = "";
 
-    // AKTION: HEILEN
     if (data.battleAction === 'heal') {
         const healAmt = Math.floor(data.maxHp * 0.25);
         data.hp = Math.min(data.maxHp, data.hp + healAmt);
         turnReport += `<div style="color:cyan;">Du heilst dich um ${healAmt} HP!</div>`;
-    } 
-    // AKTION: ATTACKE (MIT KRIT)
-    else {
-        let isCrit = Math.random() < 0.1; // 10% CHANCE
-        let playerDamageDealt = Math.floor(playerAtk * 0.5);
-        if (isCrit) {
-            playerDamageDealt *= 2;
-            turnReport += `<div style="color:gold; font-weight:bold;">KRITISCHER TREFFER!</div>`;
-        }
-        currentEnemy.hp -= playerDamageDealt;
-        turnReport += `<div style="color:#4ade80;">Du triffst für ${playerDamageDealt} Schaden!</div>`;
+    } else {
+        let isCrit = Math.random() < 0.1;
+        let pDmg = Math.floor(playerAtk * 0.5);
+        if (isCrit) { pDmg *= 2; turnReport += `<div style="color:gold; font-weight:bold;">KRITISCHER TREFFER!</div>`; }
+        currentEnemy.hp -= pDmg;
+        turnReport += `<div style="color:#4ade80;">Du triffst für ${pDmg} Schaden!</div>`;
     }
 
-    // MONSTER SCHLÄGT IMMER ZU
-    let monsterDamageDealt = Math.max(2, Math.floor(monsterAtk - playerDef * 0.2));
-    data.hp -= monsterDamageDealt;
-    turnReport += `<div style="color:#ff4444;">${currentEnemy.name} trifft dich für ${monsterDamageDealt} Schaden!</div>`;
-
+    let mDmg = Math.max(2, Math.floor(monsterAtk - playerDef * 0.2));
+    data.hp -= mDmg;
+    turnReport += `<div style="color:#ff4444;">${currentEnemy.name} trifft dich für ${mDmg} Schaden!</div>`;
     log.innerHTML = turnReport;
 
     let cap = (data.stats.totalEvoLevel === 0) ? 1 : (data.stats.totalEvoLevel * 30);
@@ -612,16 +620,10 @@ function resolveBattleTurn() {
             data.lxp += 50; 
             log.innerHTML += `<div style="color:gold;">SIEG! +50 LXP</div>`;
             setTimeout(endCombat, 1500);
-        }
-        else if (data.hp <= 0) { 
+        } else if (data.hp <= 0) { 
             data.hp = data.maxHp; 
-            alert("Du bist im Kampf gefallen und wurdest im Nest wiederbelebt.");
-            endCombat(); 
-        }
-        else { 
-            isActionLocked = false; 
-            renderCombatStage(); 
-        }
+            alert("Gefallen!"); endCombat(); 
+        } else { isActionLocked = false; renderCombatStage(); }
     }, 2000);
 }
 
@@ -630,13 +632,10 @@ function endCombat() {
     toggleModal('gameModal', false); save();
 }
 
-function closeGeneralModal() {
-    if (activeBattleID || currentEnemy) endCombat();
-    else toggleModal('gameModal', false);
-}
+function closeGeneralModal() { if (activeBattleID || currentEnemy) endCombat(); else toggleModal('gameModal', false); }
 
 // ==========================================
-// SECTION 5: EVOLUTION & LEVELING
+// SECTION 5: EVOLUTION & UPGRADE 1 CLICK
 // ==========================================
 function renderEvoMenu() {
     const left = document.getElementById('modalLeft');
@@ -651,90 +650,65 @@ function renderEvoMenu() {
         <hr style="border-color:gold; margin:20px 0;">`;
 
     if (curEvo === 0) {
-        html += `<h3>Stufe 1: Das Schlüpfen</h3>
-                 <p>Bedingung: 5.000 LXP sammeln.</p>
-                 <button class="btn-action" onclick="tryEvolve(1)">SCHLÜPFEN</button>`;
-    } 
-    else if (curEvo === 1) {
-        html += `<h3>Stufe 2: Die Hauptklasse</h3>
-                 <p>Bedingung: Tag 30 & Level 30.</p>
-                 <p>Status: Tag ${ep}/30 | Level ${lvl}/30</p>
+        html += `<h3>Stufe 1: Das Schlüpfen</h3><p>5.000 LXP benötigt.</p><button class="btn-action" onclick="tryEvolve(1)">SCHLÜPFEN</button>`;
+    } else if (curEvo === 1) {
+        html += `<h3>Stufe 2: Die Hauptklasse</h3><p>Tag 30 & Level 30 benötigt.</p><p>Status: Tag ${ep}/30 | Level ${lvl}/30</p>
                  <div class="evo-choice-box">
-                    <div class="evo-card" onclick="chooseClass('Krieger')"><h4 style="color:red;">KRIEGER</h4></div>
-                    <div class="evo-card" onclick="chooseClass('Waldläufer')"><h4 style="color:green;">WALDLÄUFER</h4></div>
-                    <div class="evo-card" onclick="chooseClass('Druide')"><h4 style="color:#8b4513;">DRUIDE</h4></div>
-                    <div class="evo-card" onclick="chooseClass('Hüter')"><h4 style="color:#eab308;">HÜTER</h4></div>
-                    <div class="evo-card" onclick="chooseClass('Sucher')"><h4 style="color:#3b82f6;">SUCHER</h4></div>
-                    <div class="evo-card" onclick="chooseClass('Einsiedler')"><h4 style="color:#a855f7;">EINSIEDLER</h4></div>
-                    <div class="evo-card" onclick="chooseClass('Wächter')"><h4 style="color:#64748b;">WÄCHTER</h4></div>
+                    <div class="evo-card" onclick="chooseClass('Krieger')"><h4>KRIEGER</h4></div>
+                    <div class="evo-card" onclick="chooseClass('Waldläufer')"><h4>WALDLÄUFER</h4></div>
+                    <div class="evo-card" onclick="chooseClass('Druide')"><h4>DRUIDE</h4></div>
+                    <div class="evo-card" onclick="chooseClass('Hüter')"><h4>HÜTER</h4></div>
+                    <div class="evo-card" onclick="chooseClass('Sucher')"><h4>SUCHER</h4></div>
+                    <div class="evo-card" onclick="chooseClass('Einsiedler')"><h4>EINSIEDLER</h4></div>
+                    <div class="evo-card" onclick="chooseClass('Wächter')"><h4>WÄCHTER</h4></div>
                  </div>`;
-    }
-    else if (curEvo === 2) {
-        html += `<h3>Stufe 3: Die Gesinnung</h3>
-                 <p>Bedingung: Tag 60 & Level 60.</p>
+    } else if (curEvo === 2) {
+        html += `<h3>Stufe 3: Die Gesinnung</h3><p>Tag 60 & Level 60 benötigt.</p>
                  <div class="evo-choice-box">
-                    <div class="evo-card" style="border-color:white;" onclick="choosePath('Licht')"><h4 style="color:white;">LICHT-PFAD</h4></div>
-                    <div class="evo-card" style="border-color:purple;" onclick="choosePath('Dunkel')"><h4 style="color:purple;">DUNKEL-PFAD</h4></div>
+                    <div class="evo-card" onclick="choosePath('Licht')"><h4>LICHT-PFAD</h4></div>
+                    <div class="evo-card" onclick="choosePath('Dunkel')"><h4>DUNKEL-PFAD</h4></div>
                  </div>`;
-    }
-    else if (curEvo < 7) {
+    } else if (curEvo < 7) {
         const next = (curEvo) * 30;
-        html += `<h3>Stufe ${curEvo + 1}: Aufstieg</h3>
-                 <p>Voraussetzung: Tag ${next} & Level ${next}.</p>
-                 <button class="btn-action" onclick="tryEvolve(${curEvo + 1})">EVOLVIEREN</button>`;
-    } else {
-        html += `<h2>MAXIMALSTUFE ERREICHT</h2>`;
-    }
+        html += `<h3>Stufe ${curEvo + 1}: Aufstieg</h3><p>Tag ${next} & Level ${next}.</p><button class="btn-action" onclick="tryEvolve(${curEvo + 1})">EVOLVIEREN</button>`;
+    } else { html += `<h2>MAXIMALSTUFE</h2>`; }
     left.innerHTML = html + `</div>`;
 }
 
-function tryEvolve(targetTier) {
-    if (targetTier === 1 && data.lxp >= 5000) {
-        data.lxp -= 5000;
-        data.stats.totalEvoLevel = 1;
-        updateBaseStats();
-        data.hp = data.maxHp; 
-        alert("Du bist geschlüpft!");
-        save(); renderEvoMenu();
-    } else if (targetTier > 1) {
-        const req = targetTier * 30;
-        if (data.followDays >= req && data.stats.currentLevel >= req) {
-            data.stats.totalEvoLevel = targetTier;
-            updateBaseStats();
-            alert("Evolution erfolgreich!");
-            save(); renderEvoMenu();
-        }
+function tryEvolve(tier) {
+    if (tier === 1 && data.lxp >= 5000) { data.lxp -= 5000; data.stats.totalEvoLevel = 1; updateBaseStats(); data.hp = data.maxHp; save(); renderEvoMenu(); }
+    else if (tier > 1) {
+        const req = tier * 30;
+        if (data.followDays >= req && data.stats.currentLevel >= req) { data.stats.totalEvoLevel = tier; updateBaseStats(); save(); renderEvoMenu(); }
     }
 }
 
-function chooseClass(name) {
-    if (data.stats.totalEvoLevel !== 1) return;
-    data.stats.className = name;
-    data.stats.totalEvoLevel = 2;
-    updateBaseStats();
-    data.hp = data.maxHp; 
-    alert(`Du bist nun ein ${data.stats.className}!`);
-    save(); renderEvoMenu();
+function chooseClass(n) { if (data.stats.totalEvoLevel === 1) { data.stats.className = n; data.stats.totalEvoLevel = 2; updateBaseStats(); data.hp = data.maxHp; save(); renderEvoMenu(); } }
+function choosePath(p) { if (data.stats.totalEvoLevel === 2) { data.stats.path = p; data.stats.totalEvoLevel = 3; updateBaseStats(); data.hp = data.maxHp; save(); renderEvoMenu(); } }
+
+// UPGRADE 1: HANDLE WORLD CLICK UMBAU
+function handleWorldClick(e) { 
+    if(document.getElementById('gameModal').style.display === 'flex') return; 
+    const rect = document.getElementById('world').getBoundingClientRect(); 
+    
+    data.x = e.clientX - rect.left; 
+    data.y = e.clientY - rect.top; 
+
+    // Visuelles Gleiten des eigenen Chars
+    if(verifiedID) {
+        const myChar = document.querySelector(`.creature[data-id="${verifiedID}"]`);
+        if(myChar) {
+            myChar.style.left = data.x + "px";
+            myChar.style.top = data.y + "px";
+        }
+    }
+    save(); 
 }
 
-function choosePath(path) {
-    if (data.stats.totalEvoLevel !== 2) return;
-    if (data.stats.path !== "Neutral" && data.stats.path !== "") return;
-    data.stats.path = path;
-    data.stats.totalEvoLevel = 3;
-    updateBaseStats();
-    data.hp = data.maxHp; 
-    alert(`Dein Pfad ist nun: ${path}! Du bist jetzt ein ${data.stats.className}.`);
-    save(); renderEvoMenu();
-}
-
-// ==========================================
-// RESTLICHE FUNKTIONEN (Steinbruch/Admin)
-// ==========================================
-function handleWorldClick(e) { if(document.getElementById('gameModal').style.display === 'flex') return; const rect = document.getElementById('world').getBoundingClientRect(); data.x = e.clientX - rect.left; data.y = e.clientY - rect.top; save(); }
 function toggleModal(id, s) { document.getElementById(id).style.display = s ? 'flex' : 'none'; }
 function openBuilding(b) { toggleModal('gameModal', true); if (b === 'steinbruch') renderMiningMenu(); else if (b === 'rathaus') renderEvoMenu(); else if (b === 'arena') renderArenaMatchmaking(); }
-function renderMiningMenu() { document.getElementById('modalLeft').innerHTML = `<div style="padding:30px;"><h2>Steinbruch</h2><button class="btn-action" onclick="startMining()">⛏️ Abbau</button><div id="mineLog"></div></div>`; }
+
+function renderMiningMenu() { document.getElementById('modalLeft').innerHTML = `<div style="padding:30px;"><h2>Steinbruch</h2><button class="btn-action" onclick="startMining()">⛏️ Abbau</button></div>`; }
 function startMining() { 
     data.lxp += 10; 
     let cap = (data.stats.totalEvoLevel === 0) ? 1 : (data.stats.totalEvoLevel * 30);
@@ -742,39 +716,42 @@ function startMining() {
     save(); 
 }
 
-// ADMIN LEVEL SICHERHEIT
-function adminAddLevel(amount) {
-    let tier = data.stats.totalEvoLevel;
-    let cap = (tier === 0) ? 1 : (tier * 30);
-    data.stats.currentLevel = Math.min(cap, data.stats.currentLevel + amount);
-    save();
-    renderEvoMenu();
-}
-
+// UPGRADE 3: ADMIN ABSICHERUNG
 function openAdminPanel() { 
+    if (verifiedID !== BROADCASTER_ID) {
+        alert("Zugriff verweigert!");
+        return;
+    }
     toggleModal('gameModal', true); 
     document.getElementById('modalLeft').innerHTML = `
-        <h2>🛠 ADMIN</h2>
-        <button class="btn-action" onclick="data.followDays+=30;save();renderEvoMenu()">+30 Tage</button><br>
-        <button class="btn-action" onclick="data.lxp+=5000;save();renderEvoMenu()">+5000 LXP</button><br>
-        <button class="btn-action" onclick="adminAddLevel(30)">+30 Level (Respektiert Cap)</button>
+        <h2>🛠 ADMIN-KONSOLE</h2>
+        <button class="btn-action" onclick="data.followDays+=30;save();renderEvoMenu()">+30 Tage</button><br><br>
+        <button class="btn-action" onclick="data.lxp+=5000;save();renderEvoMenu()">+5000 LXP</button><br><br>
+        <button class="btn-action" onclick="adminAddLevel(30)">+30 Level (Cap Check)</button>
     `; 
 }
 
+function adminAddLevel(amt) {
+    let cap = (data.stats.totalEvoLevel === 0) ? 1 : (data.stats.totalEvoLevel * 30);
+    data.stats.currentLevel = Math.min(cap, data.stats.currentLevel + amt);
+    save();
+}
+
 function renderArenaMatchmaking() {
-    const left = document.getElementById('modalLeft');
-    let html = `<div style="padding:20px;"><h2>🛡️ Arena</h2><button class="btn-action" onclick="startCombat(null, true)">🐗 Monsterkampf</button></div>`;
-    left.innerHTML = html;
+    document.getElementById('modalLeft').innerHTML = `<div style="padding:20px;"><h2>🛡️ Arena</h2><button class="btn-action" onclick="startCombat(null, true)">🐗 Monsterkampf</button></div>`;
 }
 
 window.onload = async () => {
-    if (checkTwitchAuth()) await initTwitchSession();
+    if (checkTwitchAuth()) {
+        await initTwitchSession();
+    } else {
+        redirectToTwitch();
+    }
     db.ref('players').on('value', snap => {
         onlinePlayers = snap.val() || {};
         renderPlayers(onlinePlayers);
-        if(myID && onlinePlayers[myID]) updateUI();
+        if(verifiedID && onlinePlayers[verifiedID]) updateUI();
     });
-    save(); 
     setInterval(save, 30000);
 };
 </script>
