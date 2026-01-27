@@ -121,10 +121,10 @@ let data = {
     stats: { warrior: 0, mage: 0, ranger: 0, craftsman: 0, shadow: 0, totalEvoLevel: 0, className: "Novize" },
     battleAction: "none", battleReady: false, hidden: false
 };
-let myID = "", onlinePlayers = {}, isAdmin = false, currentEnemy = null, isActionLocked = false;
+let myID = "", onlinePlayers = {}, isAdmin = false, currentEnemy = null, isActionLocked = false, activeBattleID = null;
 
 // ==========================================
-// SECTION 2: IDENTITY & ADMIN (FIXED)
+// SECTION 2: IDENTITY
 // ==========================================
 function checkTwitchAuth() {
     const hash = window.location.hash.substring(1);
@@ -253,7 +253,7 @@ function renderPlayers(players) {
         if (p.hidden || !p.name || (Date.now() - (p.lastSeen || 0) > 60000)) return;
         const div = document.createElement('div'); div.className = 'creature';
         div.style.left = p.x + "px"; div.style.top = p.y + "px";
-        const isBoss = p.name.toLowerCase() === BOSS_NAME.toLowerCase();
+        const isBoss = (id === BROADCASTER_ID);
         const imgIdx = Math.min(Math.max((p.stats?.totalEvoLevel || 0), 0), 6);
         const imgSrc = isBoss ? 'Overlord.png' : EVO_IMGS[imgIdx];
         div.innerHTML = `<img src="${imgSrc}" onerror="this.src='Ei.png'"><div class="name-tag ${isBoss?'boss-aura':''}">${isBoss?'OVERLORD':p.name}</div>`;
@@ -262,25 +262,40 @@ function renderPlayers(players) {
 }
 
 // ==========================================
-// SECTION 4: PvP RADAR & ARENA (REPAIRED)
+// SECTION 4: REPAIRED BATTLE CODE (Observer & Realtime Actions)
 // ==========================================
 function listenForChallenges() {
     if (!myID) return;
-    // REPARATUR: .on('value') für zuverlässiges Radar
     db.ref('battles').on('value', snap => {
         snap.forEach(child => {
             const battle = child.val();
-            // Prüfe, ob ich der Verteidiger bin und die Einladung offen ist
+            const bID = child.key;
+
+            // 1. INVITE: Ich bin Verteidiger und Anfrage ist offen
             if (battle.defenderID === myID && battle.status === 'pending') {
                 const inviteBox = document.getElementById('battleInvite');
-                document.getElementById('inviteText').innerText = battle.attacker + " fordert dich!";
+                document.getElementById('inviteText').innerText = battle.attackerName + " fordert dich!";
                 inviteBox.style.display = 'block';
-                
                 document.getElementById('btnAcceptInvite').onclick = () => {
-                    db.ref('battles/' + child.key).update({ status: 'active' });
+                    db.ref('battles/' + bID).update({ status: 'active' });
                     inviteBox.style.display = 'none';
-                    startCombat(onlinePlayers[battle.attackerID], false, battle.attackerID);
                 };
+            }
+
+            // 2. OBSERVER / TELEPORT: Kampf ist aktiv -> Beide IDs teleportieren
+            if ((battle.attackerID === myID || battle.defenderID === myID) && battle.status === 'active') {
+                if (!currentEnemy) {
+                    activeBattleID = bID;
+                    const oppID = (battle.attackerID === myID) ? battle.defenderID : battle.attackerID;
+                    startCombat(onlinePlayers[oppID], false, oppID);
+                }
+
+                // 3. JUDGE: Prüfe Echtzeit-Aktionen beider Clients
+                const atkAct = battle.actions[battle.attackerID];
+                const defAct = battle.actions[battle.defenderID];
+                if (atkAct.ready && defAct.ready && !isActionLocked) {
+                    resolvePvPTurn(battle);
+                }
             }
         });
     });
@@ -288,17 +303,127 @@ function listenForChallenges() {
 
 function challengePlayer(targetID, targetName) {
     if (!isIdentified || (!data.isFollower && !isAdmin)) return alert("Nur aktive Follower dürfen fordern!");
-    
-    // REPARATUR: ID des Verteidigers als Pfad (Postfach-Logik)
-    db.ref('battles/' + targetID).set({
-        attacker: data.name,
-        attackerID: myID,
-        defender: targetName,
-        defenderID: targetID,
-        status: 'pending',
-        timestamp: Date.now()
+    const bID = targetID; // Verteidiger-Postfach
+    db.ref('battles/' + bID).set({
+        attackerName: data.name, attackerID: myID,
+        defenderName: targetName, defenderID: targetID,
+        status: 'pending', timestamp: Date.now(),
+        actions: {
+            [myID]: { type: 'none', ready: false },
+            [targetID]: { type: 'none', ready: false }
+        }
     });
     alert("Duell-Anfrage an " + targetName + " gesendet!");
+}
+
+function startCombat(enemy, isMonster, enemyID = null) {
+    toggleModal('gameModal', true);
+    isActionLocked = false;
+    if (isMonster) {
+        currentEnemy = { ...MONSTERS[Math.floor(Math.random() * MONSTERS.length)], isMonster: true };
+    } else {
+        const isBoss = (enemyID === BROADCASTER_ID);
+        currentEnemy = { ...enemy, id: enemyID, isMonster: false, img: (isBoss ? 'Overlord.png' : EVO_IMGS[enemy.stats?.totalEvoLevel || 0]) };
+    }
+    renderCombatStage();
+}
+
+function renderCombatStage() {
+    const left = document.getElementById('modalLeft');
+    const myImg = (isAdmin ? 'Overlord.png' : EVO_IMGS[data.stats?.totalEvoLevel || 0]);
+    left.innerHTML = `<div id="arenaStage">
+        <div class="combatant-wrap"><img src="${myImg}" onerror="this.src='Ei.png'" class="combatant-img"><br><strong>${data.name}</strong></div>
+        <div class="combatant-wrap"><img src="${currentEnemy.img || 'Monster1.png'}" onerror="this.src='Ei.png'" class="combatant-img"><br><strong>${currentEnemy.name}</strong></div>
+        <div id="ffMenu">
+            <div class="ff-buttons">
+                <button id="btnAtk" class="btn-action" onclick="executeCombatAction('attack')" ${isActionLocked?'disabled':''}>ATTACKE</button>
+                <button id="btnHeal" class="btn-action" onclick="executeCombatAction('heal')" ${isActionLocked?'disabled':''}>HEILUNG</button>
+                <button class="btn-action" onclick="endCombat()">FLUCHT</button>
+            </div>
+            <div class="ff-status">
+                <div class="bar-wrap"><div id="playerHpFill" style="width:${(data.hp/data.maxHp)*100}%;"></div></div>
+                <div class="bar-wrap"><div id="enemyHpFill" style="width:${(currentEnemy.hp/currentEnemy.maxHp)*100}%;"></div></div>
+            </div>
+        </div>
+        <div id="battleLog">Warte auf Synchronisation...</div>
+    </div>`;
+}
+
+function executeCombatAction(type) {
+    if (isActionLocked) return;
+    isActionLocked = true;
+    document.getElementById('battleLog').innerHTML = `<div style="color:cyan;">Aktion gewählt: ${type.toUpperCase()}...</div>`;
+    
+    if (currentEnemy.isMonster) {
+        data.battleAction = type;
+        setTimeout(() => {
+            currentEnemy.battleAction = (Math.random() > 0.3 ? 'attack' : 'heal');
+            resolveBattleTurn();
+        }, 1200);
+    } else {
+        // ECHTZEIT-BRÜCKE: Aktion in das aktive Battle-Dokument schreiben
+        db.ref(`battles/${activeBattleID}/actions/${myID}`).set({ type: type, ready: true });
+    }
+}
+
+function resolvePvPTurn(battle) {
+    isActionLocked = true;
+    const log = document.getElementById('battleLog');
+    const atk = battle.actions[battle.attackerID];
+    const def = battle.actions[battle.defenderID];
+    
+    let myAction = (myID === battle.attackerID) ? atk : def;
+    let oppAction = (myID === battle.attackerID) ? def : atk;
+    
+    let dmg = 20; let heal = 25;
+    let logTxt = "";
+
+    if (myAction.type === 'attack') { currentEnemy.hp -= dmg; logTxt += "Du greifst an! "; }
+    else { data.hp = Math.min(data.maxHp, data.hp + heal); logTxt += "Du heilst dich! "; }
+
+    if (oppAction.type === 'attack') { data.hp -= dmg; logTxt += "Gegner kontert! "; }
+    else { currentEnemy.hp = Math.min(currentEnemy.maxHp, currentEnemy.hp + heal); logTxt += "Gegner regeneriert! "; }
+
+    log.innerHTML = `<div style="color:gold;">${logTxt}</div>`;
+    save();
+
+    setTimeout(() => {
+        if (data.hp <= 0 || currentEnemy.hp <= 0) {
+            alert(data.hp <= 0 ? "Gefallen!" : "Sieg!");
+            endCombat();
+        } else {
+            // Reset für nächsten Zug (nur einer muss resetten)
+            if (myID === battle.attackerID) {
+                db.ref(`battles/${activeBattleID}/actions`).set({
+                    [battle.attackerID]: { type: 'none', ready: false },
+                    [battle.defenderID]: { type: 'none', ready: false }
+                });
+            }
+            isActionLocked = false;
+            renderCombatStage();
+        }
+    }, 3000);
+}
+
+function resolveBattleTurn() {
+    const log = document.getElementById('battleLog');
+    let myDmg = 15; let enDmg = 12; let heal = 25;
+    if (data.battleAction === 'attack') currentEnemy.hp -= myDmg; else data.hp = Math.min(data.maxHp, data.hp + heal);
+    if (currentEnemy.battleAction === 'attack') data.hp -= enDmg; else currentEnemy.hp = Math.min(currentEnemy.maxHp, currentEnemy.hp + heal);
+    
+    log.innerHTML = `Kampfrunde beendet!`;
+    setTimeout(() => {
+        if (currentEnemy.hp <= 0) { alert("Monster besiegt!"); data.lxp += 50; endCombat(); }
+        else if (data.hp <= 0) { data.hp = data.maxHp; alert("Besiegt!"); endCombat(); }
+        else { isActionLocked = false; renderCombatStage(); }
+    }, 2000);
+}
+
+function endCombat() {
+    if (activeBattleID) db.ref('battles/' + activeBattleID).remove();
+    activeBattleID = null; currentEnemy = null; isActionLocked = false;
+    toggleModal('gameModal', false);
+    save();
 }
 
 function renderArenaMatchmaking() {
@@ -310,8 +435,6 @@ function renderArenaMatchmaking() {
     Object.keys(onlinePlayers).forEach(id => {
         const p = onlinePlayers[id];
         const isActive = (Date.now() - (p.lastSeen || 0) < 60000);
-        
-        // REPARATUR: Filter für hidden & inaktive Spieler
         if (id !== myID && !p.hidden && isActive) {
             html += `<div style="padding:10px; border:1px solid gold; margin-bottom:5px; display:flex; justify-content:space-between; align-items:center;">
                 <span><strong>${p.name}</strong> (LVL ${p.stats?.totalEvoLevel || 0})</span>
@@ -354,11 +477,7 @@ window.onload = async () => {
     setInterval(save, 30000);
 };
 
-// RPG-LOGIK (UNVERÄNDERT)
-function startCombat(enemy, isMonster, enemyID = null) { toggleModal('gameModal', true); data.battleAction = "none"; data.battleReady = false; save(); if (isMonster) currentEnemy = { ...MONSTERS[Math.floor(Math.random() * MONSTERS.length)], isMonster: true }; else currentEnemy = { ...enemy, id: enemyID, isMonster: false, img: (enemy.name?.toLowerCase() === BOSS_NAME.toLowerCase() ? 'Overlord.png' : (EVO_IMGS[enemy.stats?.totalEvoLevel || 0])) }; isActionLocked = false; renderCombatStage(); }
-function renderCombatStage() { const left = document.getElementById('modalLeft'); const myImg = (isAdmin ? 'Overlord.png' : (EVO_IMGS[data.stats?.totalEvoLevel || 0])); left.innerHTML = `<div id="arenaStage"><div class="combatant-wrap"><img src="${myImg}" onerror="this.src='Ei.png'" class="combatant-img"><br><strong>${data.name}</strong></div><div class="combatant-wrap"><img src="${currentEnemy.img || 'Monster1.png'}" onerror="this.src='Ei.png'" class="combatant-img"><br><strong>${currentEnemy.name}</strong></div><div id="ffMenu"><div class="ff-buttons"><button id="btnAtk" class="btn-action" onclick="executeCombatAction('attack')" ${isActionLocked?'disabled':''}>ATTACKE</button><button id="btnHeal" class="btn-action" onclick="executeCombatAction('heal')" ${isActionLocked?'disabled':''}>HEILUNG</button><button class="btn-action" onclick="currentEnemy=null;openBuilding('arena')">FLUCHT</button></div><div class="ff-status"><div class="bar-wrap"><div id="playerHpFill" style="width:${(data.hp/data.maxHp)*100}%;"></div></div><div class="bar-wrap"><div id="enemyHpFill" style="width:${(currentEnemy.hp/currentEnemy.maxHp)*100}%;"></div></div></div></div><div id="battleLog">Wähle weise...</div></div>`; }
-function executeCombatAction(type) { if(isActionLocked) return; isActionLocked = true; data.battleAction = type; data.battleReady = true; save(); document.getElementById('battleLog').innerHTML = `<div style="color:cyan;">Warte auf das Schicksal...</div>`; if (currentEnemy.isMonster) setTimeout(() => { currentEnemy.battleAction = (Math.random() > 0.3 ? 'attack' : 'heal'); currentEnemy.battleReady = true; resolveBattleTurn(); }, 1200); }
-function resolveBattleTurn() { const log = document.getElementById('battleLog'); let myDmg = 15 + (data.inventar['Schwert'] ? 10 : 0); let enemyDmg = currentEnemy.isMonster ? 12 : (15 + (currentEnemy.inventar?.Schwert ? 10 : 0)); let healVal = 25; let myHpChange = 0; let enemyHpChange = 0; let myTxt = ""; let enemyTxt = ""; if(data.battleAction === 'attack') { enemyHpChange -= myDmg; myTxt = `${data.name} schlägt zu!`; } else { myHpChange += healVal; myTxt = `${data.name} heilt sich!`; } if(currentEnemy.battleAction === 'attack') { myHpChange -= enemyDmg; enemyTxt = `${currentEnemy.name} kontert!`; } else { enemyHpChange += healVal; enemyTxt = `${currentEnemy.name} regeneriert!`; } log.innerHTML = `<div>${myTxt}<br>${enemyTxt}</div><div style="color:gold;">HP: ${myHpChange >= 0 ? '+' : ''}${myHpChange}</div>`; data.hp = Math.min(data.maxHp, Math.max(0, data.hp + myHpChange)); currentEnemy.hp = Math.min(currentEnemy.maxHp, Math.max(0, currentEnemy.hp + enemyHpChange)); data.battleReady = false; data.battleAction = "none"; setTimeout(() => { if(currentEnemy.hp <= 0) { alert("SIEG!"); data.lxp += 50; currentEnemy = null; save(); return openBuilding('arena'); } if(data.hp <= 0) { data.hp = data.maxHp; alert("GEFALLEN!"); currentEnemy = null; save(); return openBuilding('arena'); } isActionLocked = false; save(); renderCombatStage(); }, 2800); }
+// RPG-UNTERFUNKTIONEN
 function handleWorldClick(e) { if(document.getElementById('gameModal').style.display === 'flex') return; const rect = document.getElementById('world').getBoundingClientRect(); data.x = e.clientX - rect.left; data.y = e.clientY - rect.top; save(); }
 function toggleModal(id, s) { document.getElementById(id).style.display = s ? 'flex' : 'none'; }
 function openBuilding(b) { toggleModal('gameModal', true); if (b === 'steinbruch') renderMiningMenu(); else if (b === 'wald') renderSmithy(); else if (b === 'arena') renderArenaMatchmaking(); else if (b === 'rathaus') renderEvoMenu(); }
