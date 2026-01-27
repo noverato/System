@@ -36,7 +36,6 @@
         .btn-action:hover:not(:disabled) { filter: brightness(1.2); transform: scale(1.05); }
         .btn-action:disabled { opacity: 0.35; cursor: not-allowed; filter: grayscale(1); }
 
-        /* Battle Radar PopUp */
         #battleInvite { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--ff-blue); border: 3px solid #fff; padding: 30px; z-index: 30000; display: none; text-align: center; box-shadow: 0 0 50px #000; border-radius: 15px; }
 
         #arenaStage { width: 100%; height: 100%; background: url('./arena_innen.png') no-repeat center; background-size: cover; position: relative; display: flex; align-items: center; justify-content: space-around; overflow: hidden; }
@@ -115,6 +114,7 @@ const MONSTERS = [
 
 let twitchToken = "";
 let isLoadingFollower = true; 
+let isIdentified = false; 
 let data = { 
     name: "Held", x: 960, y: 540, lxp: 0, hp: 100, maxHp: 100, mp: 50, maxMp: 50, 
     followDays: 0, isFollower: false, inventar: {}, 
@@ -124,7 +124,7 @@ let data = {
 let myID = "", onlinePlayers = {}, isAdmin = false, currentEnemy = null, isActionLocked = false;
 
 // ==========================================
-// SECTION 2: IDENTITY & TWITCH SECURITY
+// SECTION 2: IDENTITY & TWITCH SESSION (FIXED)
 // ==========================================
 function checkTwitchAuth() {
     const hash = window.location.hash.substring(1);
@@ -143,26 +143,35 @@ function redirectToTwitch(userName) {
     window.location.href = authUrl;
 }
 
-// DER NEUE SICHERHEITS-ANKER
 async function initTwitchSession() {
     if (!twitchToken) return;
     try {
-        // Wir fragen Twitch: Wer gehört zu diesem Token?
         const resp = await fetch(`https://api.twitch.tv/helix/users`, {
             headers: { 'Client-ID': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchToken}` }
         });
         const result = await resp.json();
-        
         if (result.data && result.data.length > 0) {
             const twitchUser = result.data[0];
-            // Identität korrigieren (Sicherheits-Lücke geschlossen)
-            data.name = twitchUser.display_name;
-            myID = twitchUser.id; // NUMERISCHE ID ALS PFAD
-            
-            // Erst jetzt Follower-Check
-            await validateTwitchFollower(myID);
+            const urlParams = new URLSearchParams(window.location.search);
+            const userParam = urlParams.get('user') || "";
+
+            // UNIVERSAL-CHECK: Matched der Login mit dem Namen in der URL?
+            if (userParam.toLowerCase() === twitchUser.login.toLowerCase()) {
+                data.name = twitchUser.display_name;
+                myID = twitchUser.id; // ID für JEDEN setzen
+                isIdentified = true; 
+                if (data.name.toLowerCase() === BOSS_NAME.toLowerCase()) isAdmin = true;
+                await validateTwitchFollower(myID);
+            } else {
+                // Zuschauer-Modus
+                data.name = userParam;
+                myID = ""; 
+                isIdentified = false;
+                isLoadingFollower = false;
+            }
         }
     } catch (err) { console.error("Twitch Session Error:", err); }
+    updateUI();
 }
 
 async function validateTwitchFollower(userID) {
@@ -172,7 +181,6 @@ async function validateTwitchFollower(userID) {
             headers: { 'Client-ID': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchToken}` }
         });
         const followData = await resp.json();
-
         if (followData.data && followData.data.length > 0) {
             data.isFollower = true;
             const followDate = new Date(followData.data[0].followed_at);
@@ -188,16 +196,14 @@ async function validateTwitchFollower(userID) {
 }
 
 // ==========================================
-// SECTION 3: FIREBASE CORE & ROLES
+// SECTION 3: FIREBASE & ROLES
 // ==========================================
 function save() {
-    if (data.name.replace(/\s+/g, '').toLowerCase() === BOSS_NAME.toLowerCase()) isAdmin = true;
-    
     localStorage.setItem('nestData', JSON.stringify(data));
     updateUI(); 
 
-    // ROLLEN-LOGIK: Nur Follower oder Admin dürfen schreiben
-    if (myID && (data.isFollower || isAdmin)) {
+    // SCHREIBRECHTE FIX: Wenn identifiziert, dann speichern (für zicke7001 & alle)
+    if (isIdentified && myID) {
         db.ref('players/' + myID).update({
             hp: data.hp, lxp: data.lxp, x: data.x, y: data.y, name: data.name,
             stats: data.stats, inventar: data.inventar, 
@@ -213,11 +219,8 @@ function updateUI() {
     document.getElementById('hudClass').innerText = isAdmin ? "SYSTEM-ARCHITEKT" : (data.stats.className || "Novize");
     document.getElementById('lxpC').innerText = data.lxp;
     document.getElementById('lvlTotal').innerText = data.stats.totalEvoLevel;
-    
     const followDisplay = document.getElementById('isFollower');
     followDisplay.innerText = isLoadingFollower ? "Prüfe..." : (data.isFollower ? "Ja" : "Nein");
-    document.getElementById('followDaysDisplay').innerText = data.followDays;
-    
     if(isAdmin) document.getElementById('adminHud').style.display = 'block';
     const invDiv = document.getElementById('miniInv'); invDiv.innerHTML = '';
     if(data.inventar) {
@@ -238,10 +241,10 @@ function renderPlayers(players) {
     const layer = document.getElementById('charLayer'); layer.innerHTML = '';
     Object.keys(players).forEach(id => {
         const p = players[id];
-        if (p.hidden || !p.name || (Date.now() - p.lastSeen > 60000)) return; // Inaktive ausblenden
+        if (p.hidden || !p.name || (Date.now() - p.lastSeen > 60000)) return;
         const div = document.createElement('div'); div.className = 'creature';
         div.style.left = p.x + "px"; div.style.top = p.y + "px";
-        const isBoss = p.name.replace(/\s+/g, '').toLowerCase() === BOSS_NAME.toLowerCase();
+        const isBoss = p.name.toLowerCase() === BOSS_NAME.toLowerCase();
         const imgIdx = Math.min(Math.max((p.stats?.totalEvoLevel || 0), 0), 6);
         const imgSrc = isBoss ? 'Overlord.png' : EVO_IMGS[imgIdx];
         div.innerHTML = `<img src="${imgSrc}" onerror="this.src='Ei.png'"><div class="name-tag ${isBoss?'boss-aura':''}">${isBoss?'OVERLORD':p.name}</div>`;
@@ -250,32 +253,16 @@ function renderPlayers(players) {
 }
 
 // ==========================================
-// SECTION 4: BATTLE RADAR & PvP
+// SECTION 4: PvP RADAR
 // ==========================================
-function challengePlayer(targetID, targetName) {
-    if (!data.isFollower && !isAdmin) return alert("Nur Follower dürfen fordern!");
-    
-    const battleID = myID + "_vs_" + targetID;
-    db.ref('battles/' + battleID).set({
-        attacker: data.name,
-        attackerID: myID,
-        defender: targetName,
-        defenderID: targetID,
-        status: 'pending',
-        timestamp: Date.now()
-    });
-    alert("Herausforderung an " + targetName + " gesendet!");
-}
-
 function listenForChallenges() {
-    // Der Battle-Radar
+    if (!myID) return;
     db.ref('battles').on('child_added', snap => {
         const battle = snap.val();
         if (battle.defenderID === myID && battle.status === 'pending') {
             const inviteBox = document.getElementById('battleInvite');
-            document.getElementById('inviteText').innerText = battle.attacker + " fordert dich zum Duell!";
+            document.getElementById('inviteText').innerText = battle.attacker + " fordert dich!";
             inviteBox.style.display = 'block';
-            
             document.getElementById('btnAcceptInvite').onclick = () => {
                 db.ref('battles/' + snap.key).update({ status: 'active' });
                 inviteBox.style.display = 'none';
@@ -285,30 +272,30 @@ function listenForChallenges() {
     });
 }
 
-// ARENA MATCHMAKING
+function challengePlayer(targetID, targetName) {
+    if (!isIdentified || (!data.isFollower && !isAdmin)) return alert("Nur aktive Follower dürfen fordern!");
+    const battleID = myID + "_vs_" + targetID;
+    db.ref('battles/' + battleID).set({
+        attacker: data.name, attackerID: myID, defender: targetName, defenderID: targetID, status: 'pending', timestamp: Date.now()
+    });
+    alert("Duell-Anfrage an " + targetName + " gesendet!");
+}
+
 function renderArenaMatchmaking() {
     const left = document.getElementById('modalLeft');
-    const canFight = isAdmin || (!isLoadingFollower && data.isFollower);
-    const lockAttr = !canFight ? 'disabled title="Nur für Follower!"' : '';
-    
-    let html = `<div style="padding:20px;"><h2>🛡️ Arena-Halle</h2>
-        <p style="color:${canFight?'#4ade80':'#ff4444'}">${isLoadingFollower ? '⏳ Prüfe...' : (canFight ? '✅ Kampfbereit' : '❌ Nur Follower!')}</p>
-        <button class="btn-action" style="width:100%;" ${lockAttr} onclick="startCombat(null, true)">🐗 Monster-Jagd</button>
-        <div id="pvpList" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:20px;">`;
-    
+    const canFight = isAdmin || (isIdentified && data.isFollower);
+    const lockAttr = !canFight ? 'disabled' : '';
+    let html = `<div style="padding:20px;"><h2>🛡️ Arena</h2><p>${canFight?'✅ Kampfbereit':'❌ Gesperrt'}</p><button class="btn-action" style="width:100%;" ${lockAttr} onclick="startCombat(null, true)">🐗 Monster</button><div style="margin-top:20px;">`;
     Object.keys(onlinePlayers).forEach(id => {
         const p = onlinePlayers[id];
-        if (id !== myID) {
-            html += `<div style="padding:10px; border:1px solid gold; border-radius:5px;">
-                <strong>${p.name}</strong><br>
-                <button class="btn-action" ${lockAttr} onclick="challengePlayer('${id}', '${p.name}')">Fordern</button>
-            </div>`;
-        }
+        if (id !== myID) html += `<div style="padding:10px; border:1px solid gold; margin-bottom:5px;">${p.name} <button class="btn-action" ${lockAttr} onclick="challengePlayer('${id}', '${p.name}')">Fordern</button></div>`;
     });
     left.innerHTML = html + `</div></div>`;
 }
 
-// CORE INITIALISIERUNG
+// ==========================================
+// INITIALISIERUNG
+// ==========================================
 window.onload = async () => {
     if (checkTwitchAuth()) {
         await initTwitchSession();
@@ -316,16 +303,15 @@ window.onload = async () => {
         const params = new URLSearchParams(window.location.search);
         const userParam = params.get('user');
         if (userParam) return redirectToTwitch(userParam);
-        else return alert("Fehler: Kein User (?user=Name)");
+        else return alert("Fehler: Kein User");
     }
 
-    // Radar starten
     listenForChallenges();
 
     db.ref('players').on('value', snap => {
         onlinePlayers = snap.val() || {};
         renderPlayers(onlinePlayers);
-        if(onlinePlayers[myID]) {
+        if(myID && onlinePlayers[myID]) {
             const pData = onlinePlayers[myID];
             data.lxp = pData.lxp || 0;
             data.stats = pData.stats || data.stats;
@@ -334,26 +320,14 @@ window.onload = async () => {
         }
     });
 
-    db.ref('players/' + myID).onDisconnect().remove();
+    if (myID) db.ref('players/' + myID).onDisconnect().remove();
     save(); 
-    setInterval(save, 30000); // Auto-Ping alle 30s
+    setInterval(save, 30000);
 };
 
-// ==========================================
-// RESTLICHE RPG LOGIK (UNVERÄNDERT)
-// ==========================================
-function startCombat(enemy, isMonster, enemyID = null) {
-    toggleModal('gameModal', true);
-    data.battleAction = "none"; data.battleReady = false; save();
-    if (isMonster) currentEnemy = { ...MONSTERS[Math.floor(Math.random() * MONSTERS.length)], isMonster: true };
-    else currentEnemy = { ...enemy, id: enemyID, isMonster: false, img: (enemy.name?.toLowerCase() === BOSS_NAME.toLowerCase() ? 'Overlord.png' : (EVO_IMGS[enemy.stats?.totalEvoLevel || 0])) };
-    isActionLocked = false; renderCombatStage();
-}
-function renderCombatStage() {
-    const left = document.getElementById('modalLeft');
-    const myImg = (isAdmin ? 'Overlord.png' : (EVO_IMGS[data.stats?.totalEvoLevel || 0]));
-    left.innerHTML = `<div id="arenaStage"><div class="combatant-wrap"><img src="${myImg}" onerror="this.src='Ei.png'" class="combatant-img"><br><strong>${data.name}</strong></div><div class="combatant-wrap"><img src="${currentEnemy.img || 'Monster1.png'}" onerror="this.src='Ei.png'" class="combatant-img"><br><strong>${currentEnemy.name}</strong></div><div id="ffMenu"><div class="ff-buttons"><button id="btnAtk" class="btn-action" onclick="executeCombatAction('attack')" ${isActionLocked?'disabled':''}>ATTACKE</button><button id="btnHeal" class="btn-action" onclick="executeCombatAction('heal')" ${isActionLocked?'disabled':''}>HEILUNG</button><button class="btn-action" onclick="currentEnemy=null;openBuilding('arena')">FLUCHT</button></div><div class="ff-status"><div class="bar-wrap"><div id="playerHpFill" style="width:${(data.hp/data.maxHp)*100}%;"></div></div><div class="bar-wrap"><div id="enemyHpFill" style="width:${(currentEnemy.hp/currentEnemy.maxHp)*100}%;"></div></div></div></div><div id="battleLog">Wähle weise...</div></div>`;
-}
+// RPG-LOGIK (UNVERÄNDERT)
+function startCombat(enemy, isMonster, enemyID = null) { toggleModal('gameModal', true); data.battleAction = "none"; data.battleReady = false; save(); if (isMonster) currentEnemy = { ...MONSTERS[Math.floor(Math.random() * MONSTERS.length)], isMonster: true }; else currentEnemy = { ...enemy, id: enemyID, isMonster: false, img: (enemy.name?.toLowerCase() === BOSS_NAME.toLowerCase() ? 'Overlord.png' : (EVO_IMGS[enemy.stats?.totalEvoLevel || 0])) }; isActionLocked = false; renderCombatStage(); }
+function renderCombatStage() { const left = document.getElementById('modalLeft'); const myImg = (isAdmin ? 'Overlord.png' : (EVO_IMGS[data.stats?.totalEvoLevel || 0])); left.innerHTML = `<div id="arenaStage"><div class="combatant-wrap"><img src="${myImg}" onerror="this.src='Ei.png'" class="combatant-img"><br><strong>${data.name}</strong></div><div class="combatant-wrap"><img src="${currentEnemy.img || 'Monster1.png'}" onerror="this.src='Ei.png'" class="combatant-img"><br><strong>${currentEnemy.name}</strong></div><div id="ffMenu"><div class="ff-buttons"><button id="btnAtk" class="btn-action" onclick="executeCombatAction('attack')" ${isActionLocked?'disabled':''}>ATTACKE</button><button id="btnHeal" class="btn-action" onclick="executeCombatAction('heal')" ${isActionLocked?'disabled':''}>HEILUNG</button><button class="btn-action" onclick="currentEnemy=null;openBuilding('arena')">FLUCHT</button></div><div class="ff-status"><div class="bar-wrap"><div id="playerHpFill" style="width:${(data.hp/data.maxHp)*100}%;"></div></div><div class="bar-wrap"><div id="enemyHpFill" style="width:${(currentEnemy.hp/currentEnemy.maxHp)*100}%;"></div></div></div></div><div id="battleLog">Wähle weise...</div></div>`; }
 function executeCombatAction(type) { if(isActionLocked) return; isActionLocked = true; data.battleAction = type; data.battleReady = true; save(); document.getElementById('battleLog').innerHTML = `<div style="color:cyan;">Warte auf das Schicksal...</div>`; if (currentEnemy.isMonster) setTimeout(() => { currentEnemy.battleAction = (Math.random() > 0.3 ? 'attack' : 'heal'); currentEnemy.battleReady = true; resolveBattleTurn(); }, 1200); }
 function resolveBattleTurn() { const log = document.getElementById('battleLog'); let myDmg = 15 + (data.inventar['Schwert'] ? 10 : 0); let enemyDmg = currentEnemy.isMonster ? 12 : (15 + (currentEnemy.inventar?.Schwert ? 10 : 0)); let healVal = 25; let myHpChange = 0; let enemyHpChange = 0; let myTxt = ""; let enemyTxt = ""; if(data.battleAction === 'attack') { enemyHpChange -= myDmg; myTxt = `${data.name} schlägt zu!`; } else { myHpChange += healVal; myTxt = `${data.name} heilt sich!`; } if(currentEnemy.battleAction === 'attack') { myHpChange -= enemyDmg; enemyTxt = `${currentEnemy.name} kontert!`; } else { enemyHpChange += healVal; enemyTxt = `${currentEnemy.name} regeneriert!`; } log.innerHTML = `<div>${myTxt}<br>${enemyTxt}</div><div style="color:gold;">HP: ${myHpChange >= 0 ? '+' : ''}${myHpChange}</div>`; data.hp = Math.min(data.maxHp, Math.max(0, data.hp + myHpChange)); currentEnemy.hp = Math.min(currentEnemy.maxHp, Math.max(0, currentEnemy.hp + enemyHpChange)); data.battleReady = false; data.battleAction = "none"; setTimeout(() => { if(currentEnemy.hp <= 0) { alert("SIEG!"); data.lxp += 50; currentEnemy = null; save(); return openBuilding('arena'); } if(data.hp <= 0) { data.hp = data.maxHp; alert("GEFALLEN!"); currentEnemy = null; save(); return openBuilding('arena'); } isActionLocked = false; save(); renderCombatStage(); }, 2800); }
 function handleWorldClick(e) { if(document.getElementById('gameModal').style.display === 'flex') return; const rect = document.getElementById('world').getBoundingClientRect(); data.x = e.clientX - rect.left; data.y = e.clientY - rect.top; save(); }
