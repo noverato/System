@@ -122,6 +122,8 @@ let data = {
     battleAction: "none", battleReady: false, hidden: false
 };
 let myID = "", onlinePlayers = {}, isAdmin = false, currentEnemy = null, isActionLocked = false, activeBattleID = null;
+let arenaFallbackTimer = null;
+let forceArenaSync = false;
 
 // ==========================================
 // SECTION 2: IDENTITY
@@ -259,7 +261,7 @@ function renderPlayers(players) {
 }
 
 // ==========================================
-// SECTION 4: ARENA-SYNC (GLOBAL AUTO-EXIT & ACTION-LOCK FIX)
+// SECTION 4: ARENA-SYNC
 // ==========================================
 function listenForChallenges() {
     if (!myID) return;
@@ -267,14 +269,14 @@ function listenForChallenges() {
     db.ref('battles').on('value', snap => {
         const allBattles = snap.val() || {};
         
-        // GLOBALER AUTO-EXIT: Wenn mein aktiver Kampf beendet oder gelöscht wurde
         if (activeBattleID) {
             const b = allBattles[activeBattleID];
             if (!b || b.status === 'finished') {
-                console.log("Battle-Observer: Kampf beendet. Rückzug ins Dorf.");
                 activeBattleID = null;
                 currentEnemy = null;
                 isActionLocked = false;
+                forceArenaSync = false;
+                if(arenaFallbackTimer) clearTimeout(arenaFallbackTimer);
                 toggleModal('gameModal', false);
                 return;
             }
@@ -283,7 +285,6 @@ function listenForChallenges() {
         Object.keys(allBattles).forEach(bID => {
             const battle = allBattles[bID];
 
-            // 1. EINLADUNG ANZEIGEN (Nur wenn nicht bereits in Kampf)
             if (battle.defenderID === myID && battle.status === 'pending' && !activeBattleID) {
                 const inviteBox = document.getElementById('battleInvite');
                 document.getElementById('inviteText').innerText = battle.attackerName + " fordert dich!";
@@ -294,7 +295,6 @@ function listenForChallenges() {
                 };
             }
 
-            // 2. GLOBALER TELEPORT-TRIGGER
             if ((battle.attackerID === myID || battle.defenderID === myID) && battle.status === 'active') {
                 if (!currentEnemy || activeBattleID !== bID) {
                     activeBattleID = bID;
@@ -303,32 +303,28 @@ function listenForChallenges() {
                     if(onlinePlayers[oppID]) {
                         toggleModal('gameModal', true);
                         startCombat(onlinePlayers[oppID], false, oppID);
-                        // Meldung an DB: Ich bin bereit in der Arena
-                        db.ref(`battles/${bID}/actions/${myID}`).update({ inArena: true });
                     }
                 }
 
-                // 3. ACTION-LOCK FIX & SYNCHRONISATION
                 const atkStat = battle.actions[battle.attackerID];
                 const defStat = battle.actions[battle.defenderID];
                 const log = document.getElementById('battleLog');
 
                 if (log && atkStat && defStat) {
-                    // Buttons nur freischalten, wenn BEIDE inArena: true sind
-                    if (atkStat.inArena && defStat.inArena) {
+                    // SYNCHRONISIERUNG: Prüfe inArena Flagge oder erzwungenen Sync
+                    if ((atkStat.inArena && defStat.inArena) || forceArenaSync) {
                         if (!isActionLocked) {
-                            log.innerText = "Synchronisiert! Deine Wahl?";
+                            log.innerText = forceArenaSync ? "Synchronisation erzwungen! Wahl treffen..." : "Synchronisiert! Deine Wahl?";
                             document.getElementById('btnAtk').disabled = false;
                             document.getElementById('btnHeal').disabled = false;
                         }
                     } else {
-                        log.innerText = "Warte auf Synchronisation...";
+                        log.innerText = "Synchronisation... Warte auf Gegner.";
                         document.getElementById('btnAtk').disabled = true;
                         document.getElementById('btnHeal').disabled = true;
                     }
                 }
 
-                // 4. JUDGE: Züge auswerten
                 if (atkStat?.ready && defStat?.ready && !isActionLocked) {
                     resolvePvPTurn(battle);
                 }
@@ -341,9 +337,7 @@ async function challengePlayer(targetID, targetName) {
     if (!isIdentified || (!data.isFollower && !isAdmin)) return alert("Nur aktive Follower dürfen fordern!");
     if (activeBattleID) return alert("Kampf läuft bereits!");
     
-    const bID = targetID; // Verteidiger-Postfach
-    
-    // BEREINIGUNG: Alte Reste löschen
+    const bID = targetID; 
     await db.ref('battles/' + bID).remove();
     
     activeBattleID = bID;
@@ -356,7 +350,6 @@ async function challengePlayer(targetID, targetName) {
             [targetID]: { type: 'none', ready: false, inArena: false }
         }
     });
-    alert("Duell-Anfrage an " + targetName + " gesendet!");
 }
 
 function cancelChallenge() {
@@ -368,6 +361,19 @@ function startCombat(enemy, isMonster, enemyID = null) {
     if(document.getElementById('gameModal').style.display !== 'flex') toggleModal('gameModal', true);
     
     isActionLocked = false;
+    forceArenaSync = false;
+
+    // FALLBACK TIMER: Erzwinge Kampfstart nach 5 Sekunden
+    if (!isMonster) {
+        if(arenaFallbackTimer) clearTimeout(arenaFallbackTimer);
+        arenaFallbackTimer = setTimeout(() => {
+            if (activeBattleID && !isActionLocked) {
+                console.log("Arena Fallback: Erzwinge Synchronisation.");
+                forceArenaSync = true;
+            }
+        }, 5000);
+    }
+
     if (isMonster) {
         currentEnemy = { ...MONSTERS[Math.floor(Math.random() * MONSTERS.length)], isMonster: true, maxHp: 100 };
         if(!currentEnemy.hp) currentEnemy.hp = currentEnemy.maxHp;
@@ -381,6 +387,12 @@ function startCombat(enemy, isMonster, enemyID = null) {
 function renderCombatStage() {
     const left = document.getElementById('modalLeft');
     const myImg = (isAdmin ? 'Overlord.png' : EVO_IMGS[data.stats?.totalEvoLevel || 0]);
+    
+    // SOFORT-CHECK: Meldung an DB, sobald Arena gerendert wird
+    if (activeBattleID && !currentEnemy.isMonster) {
+        db.ref('battles/' + activeBattleID + '/actions/' + myID).update({ inArena: true });
+    }
+
     left.innerHTML = `<div id="arenaStage">
         <div class="combatant-wrap"><img src="${myImg}" onerror="this.src='Ei.png'" class="combatant-img"><br><strong>${data.name}</strong></div>
         <div class="combatant-wrap"><img src="${currentEnemy.img || 'Monster1.png'}" onerror="this.src='Ei.png'" class="combatant-img"><br><strong>${currentEnemy.name}</strong></div>
@@ -466,17 +478,17 @@ function resolveBattleTurn() {
 }
 
 function endCombat() {
-    // ZENTRALE FLUCHT-LOGIK
     if (activeBattleID) {
         const bRef = db.ref('battles/' + activeBattleID);
         bRef.update({ status: 'finished' }).then(() => {
-            // Kurze Verzögerung, damit der Gegner den Status lesen kann
             setTimeout(() => { bRef.remove(); }, 500);
         });
     }
     activeBattleID = null;
     currentEnemy = null;
     isActionLocked = false;
+    forceArenaSync = false;
+    if(arenaFallbackTimer) clearTimeout(arenaFallbackTimer);
     toggleModal('gameModal', false);
     save();
 }
@@ -486,7 +498,6 @@ function closeGeneralModal() {
     else toggleModal('gameModal', false);
 }
 
-// RESTLICHE FUNKTIONEN (UNVERÄNDERT)
 function handleWorldClick(e) { if(document.getElementById('gameModal').style.display === 'flex') return; const rect = document.getElementById('world').getBoundingClientRect(); data.x = e.clientX - rect.left; data.y = e.clientY - rect.top; save(); }
 function toggleModal(id, s) { document.getElementById(id).style.display = s ? 'flex' : 'none'; }
 function openBuilding(b) { toggleModal('gameModal', true); if (b === 'steinbruch') renderMiningMenu(); else if (b === 'wald') renderSmithy(); else if (b === 'arena') renderArenaMatchmaking(); else if (b === 'rathaus') renderEvoMenu(); }
@@ -516,7 +527,6 @@ function renderArenaMatchmaking() {
     left.innerHTML = html + `</div></div>`;
 }
 
-// INITIALISIERUNG
 window.onload = async () => {
     if (checkTwitchAuth()) {
         await initTwitchSession();
