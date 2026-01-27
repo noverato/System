@@ -75,7 +75,7 @@
     <h2 style="color:#fff; margin-top:0;">⚔️ HERAUSFORDERUNG!</h2>
     <p id="inviteText" style="color:gold; font-size:18px;"></p>
     <button class="btn-action" id="btnAcceptInvite">ANNEHMEN</button>
-    <button class="btn-action" style="background:#444;" onclick="document.getElementById('battleInvite').style.display='none'">IGNORIEREN</button>
+    <button class="btn-action" style="background:#444;" onclick="cancelChallenge()">IGNORIEREN</button>
 </div>
 
 <div id="gameModal" class="modal">
@@ -84,7 +84,7 @@
         <div class="panel-side">
             <h3 style="color:gold; margin-top:0;">🎒 RUCKSACK</h3>
             <div id="miniInv" style="flex-grow: 1; overflow-y: auto;"></div>
-            <button class="btn-action" style="width:100%; margin-top:20px;" onclick="toggleModal('gameModal', false)">X SCHLIESSEN</button>
+            <button class="btn-action" style="width:100%; margin-top:20px;" onclick="closeGeneralModal()">X SCHLIESSEN</button>
         </div>
     </div>
 </div>
@@ -259,18 +259,32 @@ function renderPlayers(players) {
 }
 
 // ==========================================
-// SECTION 4: ARENA-SYNC (REPAIRED GLOBAL OBSERVER)
+// SECTION 4: ARENA-SYNC (GLOBAL AUTO-EXIT & ACTION-LOCK FIX)
 // ==========================================
 function listenForChallenges() {
     if (!myID) return;
     
     db.ref('battles').on('value', snap => {
-        snap.forEach(child => {
-            const battle = child.val();
-            const bID = child.key;
+        const allBattles = snap.val() || {};
+        
+        // GLOBALER AUTO-EXIT: Wenn mein aktiver Kampf beendet oder gelöscht wurde
+        if (activeBattleID) {
+            const b = allBattles[activeBattleID];
+            if (!b || b.status === 'finished') {
+                console.log("Battle-Observer: Kampf beendet. Rückzug ins Dorf.");
+                activeBattleID = null;
+                currentEnemy = null;
+                isActionLocked = false;
+                toggleModal('gameModal', false);
+                return;
+            }
+        }
 
-            // 1. EINLADUNG ANZEIGEN (Nur für Verteidiger im Postfach)
-            if (battle.defenderID === myID && battle.status === 'pending') {
+        Object.keys(allBattles).forEach(bID => {
+            const battle = allBattles[bID];
+
+            // 1. EINLADUNG ANZEIGEN (Nur wenn nicht bereits in Kampf)
+            if (battle.defenderID === myID && battle.status === 'pending' && !activeBattleID) {
                 const inviteBox = document.getElementById('battleInvite');
                 document.getElementById('inviteText').innerText = battle.attackerName + " fordert dich!";
                 inviteBox.style.display = 'block';
@@ -280,44 +294,42 @@ function listenForChallenges() {
                 };
             }
 
-            // 2. REPARIERTER GLOBALER TELEPORT-TRIGGER
+            // 2. GLOBALER TELEPORT-TRIGGER
             if ((battle.attackerID === myID || battle.defenderID === myID) && battle.status === 'active') {
-                // Nur auslösen, wenn noch kein Kampf läuft oder die Szene nicht offen ist
                 if (!currentEnemy || activeBattleID !== bID) {
                     activeBattleID = bID;
                     const oppID = (battle.attackerID === myID) ? battle.defenderID : battle.attackerID;
                     
                     if(onlinePlayers[oppID]) {
-                        // REPARATUR: Modal zwingend öffnen (für Verteidiger!)
                         toggleModal('gameModal', true);
                         startCombat(onlinePlayers[oppID], false, oppID);
-                        
-                        // REPARATUR: inArena Flagge erst nach dem Teleport senden
+                        // Meldung an DB: Ich bin bereit in der Arena
                         db.ref(`battles/${bID}/actions/${myID}`).update({ inArena: true });
                     }
                 }
 
-                // 3. ATB-SYNCHRONISATION
-                const atkStatus = battle.actions[battle.attackerID];
-                const defStatus = battle.actions[battle.defenderID];
+                // 3. ACTION-LOCK FIX & SYNCHRONISATION
+                const atkStat = battle.actions[battle.attackerID];
+                const defStat = battle.actions[battle.defenderID];
                 const log = document.getElementById('battleLog');
 
-                if (log) {
-                    if (atkStatus?.inArena && defStatus?.inArena) {
+                if (log && atkStat && defStat) {
+                    // Buttons nur freischalten, wenn BEIDE inArena: true sind
+                    if (atkStat.inArena && defStat.inArena) {
                         if (!isActionLocked) {
-                            log.innerText = "Bereit zum Kampf! Wähle eine Aktion.";
+                            log.innerText = "Synchronisiert! Deine Wahl?";
                             document.getElementById('btnAtk').disabled = false;
                             document.getElementById('btnHeal').disabled = false;
                         }
                     } else {
-                        log.innerText = "Synchronisation... Warte auf Gegner.";
+                        log.innerText = "Warte auf Synchronisation...";
                         document.getElementById('btnAtk').disabled = true;
                         document.getElementById('btnHeal').disabled = true;
                     }
                 }
 
                 // 4. JUDGE: Züge auswerten
-                if (atkStatus?.ready && defStatus?.ready && !isActionLocked) {
+                if (atkStat?.ready && defStat?.ready && !isActionLocked) {
                     resolvePvPTurn(battle);
                 }
             }
@@ -325,13 +337,16 @@ function listenForChallenges() {
     });
 }
 
-function challengePlayer(targetID, targetName) {
+async function challengePlayer(targetID, targetName) {
     if (!isIdentified || (!data.isFollower && !isAdmin)) return alert("Nur aktive Follower dürfen fordern!");
+    if (activeBattleID) return alert("Kampf läuft bereits!");
+    
     const bID = targetID; // Verteidiger-Postfach
     
-    // REPARATUR: activeBattleID sofort setzen, damit der Herausforderer trackt
+    // BEREINIGUNG: Alte Reste löschen
+    await db.ref('battles/' + bID).remove();
+    
     activeBattleID = bID;
-
     db.ref('battles/' + bID).set({
         attackerName: data.name, attackerID: myID,
         defenderName: targetName, defenderID: targetID,
@@ -344,13 +359,18 @@ function challengePlayer(targetID, targetName) {
     alert("Duell-Anfrage an " + targetName + " gesendet!");
 }
 
+function cancelChallenge() {
+    document.getElementById('battleInvite').style.display = 'none';
+    db.ref('battles/' + myID).remove();
+}
+
 function startCombat(enemy, isMonster, enemyID = null) {
-    // Falls startCombat direkt aufgerufen wird (z.B. Monster), Modal zur Sicherheit öffnen
     if(document.getElementById('gameModal').style.display !== 'flex') toggleModal('gameModal', true);
     
     isActionLocked = false;
     if (isMonster) {
-        currentEnemy = { ...MONSTERS[Math.floor(Math.random() * MONSTERS.length)], isMonster: true };
+        currentEnemy = { ...MONSTERS[Math.floor(Math.random() * MONSTERS.length)], isMonster: true, maxHp: 100 };
+        if(!currentEnemy.hp) currentEnemy.hp = currentEnemy.maxHp;
     } else {
         const isBoss = (enemyID === BROADCASTER_ID);
         currentEnemy = { ...enemy, id: enemyID, isMonster: false, img: (isBoss ? 'Overlord.png' : EVO_IMGS[enemy.stats?.totalEvoLevel || 0]) };
@@ -375,14 +395,14 @@ function renderCombatStage() {
                 <div class="bar-wrap"><div id="enemyHpFill" style="width:${(currentEnemy.hp/currentEnemy.maxHp)*100}%;"></div></div>
             </div>
         </div>
-        <div id="battleLog">Initialisiere Magie...</div>
+        <div id="battleLog">Warte auf Magie...</div>
     </div>`;
 }
 
 function executeCombatAction(type) {
     if (isActionLocked) return;
     isActionLocked = true;
-    document.getElementById('battleLog').innerHTML = `<div style="color:cyan;">Aktion gewählt: ${type.toUpperCase()}...</div>`;
+    document.getElementById('battleLog').innerHTML = `<div style="color:cyan;">Wahl getroffen: ${type.toUpperCase()}...</div>`;
     
     if (currentEnemy.isMonster) {
         data.battleAction = type;
@@ -418,7 +438,7 @@ function resolvePvPTurn(battle) {
 
     setTimeout(() => {
         if (data.hp <= 0 || currentEnemy.hp <= 0) {
-            alert(data.hp <= 0 ? "Gefallen!" : "Sieg!");
+            alert(data.hp <= 0 ? "Du wurdest besiegt!" : "Glorreicher Sieg!");
             endCombat();
         } else {
             if (myID === battle.attackerID) {
@@ -439,25 +459,50 @@ function resolveBattleTurn() {
     
     log.innerHTML = `Kampfrunde beendet!`;
     setTimeout(() => {
-        if (currentEnemy.hp <= 0) { alert("Monster besiegt!"); data.lxp += 50; endCombat(); }
-        else if (data.hp <= 0) { data.hp = data.maxHp; alert("Besiegt!"); endCombat(); }
+        if (currentEnemy.hp <= 0) { alert("Sieg!"); data.lxp += 50; endCombat(); }
+        else if (data.hp <= 0) { data.hp = data.maxHp; alert("Gefallen!"); endCombat(); }
         else { isActionLocked = false; renderCombatStage(); }
     }, 2000);
 }
 
 function endCombat() {
-    if (activeBattleID) db.ref('battles/' + activeBattleID).remove();
-    activeBattleID = null; currentEnemy = null; isActionLocked = false;
+    // ZENTRALE FLUCHT-LOGIK
+    if (activeBattleID) {
+        const bRef = db.ref('battles/' + activeBattleID);
+        bRef.update({ status: 'finished' }).then(() => {
+            // Kurze Verzögerung, damit der Gegner den Status lesen kann
+            setTimeout(() => { bRef.remove(); }, 500);
+        });
+    }
+    activeBattleID = null;
+    currentEnemy = null;
+    isActionLocked = false;
     toggleModal('gameModal', false);
     save();
 }
 
+function closeGeneralModal() {
+    if (activeBattleID || currentEnemy) endCombat();
+    else toggleModal('gameModal', false);
+}
+
+// RESTLICHE FUNKTIONEN (UNVERÄNDERT)
+function handleWorldClick(e) { if(document.getElementById('gameModal').style.display === 'flex') return; const rect = document.getElementById('world').getBoundingClientRect(); data.x = e.clientX - rect.left; data.y = e.clientY - rect.top; save(); }
+function toggleModal(id, s) { document.getElementById(id).style.display = s ? 'flex' : 'none'; }
+function openBuilding(b) { toggleModal('gameModal', true); if (b === 'steinbruch') renderMiningMenu(); else if (b === 'wald') renderSmithy(); else if (b === 'arena') renderArenaMatchmaking(); else if (b === 'rathaus') renderEvoMenu(); }
+function renderSmithy() { let html = `<div style="padding:30px;"><h2>Schmiede</h2>`; [{ name: "Spitzhacke", needs: { "Eisenerz": 3 } }, { name: "Schwert", needs: { "Eisenerz": 5 } }].forEach(recipe => { html += `<div style="border:1px solid gold; padding:10px; margin:5px; display:flex; justify-content:space-between;"><div><b>${recipe.name}</b></div><button class="btn-action" onclick="craftItem('${recipe.name}')">SCHMIEDEN</button></div>`; }); document.getElementById('modalLeft').innerHTML = html + `</div>`; }
+function craftItem(name) { data.inventar[name] = (data.inventar[name] || 0) + 1; save(); renderSmithy(); }
+function renderMiningMenu() { document.getElementById('modalLeft').innerHTML = `<div style="padding:30px;"><h2>Steinbruch</h2><button class="btn-action" onclick="startMining()">⛏️ Abbau</button><div id="mineLog"></div></div>`; }
+function startMining() { if (typeof isMining !== 'undefined' && isMining) return; isMining = true; setTimeout(() => { let item = "Eisenerz"; data.inventar[item] = (data.inventar[item] || 0) + 1; data.lxp += 5; save(); document.getElementById('mineLog').innerText = `Gefunden: ${item}!`; isMining = false; }, 2000); }
+function renderEvoMenu() { const evoNames = ['Ei', 'Schleim', 'Skelett', 'Goblin', 'Oger', 'Lich', 'Höheres Wesen']; let html = `<div class="evo-container"><h2>Halle der Evolution</h2><div class="evo-tree-grid">`; ['warrior', 'mage', 'ranger'].forEach(p => { html += `<div class="path-column">`; for(let i=1; i<=7; i++) html += `<div class="node" onclick="tryEvolve('${p}', ${i}, ${i*30})">${evoNames[i-1]}</div>`; html += `<b>${p.toUpperCase()}</b></div>`; }); document.getElementById('modalLeft').innerHTML = html + `</div></div>`; }
+function tryEvolve(path, tier, days) { if(data.followDays < days && !isAdmin) return alert(`${days} Tage benötigt!`); data.stats[path] = tier; data.stats.totalEvoLevel++; save(); renderEvoMenu(); }
+function openAdminPanel() { toggleModal('gameModal', true); document.getElementById('modalLeft').innerHTML = `<h2>🛠 GÖTTER-MENÜ</h2><button class="btn-action" onclick="data.followDays+=30;save()">+30 Tage</button><div style="margin-top:20px; background:rgba(0,0,0,0.5); padding:10px; border:1px solid red;"><h3>Schatten-Reinigung</h3><input type="text" id="purgeInput" placeholder="ID des Geister-Eis..." style="width:100%; background:#111; color:white; border:1px solid gold; padding:5px;"><button class="btn-action" style="width:100%; margin-top:5px; background:red;" onclick="purgeGhostEgg()">Geister-Ei löschen</button></div>`; }
+function purgeGhostEgg() { const id = document.getElementById('purgeInput').value; if(id) db.ref('players/' + id).remove().then(() => alert("Geister-Ei eliminiert.")); }
 function renderArenaMatchmaking() {
     const left = document.getElementById('modalLeft');
     const canFight = isAdmin || (isIdentified && data.isFollower);
     const lockAttr = !canFight ? 'disabled' : '';
     let html = `<div style="padding:20px;"><h2>🛡️ Arena</h2><p>${canFight?'✅ Kampfbereit':'❌ Gesperrt'}</p><button class="btn-action" style="width:100%;" ${lockAttr} onclick="startCombat(null, true)">🐗 Monster</button><div style="margin-top:20px;">`;
-    
     Object.keys(onlinePlayers).forEach(id => {
         const p = onlinePlayers[id];
         const isActive = (Date.now() - (p.lastSeen || 0) < 60000);
@@ -471,9 +516,7 @@ function renderArenaMatchmaking() {
     left.innerHTML = html + `</div></div>`;
 }
 
-// ==========================================
 // INITIALISIERUNG
-// ==========================================
 window.onload = async () => {
     if (checkTwitchAuth()) {
         await initTwitchSession();
@@ -483,9 +526,7 @@ window.onload = async () => {
         if (userParam) return redirectToTwitch(userParam);
         else return alert("Fehler: Kein User");
     }
-
     if (myID) listenForChallenges();
-
     db.ref('players').on('value', snap => {
         onlinePlayers = snap.val() || {};
         renderPlayers(onlinePlayers);
@@ -497,24 +538,10 @@ window.onload = async () => {
             updateUI();
         }
     });
-
     if (myID) db.ref('players/' + myID).onDisconnect().remove();
     save(); 
     setInterval(save, 30000);
 };
-
-// RPG-UNTERFUNKTIONEN
-function handleWorldClick(e) { if(document.getElementById('gameModal').style.display === 'flex') return; const rect = document.getElementById('world').getBoundingClientRect(); data.x = e.clientX - rect.left; data.y = e.clientY - rect.top; save(); }
-function toggleModal(id, s) { document.getElementById(id).style.display = s ? 'flex' : 'none'; }
-function openBuilding(b) { toggleModal('gameModal', true); if (b === 'steinbruch') renderMiningMenu(); else if (b === 'wald') renderSmithy(); else if (b === 'arena') renderArenaMatchmaking(); else if (b === 'rathaus') renderEvoMenu(); }
-function renderSmithy() { let html = `<div style="padding:30px;"><h2>Schmiede</h2>`; [{ name: "Spitzhacke", needs: { "Eisenerz": 3 } }, { name: "Schwert", needs: { "Eisenerz": 5 } }].forEach(recipe => { html += `<div style="border:1px solid gold; padding:10px; margin:5px; display:flex; justify-content:space-between;"><div><b>${recipe.name}</b></div><button class="btn-action" onclick="craftItem('${recipe.name}')">SCHMIEDEN</button></div>`; }); document.getElementById('modalLeft').innerHTML = html + `</div>`; }
-function craftItem(name) { data.inventar[name] = (data.inventar[name] || 0) + 1; save(); renderSmithy(); }
-function renderMiningMenu() { document.getElementById('modalLeft').innerHTML = `<div style="padding:30px;"><h2>Steinbruch</h2><button class="btn-action" onclick="startMining()">⛏️ Abbau</button><div id="mineLog"></div></div>`; }
-function startMining() { if (typeof isMining !== 'undefined' && isMining) return; isMining = true; setTimeout(() => { let item = "Eisenerz"; data.inventar[item] = (data.inventar[item] || 0) + 1; data.lxp += 5; save(); document.getElementById('mineLog').innerText = `Gefunden: ${item}!`; isMining = false; }, 2000); }
-function renderEvoMenu() { const evoNames = ['Ei', 'Schleim', 'Skelett', 'Goblin', 'Oger', 'Lich', 'Höheres Wesen']; let html = `<div class="evo-container"><h2>Halle der Evolution</h2><div class="evo-tree-grid">`; ['warrior', 'mage', 'ranger'].forEach(p => { html += `<div class="path-column">`; for(let i=1; i<=7; i++) html += `<div class="node" onclick="tryEvolve('${p}', ${i}, ${i*30})">${evoNames[i-1]}</div>`; html += `<b>${p.toUpperCase()}</b></div>`; }); document.getElementById('modalLeft').innerHTML = html + `</div></div>`; }
-function tryEvolve(path, tier, days) { if(data.followDays < days && !isAdmin) return alert(`${days} Tage benötigt!`); data.stats[path] = tier; data.stats.totalEvoLevel++; save(); renderEvoMenu(); }
-function openAdminPanel() { toggleModal('gameModal', true); document.getElementById('modalLeft').innerHTML = `<h2>🛠 GÖTTER-MENÜ</h2><button class="btn-action" onclick="data.followDays+=30;save()">+30 Tage</button><div style="margin-top:20px; background:rgba(0,0,0,0.5); padding:10px; border:1px solid red;"><h3>Schatten-Reinigung</h3><input type="text" id="purgeInput" placeholder="ID des Geister-Eis..." style="width:100%; background:#111; color:white; border:1px solid gold; padding:5px;"><button class="btn-action" style="width:100%; margin-top:5px; background:red;" onclick="purgeGhostEgg()">Geister-Ei löschen</button></div>`; }
-function purgeGhostEgg() { const id = document.getElementById('purgeInput').value; if(id) db.ref('players/' + id).remove().then(() => alert("Geister-Ei eliminiert.")); }
 </script>
 </body>
 </html>
