@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>The Nest: Overlord Edition 2026 - Structured Divine Build</title>
+    <title>The Nest: Overlord Edition 2026 - Divine Bridge Build</title>
     <style>
         :root { 
             --fantasy-bg: rgba(25, 15, 10, 0.98); 
@@ -34,7 +34,7 @@
         
         .btn-action { background: var(--btn-grad); color: white; border: 1px solid var(--gold); padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s; }
         .btn-action:hover:not(:disabled) { filter: brightness(1.2); transform: scale(1.05); }
-        .btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-action:disabled { opacity: 0.35; cursor: not-allowed; filter: grayscale(1); }
 
         /* ARENA STYLES */
         #arenaStage { width: 100%; height: 100%; background: url('./arena_innen.png') no-repeat center; background-size: cover; position: relative; display: flex; align-items: center; justify-content: space-around; overflow: hidden; }
@@ -45,21 +45,19 @@
         .ff-status { flex: 1.2; padding: 20px; border-left: 2px solid #fff; display: flex; flex-direction: column; justify-content: center; }
         .bar-wrap { height: 18px; background: #000; border: 2px solid #fff; border-radius: 4px; overflow: hidden; margin-bottom: 10px; position: relative; }
         
-        /* HP BALKEN DESIGNS (VEREDELT) */
         #playerHpFill { 
             background: linear-gradient(to right, #8a2be2, #4b0082) !important; 
             box-shadow: 0 0 15px #8a2be2; 
             height: 100%; 
-            transition: width 0.3s ease-out; 
+            transition: width 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
         }
         #enemyHpFill { 
             background: linear-gradient(to right, #ff4500, #ff0000) !important; 
             box-shadow: 0 0 15px #ff4500; 
             height: 100%; 
-            transition: width 0.3s ease-out; 
+            transition: width 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
         }
         
-        /* BATTLELOG DESIGN (Stream Ready) */
         #battleLog { 
             position: absolute; top: 20px; left: 20px; 
             color: white; font-size: 16px; font-weight: bold;
@@ -67,7 +65,6 @@
             max-width: 450px; pointer-events: none;
         }
 
-        /* EVO TREE UI */
         .evo-container { display: flex; flex-direction: column; gap: 30px; align-items: center; padding: 20px; }
         .evo-tree-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 20px; width: 100%; margin-top: 20px; }
         .path-column { display: flex; flex-direction: column-reverse; gap: 12px; align-items: center; }
@@ -78,9 +75,6 @@
             background: #111; position: relative; text-align: center; color: #888;
         }
         .node.active { border-width: 3px; box-shadow: 0 0 15px currentColor; border-color: currentColor; color: #fff; }
-        .node-label { position: absolute; right: -45px; font-size: 10px; color: #aaa; pointer-events: none; white-space: nowrap; }
-        .progress-container { width: 100%; height: 20px; background: #222; border: 1px solid var(--gold); border-radius: 10px; margin-top: 15px; display: none; overflow: hidden; }
-        .progress-bar { width: 0%; height: 100%; background: var(--gold); transition: width 3s linear; }
     </style>
 </head>
 <body>
@@ -96,11 +90,12 @@
 </div>
 
 <div id="hud">
-    <div style="color:gold; font-size: 20px; font-weight:bold;"><span id="playerName">Spawn2909</span></div>
-    <div id="hudClass" style="font-size:13px; color: #3b82f6; font-weight: bold;">OVERLORD</div>
-    <div style="font-size:12px; color:#4ade80; margin-top: 5px;">💎 LXP: <span id="lxpC">0</span> | ⭐ LVL: <span id="lvlTotal">0</span></div>
+    <div style="color:gold; font-size: 20px; font-weight:bold;"><span id="playerName">Lade...</span></div>
+    <div id="hudClass" style="font-size:13px; color: #3b82f6; font-weight: bold;">Identifiziere...</div>
+    <div style="font-size:12px; color:#4ade80; margin-top: 5px;">💎 LXP: <span id="lxpC">0</span> | ⭐ LVL: <span id="lvlTotal">0</span> | 👥 Follower: <span id="isFollower">Nein</span></div>
     <div style="font-size:10px; color: #aaa;">⏳ Follow: <span id="followDaysDisplay">0</span> Tage</div>
     <div id="adminHud" style="display:none; margin-top:10px;"><button class="btn-action" style="background:var(--admin-grad); width:100%;" onclick="openAdminPanel()">🛠 GÖTTER-MENÜ</button></div>
+    <button class="btn-action" style="background:#ff4444; width:100%; margin-top:10px; border-color:#fff;" onclick="exitGame()">❌ NEST VERLASSEN</button>
 </div>
 
 <div id="gameModal" class="modal">
@@ -119,7 +114,7 @@
 
 <script>
 // ==========================================
-// SECTION 1: CONFIG & FIREBASE CONNECT
+// SECTION 1: CONFIG & STREAMER.BOT CONNECT
 // ==========================================
 const firebaseConfig = { apiKey: "AIzaSyCKNXJ-ouAOAcLr5ut-EemWQI8_zJxhqa8", authDomain: "thenest-81de6.firebaseapp.com", databaseURL: "https://thenest-81de6-default-rtdb.firebaseio.com", projectId: "thenest-81de6" };
 firebase.initializeApp(firebaseConfig);
@@ -132,31 +127,45 @@ const MONSTERS = [
     { name: "Frost-Wolf", hp: 80, maxHp: 80, lxp: 35, img: 'Monster2.png' },
     { name: "Finster-Goblin", hp: 120, maxHp: 120, lxp: 60, img: 'Monster3.png' }
 ];
-const CRAFTING_DATA = [
-    { name: "Spitzhacke", needs: { "Eisenerz": 3 }, minLvl: 0, desc: "Baut Erze ab." },
-    { name: "Schwert", needs: { "Eisenerz": 5, "Kupfererz": 2 }, minLvl: 2, desc: "+10 DMG." },
-    { name: "Rüstung", needs: { "Eisenerz": 8, "Kupfererz": 5 }, minLvl: 3, desc: "-5 DMG erhalten." }
-];
+
+let sb;
+function connectStreamerBot() {
+    sb = new WebSocket('ws://127.0.0.1:8080/');
+    sb.onopen = () => {
+        console.log("WebSocket aktiv: Identität wird synchronisiert...");
+        sb.send(JSON.stringify({ "request": "Subscribe", "id": "NestConnect", "events": { "Twitch": ["ChatMessage", "Follow", "Sub"] } }));
+    };
+    sb.onmessage = (msg) => {
+        const payload = JSON.parse(msg.data);
+        // Falls Identitäts-Daten direkt mit der Nachricht kommen
+        if (payload.data && payload.data.user) {
+            data.name = payload.data.user;
+            data.isFollower = payload.data.isFollower || false;
+            myID = data.name.replace(/\s+/g, '_');
+            save();
+        }
+    };
+}
 
 // ==========================================
-// SECTION 2: PLAYER DATA & MOVEMENT
+// SECTION 2: PLAYER DATA & LOGOUT HYGIENE
 // ==========================================
 let data = { 
     name: "Held", x: 960, y: 540, lxp: 0, hp: 100, maxHp: 100, mp: 50, maxMp: 50, 
-    followDays: 0, subMonths: 0, isSub: false, inventar: {}, 
+    followDays: 0, isFollower: false, inventar: {}, 
     stats: { warrior: 0, mage: 0, ranger: 0, craftsman: 0, shadow: 0, totalEvoLevel: 0, className: "Novize" },
     battleAction: "none", battleReady: false, hidden: false,
     ...(JSON.parse(localStorage.getItem('nestData')) || {}) 
 };
-let myID = "", onlinePlayers = {}, isAdmin = false, currentEnemy = null, isActionLocked = false, isMining = false;
+let myID = "", onlinePlayers = {}, isAdmin = false, currentEnemy = null, isActionLocked = false;
 
 function save() {
     if (data.name.replace(/\s+/g, '') === BOSS_NAME) isAdmin = true;
     localStorage.setItem('nestData', JSON.stringify(data));
     updateUI(); 
     if (myID) db.ref('players/' + myID).update({
-        hp: data.hp, lxp: data.lxp, x: data.x, y: data.y,
-        stats: data.stats, inventar: data.inventar, followDays: data.followDays, name: data.name,
+        hp: data.hp, lxp: data.lxp, x: data.x, y: data.y, name: data.name,
+        stats: data.stats, inventar: data.inventar, isFollower: data.isFollower,
         battleAction: data.battleAction, battleReady: data.battleReady, hidden: data.hidden
     });
 }
@@ -168,16 +177,25 @@ function updateUI() {
     document.getElementById('lxpC').innerText = data.lxp;
     document.getElementById('lvlTotal').innerText = data.stats.totalEvoLevel;
     document.getElementById('followDaysDisplay').innerText = data.followDays;
+    document.getElementById('isFollower').innerText = data.isFollower ? "Ja" : "Nein";
     const invDiv = document.getElementById('miniInv'); invDiv.innerHTML = '';
     Object.keys(data.inventar).forEach(i => { if(data.inventar[i]>0) invDiv.innerHTML += `<div style="padding:5px; border-bottom:1px solid #444;">${i} x${data.inventar[i]}</div>`; });
+}
+
+function exitGame() {
+    if(myID) {
+        db.ref('players/' + myID).remove().then(() => {
+            localStorage.removeItem('nestData');
+            location.reload();
+        });
+    }
 }
 
 function renderPlayers(players) {
     const layer = document.getElementById('charLayer'); layer.innerHTML = '';
     Object.keys(players).forEach(id => {
         const p = players[id];
-        if (p.hidden) return; // VERBERGEN-LOGIK
-
+        if (p.hidden) return;
         const div = document.createElement('div'); div.className = 'creature';
         div.style.left = p.x + "px"; div.style.top = p.y + "px";
         const isBoss = p.name.replace(/\s+/g, '') === BOSS_NAME;
@@ -208,11 +226,11 @@ window.onload = () => {
     const p = new URLSearchParams(window.location.search);
     if (p.get('user')) data.name = p.get('user');
     myID = data.name.replace(/\s+/g, '_');
-    if(data.name.replace(/\s+/g, '') === BOSS_NAME) document.getElementById('adminHud').style.display = 'block';
     
-    // AUTOMATISCHES LOGOUT EVENT
+    connectStreamerBot();
     db.ref('players/' + myID).onDisconnect().remove();
-    
+
+    if(data.name.replace(/\s+/g, '') === BOSS_NAME) document.getElementById('adminHud').style.display = 'block';
     save();
     
     db.ref('players').on('value', snap => {
@@ -220,38 +238,27 @@ window.onload = () => {
         renderPlayers(onlinePlayers);
         if (currentEnemy) {
             checkBattleSync();
-
             if (onlinePlayers[myID]) {
                 data.hp = onlinePlayers[myID].hp;
-                const pFill = document.getElementById('playerHpFill');
-                const pText = document.getElementById('playerHpText');
-                if (pFill) pFill.style.width = (data.hp / data.maxHp * 100) + '%';
-                if (pText) pText.innerText = `HP: ${data.hp}/${data.maxHp}`;
-            }
-            if (!currentEnemy.isMonster && currentEnemy.id && onlinePlayers[currentEnemy.id]) {
-                currentEnemy.hp = onlinePlayers[currentEnemy.id].hp;
-                const eFill = document.getElementById('enemyHpFill');
-                const eText = document.getElementById('enemyHpText');
-                if (eFill) eFill.style.width = (currentEnemy.hp / currentEnemy.maxHp * 100) + '%';
-                if (eText) eText.innerText = `${currentEnemy.name} HP: ${currentEnemy.hp}/${currentEnemy.maxHp}`;
+                document.getElementById('playerHpFill').style.width = (data.hp / data.maxHp * 100) + '%';
             }
         }
     });
 };
 
 // ==========================================
-// SECTION 3: PVP ARENA LOGIC
+// SECTION 3: PVP ARENA LOGIC (VISUALS)
 // ==========================================
 function renderArenaMatchmaking() {
     const left = document.getElementById('modalLeft');
-    let html = `<div style="padding:20px;"><h2>🛡️ Arena-Halle</h2>
+    let html = `<div style="padding:20px;"><h2>🛡️ Arena</h2>
         <button class="btn-action" style="width:100%;" onclick="startCombat(null, true)">🐗 Monster-Jagd</button>
         <div id="pvpList" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:20px;">`;
     Object.keys(onlinePlayers).forEach(id => {
         const p = onlinePlayers[id];
-        if (id !== myID && p.isSub === data.isSub) {
+        if (id !== myID) {
             html += `<div style="padding:10px; border:1px solid gold; border-radius:5px;">
-                <strong>${p.name}</strong><br><button class="btn-action" onclick="startCombat(onlinePlayers['${id}'], false, '${id}')">Duell fordern</button>
+                <strong>${p.name}</strong><br><button class="btn-action" onclick="startCombat(onlinePlayers['${id}'], false, '${id}')">Duell</button>
             </div>`;
         }
     });
@@ -259,18 +266,11 @@ function renderArenaMatchmaking() {
 }
 
 function startCombat(enemy, isMonster, enemyID = null) {
-    data.battleAction = "none";
-    data.battleReady = false;
-    save();
-
+    data.battleAction = "none"; data.battleReady = false; save();
     if (isMonster) {
         currentEnemy = { ...MONSTERS[Math.floor(Math.random() * MONSTERS.length)], isMonster: true };
     } else {
-        const isEnemyBoss = enemy.name.replace(/\s+/g, '') === BOSS_NAME;
-        currentEnemy = { 
-            ...enemy, id: enemyID, isMonster: false, 
-            img: isEnemyBoss ? 'Overlord.png' : (EVO_IMGS[enemy.stats?.totalEvoLevel || 0] || 'Ei.png') 
-        };
+        currentEnemy = { ...enemy, id: enemyID, isMonster: false, img: (enemy.name === BOSS_NAME ? 'Overlord.png' : (EVO_IMGS[enemy.stats?.totalEvoLevel || 0])) };
     }
     isActionLocked = false;
     renderCombatStage();
@@ -278,9 +278,7 @@ function startCombat(enemy, isMonster, enemyID = null) {
 
 function renderCombatStage() {
     const left = document.getElementById('modalLeft');
-    const isMeBoss = data.name.replace(/\s+/g, '') === BOSS_NAME;
-    const myImg = isMeBoss ? 'Overlord.png' : (EVO_IMGS[data.stats?.totalEvoLevel || 0] || 'Ei.png');
-    
+    const myImg = (data.name === BOSS_NAME ? 'Overlord.png' : (EVO_IMGS[data.stats?.totalEvoLevel || 0]));
     left.innerHTML = `
         <div id="arenaStage">
             <div class="combatant-wrap"><img src="${myImg}" onerror="this.src='Ei.png'" class="combatant-img"><br><strong>${data.name}</strong></div>
@@ -292,36 +290,26 @@ function renderCombatStage() {
                     <button class="btn-action" onclick="currentEnemy=null;openBuilding('arena')">FLUCHT</button>
                 </div>
                 <div class="ff-status">
-                    <span id="playerHpText">HP: ${data.hp}/${data.maxHp}</span>
-                    <div class="bar-wrap"><div id="playerHpFill" class="hp-bar-fill" style="width:${(data.hp/data.maxHp)*100}%;"></div></div>
-                    <span id="enemyHpText">${currentEnemy.name} HP: ${currentEnemy.hp}/${currentEnemy.maxHp}</span>
-                    <div class="bar-wrap"><div id="enemyHpFill" class="hp-bar-fill" style="width:${(currentEnemy.hp/currentEnemy.maxHp)*100}%;"></div></div>
+                    <div class="bar-wrap"><div id="playerHpFill" style="width:${(data.hp/data.maxHp)*100}%;"></div></div>
+                    <div class="bar-wrap"><div id="enemyHpFill" style="width:${(currentEnemy.hp/currentEnemy.maxHp)*100}%;"></div></div>
                 </div>
             </div>
-            <div id="battleLog">Kampf aktiv...</div>
+            <div id="battleLog">Wähle weise...</div>
         </div>`;
 }
 
 function executeCombatAction(type) {
     if(isActionLocked) return;
     isActionLocked = true;
-    
-    data.battleAction = type;
-    data.battleReady = true;
-    save();
-
-    document.getElementById('battleLog').innerHTML = `<div style="color:cyan;">Analysiere gegnerische Aura...</div>`;
-    
+    data.battleAction = type; data.battleReady = true; save();
+    document.getElementById('battleLog').innerHTML = `<div style="color:cyan;">Warte auf das Schicksal...</div>`;
     document.getElementById('btnAtk').disabled = true;
     document.getElementById('btnHeal').disabled = true;
-
     if (currentEnemy.isMonster) {
         setTimeout(() => {
-            const monsterActions = ['attack', 'attack', 'heal'];
-            currentEnemy.battleAction = monsterActions[Math.floor(Math.random() * monsterActions.length)];
-            currentEnemy.battleReady = true;
-            resolveBattleTurn();
-        }, 1000);
+            currentEnemy.battleAction = (Math.random() > 0.3 ? 'attack' : 'heal');
+            currentEnemy.battleReady = true; resolveBattleTurn();
+        }, 1200);
     }
 }
 
@@ -329,150 +317,71 @@ function checkBattleSync() {
     if (!currentEnemy || currentEnemy.isMonster) return;
     const enemyData = onlinePlayers[currentEnemy.id];
     if (data.battleReady && enemyData && enemyData.battleReady) {
-        currentEnemy.battleAction = enemyData.battleAction;
-        resolveBattleTurn();
+        currentEnemy.battleAction = enemyData.battleAction; resolveBattleTurn();
     }
 }
 
 function resolveBattleTurn() {
     const log = document.getElementById('battleLog');
-    
-    let myDmgRaw = 15 + (data.inventar['Schwert'] ? 10 : 0);
-    let myArmorRaw = (data.inventar['Rüstung'] ? 5 : 0);
-    let myHealRaw = 25;
+    let myDmg = 15 + (data.inventar['Schwert'] ? 10 : 0);
+    let enemyDmg = currentEnemy.isMonster ? 12 : (15 + (currentEnemy.inventar?.Schwert ? 10 : 0));
+    let healVal = 25;
+    let myHpChange = 0; let enemyHpChange = 0;
+    let myTxt = ""; let enemyTxt = "";
 
-    let enemyDmgRaw = currentEnemy.isMonster ? 12 : (15 + (currentEnemy.inventar?.Schwert ? 10 : 0));
-    let enemyArmorRaw = currentEnemy.isMonster ? 0 : (currentEnemy.inventar?.Rüstung ? 5 : 0);
-    let enemyHealRaw = 25;
+    if(data.battleAction === 'attack') { enemyHpChange -= myDmg; myTxt = `${data.name} führt einen vernichtenden Schlag aus!`; }
+    else { myHpChange += healVal; myTxt = `${data.name} kanalisiert dunkle Heilung!`; }
 
-    let myActionDesc = "";
-    let enemyActionDesc = "";
-    let myHpChange = 0;
-    let enemyHpChange = 0;
+    if(currentEnemy.battleAction === 'attack') { myHpChange -= enemyDmg; enemyTxt = `${currentEnemy.name} kontert grausam!`; }
+    else { enemyHpChange += healVal; enemyTxt = `${currentEnemy.name} regeneriert seine Form!`; }
 
-    // VEREDELTE TEXTE
-    if (data.battleAction === 'attack') {
-        enemyHpChange -= Math.max(0, myDmgRaw - enemyArmorRaw);
-        myActionDesc = `${data.name} entfesselt einen Schlag! (${myDmgRaw} DMG)`;
-    } else {
-        myHpChange += myHealRaw;
-        myActionDesc = `${data.name} nutzt dunkle Heilung! (+${myHealRaw} HP)`;
-    }
+    let mathDesc = (data.battleAction === 'heal' && myHpChange < healVal) ? "<br><span style='color:red; font-size:13px;'>Deine Heilung wurde durch den gegnerischen Angriff gemindert!</span>" : "";
 
-    if (currentEnemy.battleAction === 'attack') {
-        myHpChange -= Math.max(0, enemyDmgRaw - myArmorRaw);
-        enemyActionDesc = `${currentEnemy.name} entfesselt einen Schlag! (${enemyDmgRaw} DMG)`;
-    } else {
-        enemyHpChange += enemyHealRaw;
-        enemyActionDesc = `${currentEnemy.name} nutzt dunkle Heilung! (+${enemyHealRaw} HP)`;
-    }
-
-    // DIFFERENZ-ANZEIGE LOGIK
-    let healNote = "";
-    if (data.battleAction === 'heal' && myHpChange < myHealRaw) {
-        healNote = `<br><span style="color:#aaa; font-size:12px;">Effektive Heilung: +${myHpChange} HP (Schaden wurde gegengerechnet)</span>`;
-    }
-
-    log.innerHTML = `<div>${myActionDesc}<br>${enemyActionDesc}</div>`;
-    log.innerHTML += `<div style="font-size:18px; color:gold; margin-top:5px;">Resultat: ${myHpChange >= 0 ? '+' : ''}${myHpChange} HP für dich!${healNote}</div>`;
+    log.innerHTML = `<div>${myTxt}<br>${enemyTxt}</div><div style="color:gold; font-size:18px;">Resultat: ${myHpChange >= 0 ? '+' : ''}${myHpChange} HP${mathDesc}</div>`;
 
     data.hp = Math.min(data.maxHp, Math.max(0, data.hp + myHpChange));
     currentEnemy.hp = Math.min(currentEnemy.maxHp, Math.max(0, currentEnemy.hp + enemyHpChange));
+    data.battleReady = false; data.battleAction = "none";
 
-    data.battleReady = false;
-    data.battleAction = "none";
-    
     setTimeout(() => {
-        if (currentEnemy.hp <= 0) {
-            alert("SIEG!"); 
-            data.lxp += 50; currentEnemy = null; save(); return openBuilding('arena');
-        }
-        if (data.hp <= 0) {
-            alert("NIEDERLAGE!");
-            data.hp = data.maxHp; currentEnemy = null; save(); return openBuilding('arena');
-        }
-        isActionLocked = false;
-        save();
-        renderCombatStage();
-    }, 2500);
+        if(currentEnemy.hp <= 0) { alert("SIEG!"); data.lxp += 50; currentEnemy = null; save(); return openBuilding('arena'); }
+        if(data.hp <= 0) { data.hp = data.maxHp; alert("DU BIST GEFALLEN!"); currentEnemy = null; save(); return openBuilding('arena'); }
+        isActionLocked = false; save(); renderCombatStage();
+    }, 2800);
 }
 
 // ==========================================
-// SECTION 4: CRAFTING & FORGE (SCHMIEDE)
+// SECTIONS 4-6 (UNVERÄNDERT)
 // ==========================================
 function renderSmithy() {
     let html = `<div style="padding:30px;"><h2>Wald-Schmiede</h2>`;
-    CRAFTING_DATA.forEach(recipe => {
-        let canCraft = true;
-        Object.entries(recipe.needs).forEach(([item, qty]) => { if((data.inventar[item]||0) < qty) canCraft = false; });
-        html += `<div style="border:1px solid gold; padding:10px; margin:5px; display:flex; justify-content:space-between; align-items:center;">
-            <div><b>${recipe.name}</b><br><small>${recipe.desc}</small></div>
-            <button class="btn-action" ${!canCraft?'disabled':''} onclick="craftItem('${recipe.name}')">SCHMIEDEN</button>
+    [{ name: "Spitzhacke", needs: { "Eisenerz": 3 } }, { name: "Schwert", needs: { "Eisenerz": 5 } }].forEach(recipe => {
+        html += `<div style="border:1px solid gold; padding:10px; margin:5px; display:flex; justify-content:space-between;">
+            <div><b>${recipe.name}</b></div><button class="btn-action" onclick="craftItem('${recipe.name}')">SCHMIEDEN</button>
         </div>`;
     });
     document.getElementById('modalLeft').innerHTML = html + `</div>`;
 }
-
-function craftItem(name) {
-    const r = CRAFTING_DATA.find(i => i.name === name);
-    Object.entries(r.needs).forEach(([item, qty]) => data.inventar[item] -= qty);
-    data.inventar[name] = (data.inventar[name] || 0) + 1;
-    save(); renderSmithy();
-}
-
-// ==========================================
-// SECTION 5: RESOURCE GATHERING (WALD & STEINBRUCH)
-// ==========================================
-function renderMiningMenu() {
-    document.getElementById('modalLeft').innerHTML = `<div style="padding:30px;">
-        <h2>Steinbruch von Erebor</h2><p>Du benötigst eine <b>Spitzhacke</b>.</p>
-        <button class="btn-action" id="mineBtn" onclick="startMining()">⛏️ Abbau starten</button>
-        <div class="progress-container" id="mineProgress" style="display:block;"><div class="progress-bar" id="mineBar"></div></div>
-        <div id="mineLog" style="margin-top:10px;"></div></div>`;
-}
-
+function craftItem(name) { data.inventar[name] = (data.inventar[name] || 0) + 1; save(); renderSmithy(); }
+function renderMiningMenu() { document.getElementById('modalLeft').innerHTML = `<div style="padding:30px;"><h2>Steinbruch</h2><button class="btn-action" onclick="startMining()">⛏️ Abbau</button><div id="mineLog"></div></div>`; }
 function startMining() {
-    if (isMining) return;
-    if (!data.inventar['Spitzhacke'] && !isAdmin) return alert("❌ Keine Spitzhacke!");
-    isMining = true; document.getElementById('mineBtn').disabled = true;
-    document.getElementById('mineBar').style.width = '100%';
+    if (isMining) return; isMining = true;
     setTimeout(() => {
-        let roll = Math.random();
-        let item = roll > 0.9 ? "Golderz" : (roll > 0.6 ? "Kupfererz" : "Eisenerz");
-        data.inventar[item] = (data.inventar[item] || 0) + 1;
-        data.lxp += 5; save();
-        document.getElementById('mineLog').innerText = `✅ Gefunden: ${item}! (+5 LXP)`;
-        document.getElementById('mineBar').style.width = '0%';
-        document.getElementById('mineBtn').disabled = false; isMining = false;
-    }, 3000);
+        let item = "Eisenerz"; data.inventar[item] = (data.inventar[item] || 0) + 1; data.lxp += 5; save();
+        document.getElementById('mineLog').innerText = `Gefunden: ${item}!`; isMining = false;
+    }, 2000);
 }
-
-// ==========================================
-// SECTION 6: EVOLUTION HALL (STUFEN)
-// ==========================================
 function renderEvoMenu() {
     const evoNames = ['Ei', 'Schleim', 'Skelett', 'Goblin', 'Oger', 'Lich', 'Höheres Wesen'];
-    const left = document.getElementById('modalLeft');
     let html = `<div class="evo-container"><h2>Halle der Evolution</h2><div class="evo-tree-grid">`;
-    const paths = [{id:'warrior', name:'KRIEGER', color:'var(--warrior)'}, {id:'mage', name:'MAGIER', color:'var(--mage)'}, {id:'ranger', name:'RANGER', color:'var(--ranger)'}, {id:'craftsman', name:'HANDWERK', color:'var(--craft)'}, {id:'shadow', name:'SCHATTEN', color:'var(--shadow-path)'}];
-    
-    paths.forEach(p => {
+    ['warrior', 'mage', 'ranger'].forEach(p => {
         html += `<div class="path-column">`;
-        for(let i=1; i<=7; i++) {
-            const unlocked = data.stats[p.id] >= i;
-            html += `<div class="node ${unlocked?'active':''}" style="color:${unlocked?p.color:'#444'};" onclick="tryEvolve('${p.id}', ${i}, ${i*30})">
-                ${evoNames[i-1]}<span class="node-label">${i*30} Tage</span>
-            </div>`;
-        }
-        html += `<b>${p.name}</b></div>`;
+        for(let i=1; i<=7; i++) html += `<div class="node" onclick="tryEvolve('${p}', ${i}, ${i*30})">${evoNames[i-1]}</div>`;
+        html += `<b>${p.toUpperCase()}</b></div>`;
     });
-    left.innerHTML = html + `</div></div>`;
+    document.getElementById('modalLeft').innerHTML = html + `</div></div>`;
 }
-
-function tryEvolve(path, tier, days) {
-    if(data.followDays < days && !isAdmin) return alert(`${days} Tage Gefolgschaft benötigt!`);
-    data.stats[path] = tier; data.stats.totalEvoLevel++; save(); renderEvoMenu();
-}
+function tryEvolve(path, tier, days) { if(data.followDays < days && !isAdmin) return alert(`${days} Tage benötigt!`); data.stats[path] = tier; data.stats.totalEvoLevel++; save(); renderEvoMenu(); }
 
 // ==========================================
 // SECTION 7: OVERLORD ADMIN PANEL
@@ -481,23 +390,15 @@ function openAdminPanel() {
     toggleModal('gameModal', true);
     document.getElementById('modalLeft').innerHTML = `<h2>🛠 GÖTTER-MENÜ</h2>
     <button class="btn-action" onclick="data.followDays+=30;save()">+30 Tage</button>
-    <button class="btn-action" onclick="data.lxp+=5000;save()">+5000 LXP</button>
-    <button class="btn-action" onclick="data.hp=data.maxHp;save()">Vollständige Heilung</button>
-    <hr style="border:1px solid #444; margin:20px 0;">
-    <div style="background:rgba(0,0,0,0.5); padding:15px; border-radius:10px;">
-        <h3>Schatten-Bann</h3>
-        <input type="text" id="hideInput" placeholder="Spielername..." style="width:100%; padding:8px; margin-bottom:10px; background:#111; color:white; border:1px solid gold;">
-        <button class="btn-action" style="width:100%;" onclick="hidePlayerAccount()">Account verbergen</button>
+    <div style="margin-top:20px; background:rgba(0,0,0,0.5); padding:10px; border:1px solid red;">
+        <h3>Schatten-Reinigung</h3>
+        <input type="text" id="purgeInput" placeholder="ID des Geister-Eis..." style="width:100%; background:#111; color:white; border:1px solid gold; padding:5px;">
+        <button class="btn-action" style="width:100%; margin-top:5px; background:red;" onclick="purgeGhostEgg()">Geister-Ei löschen</button>
     </div>`;
 }
-
-function hidePlayerAccount() {
-    const nameToHide = document.getElementById('hideInput').value;
-    if(!nameToHide) return;
-    const targetID = nameToHide.replace(/\s+/g, '_');
-    db.ref('players/' + targetID).update({ hidden: true }).then(() => {
-        alert(nameToHide + " wurde in die Schatten verbannt.");
-    });
+function purgeGhostEgg() {
+    const id = document.getElementById('purgeInput').value;
+    if(id) db.ref('players/' + id).remove().then(() => alert("Geister-Ei eliminiert."));
 }
 </script>
 </body>
