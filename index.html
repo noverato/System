@@ -57,24 +57,6 @@
             height: 100%; 
             transition: width 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
         }
-        
-        #battleLog { 
-            position: absolute; top: 20px; left: 20px; 
-            color: white; font-size: 16px; font-weight: bold;
-            text-shadow: 2px 2px 4px #000; line-height: 1.6;
-            max-width: 450px; pointer-events: none;
-        }
-
-        .evo-container { display: flex; flex-direction: column; gap: 30px; align-items: center; padding: 20px; }
-        .evo-tree-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 20px; width: 100%; margin-top: 20px; }
-        .path-column { display: flex; flex-direction: column-reverse; gap: 12px; align-items: center; }
-        .node { 
-            width: 75px; height: 75px; border: 2px solid #444; border-radius: 50%; 
-            display: flex; align-items: center; justify-content: center; 
-            font-weight: bold; font-size: 11px; cursor: pointer; transition: 0.3s; 
-            background: #111; position: relative; text-align: center; color: #888;
-        }
-        .node.active { border-width: 3px; box-shadow: 0 0 15px currentColor; border-color: currentColor; color: #fff; }
     </style>
 </head>
 <body>
@@ -90,9 +72,9 @@
 </div>
 
 <div id="hud">
-    <div style="color:gold; font-size: 20px; font-weight:bold;"><span id="playerName">Lade...</span></div>
-    <div id="hudClass" style="font-size:13px; color: #3b82f6; font-weight: bold;">Identifiziere...</div>
-    <div style="font-size:12px; color:#4ade80; margin-top: 5px;">💎 LXP: <span id="lxpC">0</span> | ⭐ LVL: <span id="lvlTotal">0</span> | 👥 Follower: <span id="isFollower">Nein</span></div>
+    <div style="color:gold; font-size: 20px; font-weight:bold;"><span id="playerName">Warte auf Bot...</span></div>
+    <div id="hudClass" style="font-size:13px; color: #3b82f6; font-weight: bold;">Synchronisierung...</div>
+    <div style="font-size:12px; color:#4ade80; margin-top: 5px;">💎 LXP: <span id="lxpC">0</span> | ⭐ LVL: <span id="lvlTotal">0</span> | 👥 Follower: <span id="isFollower">Prüfe...</span></div>
     <div style="font-size:10px; color: #aaa;">⏳ Follow: <span id="followDaysDisplay">0</span> Tage</div>
     <div id="adminHud" style="display:none; margin-top:10px;"><button class="btn-action" style="background:var(--admin-grad); width:100%;" onclick="openAdminPanel()">🛠 GÖTTER-MENÜ</button></div>
     <button class="btn-action" style="background:#ff4444; width:100%; margin-top:10px; border-color:#fff;" onclick="exitGame()">❌ NEST VERLASSEN</button>
@@ -114,7 +96,7 @@
 
 <script>
 // ==========================================
-// SECTION 1: CONFIG & STREAMER.BOT CONNECT
+// SECTION 1: CONFIG & BRIDGE UPDATE
 // ==========================================
 const firebaseConfig = { apiKey: "AIzaSyCKNXJ-ouAOAcLr5ut-EemWQI8_zJxhqa8", authDomain: "thenest-81de6.firebaseapp.com", databaseURL: "https://thenest-81de6-default-rtdb.firebaseio.com", projectId: "thenest-81de6" };
 firebase.initializeApp(firebaseConfig);
@@ -132,52 +114,75 @@ let sb;
 function connectStreamerBot() {
     sb = new WebSocket('ws://127.0.0.1:8080/');
     sb.onopen = () => {
-        console.log("WebSocket aktiv: Identität wird synchronisiert...");
+        console.log("Brücke zu Streamer.bot geschlagen!");
         sb.send(JSON.stringify({ "request": "Subscribe", "id": "NestConnect", "events": { "Twitch": ["ChatMessage", "Follow", "Sub"] } }));
     };
     sb.onmessage = (msg) => {
         const payload = JSON.parse(msg.data);
-        // Falls Identitäts-Daten direkt mit der Nachricht kommen
-        if (payload.data && payload.data.user) {
-            data.name = payload.data.user;
-            data.isFollower = payload.data.isFollower || false;
-            myID = data.name.replace(/\s+/g, '_');
-            save();
+        
+        // WEBSOCKET-UPDATE: Liest User, Follower-Status und Tage aus C#
+        if (payload.user) {
+            const tempID = payload.user.replace(/\s+/g, '_');
+            
+            // FIREBASE-INITIALISIERUNG: Einmaliges Laden der gespeicherten Daten
+            db.ref('players/' + tempID).once('value', (snap) => {
+                let existingData = snap.val() || {};
+                
+                // Zusammenführung der Daten (Bot-Identität + Firebase-Fortschritt)
+                data.name = payload.user;
+                data.isFollower = (payload.isFollower === true || payload.isFollower === "True");
+                data.followDays = parseInt(payload.followDays) || existingData.followDays || 0;
+                
+                // Fortschritt wiederherstellen
+                data.lxp = existingData.lxp || 0;
+                data.stats = existingData.stats || data.stats;
+                data.inventar = existingData.inventar || {};
+                
+                myID = tempID;
+                if(data.name.replace(/\s+/g, '') === BOSS_NAME) isAdmin = true;
+                
+                save(); // Initialer Sync & UI Update
+                console.log("User identifiziert: " + data.name + " (Tage: " + data.followDays + ")");
+            });
         }
     };
 }
 
 // ==========================================
-// SECTION 2: PLAYER DATA & LOGOUT HYGIENE
+// SECTION 2: PLAYER DATA & LOGOUT
 // ==========================================
 let data = { 
     name: "Held", x: 960, y: 540, lxp: 0, hp: 100, maxHp: 100, mp: 50, maxMp: 50, 
     followDays: 0, isFollower: false, inventar: {}, 
     stats: { warrior: 0, mage: 0, ranger: 0, craftsman: 0, shadow: 0, totalEvoLevel: 0, className: "Novize" },
-    battleAction: "none", battleReady: false, hidden: false,
-    ...(JSON.parse(localStorage.getItem('nestData')) || {}) 
+    battleAction: "none", battleReady: false, hidden: false
 };
 let myID = "", onlinePlayers = {}, isAdmin = false, currentEnemy = null, isActionLocked = false;
 
 function save() {
-    if (data.name.replace(/\s+/g, '') === BOSS_NAME) isAdmin = true;
     localStorage.setItem('nestData', JSON.stringify(data));
     updateUI(); 
     if (myID) db.ref('players/' + myID).update({
         hp: data.hp, lxp: data.lxp, x: data.x, y: data.y, name: data.name,
-        stats: data.stats, inventar: data.inventar, isFollower: data.isFollower,
+        stats: data.stats, inventar: data.inventar, 
+        isFollower: data.isFollower, // SYNC FELDER
+        followDays: data.followDays,  // SYNC FELDER
         battleAction: data.battleAction, battleReady: data.battleReady, hidden: data.hidden
     });
 }
 
 function updateUI() {
-    const isBoss = data.name.replace(/\s+/g, '') === BOSS_NAME;
-    document.getElementById('playerName').innerText = isBoss ? "OVERLORD Spawn2909" : data.name;
-    document.getElementById('hudClass').innerText = isBoss ? "SYSTEM-ARCHITEKT" : data.stats.className;
+    document.getElementById('playerName').innerText = isAdmin ? "OVERLORD Spawn2909" : data.name;
+    document.getElementById('hudClass').innerText = isAdmin ? "SYSTEM-ARCHITEKT" : data.stats.className;
     document.getElementById('lxpC').innerText = data.lxp;
     document.getElementById('lvlTotal').innerText = data.stats.totalEvoLevel;
-    document.getElementById('followDaysDisplay').innerText = data.followDays;
+    
+    // UI ANZEIGE KORREKTUR
     document.getElementById('isFollower').innerText = data.isFollower ? "Ja" : "Nein";
+    document.getElementById('followDaysDisplay').innerText = data.followDays;
+    
+    if(isAdmin) document.getElementById('adminHud').style.display = 'block';
+
     const invDiv = document.getElementById('miniInv'); invDiv.innerHTML = '';
     Object.keys(data.inventar).forEach(i => { if(data.inventar[i]>0) invDiv.innerHTML += `<div style="padding:5px; border-bottom:1px solid #444;">${i} x${data.inventar[i]}</div>`; });
 }
@@ -223,42 +228,34 @@ function openBuilding(b) {
 }
 
 window.onload = () => {
-    const p = new URLSearchParams(window.location.search);
-    if (p.get('user')) data.name = p.get('user');
-    myID = data.name.replace(/\s+/g, '_');
-    
     connectStreamerBot();
-    db.ref('players/' + myID).onDisconnect().remove();
-
-    if(data.name.replace(/\s+/g, '') === BOSS_NAME) document.getElementById('adminHud').style.display = 'block';
-    save();
-    
     db.ref('players').on('value', snap => {
         onlinePlayers = snap.val() || {};
         renderPlayers(onlinePlayers);
-        if (currentEnemy) {
-            checkBattleSync();
-            if (onlinePlayers[myID]) {
-                data.hp = onlinePlayers[myID].hp;
-                document.getElementById('playerHpFill').style.width = (data.hp / data.maxHp * 100) + '%';
-            }
-        }
     });
 };
 
 // ==========================================
-// SECTION 3: PVP ARENA LOGIC (VISUALS)
+// SECTION 3: ARENA-CHECK & COMBAT
 // ==========================================
 function renderArenaMatchmaking() {
     const left = document.getElementById('modalLeft');
-    let html = `<div style="padding:20px;"><h2>🛡️ Arena</h2>
-        <button class="btn-action" style="width:100%;" onclick="startCombat(null, true)">🐗 Monster-Jagd</button>
+    
+    // ARENA-CHECK: Sperre für Nicht-Follower
+    const canFight = data.isFollower || isAdmin;
+    const lockAttr = !canFight ? 'disabled title="Nur für Follower!"' : '';
+    
+    let html = `<div style="padding:20px;"><h2>🛡️ Arena-Halle</h2>
+        <p style="color:${canFight?'#4ade80':'#ff4444'}">${canFight?'✅ Kampfbereit':'❌ Nur Follower können kämpfen!'}</p>
+        <button class="btn-action" style="width:100%;" ${lockAttr} onclick="startCombat(null, true)">🐗 Monster-Jagd</button>
         <div id="pvpList" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:20px;">`;
+        
     Object.keys(onlinePlayers).forEach(id => {
         const p = onlinePlayers[id];
         if (id !== myID) {
             html += `<div style="padding:10px; border:1px solid gold; border-radius:5px;">
-                <strong>${p.name}</strong><br><button class="btn-action" onclick="startCombat(onlinePlayers['${id}'], false, '${id}')">Duell</button>
+                <strong>${p.name}</strong><br>
+                <button class="btn-action" ${lockAttr} onclick="startCombat(onlinePlayers['${id}'], false, '${id}')">Duell</button>
             </div>`;
         }
     });
@@ -278,7 +275,7 @@ function startCombat(enemy, isMonster, enemyID = null) {
 
 function renderCombatStage() {
     const left = document.getElementById('modalLeft');
-    const myImg = (data.name === BOSS_NAME ? 'Overlord.png' : (EVO_IMGS[data.stats?.totalEvoLevel || 0]));
+    const myImg = (isAdmin ? 'Overlord.png' : (EVO_IMGS[data.stats?.totalEvoLevel || 0]));
     left.innerHTML = `
         <div id="arenaStage">
             <div class="combatant-wrap"><img src="${myImg}" onerror="this.src='Ei.png'" class="combatant-img"><br><strong>${data.name}</strong></div>
@@ -335,9 +332,7 @@ function resolveBattleTurn() {
     if(currentEnemy.battleAction === 'attack') { myHpChange -= enemyDmg; enemyTxt = `${currentEnemy.name} kontert grausam!`; }
     else { enemyHpChange += healVal; enemyTxt = `${currentEnemy.name} regeneriert seine Form!`; }
 
-    let mathDesc = (data.battleAction === 'heal' && myHpChange < healVal) ? "<br><span style='color:red; font-size:13px;'>Deine Heilung wurde durch den gegnerischen Angriff gemindert!</span>" : "";
-
-    log.innerHTML = `<div>${myTxt}<br>${enemyTxt}</div><div style="color:gold; font-size:18px;">Resultat: ${myHpChange >= 0 ? '+' : ''}${myHpChange} HP${mathDesc}</div>`;
+    log.innerHTML = `<div>${myTxt}<br>${enemyTxt}</div><div style="color:gold; font-size:18px;">Resultat: ${myHpChange >= 0 ? '+' : ''}${myHpChange} HP</div>`;
 
     data.hp = Math.min(data.maxHp, Math.max(0, data.hp + myHpChange));
     currentEnemy.hp = Math.min(currentEnemy.maxHp, Math.max(0, currentEnemy.hp + enemyHpChange));
@@ -351,7 +346,7 @@ function resolveBattleTurn() {
 }
 
 // ==========================================
-// SECTIONS 4-6 (UNVERÄNDERT)
+// SECTIONS 4-7 (UNVERÄNDERT)
 // ==========================================
 function renderSmithy() {
     let html = `<div style="padding:30px;"><h2>Wald-Schmiede</h2>`;
@@ -382,10 +377,6 @@ function renderEvoMenu() {
     document.getElementById('modalLeft').innerHTML = html + `</div></div>`;
 }
 function tryEvolve(path, tier, days) { if(data.followDays < days && !isAdmin) return alert(`${days} Tage benötigt!`); data.stats[path] = tier; data.stats.totalEvoLevel++; save(); renderEvoMenu(); }
-
-// ==========================================
-// SECTION 7: OVERLORD ADMIN PANEL
-// ==========================================
 function openAdminPanel() {
     toggleModal('gameModal', true);
     document.getElementById('modalLeft').innerHTML = `<h2>🛠 GÖTTER-MENÜ</h2>
