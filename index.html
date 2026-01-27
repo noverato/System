@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>The Nest: Overlord Edition 2026 - Divine Bridge Build</title>
+    <script src="loot.js"></script>
     <style>
         :root { 
             --fantasy-bg: rgba(25, 15, 10, 0.98); 
@@ -46,7 +47,6 @@
         .btn-action:hover:not(:disabled) { filter: brightness(1.2); transform: scale(1.05); }
         .btn-action:disabled { opacity: 0.35; cursor: not-allowed; filter: grayscale(1); }
 
-        /* Edit Mode Highlight */
         .building.editing { outline: 2px dashed #4ade80; cursor: move !important; }
 
         #battleInvite { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--ff-blue); border: 3px solid #fff; padding: 30px; z-index: 30000; display: none; text-align: center; box-shadow: 0 0 50px #000; border-radius: 15px; }
@@ -606,7 +606,17 @@ function resolveBattleTurn() {
     setTimeout(() => {
         if (currentEnemy.hp <= 0) { 
             data.lxp += 50; 
-            log.innerHTML += `<div style="color:gold;">SIEG! +50 LXP</div>`;
+            let victoryMsg = `<div style="color:gold; font-weight:bold;">SIEG! +50 LXP</div>`;
+            
+            // ==========================================
+            // LOOT-INTEGRATION: Trigger external database
+            // ==========================================
+            const drop = processLootDrop();
+            if (drop) {
+                victoryMsg += `<div style="color:#a855f7; font-weight:bold; margin-top:5px; border:1px solid gold; padding:2px;">BEUTE GEFUNDEN: ${drop.name} (${drop.stat})</div>`;
+            }
+            
+            log.innerHTML += victoryMsg;
             setTimeout(endCombat, 1500);
         } else if (data.hp <= 0) { 
             data.hp = data.maxHp; 
@@ -817,6 +827,28 @@ function saveLayout() {
         }
     });
     localStorage.setItem('nestLayout', JSON.stringify(layoutData));
+}
+
+// ==========================================
+// SECTION 7: ISOLATED LOOT ENGINE INTERFACE
+// ==========================================
+function processLootDrop() {
+    // Prüfen, ob loot.js geladen ist
+    if (typeof getRandomItem === 'function') {
+        // Test-Konfiguration laut Befehl: category: 'SWORDS', tier: 1, path: 'light'
+        const item = getRandomItem('SWORDS', 1, 'light');
+        if (item) {
+            const itemKey = item.name;
+            // Item ins Inventar legen
+            data.inventar[itemKey] = (data.inventar[itemKey] || 0) + 1;
+            // UI Update triggern
+            updateUI();
+            return item; 
+        }
+    } else {
+        console.warn("Loot Engine (loot.js) nicht gefunden oder nicht geladen.");
+    }
+    return null;
 }
 
 window.onload = async () => {
