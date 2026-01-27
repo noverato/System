@@ -36,6 +36,9 @@
         .btn-action:hover:not(:disabled) { filter: brightness(1.2); transform: scale(1.05); }
         .btn-action:disabled { opacity: 0.35; cursor: not-allowed; filter: grayscale(1); }
 
+        /* Battle Radar PopUp */
+        #battleInvite { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--ff-blue); border: 3px solid #fff; padding: 30px; z-index: 30000; display: none; text-align: center; box-shadow: 0 0 50px #000; border-radius: 15px; }
+
         #arenaStage { width: 100%; height: 100%; background: url('./arena_innen.png') no-repeat center; background-size: cover; position: relative; display: flex; align-items: center; justify-content: space-around; overflow: hidden; }
         .combatant-wrap { display: flex; flex-direction: column; align-items: center; width: 300px; z-index: 5; }
         .combatant-img { width: 180px; height: 180px; object-fit: contain; filter: drop-shadow(0 0 15px rgba(0,0,0,0.5)); }
@@ -69,6 +72,13 @@
     <button class="btn-action" style="background:#ff4444; width:100%; margin-top:10px; border-color:#fff;" onclick="exitGame()">❌ NEST VERLASSEN</button>
 </div>
 
+<div id="battleInvite">
+    <h2 style="color:#fff; margin-top:0;">⚔️ HERAUSFORDERUNG!</h2>
+    <p id="inviteText" style="color:gold; font-size:18px;"></p>
+    <button class="btn-action" id="btnAcceptInvite">ANNEHMEN</button>
+    <button class="btn-action" style="background:#444;" onclick="document.getElementById('battleInvite').style.display='none'">IGNORIEREN</button>
+</div>
+
 <div id="gameModal" class="modal">
     <div class="mmo-panel">
         <div class="panel-main" id="modalLeft"></div>
@@ -85,7 +95,7 @@
 
 <script>
 // ==========================================
-// SECTION 1: TWITCH & FIREBASE CONFIG
+// SECTION 1: CONFIG
 // ==========================================
 const firebaseConfig = { apiKey: "AIzaSyCKNXJ-ouAOAcLr5ut-EemWQI8_zJxhqa8", authDomain: "thenest-81de6.firebaseapp.com", databaseURL: "https://thenest-81de6-default-rtdb.firebaseio.com", projectId: "thenest-81de6" };
 firebase.initializeApp(firebaseConfig);
@@ -104,7 +114,7 @@ const MONSTERS = [
 ];
 
 let twitchToken = "";
-let isLoadingFollower = true; // LADE-STATUS
+let isLoadingFollower = true; 
 let data = { 
     name: "Held", x: 960, y: 540, lxp: 0, hp: 100, maxHp: 100, mp: 50, maxMp: 50, 
     followDays: 0, isFollower: false, inventar: {}, 
@@ -114,19 +124,14 @@ let data = {
 let myID = "", onlinePlayers = {}, isAdmin = false, currentEnemy = null, isActionLocked = false;
 
 // ==========================================
-// TWITCH API LOGIC (WITH ASYNC LOCK)
+// SECTION 2: IDENTITY & TWITCH SECURITY
 // ==========================================
 function checkTwitchAuth() {
     const hash = window.location.hash.substring(1);
     if (!hash) return false;
-
     const params = new URLSearchParams(hash);
     if (params.has("access_token")) {
         twitchToken = params.get("access_token");
-        if (params.has("state")) {
-            data.name = params.get("state");
-            myID = data.name.replace(/\s+/g, '_');
-        }
         window.history.replaceState({}, document.title, window.location.pathname);
         return true;
     }
@@ -138,82 +143,86 @@ function redirectToTwitch(userName) {
     window.location.href = authUrl;
 }
 
-async function validateTwitchFollower(userName) {
+// DER NEUE SICHERHEITS-ANKER
+async function initTwitchSession() {
     if (!twitchToken) return;
-    isLoadingFollower = true; // Start der Prüfung
-    updateUI();
-
     try {
-        const userResp = await fetch(`https://api.twitch.tv/helix/users?login=${userName}`, {
+        // Wir fragen Twitch: Wer gehört zu diesem Token?
+        const resp = await fetch(`https://api.twitch.tv/helix/users`, {
             headers: { 'Client-ID': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchToken}` }
         });
-        const userData = await userResp.json();
+        const result = await resp.json();
         
-        if (userData.data && userData.data.length > 0) {
-            const userId = userData.data[0].id;
-            const followUrl = `https://api.twitch.tv/helix/channels/followers?broadcaster_id=${BROADCASTER_ID}&user_id=${userId}`;
-            const followResp = await fetch(followUrl, {
-                headers: { 'Client-ID': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchToken}` }
-            });
-            const followData = await followResp.json();
-
-            if (followData.data && followData.data.length > 0) {
-                data.isFollower = true;
-                const followDate = new Date(followData.data[0].followed_at);
-                const diffTime = Math.abs(new Date() - followDate);
-                data.followDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            } else {
-                data.isFollower = false;
-                data.followDays = 0;
-            }
+        if (result.data && result.data.length > 0) {
+            const twitchUser = result.data[0];
+            // Identität korrigieren (Sicherheits-Lücke geschlossen)
+            data.name = twitchUser.display_name;
+            myID = twitchUser.id; // NUMERISCHE ID ALS PFAD
+            
+            // Erst jetzt Follower-Check
+            await validateTwitchFollower(myID);
         }
-    } catch (err) { 
-        console.error("Twitch API Fehler:", err); 
-    } finally {
-        isLoadingFollower = false; // Prüfung abgeschlossen
+    } catch (err) { console.error("Twitch Session Error:", err); }
+}
+
+async function validateTwitchFollower(userID) {
+    try {
+        const followUrl = `https://api.twitch.tv/helix/channels/followers?broadcaster_id=${BROADCASTER_ID}&user_id=${userID}`;
+        const resp = await fetch(followUrl, {
+            headers: { 'Client-ID': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchToken}` }
+        });
+        const followData = await resp.json();
+
+        if (followData.data && followData.data.length > 0) {
+            data.isFollower = true;
+            const followDate = new Date(followData.data[0].followed_at);
+            data.followDays = Math.ceil(Math.abs(new Date() - followDate) / (1000 * 60 * 60 * 24));
+        } else {
+            data.isFollower = false;
+        }
+    } catch (err) { console.error("Follow Check Error:", err); }
+    finally {
+        isLoadingFollower = false;
         updateUI();
     }
 }
 
 // ==========================================
-// SECTION 2: PLAYER DATA & PERSISTENCE
+// SECTION 3: FIREBASE CORE & ROLES
 // ==========================================
 function save() {
     if (data.name.replace(/\s+/g, '').toLowerCase() === BOSS_NAME.toLowerCase()) isAdmin = true;
+    
     localStorage.setItem('nestData', JSON.stringify(data));
     updateUI(); 
-    if (myID) db.ref('players/' + myID).update({
-        hp: data.hp, lxp: data.lxp, x: data.x, y: data.y, name: data.name,
-        stats: data.stats, inventar: data.inventar, 
-        isFollower: data.isFollower, 
-        followDays: data.followDays, 
-        battleAction: data.battleAction, battleReady: data.battleReady, hidden: data.hidden
-    });
+
+    // ROLLEN-LOGIK: Nur Follower oder Admin dürfen schreiben
+    if (myID && (data.isFollower || isAdmin)) {
+        db.ref('players/' + myID).update({
+            hp: data.hp, lxp: data.lxp, x: data.x, y: data.y, name: data.name,
+            stats: data.stats, inventar: data.inventar, 
+            isFollower: data.isFollower, followDays: data.followDays, 
+            battleAction: data.battleAction, battleReady: data.battleReady, hidden: data.hidden,
+            lastSeen: Date.now()
+        });
+    }
 }
 
 function updateUI() {
-    // Falls Name noch lädt
     document.getElementById('playerName').innerText = isAdmin ? "OVERLORD Spawn2909" : (isLoadingFollower ? "Magie wirkt..." : data.name);
-    
     document.getElementById('hudClass').innerText = isAdmin ? "SYSTEM-ARCHITEKT" : (data.stats.className || "Novize");
     document.getElementById('lxpC').innerText = data.lxp;
     document.getElementById('lvlTotal').innerText = data.stats.totalEvoLevel;
     
-    // Follower Status Anzeige mit Lade-Schutz
     const followDisplay = document.getElementById('isFollower');
-    if (isLoadingFollower) {
-        followDisplay.innerText = "Prüfe...";
-        followDisplay.style.color = "gold";
-    } else {
-        followDisplay.innerText = data.isFollower ? "Ja" : "Nein";
-        followDisplay.style.color = data.isFollower ? "#4ade80" : "#ff4444";
-    }
-    
+    followDisplay.innerText = isLoadingFollower ? "Prüfe..." : (data.isFollower ? "Ja" : "Nein");
     document.getElementById('followDaysDisplay').innerText = data.followDays;
     
     if(isAdmin) document.getElementById('adminHud').style.display = 'block';
     const invDiv = document.getElementById('miniInv'); invDiv.innerHTML = '';
-    Object.keys(data.inventar).forEach(i => { if(data.inventar[i]>0) invDiv.innerHTML += `<div style="padding:5px; border-bottom:1px solid #444;">${i} x${data.inventar[i]}</div>`; });
+    if(data.inventar) {
+        Object.keys(data.inventar).forEach(i => { if(data.inventar[i]>0) invDiv.innerHTML += `<div style="padding:5px; border-bottom:1px solid #444;">${i} x${data.inventar[i]}</div>`; });
+    }
 }
 
 function exitGame() {
@@ -229,7 +238,7 @@ function renderPlayers(players) {
     const layer = document.getElementById('charLayer'); layer.innerHTML = '';
     Object.keys(players).forEach(id => {
         const p = players[id];
-        if (p.hidden || !p.name) return;
+        if (p.hidden || !p.name || (Date.now() - p.lastSeen > 60000)) return; // Inaktive ausblenden
         const div = document.createElement('div'); div.className = 'creature';
         div.style.left = p.x + "px"; div.style.top = p.y + "px";
         const isBoss = p.name.replace(/\s+/g, '').toLowerCase() === BOSS_NAME.toLowerCase();
@@ -240,42 +249,79 @@ function renderPlayers(players) {
     });
 }
 
-function handleWorldClick(e) {
-    if(document.getElementById('gameModal').style.display === 'flex') return;
-    const rect = document.getElementById('world').getBoundingClientRect();
-    data.x = e.clientX - rect.left; data.y = e.clientY - rect.top; save();
+// ==========================================
+// SECTION 4: BATTLE RADAR & PvP
+// ==========================================
+function challengePlayer(targetID, targetName) {
+    if (!data.isFollower && !isAdmin) return alert("Nur Follower dürfen fordern!");
+    
+    const battleID = myID + "_vs_" + targetID;
+    db.ref('battles/' + battleID).set({
+        attacker: data.name,
+        attackerID: myID,
+        defender: targetName,
+        defenderID: targetID,
+        status: 'pending',
+        timestamp: Date.now()
+    });
+    alert("Herausforderung an " + targetName + " gesendet!");
 }
 
-function toggleModal(id, s) { document.getElementById(id).style.display = s ? 'flex' : 'none'; }
-
-function openBuilding(b) {
-    toggleModal('gameModal', true);
-    if (b === 'steinbruch') renderMiningMenu();
-    else if (b === 'wald') renderSmithy();
-    else if (b === 'arena') renderArenaMatchmaking();
-    else if (b === 'rathaus') renderEvoMenu();
+function listenForChallenges() {
+    // Der Battle-Radar
+    db.ref('battles').on('child_added', snap => {
+        const battle = snap.val();
+        if (battle.defenderID === myID && battle.status === 'pending') {
+            const inviteBox = document.getElementById('battleInvite');
+            document.getElementById('inviteText').innerText = battle.attacker + " fordert dich zum Duell!";
+            inviteBox.style.display = 'block';
+            
+            document.getElementById('btnAcceptInvite').onclick = () => {
+                db.ref('battles/' + snap.key).update({ status: 'active' });
+                inviteBox.style.display = 'none';
+                startCombat(onlinePlayers[battle.attackerID], false, battle.attackerID);
+            };
+        }
+    });
 }
 
+// ARENA MATCHMAKING
+function renderArenaMatchmaking() {
+    const left = document.getElementById('modalLeft');
+    const canFight = isAdmin || (!isLoadingFollower && data.isFollower);
+    const lockAttr = !canFight ? 'disabled title="Nur für Follower!"' : '';
+    
+    let html = `<div style="padding:20px;"><h2>🛡️ Arena-Halle</h2>
+        <p style="color:${canFight?'#4ade80':'#ff4444'}">${isLoadingFollower ? '⏳ Prüfe...' : (canFight ? '✅ Kampfbereit' : '❌ Nur Follower!')}</p>
+        <button class="btn-action" style="width:100%;" ${lockAttr} onclick="startCombat(null, true)">🐗 Monster-Jagd</button>
+        <div id="pvpList" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:20px;">`;
+    
+    Object.keys(onlinePlayers).forEach(id => {
+        const p = onlinePlayers[id];
+        if (id !== myID) {
+            html += `<div style="padding:10px; border:1px solid gold; border-radius:5px;">
+                <strong>${p.name}</strong><br>
+                <button class="btn-action" ${lockAttr} onclick="challengePlayer('${id}', '${p.name}')">Fordern</button>
+            </div>`;
+        }
+    });
+    left.innerHTML = html + `</div></div>`;
+}
+
+// CORE INITIALISIERUNG
 window.onload = async () => {
-    // 1. Twitch-Check
-    const isReturningFromTwitch = checkTwitchAuth();
-
-    if (isReturningFromTwitch) {
-        // AWAIT: Hier warten wir zwingend auf die Antwort von Twitch!
-        await validateTwitchFollower(data.name);
+    if (checkTwitchAuth()) {
+        await initTwitchSession();
     } else {
         const params = new URLSearchParams(window.location.search);
         const userParam = params.get('user');
-        if (userParam) {
-            redirectToTwitch(userParam);
-            return;
-        } else {
-            alert("Fehler: Kein User-Name angegeben! (?user=Name)");
-            return;
-        }
+        if (userParam) return redirectToTwitch(userParam);
+        else return alert("Fehler: Kein User (?user=Name)");
     }
 
-    // 2. Firebase RPG Listener (Startet erst, wenn Twitch-Daten da sind)
+    // Radar starten
+    listenForChallenges();
+
     db.ref('players').on('value', snap => {
         onlinePlayers = snap.val() || {};
         renderPlayers(onlinePlayers);
@@ -289,41 +335,15 @@ window.onload = async () => {
     });
 
     db.ref('players/' + myID).onDisconnect().remove();
-    
-    // 3. Finale Initialisierung und erste Speicherung
     save(); 
+    setInterval(save, 30000); // Auto-Ping alle 30s
 };
 
 // ==========================================
-// ARENA & COMBAT (WITH ADMIN OVERRIDE)
+// RESTLICHE RPG LOGIK (UNVERÄNDERT)
 // ==========================================
-function renderArenaMatchmaking() {
-    const left = document.getElementById('modalLeft');
-    
-    // ADMIN OVERRIDE: Admin darf immer, Follower erst nach dem Lade-Check
-    const canFight = isAdmin || (!isLoadingFollower && data.isFollower);
-    
-    const lockAttr = !canFight ? 'disabled title="Nur für Follower!"' : '';
-    let html = `<div style="padding:20px;"><h2>🛡️ Arena-Halle</h2>
-        <p style="color:${canFight?'#4ade80':'#ff4444'}">
-            ${isLoadingFollower ? '⏳ Prüfe Follower-Status...' : (canFight ? '✅ Kampfbereit' : '❌ Nur Follower können kämpfen!')}
-        </p>
-        <button class="btn-action" style="width:100%;" ${lockAttr} onclick="startCombat(null, true)">🐗 Monster-Jagd</button>
-        <div id="pvpList" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:20px;">`;
-    Object.keys(onlinePlayers).forEach(id => {
-        const p = onlinePlayers[id];
-        if (id !== myID) {
-            html += `<div style="padding:10px; border:1px solid gold; border-radius:5px;">
-                <strong>${p.name}</strong><br>
-                <button class="btn-action" ${lockAttr} onclick="startCombat(onlinePlayers['${id}'], false, '${id}')">Duell</button>
-            </div>`;
-        }
-    });
-    left.innerHTML = html + `</div></div>`;
-}
-
-// REST DER LOGIK (SMITHY, MINING, EVO) BLEIBT UNVERÄNDERT...
 function startCombat(enemy, isMonster, enemyID = null) {
+    toggleModal('gameModal', true);
     data.battleAction = "none"; data.battleReady = false; save();
     if (isMonster) currentEnemy = { ...MONSTERS[Math.floor(Math.random() * MONSTERS.length)], isMonster: true };
     else currentEnemy = { ...enemy, id: enemyID, isMonster: false, img: (enemy.name?.toLowerCase() === BOSS_NAME.toLowerCase() ? 'Overlord.png' : (EVO_IMGS[enemy.stats?.totalEvoLevel || 0])) };
@@ -336,6 +356,9 @@ function renderCombatStage() {
 }
 function executeCombatAction(type) { if(isActionLocked) return; isActionLocked = true; data.battleAction = type; data.battleReady = true; save(); document.getElementById('battleLog').innerHTML = `<div style="color:cyan;">Warte auf das Schicksal...</div>`; if (currentEnemy.isMonster) setTimeout(() => { currentEnemy.battleAction = (Math.random() > 0.3 ? 'attack' : 'heal'); currentEnemy.battleReady = true; resolveBattleTurn(); }, 1200); }
 function resolveBattleTurn() { const log = document.getElementById('battleLog'); let myDmg = 15 + (data.inventar['Schwert'] ? 10 : 0); let enemyDmg = currentEnemy.isMonster ? 12 : (15 + (currentEnemy.inventar?.Schwert ? 10 : 0)); let healVal = 25; let myHpChange = 0; let enemyHpChange = 0; let myTxt = ""; let enemyTxt = ""; if(data.battleAction === 'attack') { enemyHpChange -= myDmg; myTxt = `${data.name} schlägt zu!`; } else { myHpChange += healVal; myTxt = `${data.name} heilt sich!`; } if(currentEnemy.battleAction === 'attack') { myHpChange -= enemyDmg; enemyTxt = `${currentEnemy.name} kontert!`; } else { enemyHpChange += healVal; enemyTxt = `${currentEnemy.name} regeneriert!`; } log.innerHTML = `<div>${myTxt}<br>${enemyTxt}</div><div style="color:gold;">HP: ${myHpChange >= 0 ? '+' : ''}${myHpChange}</div>`; data.hp = Math.min(data.maxHp, Math.max(0, data.hp + myHpChange)); currentEnemy.hp = Math.min(currentEnemy.maxHp, Math.max(0, currentEnemy.hp + enemyHpChange)); data.battleReady = false; data.battleAction = "none"; setTimeout(() => { if(currentEnemy.hp <= 0) { alert("SIEG!"); data.lxp += 50; currentEnemy = null; save(); return openBuilding('arena'); } if(data.hp <= 0) { data.hp = data.maxHp; alert("GEFALLEN!"); currentEnemy = null; save(); return openBuilding('arena'); } isActionLocked = false; save(); renderCombatStage(); }, 2800); }
+function handleWorldClick(e) { if(document.getElementById('gameModal').style.display === 'flex') return; const rect = document.getElementById('world').getBoundingClientRect(); data.x = e.clientX - rect.left; data.y = e.clientY - rect.top; save(); }
+function toggleModal(id, s) { document.getElementById(id).style.display = s ? 'flex' : 'none'; }
+function openBuilding(b) { toggleModal('gameModal', true); if (b === 'steinbruch') renderMiningMenu(); else if (b === 'wald') renderSmithy(); else if (b === 'arena') renderArenaMatchmaking(); else if (b === 'rathaus') renderEvoMenu(); }
 function renderSmithy() { let html = `<div style="padding:30px;"><h2>Schmiede</h2>`; [{ name: "Spitzhacke", needs: { "Eisenerz": 3 } }, { name: "Schwert", needs: { "Eisenerz": 5 } }].forEach(recipe => { html += `<div style="border:1px solid gold; padding:10px; margin:5px; display:flex; justify-content:space-between;"><div><b>${recipe.name}</b></div><button class="btn-action" onclick="craftItem('${recipe.name}')">SCHMIEDEN</button></div>`; }); document.getElementById('modalLeft').innerHTML = html + `</div>`; }
 function craftItem(name) { data.inventar[name] = (data.inventar[name] || 0) + 1; save(); renderSmithy(); }
 function renderMiningMenu() { document.getElementById('modalLeft').innerHTML = `<div style="padding:30px;"><h2>Steinbruch</h2><button class="btn-action" onclick="startMining()">⛏️ Abbau</button><div id="mineLog"></div></div>`; }
