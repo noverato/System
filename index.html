@@ -48,6 +48,11 @@
         
         #playerHpFill { background: linear-gradient(to right, #8a2be2, #4b0082) !important; box-shadow: 0 0 15px #8a2be2; height: 100%; transition: width 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         #enemyHpFill { background: linear-gradient(to right, #ff4500, #ff0000) !important; box-shadow: 0 0 15px #ff4500; height: 100%; transition: width 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        
+        /* Evo Styles */
+        .evo-choice-box { display: flex; gap: 20px; justify-content: center; margin-top: 30px; }
+        .evo-card { background: rgba(0,0,0,0.5); border: 1px solid gold; padding: 20px; border-radius: 10px; text-align: center; width: 200px; cursor: pointer; transition: 0.3s; }
+        .evo-card:hover { transform: translateY(-10px); background: rgba(255,215,0,0.1); }
     </style>
 </head>
 <body>
@@ -94,6 +99,154 @@
 
 <script>
 // ==========================================
+// SECTION 0: EVOLUTION DATA MATRIX
+// ==========================================
+const EVO_DATA = {
+    "Ei": { hp: 50, atk: 5, def: 5 },
+    "Sprössling": { hp: 55, atk: 10, def: 10 },
+    "Waldläufer": {
+        "Licht": [
+            { name: "Licht-Novize", hp: 45, atk: 65, def: 40 },
+            { name: "Pfadfinder des Glanzes", hp: 50, atk: 80, def: 45 },
+            { name: "Licht-Bogenschütze", hp: 55, atk: 100, def: 50 },
+            { name: "Scharfschütze des Hains", hp: 60, atk: 125, def: 55 },
+            { name: "Elite-Waidmann", hp: 65, atk: 150, def: 60 },
+            { name: "Meister-Wildläufer", hp: 75, atk: 180, def: 70 },
+            { name: "Legendärer Licht-Schütze", hp: 90, atk: 220, def: 80 }
+        ],
+        "Dunkel": [
+            { name: "Schatten-Striezi", hp: 45, atk: 65, def: 40 },
+            { name: "Nacht-Schleicher", hp: 50, atk: 90, def: 40 },
+            { name: "Gift-Dolch-Adept", hp: 55, atk: 120, def: 40 },
+            { name: "Hinterhalt-Assassine", hp: 60, atk: 155, def: 40 },
+            { name: "Schatten-Viper", hp: 65, atk: 195, def: 45 },
+            { name: "Meister der lautlosen Klinge", hp: 70, atk: 240, def: 45 },
+            { name: "Legendärer Nachtschatten-Assassine", hp: 80, atk: 285, def: 50 }
+        ]
+    },
+    "Krieger": {
+        "Licht": [
+            { name: "Knappe des Lichts", hp: 80, atk: 50, def: 60 },
+            { name: "Strahlender Soldat", hp: 100, atk: 65, def: 80 },
+            { name: "Sonnen-Ritter", hp: 130, atk: 85, def: 110 },
+            { name: "Paladin der Morgenröte", hp: 170, atk: 110, def: 150 },
+            { name: "Heiliger Champion", hp: 220, atk: 140, def: 200 },
+            { name: "Göttlicher Kriegsfürst", hp: 280, atk: 180, def: 260 },
+            { name: "Legendärer Sonnen-Souverän", hp: 350, atk: 230, def: 350 }
+        ],
+        "Dunkel": [
+            { name: "Schatten-Klinge", hp: 70, atk: 70, def: 40 },
+            { name: "Finsterer Rebell", hp: 90, atk: 95, def: 55 },
+            { name: "Chaos-Ritter", hp: 110, atk: 130, def: 75 },
+            { name: "Dunkler Eroberer", hp: 140, atk: 175, def: 100 },
+            { name: "Schatten-Berserker", hp: 180, atk: 230, def: 130 },
+            { name: "Fürst der Finsternis", hp: 230, atk: 300, def: 170 },
+            { name: "Legendärer Schatten-Souverän", hp: 300, atk: 415, def: 220 }
+        ]
+    },
+    "Druide": {
+        "Licht": [
+            { name: "Hain-Lehrling", hp: 60, atk: 40, def: 40 },
+            { name: "Sonnen-Rufer", hp: 75, atk: 55, def: 50 },
+            { name: "Hüter der Quellen", hp: 95, atk: 75, def: 65 },
+            { name: "Moos-Erzmagier", hp: 120, atk: 100, def: 85 },
+            { name: "Wald-Avatar", hp: 160, atk: 135, def: 110 },
+            { name: "Meister der Entropie", hp: 210, atk: 180, def: 140 },
+            { name: "Legendärer Ur-Vater", hp: 280, atk: 250, def: 190 }
+        ],
+        "Dunkel": [
+            { name: "Dornen-Wirker", hp: 55, atk: 50, def: 35 },
+            { name: "Sumpf-Hexe", hp: 70, atk: 70, def: 45 },
+            { name: "Schimmel-Priester", hp: 85, atk: 95, def: 55 },
+            { name: "Verderbnis-Druide", hp: 110, atk: 130, def: 70 },
+            { name: "Eiter-Warlock", hp: 140, atk: 170, def: 90 },
+            { name: "Herold der Fäulnis", hp: 180, atk: 220, def: 115 },
+            { name: "Legendärer Totenwald-Gott", hp: 240, atk: 310, def: 150 }
+        ]
+    },
+    "Hüter": {
+        "Licht": [
+            { name: "Wachposten", hp: 100, atk: 40, def: 70 },
+            { name: "Schildwache", hp: 130, atk: 50, def: 95 },
+            { name: "Banner-Träger", hp: 170, atk: 65, def: 130 },
+            { name: "Tempel-Wächter", hp: 220, atk: 85, def: 180 },
+            { name: "Himmels-Hüter", hp: 280, atk: 110, def: 240 },
+            { name: "Ewiger Beschützer", hp: 350, atk: 145, def: 320 },
+            { name: "Legendärer Licht-Bollwerk", hp: 450, atk: 200, def: 450 }
+        ],
+        "Dunkel": [
+            { name: "Kerker-Wart", hp: 90, atk: 55, def: 60 },
+            { name: "Eisen-Goliath", hp: 120, atk: 75, def: 85 },
+            { name: "Abgrund-Hüter", hp: 150, atk: 100, def: 110 },
+            { name: "Schatten-Hüter", hp: 190, atk: 135, def: 145 },
+            { name: "Dreadnought", hp: 240, atk: 180, def: 190 },
+            { name: "Titan des Leids", hp: 310, atk: 245, def: 250 },
+            { name: "Legendärer Verdammnis-Hüter", hp: 400, atk: 335, def: 330 }
+        ]
+    },
+    "Sucher": {
+        "Licht": [
+            { name: "Späher", hp: 50, atk: 60, def: 30 },
+            { name: "Wahrheits-Finder", hp: 60, atk: 85, def: 40 },
+            { name: "Sternen-Jäger", hp: 75, atk: 115, def: 50 },
+            { name: "Geist-Sucher", hp: 95, atk: 155, def: 60 },
+            { name: "Orakel-Krieger", hp: 120, atk: 205, def: 75 },
+            { name: "Erleuchteter Jäger", hp: 150, atk: 270, def: 90 },
+            { name: "Legendärer Licht-Spross", hp: 200, atk: 360, def: 120 }
+        ],
+        "Dunkel": [
+            { name: "Ratten-Fänger", hp: 50, atk: 65, def: 25 },
+            { name: "Nacht-Auge", hp: 60, atk: 95, def: 30 },
+            { name: "Blut-Sucher", hp: 70, atk: 135, def: 35 },
+            { name: "Leichen-Sammler", hp: 85, atk: 185, def: 40 },
+            { name: "Seelen-Dieb", hp: 105, atk: 255, def: 45 },
+            { name: "Schatten-Schnitter", hp: 130, atk: 345, def: 50 },
+            { name: "Legendärer Phantom-Pirschler", hp: 170, atk: 470, def: 60 }
+        ]
+    },
+    "Einsiedler": {
+        "Licht": [
+            { name: "Wanderer", hp: 65, atk: 45, def: 45 },
+            { name: "Weiser", hp: 85, atk: 60, def: 60 },
+            { name: "Berg-Mystiker", hp: 110, atk: 80, def: 80 },
+            { name: "Gipfel-Mönch", hp: 145, atk: 105, def: 105 },
+            { name: "Himmels-Eremit", hp: 190, atk: 140, def: 140 },
+            { name: "Auserwählter Solitär", hp: 250, atk: 190, def: 190 },
+            { name: "Legendärer Welten-Wanderer", hp: 330, atk: 260, def: 260 }
+        ],
+        "Dunkel": [
+            { name: "Verstoßener", hp: 60, atk: 55, def: 35 },
+            { name: "Exilant", hp: 80, atk: 80, def: 45 },
+            { name: "Höhlen-Schamane", hp: 100, atk: 110, def: 55 },
+            { name: "Fluch-Bringer", hp: 130, atk: 155, def: 70 },
+            { name: "Schatten-Eremit", hp: 170, atk: 215, def: 90 },
+            { name: "Nachtmar-Einsiedler", hp: 220, atk: 300, def: 115 },
+            { name: "Legendärer Leerengänger", hp: 290, atk: 415, def: 150 }
+        ]
+    },
+    "Wächter": {
+        "Licht": [
+            { name: "Tor-Hüter", hp: 90, atk: 45, def: 80 },
+            { name: "Ehren-Wache", hp: 120, atk: 60, def: 110 },
+            { name: "Heiliger Wächter", hp: 160, atk: 80, def: 150 },
+            { name: "Licht-Bastion", hp: 210, atk: 105, def: 200 },
+            { name: "Himmlischer Schutzwall", hp: 280, atk: 140, def: 270 },
+            { name: "Gottes-Schild", hp: 370, atk: 190, def: 360 },
+            { name: "Legendärer Ægis-Träger", hp: 480, atk: 260, def: 480 }
+        ],
+        "Dunkel": [
+            { name: "Grab-Wächter", hp: 85, atk: 55, def: 70 },
+            { name: "Knochen-Wall", hp: 110, atk: 75, def: 95 },
+            { name: "Nacht-Wächter", hp: 145, atk: 105, def: 130 },
+            { name: "Schatten-Schild", hp: 190, atk: 145, def: 175 },
+            { name: "Chaos-Festung", hp: 250, atk: 200, def: 235 },
+            { name: "Finsterer Obelisk", hp: 330, atk: 280, def: 315 },
+            { name: "Legendärer Obsidianspiegel", hp: 430, atk: 385, def: 420 }
+        ]
+    }
+};
+
+// ==========================================
 // SECTION 1: CONFIG
 // ==========================================
 const firebaseConfig = { apiKey: "AIzaSyCKNXJ-ouAOAcLr5ut-EemWQI8_zJxhqa8", authDomain: "thenest-81de6.firebaseapp.com", databaseURL: "https://thenest-81de6-default-rtdb.firebaseio.com", projectId: "thenest-81de6" };
@@ -103,27 +256,69 @@ const db = firebase.database();
 const TWITCH_CLIENT_ID = "futhxsgrshkh2h6cqywavg5cous3q0";
 const BROADCASTER_ID = "573773653";
 const REDIRECT_URI = "https://noverato.github.io/System";
-const BOSS_NAME = "Spawn2909";
 
 const EVO_IMGS = ['Ei.png', 'Schleim.png', 'Skelett.png', 'Goblin.png', 'Oger.png', 'Lich.png', 'HoeheresWesen.png'];
-const MONSTERS = [
-    { name: "Waldschleim", hp: 40, maxHp: 40, lxp: 15, img: 'Monster1.png' },
-    { name: "Frost-Wolf", hp: 80, maxHp: 80, lxp: 35, img: 'Monster2.png' },
-    { name: "Finster-Goblin", hp: 120, maxHp: 120, lxp: 60, img: 'Monster3.png' }
-];
 
 let twitchToken = "";
 let isLoadingFollower = true; 
 let isIdentified = false; 
+let healsUsedInCombat = 0; // TRACKER FÜR HEILUNGEN
 let data = { 
     name: "Held", x: 960, y: 540, lxp: 0, hp: 100, maxHp: 100, mp: 50, maxMp: 50, 
     followDays: 0, isFollower: false, inventar: {}, 
-    stats: { warrior: 0, mage: 0, ranger: 0, craftsman: 0, shadow: 0, totalEvoLevel: 0, className: "Novize" },
+    stats: { atk: 5, def: 5, totalEvoLevel: 0, currentLevel: 0, className: "Novize", path: "Neutral" },
     battleAction: "none", battleReady: false, hidden: false
 };
 let myID = "", onlinePlayers = {}, isAdmin = false, currentEnemy = null, isActionLocked = false, activeBattleID = null;
-let arenaFallbackTimer = null;
-let forceArenaSync = false;
+
+// ==========================================
+// CORE LOGIC: STAT CALCULATION
+// ==========================================
+function updateBaseStats() {
+    const evo = data.stats.totalEvoLevel;
+    const pth = data.stats.path;
+    let currentClassName = data.stats.className;
+
+    if (evo === 0) {
+        data.maxHp = EVO_DATA["Ei"].hp;
+        data.stats.atk = EVO_DATA["Ei"].atk;
+        data.stats.def = EVO_DATA["Ei"].def;
+        data.stats.className = "Ei";
+    } else if (evo === 1) {
+        data.maxHp = EVO_DATA["Sprössling"].hp;
+        data.stats.atk = EVO_DATA["Sprössling"].atk;
+        data.stats.def = EVO_DATA["Sprössling"].def;
+        data.stats.className = "Sprössling";
+    } else {
+        let baseClass = null;
+        const classKeys = ["Waldläufer", "Krieger", "Druide", "Hüter", "Sucher", "Einsiedler", "Wächter"];
+        
+        if (classKeys.includes(currentClassName)) {
+            baseClass = currentClassName;
+        } else {
+            for (let key of classKeys) {
+                if (EVO_DATA[key]["Licht"].some(e => e.name === currentClassName) || 
+                    EVO_DATA[key]["Dunkel"].some(e => e.name === currentClassName)) {
+                    baseClass = key;
+                    break;
+                }
+            }
+        }
+
+        if (baseClass && EVO_DATA[baseClass]) {
+            const currentPathKey = (pth === "Neutral" || !pth) ? "Licht" : pth; 
+            const index = Math.min(evo - 2, 6); 
+            const entry = EVO_DATA[baseClass][currentPathKey][index];
+            
+            if (entry) {
+                data.maxHp = entry.hp;
+                data.stats.atk = entry.atk;
+                data.stats.def = entry.def;
+                data.stats.className = entry.name; 
+            }
+        }
+    }
+}
 
 // ==========================================
 // SECTION 2: IDENTITY
@@ -201,6 +396,7 @@ async function loadUserData() {
             data.stats = dbData.stats || data.stats;
             data.inventar = dbData.inventar || {};
             data.hp = dbData.hp || data.maxHp;
+            data.maxHp = dbData.maxHp || data.maxHp;
             data.x = dbData.x || 960;
             data.y = dbData.y || 540;
         }
@@ -213,7 +409,7 @@ function save() {
     updateUI(); 
     if (isIdentified && myID && !isLoadingFollower) {
         db.ref('players/' + myID).update({
-            hp: data.hp, lxp: data.lxp, x: data.x, y: data.y, name: data.name,
+            hp: data.hp, maxHp: data.maxHp, lxp: data.lxp, x: data.x, y: data.y, name: data.name,
             stats: data.stats, inventar: data.inventar, 
             isFollower: data.isFollower, followDays: data.followDays, 
             battleAction: data.battleAction, battleReady: data.battleReady, hidden: data.hidden,
@@ -224,9 +420,11 @@ function save() {
 
 function updateUI() {
     document.getElementById('playerName').innerText = isAdmin ? "OVERLORD Spawn2909" : (isLoadingFollower ? "Magie wirkt..." : data.name);
-    document.getElementById('hudClass').innerText = isAdmin ? "SYSTEM-ARCHITEKT" : (data.stats.className || "Novize");
+    let title = data.stats.className || "Novize";
+    document.getElementById('hudClass').innerText = isAdmin ? "SYSTEM-ARCHITEKT" : title;
     document.getElementById('lxpC').innerText = data.lxp;
-    document.getElementById('lvlTotal').innerText = data.stats.totalEvoLevel;
+    document.getElementById('lvlTotal').innerText = data.stats.currentLevel;
+    document.getElementById('followDaysDisplay').innerText = data.followDays;
     const followDisplay = document.getElementById('isFollower');
     followDisplay.innerText = isLoadingFollower ? "Prüfe..." : (data.isFollower ? "Ja" : "Nein");
     if(isAdmin) document.getElementById('adminHud').style.display = 'block';
@@ -261,122 +459,62 @@ function renderPlayers(players) {
 }
 
 // ==========================================
-// SECTION 4: ARENA-SYNC
+// SECTION 4: ARENA & KAMPF
 // ==========================================
 function listenForChallenges() {
     if (!myID) return;
-    
     db.ref('battles').on('value', snap => {
         const allBattles = snap.val() || {};
-        
         if (activeBattleID) {
             const b = allBattles[activeBattleID];
             if (!b || b.status === 'finished') {
-                activeBattleID = null;
-                currentEnemy = null;
-                isActionLocked = false;
-                forceArenaSync = false;
-                if(arenaFallbackTimer) clearTimeout(arenaFallbackTimer);
-                toggleModal('gameModal', false);
-                return;
+                activeBattleID = null; currentEnemy = null; isActionLocked = false;
+                toggleModal('gameModal', false); return;
             }
         }
-
         Object.keys(allBattles).forEach(bID => {
             const battle = allBattles[bID];
-
             if (battle.defenderID === myID && battle.status === 'pending' && !activeBattleID) {
-                const inviteBox = document.getElementById('battleInvite');
+                document.getElementById('battleInvite').style.display = 'block';
                 document.getElementById('inviteText').innerText = battle.attackerName + " fordert dich!";
-                inviteBox.style.display = 'block';
                 document.getElementById('btnAcceptInvite').onclick = () => {
                     db.ref('battles/' + bID).update({ status: 'active' });
-                    inviteBox.style.display = 'none';
+                    document.getElementById('battleInvite').style.display = 'none';
                 };
             }
-
             if ((battle.attackerID === myID || battle.defenderID === myID) && battle.status === 'active') {
                 if (!currentEnemy || activeBattleID !== bID) {
                     activeBattleID = bID;
                     const oppID = (battle.attackerID === myID) ? battle.defenderID : battle.attackerID;
-                    
                     if(onlinePlayers[oppID]) {
                         toggleModal('gameModal', true);
                         startCombat(onlinePlayers[oppID], false, oppID);
+                        db.ref(`battles/${bID}/actions/${myID}`).update({ inArena: true });
                     }
-                }
-
-                const atkStat = battle.actions[battle.attackerID];
-                const defStat = battle.actions[battle.defenderID];
-                const log = document.getElementById('battleLog');
-
-                if (log && atkStat && defStat) {
-                    // SYNCHRONISIERUNG: Prüfe inArena Flagge oder erzwungenen Sync
-                    if ((atkStat.inArena && defStat.inArena) || forceArenaSync) {
-                        if (!isActionLocked) {
-                            log.innerText = forceArenaSync ? "Synchronisation erzwungen! Wahl treffen..." : "Synchronisiert! Deine Wahl?";
-                            document.getElementById('btnAtk').disabled = false;
-                            document.getElementById('btnHeal').disabled = false;
-                        }
-                    } else {
-                        log.innerText = "Synchronisation... Warte auf Gegner.";
-                        document.getElementById('btnAtk').disabled = true;
-                        document.getElementById('btnHeal').disabled = true;
-                    }
-                }
-
-                if (atkStat?.ready && defStat?.ready && !isActionLocked) {
-                    resolvePvPTurn(battle);
                 }
             }
         });
     });
 }
 
-async function challengePlayer(targetID, targetName) {
-    if (!isIdentified || (!data.isFollower && !isAdmin)) return alert("Nur aktive Follower dürfen fordern!");
-    if (activeBattleID) return alert("Kampf läuft bereits!");
-    
-    const bID = targetID; 
-    await db.ref('battles/' + bID).remove();
-    
-    activeBattleID = bID;
-    db.ref('battles/' + bID).set({
-        attackerName: data.name, attackerID: myID,
-        defenderName: targetName, defenderID: targetID,
-        status: 'pending', timestamp: Date.now(),
-        actions: {
-            [myID]: { type: 'none', ready: false, inArena: false },
-            [targetID]: { type: 'none', ready: false, inArena: false }
-        }
-    });
-}
-
-function cancelChallenge() {
-    document.getElementById('battleInvite').style.display = 'none';
-    db.ref('battles/' + myID).remove();
-}
-
 function startCombat(enemy, isMonster, enemyID = null) {
     if(document.getElementById('gameModal').style.display !== 'flex') toggleModal('gameModal', true);
-    
     isActionLocked = false;
-    forceArenaSync = false;
-
-    // FALLBACK TIMER: Erzwinge Kampfstart nach 5 Sekunden
-    if (!isMonster) {
-        if(arenaFallbackTimer) clearTimeout(arenaFallbackTimer);
-        arenaFallbackTimer = setTimeout(() => {
-            if (activeBattleID && !isActionLocked) {
-                console.log("Arena Fallback: Erzwinge Synchronisation.");
-                forceArenaSync = true;
-            }
-        }, 5000);
-    }
-
+    healsUsedInCombat = 0; // RESET HEILUNGEN BEI KAMPFSTART
+    
     if (isMonster) {
-        currentEnemy = { ...MONSTERS[Math.floor(Math.random() * MONSTERS.length)], isMonster: true, maxHp: 100 };
-        if(!currentEnemy.hp) currentEnemy.hp = currentEnemy.maxHp;
+        // MONSTER STATS & VARIATION
+        const baseAtk = 25;
+        const variation = 0.9 + Math.random() * 0.2; // +/- 10%
+        currentEnemy = { 
+            name: "Waldschleim", 
+            hp: 50, 
+            maxHp: 50, 
+            atk: Math.floor(baseAtk * variation), 
+            def: 10, 
+            isMonster: true, 
+            img: 'Monster1.png' 
+        };
     } else {
         const isBoss = (enemyID === BROADCASTER_ID);
         currentEnemy = { ...enemy, id: enemyID, isMonster: false, img: (isBoss ? 'Overlord.png' : EVO_IMGS[enemy.stats?.totalEvoLevel || 0]) };
@@ -387,19 +525,21 @@ function startCombat(enemy, isMonster, enemyID = null) {
 function renderCombatStage() {
     const left = document.getElementById('modalLeft');
     const myImg = (isAdmin ? 'Overlord.png' : EVO_IMGS[data.stats?.totalEvoLevel || 0]);
-    
-    // SOFORT-CHECK: Meldung an DB, sobald Arena gerendert wird
-    if (activeBattleID && !currentEnemy.isMonster) {
-        db.ref('battles/' + activeBattleID + '/actions/' + myID).update({ inArena: true });
-    }
-
     left.innerHTML = `<div id="arenaStage">
-        <div class="combatant-wrap"><img src="${myImg}" onerror="this.src='Ei.png'" class="combatant-img"><br><strong>${data.name}</strong></div>
-        <div class="combatant-wrap"><img src="${currentEnemy.img || 'Monster1.png'}" onerror="this.src='Ei.png'" class="combatant-img"><br><strong>${currentEnemy.name}</strong></div>
+        <div class="combatant-wrap">
+            <img src="${myImg}" onerror="this.src='Ei.png'" class="combatant-img">
+            <br><strong>${data.name}</strong>
+            <div style="font-size:12px; color:gold;">⚔️ ATK: ${data.stats.atk} | 🛡️ DEF: ${data.stats.def}</div>
+        </div>
+        <div class="combatant-wrap">
+            <img src="${currentEnemy.img || 'Monster1.png'}" onerror="this.src='Ei.png'" class="combatant-img">
+            <br><strong>${currentEnemy.name}</strong>
+            <div style="font-size:12px; color:#ff4444;">⚔️ ATK: ${currentEnemy.atk} | 🛡️ DEF: ${currentEnemy.def}</div>
+        </div>
         <div id="ffMenu">
             <div class="ff-buttons">
-                <button id="btnAtk" class="btn-action" disabled onclick="executeCombatAction('attack')">ATTACKE</button>
-                <button id="btnHeal" class="btn-action" disabled onclick="executeCombatAction('heal')">HEILUNG</button>
+                <button id="btnAtk" class="btn-action" onclick="executeCombatAction('attack')">ATTACKE</button>
+                <button id="btnHeal" class="btn-action" onclick="executeCombatAction('heal')">HEILUNG (${3 - healsUsedInCombat})</button>
                 <button class="btn-action" onclick="endCombat()">FLUCHT</button>
             </div>
             <div class="ff-status">
@@ -413,84 +553,81 @@ function renderCombatStage() {
 
 function executeCombatAction(type) {
     if (isActionLocked) return;
+
+    if (type === 'heal') {
+        if (healsUsedInCombat >= 3) {
+            alert("Du hast keine Heiltränke mehr!");
+            return;
+        }
+        healsUsedInCombat++;
+    }
+
     isActionLocked = true;
-    document.getElementById('battleLog').innerHTML = `<div style="color:cyan;">Wahl getroffen: ${type.toUpperCase()}...</div>`;
-    
     if (currentEnemy.isMonster) {
         data.battleAction = type;
-        setTimeout(() => {
-            currentEnemy.battleAction = (Math.random() > 0.3 ? 'attack' : 'heal');
-            resolveBattleTurn();
-        }, 1200);
+        setTimeout(resolveBattleTurn, 1200);
     } else {
         db.ref(`battles/${activeBattleID}/actions/${myID}`).update({ type: type, ready: true });
     }
 }
 
-function resolvePvPTurn(battle) {
-    isActionLocked = true;
-    const log = document.getElementById('battleLog');
-    const atk = battle.actions[battle.attackerID];
-    const def = battle.actions[battle.defenderID];
-    
-    let myAction = (myID === battle.attackerID) ? atk : def;
-    let oppAction = (myID === battle.attackerID) ? def : atk;
-    
-    let dmg = 20; let heal = 25;
-    let logTxt = "";
-
-    if (myAction.type === 'attack') { currentEnemy.hp -= dmg; logTxt += "Du greifst an! "; }
-    else { data.hp = Math.min(data.maxHp, data.hp + heal); logTxt += "Du heilst dich! "; }
-
-    if (oppAction.type === 'attack') { data.hp -= dmg; logTxt += "Gegner kontert! "; }
-    else { currentEnemy.hp = Math.min(currentEnemy.maxHp, currentEnemy.hp + heal); logTxt += "Gegner regeneriert! "; }
-
-    log.innerHTML = `<div style="color:gold;">${logTxt}</div>`;
-    save();
-
-    setTimeout(() => {
-        if (data.hp <= 0 || currentEnemy.hp <= 0) {
-            alert(data.hp <= 0 ? "Du wurdest besiegt!" : "Glorreicher Sieg!");
-            endCombat();
-        } else {
-            if (myID === battle.attackerID) {
-                db.ref(`battles/${activeBattleID}/actions/${battle.attackerID}`).update({ type: 'none', ready: false });
-                db.ref(`battles/${activeBattleID}/actions/${battle.defenderID}`).update({ type: 'none', ready: false });
-            }
-            isActionLocked = false;
-            renderCombatStage();
-        }
-    }, 3000);
-}
-
 function resolveBattleTurn() {
+    const playerAtk = data.stats.atk || 5;
+    const playerDef = data.stats.def || 5;
+    const monsterAtk = currentEnemy.atk || 20;
     const log = document.getElementById('battleLog');
-    let myDmg = 15; let enDmg = 12; let heal = 25;
-    if (data.battleAction === 'attack') currentEnemy.hp -= myDmg; else data.hp = Math.min(data.maxHp, data.hp + heal);
-    if (currentEnemy.battleAction === 'attack') data.hp -= enDmg; else currentEnemy.hp = Math.min(currentEnemy.maxHp, currentEnemy.hp + heal);
     
-    log.innerHTML = `Kampfrunde beendet!`;
+    let turnReport = "";
+
+    // AKTION: HEILEN
+    if (data.battleAction === 'heal') {
+        const healAmt = Math.floor(data.maxHp * 0.25);
+        data.hp = Math.min(data.maxHp, data.hp + healAmt);
+        turnReport += `<div style="color:cyan;">Du heilst dich um ${healAmt} HP!</div>`;
+    } 
+    // AKTION: ATTACKE (MIT KRIT)
+    else {
+        let isCrit = Math.random() < 0.1; // 10% CHANCE
+        let playerDamageDealt = Math.floor(playerAtk * 0.5);
+        if (isCrit) {
+            playerDamageDealt *= 2;
+            turnReport += `<div style="color:gold; font-weight:bold;">KRITISCHER TREFFER!</div>`;
+        }
+        currentEnemy.hp -= playerDamageDealt;
+        turnReport += `<div style="color:#4ade80;">Du triffst für ${playerDamageDealt} Schaden!</div>`;
+    }
+
+    // MONSTER SCHLÄGT IMMER ZU
+    let monsterDamageDealt = Math.max(2, Math.floor(monsterAtk - playerDef * 0.2));
+    data.hp -= monsterDamageDealt;
+    turnReport += `<div style="color:#ff4444;">${currentEnemy.name} trifft dich für ${monsterDamageDealt} Schaden!</div>`;
+
+    log.innerHTML = turnReport;
+
+    let cap = (data.stats.totalEvoLevel === 0) ? 1 : (data.stats.totalEvoLevel * 30);
+    if (data.stats.currentLevel < cap) data.stats.currentLevel += 2;
+
     setTimeout(() => {
-        if (currentEnemy.hp <= 0) { alert("Sieg!"); data.lxp += 50; endCombat(); }
-        else if (data.hp <= 0) { data.hp = data.maxHp; alert("Gefallen!"); endCombat(); }
-        else { isActionLocked = false; renderCombatStage(); }
+        if (currentEnemy.hp <= 0) { 
+            data.lxp += 50; 
+            log.innerHTML += `<div style="color:gold;">SIEG! +50 LXP</div>`;
+            setTimeout(endCombat, 1500);
+        }
+        else if (data.hp <= 0) { 
+            data.hp = data.maxHp; 
+            alert("Du bist im Kampf gefallen und wurdest im Nest wiederbelebt.");
+            endCombat(); 
+        }
+        else { 
+            isActionLocked = false; 
+            renderCombatStage(); 
+        }
     }, 2000);
 }
 
 function endCombat() {
-    if (activeBattleID) {
-        const bRef = db.ref('battles/' + activeBattleID);
-        bRef.update({ status: 'finished' }).then(() => {
-            setTimeout(() => { bRef.remove(); }, 500);
-        });
-    }
-    activeBattleID = null;
-    currentEnemy = null;
-    isActionLocked = false;
-    forceArenaSync = false;
-    if(arenaFallbackTimer) clearTimeout(arenaFallbackTimer);
-    toggleModal('gameModal', false);
-    save();
+    activeBattleID = null; currentEnemy = null; isActionLocked = false; healsUsedInCombat = 0;
+    toggleModal('gameModal', false); save();
 }
 
 function closeGeneralModal() {
@@ -498,57 +635,145 @@ function closeGeneralModal() {
     else toggleModal('gameModal', false);
 }
 
+// ==========================================
+// SECTION 5: EVOLUTION & LEVELING
+// ==========================================
+function renderEvoMenu() {
+    const left = document.getElementById('modalLeft');
+    const curEvo = data.stats.totalEvoLevel;
+    const ep = data.followDays;
+    const lvl = data.stats.currentLevel;
+    
+    let html = `<div style="padding:30px; text-align:center;">
+        <h2 style="color:gold; font-size:32px;">Halle der Evolution</h2>
+        <p style="color:#aaa;">Form: <b style="color:cyan;">${data.stats.className}</b> | Pfad: <b style="color:cyan;">${data.stats.path}</b></p>
+        <p style="color:#ffd700;">Stats: HP ${data.maxHp} | ATK ${data.stats.atk} | DEF ${data.stats.def}</p>
+        <hr style="border-color:gold; margin:20px 0;">`;
+
+    if (curEvo === 0) {
+        html += `<h3>Stufe 1: Das Schlüpfen</h3>
+                 <p>Bedingung: 5.000 LXP sammeln.</p>
+                 <button class="btn-action" onclick="tryEvolve(1)">SCHLÜPFEN</button>`;
+    } 
+    else if (curEvo === 1) {
+        html += `<h3>Stufe 2: Die Hauptklasse</h3>
+                 <p>Bedingung: Tag 30 & Level 30.</p>
+                 <p>Status: Tag ${ep}/30 | Level ${lvl}/30</p>
+                 <div class="evo-choice-box">
+                    <div class="evo-card" onclick="chooseClass('Krieger')"><h4 style="color:red;">KRIEGER</h4></div>
+                    <div class="evo-card" onclick="chooseClass('Waldläufer')"><h4 style="color:green;">WALDLÄUFER</h4></div>
+                    <div class="evo-card" onclick="chooseClass('Druide')"><h4 style="color:#8b4513;">DRUIDE</h4></div>
+                    <div class="evo-card" onclick="chooseClass('Hüter')"><h4 style="color:#eab308;">HÜTER</h4></div>
+                    <div class="evo-card" onclick="chooseClass('Sucher')"><h4 style="color:#3b82f6;">SUCHER</h4></div>
+                    <div class="evo-card" onclick="chooseClass('Einsiedler')"><h4 style="color:#a855f7;">EINSIEDLER</h4></div>
+                    <div class="evo-card" onclick="chooseClass('Wächter')"><h4 style="color:#64748b;">WÄCHTER</h4></div>
+                 </div>`;
+    }
+    else if (curEvo === 2) {
+        html += `<h3>Stufe 3: Die Gesinnung</h3>
+                 <p>Bedingung: Tag 60 & Level 60.</p>
+                 <div class="evo-choice-box">
+                    <div class="evo-card" style="border-color:white;" onclick="choosePath('Licht')"><h4 style="color:white;">LICHT-PFAD</h4></div>
+                    <div class="evo-card" style="border-color:purple;" onclick="choosePath('Dunkel')"><h4 style="color:purple;">DUNKEL-PFAD</h4></div>
+                 </div>`;
+    }
+    else if (curEvo < 7) {
+        const next = (curEvo) * 30;
+        html += `<h3>Stufe ${curEvo + 1}: Aufstieg</h3>
+                 <p>Voraussetzung: Tag ${next} & Level ${next}.</p>
+                 <button class="btn-action" onclick="tryEvolve(${curEvo + 1})">EVOLVIEREN</button>`;
+    } else {
+        html += `<h2>MAXIMALSTUFE ERREICHT</h2>`;
+    }
+    left.innerHTML = html + `</div>`;
+}
+
+function tryEvolve(targetTier) {
+    if (targetTier === 1 && data.lxp >= 5000) {
+        data.lxp -= 5000;
+        data.stats.totalEvoLevel = 1;
+        updateBaseStats();
+        data.hp = data.maxHp; 
+        alert("Du bist geschlüpft!");
+        save(); renderEvoMenu();
+    } else if (targetTier > 1) {
+        const req = targetTier * 30;
+        if (data.followDays >= req && data.stats.currentLevel >= req) {
+            data.stats.totalEvoLevel = targetTier;
+            updateBaseStats();
+            alert("Evolution erfolgreich!");
+            save(); renderEvoMenu();
+        }
+    }
+}
+
+function chooseClass(name) {
+    if (data.stats.totalEvoLevel !== 1) return;
+    data.stats.className = name;
+    data.stats.totalEvoLevel = 2;
+    updateBaseStats();
+    data.hp = data.maxHp; 
+    alert(`Du bist nun ein ${data.stats.className}!`);
+    save(); renderEvoMenu();
+}
+
+function choosePath(path) {
+    if (data.stats.totalEvoLevel !== 2) return;
+    if (data.stats.path !== "Neutral" && data.stats.path !== "") return;
+    data.stats.path = path;
+    data.stats.totalEvoLevel = 3;
+    updateBaseStats();
+    data.hp = data.maxHp; 
+    alert(`Dein Pfad ist nun: ${path}! Du bist jetzt ein ${data.stats.className}.`);
+    save(); renderEvoMenu();
+}
+
+// ==========================================
+// RESTLICHE FUNKTIONEN (Steinbruch/Admin)
+// ==========================================
 function handleWorldClick(e) { if(document.getElementById('gameModal').style.display === 'flex') return; const rect = document.getElementById('world').getBoundingClientRect(); data.x = e.clientX - rect.left; data.y = e.clientY - rect.top; save(); }
 function toggleModal(id, s) { document.getElementById(id).style.display = s ? 'flex' : 'none'; }
-function openBuilding(b) { toggleModal('gameModal', true); if (b === 'steinbruch') renderMiningMenu(); else if (b === 'wald') renderSmithy(); else if (b === 'arena') renderArenaMatchmaking(); else if (b === 'rathaus') renderEvoMenu(); }
-function renderSmithy() { let html = `<div style="padding:30px;"><h2>Schmiede</h2>`; [{ name: "Spitzhacke", needs: { "Eisenerz": 3 } }, { name: "Schwert", needs: { "Eisenerz": 5 } }].forEach(recipe => { html += `<div style="border:1px solid gold; padding:10px; margin:5px; display:flex; justify-content:space-between;"><div><b>${recipe.name}</b></div><button class="btn-action" onclick="craftItem('${recipe.name}')">SCHMIEDEN</button></div>`; }); document.getElementById('modalLeft').innerHTML = html + `</div>`; }
-function craftItem(name) { data.inventar[name] = (data.inventar[name] || 0) + 1; save(); renderSmithy(); }
+function openBuilding(b) { toggleModal('gameModal', true); if (b === 'steinbruch') renderMiningMenu(); else if (b === 'rathaus') renderEvoMenu(); else if (b === 'arena') renderArenaMatchmaking(); }
 function renderMiningMenu() { document.getElementById('modalLeft').innerHTML = `<div style="padding:30px;"><h2>Steinbruch</h2><button class="btn-action" onclick="startMining()">⛏️ Abbau</button><div id="mineLog"></div></div>`; }
-function startMining() { if (typeof isMining !== 'undefined' && isMining) return; isMining = true; setTimeout(() => { let item = "Eisenerz"; data.inventar[item] = (data.inventar[item] || 0) + 1; data.lxp += 5; save(); document.getElementById('mineLog').innerText = `Gefunden: ${item}!`; isMining = false; }, 2000); }
-function renderEvoMenu() { const evoNames = ['Ei', 'Schleim', 'Skelett', 'Goblin', 'Oger', 'Lich', 'Höheres Wesen']; let html = `<div class="evo-container"><h2>Halle der Evolution</h2><div class="evo-tree-grid">`; ['warrior', 'mage', 'ranger'].forEach(p => { html += `<div class="path-column">`; for(let i=1; i<=7; i++) html += `<div class="node" onclick="tryEvolve('${p}', ${i}, ${i*30})">${evoNames[i-1]}</div>`; html += `<b>${p.toUpperCase()}</b></div>`; }); document.getElementById('modalLeft').innerHTML = html + `</div></div>`; }
-function tryEvolve(path, tier, days) { if(data.followDays < days && !isAdmin) return alert(`${days} Tage benötigt!`); data.stats[path] = tier; data.stats.totalEvoLevel++; save(); renderEvoMenu(); }
-function openAdminPanel() { toggleModal('gameModal', true); document.getElementById('modalLeft').innerHTML = `<h2>🛠 GÖTTER-MENÜ</h2><button class="btn-action" onclick="data.followDays+=30;save()">+30 Tage</button><div style="margin-top:20px; background:rgba(0,0,0,0.5); padding:10px; border:1px solid red;"><h3>Schatten-Reinigung</h3><input type="text" id="purgeInput" placeholder="ID des Geister-Eis..." style="width:100%; background:#111; color:white; border:1px solid gold; padding:5px;"><button class="btn-action" style="width:100%; margin-top:5px; background:red;" onclick="purgeGhostEgg()">Geister-Ei löschen</button></div>`; }
-function purgeGhostEgg() { const id = document.getElementById('purgeInput').value; if(id) db.ref('players/' + id).remove().then(() => alert("Geister-Ei eliminiert.")); }
+function startMining() { 
+    data.lxp += 10; 
+    let cap = (data.stats.totalEvoLevel === 0) ? 1 : (data.stats.totalEvoLevel * 30);
+    if (data.stats.currentLevel < cap) data.stats.currentLevel += 1;
+    save(); 
+}
+
+// ADMIN LEVEL SICHERHEIT
+function adminAddLevel(amount) {
+    let tier = data.stats.totalEvoLevel;
+    let cap = (tier === 0) ? 1 : (tier * 30);
+    data.stats.currentLevel = Math.min(cap, data.stats.currentLevel + amount);
+    save();
+    renderEvoMenu();
+}
+
+function openAdminPanel() { 
+    toggleModal('gameModal', true); 
+    document.getElementById('modalLeft').innerHTML = `
+        <h2>🛠 ADMIN</h2>
+        <button class="btn-action" onclick="data.followDays+=30;save();renderEvoMenu()">+30 Tage</button><br>
+        <button class="btn-action" onclick="data.lxp+=5000;save();renderEvoMenu()">+5000 LXP</button><br>
+        <button class="btn-action" onclick="adminAddLevel(30)">+30 Level (Respektiert Cap)</button>
+    `; 
+}
+
 function renderArenaMatchmaking() {
     const left = document.getElementById('modalLeft');
-    const canFight = isAdmin || (isIdentified && data.isFollower);
-    const lockAttr = !canFight ? 'disabled' : '';
-    let html = `<div style="padding:20px;"><h2>🛡️ Arena</h2><p>${canFight?'✅ Kampfbereit':'❌ Gesperrt'}</p><button class="btn-action" style="width:100%;" ${lockAttr} onclick="startCombat(null, true)">🐗 Monster</button><div style="margin-top:20px;">`;
-    Object.keys(onlinePlayers).forEach(id => {
-        const p = onlinePlayers[id];
-        const isActive = (Date.now() - (p.lastSeen || 0) < 60000);
-        if (id !== myID && !p.hidden && isActive) {
-            html += `<div style="padding:10px; border:1px solid gold; margin-bottom:5px; display:flex; justify-content:space-between; align-items:center;">
-                <span><strong>${p.name}</strong> (LVL ${p.stats?.totalEvoLevel || 0})</span>
-                <button class="btn-action" ${lockAttr} onclick="challengePlayer('${id}', '${p.name}')">Fordern</button>
-            </div>`;
-        }
-    });
-    left.innerHTML = html + `</div></div>`;
+    let html = `<div style="padding:20px;"><h2>🛡️ Arena</h2><button class="btn-action" onclick="startCombat(null, true)">🐗 Monsterkampf</button></div>`;
+    left.innerHTML = html;
 }
 
 window.onload = async () => {
-    if (checkTwitchAuth()) {
-        await initTwitchSession();
-    } else {
-        const params = new URLSearchParams(window.location.search);
-        const userParam = params.get('user');
-        if (userParam) return redirectToTwitch(userParam);
-        else return alert("Fehler: Kein User");
-    }
-    if (myID) listenForChallenges();
+    if (checkTwitchAuth()) await initTwitchSession();
     db.ref('players').on('value', snap => {
         onlinePlayers = snap.val() || {};
         renderPlayers(onlinePlayers);
-        if(myID && onlinePlayers[myID]) {
-            const pData = onlinePlayers[myID];
-            data.lxp = pData.lxp || 0;
-            data.stats = pData.stats || data.stats;
-            data.inventar = pData.inventar || {};
-            updateUI();
-        }
+        if(myID && onlinePlayers[myID]) updateUI();
     });
-    if (myID) db.ref('players/' + myID).onDisconnect().remove();
     save(); 
     setInterval(save, 30000);
 };
