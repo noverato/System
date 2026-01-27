@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>The Nest: Overlord Edition 2026 - Reparierter Build</title>
+    <title>The Nest: Overlord Edition 2026 - Divine Sync</title>
     <style>
         :root { 
             --fantasy-bg: rgba(25, 15, 10, 0.98); 
@@ -43,12 +43,8 @@
         .ff-status { flex: 1; padding: 20px; border-left: 2px solid #fff; display: flex; flex-direction: column; justify-content: center; }
         .bar-wrap { height: 16px; background: #000; border: 2px solid #fff; border-radius: 4px; overflow: hidden; margin-bottom: 8px; }
         .evo-container { display: flex; flex-direction: column; gap: 30px; align-items: center; padding: 20px; }
-        .sub-ray-wrap { width: 100%; background: linear-gradient(90deg, transparent, var(--gold), transparent); padding: 10px; border-radius: 10px; text-align: center; box-shadow: 0 0 15px var(--gold); }
-        .evo-tree-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; width: 100%; margin-top: 20px; }
-        .path-column { display: flex; flex-direction: column-reverse; gap: 10px; align-items: center; }
         .node { width: 50px; height: 50px; border: 2px solid #444; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; cursor: pointer; transition: 0.3s; background: #111; position: relative; }
         .node.active { border-width: 3px; box-shadow: 0 0 15px currentColor; border-color: currentColor; color: #fff; }
-        .node-label { position: absolute; right: -40px; font-size: 10px; color: #aaa; pointer-events: none; white-space: nowrap; }
     </style>
 </head>
 <body>
@@ -90,6 +86,7 @@
 const firebaseConfig = { apiKey: "AIzaSyCKNXJ-ouAOAcLr5ut-EemWQI8_zJxhqa8", authDomain: "thenest-81de6.firebaseapp.com", databaseURL: "https://thenest-81de6-default-rtdb.firebaseio.com", projectId: "thenest-81de6" };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
+
 const BOSS_NAME = "Spawn2909";
 const EVO_IMGS = ['Ei.png', 'Schleim.png', 'Skelett.png', 'Goblin.png', 'Oger.png', 'Lich.png', 'HoeheresWesen.png'];
 const MONSTERS = [
@@ -100,8 +97,7 @@ const MONSTERS = [
 const CRAFTING_DATA = [
     { name: "Spitzhacke", needs: { "Eisenerz": 3 }, minLvl: 0, desc: "Baut Erze ab." },
     { name: "Schwert", needs: { "Eisenerz": 5, "Kupfererz": 2 }, minLvl: 2, desc: "+10 DMG." },
-    { name: "Rüstung", needs: { "Eisenerz": 8, "Kupfererz": 5 }, minLvl: 3, desc: "-5 DMG erhalten." },
-    { name: "Magierstab", needs: { "Golderz": 3 }, minLvl: 5, subOnly: true, desc: "Sub-Exklusiv." }
+    { name: "Rüstung", needs: { "Eisenerz": 8, "Kupfererz": 5 }, minLvl: 3, desc: "-5 DMG erhalten." }
 ];
 
 let data = { 
@@ -112,7 +108,7 @@ let data = {
 };
 let myID = "", onlinePlayers = {}, isAdmin = false, currentEnemy = null, isActionLocked = false, isMining = false;
 
-// --- ROUTER FIX ---
+// --- ROUTER ---
 function openBuilding(b) {
     toggleModal('gameModal', true);
     if (b === 'steinbruch') renderMiningMenu();
@@ -121,31 +117,34 @@ function openBuilding(b) {
     else if (b === 'rathaus') renderEvoMenu();
 }
 
-// --- ARENA MODULE ---
+// --- ARENA LIVE SYNC MODULE ---
 function renderArenaMatchmaking() {
     const left = document.getElementById('modalLeft');
-    let html = `<div style="padding:20px;"><h2>🛡️ Arena-Matchmaking</h2>
+    let html = `<div style="padding:20px;"><h2>🛡️ Arena</h2>
         <button class="btn-action" style="width:100%;" onclick="startCombat(null, true)">🐗 Monster-Training</button>
         <div id="pvpList" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:20px;">`;
-    let found = false;
     Object.keys(onlinePlayers).forEach(id => {
         const p = onlinePlayers[id];
         if (id !== myID && p.isSub === data.isSub) {
             html += `<div style="padding:10px; border:1px solid gold; border-radius:5px;">
-                <strong>${p.name}</strong><br><button class="btn-action" onclick="startCombat(onlinePlayers['${id}'], false)">Duell</button>
+                <strong>${p.name}</strong><br><button class="btn-action" onclick="startCombat(onlinePlayers['${id}'], false, '${id}')">Duell</button>
             </div>`;
-            found = true;
         }
     });
-    if(!found) html += `<p>Warte auf würdige Gegner...</p>`;
     left.innerHTML = html + `</div></div>`;
 }
 
-function startCombat(enemy, isMonster) {
+function startCombat(enemy, isMonster, enemyID = null) {
     if (isMonster) {
         currentEnemy = { ...MONSTERS[Math.floor(Math.random() * MONSTERS.length)], isMonster: true };
     } else {
-        currentEnemy = { ...enemy, isMonster: false, img: EVO_IMGS[enemy.stats.totalEvoLevel] || 'Ei.png' };
+        const isEnemyBoss = enemy.name.replace(/\s+/g, '') === BOSS_NAME;
+        currentEnemy = { 
+            ...enemy, 
+            id: enemyID, 
+            isMonster: false, 
+            img: isEnemyBoss ? 'Overlord.png' : (EVO_IMGS[enemy.stats?.totalEvoLevel || 0] || 'Ei.png') 
+        };
     }
     isActionLocked = false;
     renderCombatStage();
@@ -153,105 +152,117 @@ function startCombat(enemy, isMonster) {
 
 function renderCombatStage() {
     const left = document.getElementById('modalLeft');
-    const isEgg = data.stats.totalEvoLevel === 0;
+    const isMeBoss = data.name.replace(/\s+/g, '') === BOSS_NAME;
+    const myImg = isMeBoss ? 'Overlord.png' : (EVO_IMGS[data.stats?.totalEvoLevel || 0] || 'Ei.png');
+    
     left.innerHTML = `
         <div id="arenaStage">
-            <div class="combatant-wrap"><img src="${EVO_IMGS[data.stats.totalEvoLevel] || 'Ei.png'}" class="combatant-img"><br><strong>${data.name}</strong></div>
-            <div class="combatant-wrap"><img src="${currentEnemy.img || 'Monster1.png'}" class="combatant-img"><br><strong>${currentEnemy.name}</strong></div>
+            <div class="combatant-wrap">
+                <img src="${myImg}" onerror="this.src='Ei.png'" class="combatant-img"><br>
+                <strong>${data.name}</strong>
+            </div>
+            <div class="combatant-wrap">
+                <img src="${currentEnemy.img || 'Monster1.png'}" onerror="this.src='Ei.png'" class="combatant-img"><br>
+                <strong>${currentEnemy.name}</strong>
+            </div>
             <div id="ffMenu">
                 <div class="ff-buttons">
                     <button class="btn-action" onclick="executeCombatAction('attack')" ${isActionLocked?'disabled':''}>ATTACKE</button>
-                    <button class="btn-action" onclick="openBuilding('arena')">FLUCHT</button>
+                    <button class="btn-action" onclick="currentEnemy=null;openBuilding('arena')">FLUCHT</button>
                 </div>
-                <div class="ff-status" style="visibility: ${isEgg ? 'hidden' : 'visible'};">
-                    <span>HP: ${data.hp}/${data.maxHp}</span>
-                    <div class="bar-wrap"><div class="hp-bar-fill" style="width:${(data.hp/data.maxHp)*100}%; background:var(--hp-color);"></div></div>
+                <div class="ff-status">
+                    <span id="playerHpText">HP: ${data.hp}/${data.maxHp}</span>
+                    <div class="bar-wrap"><div id="playerHpFill" class="hp-bar-fill" style="width:${(data.hp/data.maxHp)*100}%; background:var(--hp-color);"></div></div>
+                    <span id="enemyHpText">Gegner HP: ${currentEnemy.hp}/${currentEnemy.maxHp}</span>
+                    <div class="bar-wrap"><div id="enemyHpFill" class="hp-bar-fill" style="width:${(currentEnemy.hp/currentEnemy.maxHp)*100}%; background:#ffaa00;"></div></div>
                 </div>
             </div>
-            <div id="battleLog" style="position:absolute; top:10px; left:10px; color:white;">Kampf beginnt...</div>
+            <div id="battleLog" style="position:absolute; top:10px; left:10px; color:white;">Kampf aktiv...</div>
         </div>`;
 }
 
 function executeCombatAction(type) {
     if(isActionLocked) return;
     isActionLocked = true;
-    renderCombatStage();
     const log = document.getElementById('battleLog');
     let dmg = 15 + (data.inventar['Schwert'] ? 10 : 0);
-    log.innerHTML = `<div>> ${data.name} trifft für ${dmg} DMG!</div>`;
+    
     setTimeout(() => {
         currentEnemy.hp -= dmg;
-        if (currentEnemy.hp <= 0) {
-            let lxpGain = currentEnemy.isMonster ? currentEnemy.lxp : 50;
-            alert(`Sieg! +${lxpGain} LXP`); data.lxp += lxpGain; save(); return openBuilding('arena');
+        log.innerHTML = `<div>> Du triffst für ${dmg} DMG!</div>`;
+        
+        // SYNC: Wenn Gegner ein Spieler ist, aktualisiere seine HP in Firebase
+        if (!currentEnemy.isMonster && currentEnemy.id) {
+            db.ref('players/' + currentEnemy.id).update({ hp: Math.max(0, currentEnemy.hp) });
         }
+
+        if (currentEnemy.hp <= 0) {
+            alert("Sieg!"); data.lxp += 25; currentEnemy = null; save(); return openBuilding('arena');
+        }
+        
         setTimeout(() => {
             let eDmg = 12 - (data.inventar['Rüstung'] ? 5 : 0);
             data.hp -= eDmg;
             log.innerHTML += `<div style="color:red;">> ${currentEnemy.name} kontert für ${eDmg}!</div>`;
-            if (data.hp <= 0) { data.hp = data.maxHp; alert("Niederlage..."); save(); return openBuilding('arena'); }
-            isActionLocked = false; renderCombatStage(); save();
+            
+            // SYNC: Eigene HP in Firebase speichern
+            save(); 
+
+            if (data.hp <= 0) { 
+                data.hp = data.maxHp; 
+                save();
+                alert("Niederlage..."); 
+                currentEnemy = null;
+                return openBuilding('arena'); 
+            }
+            isActionLocked = false;
         }, 1000);
     }, 800);
 }
 
-// --- MINING MODULE ---
+// --- MINING & SMITHING (Frozen) ---
 function renderMiningMenu() {
     document.getElementById('modalLeft').innerHTML = `<div style="padding:30px;">
-        <h2>Steinbruch</h2><p>Du benötigst eine <b>Spitzhacke</b>.</p>
-        <button class="btn-action" id="mineBtn" onclick="startMining()">⛏️ Abbau starten</button>
+        <h2>Steinbruch</h2><button class="btn-action" id="mineBtn" onclick="startMining()">⛏️ Abbau</button>
         <div class="progress-container" id="mineProgress" style="display:block;"><div class="progress-bar" id="mineBar"></div></div>
         <div id="mineLog" style="margin-top:10px;"></div></div>`;
 }
-
 function startMining() {
     if (isMining) return;
-    if (!data.inventar['Spitzhacke'] && !isAdmin) return document.getElementById('mineLog').innerText = "❌ Keine Spitzhacke!";
+    if (!data.inventar['Spitzhacke'] && !isAdmin) return alert("Keine Spitzhacke!");
     isMining = true; document.getElementById('mineBtn').disabled = true;
     document.getElementById('mineBar').style.width = '100%';
     setTimeout(() => {
-        let roll = Math.random();
-        let item = roll > 0.9 ? "Golderz" : (roll > 0.6 ? "Kupfererz" : "Eisenerz");
+        let item = Math.random() > 0.7 ? "Kupfererz" : "Eisenerz";
         data.inventar[item] = (data.inventar[item] || 0) + 1;
         data.lxp += 5; save();
-        document.getElementById('mineLog').innerText = `✅ Gefunden: ${item}! (+5 LXP)`;
+        document.getElementById('mineLog').innerText = `✅ Gefunden: ${item}!`;
         document.getElementById('mineBar').style.width = '0%';
         document.getElementById('mineBtn').disabled = false; isMining = false;
     }, 3000);
 }
-
-// --- SMITHY MODULE ---
 function renderSmithy() {
-    let html = `<div style="padding:30px;"><h2>Wald-Schmiede</h2>`;
+    let html = `<div style="padding:30px;"><h2>Schmiede</h2>`;
     CRAFTING_DATA.forEach(recipe => {
-        const canSee = (data.stats.totalEvoLevel >= recipe.minLvl) && (!recipe.subOnly || data.isSub || isAdmin);
-        if (canSee) {
-            let canCraft = true;
-            Object.entries(recipe.needs).forEach(([item, qty]) => { if((data.inventar[item]||0) < qty) canCraft = false; });
-            html += `<div style="border:1px solid gold; padding:10px; margin:5px; display:flex; justify-content:space-between;">
-                <div><b>${recipe.name}</b><br><small>${recipe.desc}</small></div>
-                <button class="btn-action" ${!canCraft?'disabled':''} onclick="craftItem('${recipe.name}')">SCHMIEDEN</button>
-            </div>`;
-        }
+        html += `<div style="border:1px solid gold; padding:10px; margin:5px; display:flex; justify-content:space-between;">
+            <div><b>${recipe.name}</b></div>
+            <button class="btn-action" onclick="craftItem('${recipe.name}')">SCHMIEDEN</button>
+        </div>`;
     });
     document.getElementById('modalLeft').innerHTML = html + `</div>`;
 }
-
 function craftItem(name) {
     const r = CRAFTING_DATA.find(i => i.name === name);
-    Object.entries(r.needs).forEach(([item, qty]) => data.inventar[item] -= qty);
     data.inventar[name] = (data.inventar[name] || 0) + 1;
     save(); renderSmithy();
 }
-
-// --- EVOLUTION MODULE ---
 function renderEvoMenu() {
     const left = document.getElementById('modalLeft');
     let html = `<div class="evo-container"><h2>Evolution</h2><div class="evo-tree-grid">`;
-    const paths = [{id:'warrior', name:'KRIEGER', color: 'var(--warrior)'}, {id:'mage', name:'MAGIER', color: 'var(--mage)'}, {id:'ranger', name:'RANGER', color: 'var(--ranger)'}, {id:'craftsman', name:'HANDWERK', color: 'var(--craft)'}, {id:'shadow', name:'SCHATTEN', color: 'var(--shadow-path)'}];
+    const paths = [{id:'warrior', name:'KRIEGER', color:'var(--warrior)'}];
     paths.forEach(p => {
         html += `<div class="path-column">`;
-        for(let i=1; i<=7; i++) {
+        for(let i=1; i<=3; i++) {
             const unlocked = data.stats[p.id] >= i;
             html += `<div class="node" style="border-color:${unlocked?p.color:'#444'}" onclick="tryEvolve('${p.id}', ${i}, ${i*30})">T${i}</div>`;
         }
@@ -259,21 +270,31 @@ function renderEvoMenu() {
     });
     left.innerHTML = html + `</div></div>`;
 }
-
 function tryEvolve(path, tier, days) {
     if(data.followDays < days && !isAdmin) return alert(`${days} Tage benötigt!`);
     data.stats[path] = tier; data.stats.totalEvoLevel++; save(); renderEvoMenu();
 }
 
-// --- SYSTEM CORE ---
+// --- CORE ---
 function save() {
-    if (data.name === BOSS_NAME) isAdmin = true;
+    if (data.name.replace(/\s+/g, '') === BOSS_NAME) isAdmin = true;
     localStorage.setItem('nestData', JSON.stringify(data));
-    updateUI(); if (myID) db.ref('players/' + myID).update(data);
+    updateUI(); 
+    if (myID) db.ref('players/' + myID).update({
+        hp: data.hp,
+        mp: data.mp,
+        lxp: data.lxp,
+        x: data.x,
+        y: data.y,
+        stats: data.stats,
+        inventar: data.inventar,
+        followDays: data.followDays,
+        name: data.name
+    });
 }
 
 function updateUI() {
-    const isBoss = data.name === BOSS_NAME;
+    const isBoss = data.name.replace(/\s+/g, '') === BOSS_NAME;
     document.getElementById('playerName').innerText = isBoss ? "OVERLORD Spawn2909" : data.name;
     document.getElementById('hudClass').innerText = isBoss ? "SYSTEM-ARCHITEKT" : data.stats.className;
     document.getElementById('lxpC').innerText = data.lxp;
@@ -289,8 +310,12 @@ function renderPlayers(players) {
         const p = players[id];
         const div = document.createElement('div'); div.className = 'creature';
         div.style.left = p.x + "px"; div.style.top = p.y + "px";
-        const imgIdx = Math.min(p.stats.totalEvoLevel, 6);
-        div.innerHTML = `<img src="${EVO_IMGS[imgIdx]}"><div class="name-tag ${p.name===BOSS_NAME?'boss-aura':''}">${p.name===BOSS_NAME?'OVERLORD':p.name}</div>`;
+        const isBoss = p.name.replace(/\s+/g, '') === BOSS_NAME;
+        const evoLevel = (p.stats && p.stats.totalEvoLevel) ? p.stats.totalEvoLevel : 0;
+        const imgIdx = Math.min(Math.max(evoLevel, 0), 6);
+        const imgSrc = isBoss ? 'Overlord.png' : EVO_IMGS[imgIdx];
+        
+        div.innerHTML = `<img src="${imgSrc}" onerror="this.src='Ei.png'"><div class="name-tag ${isBoss?'boss-aura':''}">${isBoss?'OVERLORD':p.name}</div>`;
         layer.appendChild(div);
     });
 }
@@ -306,20 +331,45 @@ function openAdminPanel() {
     document.getElementById('modalLeft').innerHTML = `<h2>🛠 GÖTTER-MENÜ</h2>
     <button class="btn-action" onclick="data.followDays+=30;save()">+30 Tage</button>
     <button class="btn-action" onclick="data.lxp+=5000;save()">+5000 LXP</button>
-    <button class="btn-action" onclick="data.inventar['Spitzhacke']=1;save()">Spitzhacke geben</button>`;
+    <button class="btn-action" onclick="data.hp=data.maxHp;save()">Vollständige Heilung</button>`;
 }
 
 function toggleModal(id, s) { document.getElementById(id).style.display = s ? 'flex' : 'none'; }
 
+// --- INITIALIZATION & LIVE LISTENER ---
 window.onload = () => {
     const p = new URLSearchParams(window.location.search);
     if (p.get('user')) data.name = p.get('user');
     myID = data.name.replace(/\s+/g, '_');
-    if(data.name === BOSS_NAME) document.getElementById('adminHud').style.display = 'block';
+    if(data.name.replace(/\s+/g, '') === BOSS_NAME) document.getElementById('adminHud').style.display = 'block';
     save();
-    db.ref('players').on('value', snap => { onlinePlayers = snap.val() || {}; renderPlayers(onlinePlayers); });
+    
+    // DER LIVE LISTENER
+    db.ref('players').on('value', snap => {
+        onlinePlayers = snap.val() || {};
+        renderPlayers(onlinePlayers);
+        
+        // LIVE-UPDATE DER ARENA BALKEN
+        if (currentEnemy) {
+            // My HP Update (Falls ich getroffen wurde)
+            if (onlinePlayers[myID]) {
+                data.hp = onlinePlayers[myID].hp;
+                const pFill = document.getElementById('playerHpFill');
+                const pText = document.getElementById('playerHpText');
+                if (pFill) pFill.style.width = (data.hp / data.maxHp * 100) + '%';
+                if (pText) pText.innerText = `HP: ${data.hp}/${data.maxHp}`;
+            }
+            // Enemy HP Update (Falls Gegner ein Spieler ist)
+            if (!currentEnemy.isMonster && currentEnemy.id && onlinePlayers[currentEnemy.id]) {
+                currentEnemy.hp = onlinePlayers[currentEnemy.id].hp;
+                const eFill = document.getElementById('enemyHpFill');
+                const eText = document.getElementById('enemyHpText');
+                if (eFill) eFill.style.width = (currentEnemy.hp / currentEnemy.maxHp * 100) + '%';
+                if (eText) eText.innerText = `Gegner HP: ${currentEnemy.hp}/${currentEnemy.maxHp}`;
+            }
+        }
+    });
 };
 </script>
 </body>
 </html>
-
