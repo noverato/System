@@ -124,7 +124,7 @@ let data = {
 let myID = "", onlinePlayers = {}, isAdmin = false, currentEnemy = null, isActionLocked = false;
 
 // ==========================================
-// SECTION 2: IDENTITY & TWITCH SESSION (FIXED)
+// SECTION 2: IDENTITY & ADMIN (FIXED)
 // ==========================================
 function checkTwitchAuth() {
     const hash = window.location.hash.substring(1);
@@ -152,22 +152,16 @@ async function initTwitchSession() {
         const result = await resp.json();
         if (result.data && result.data.length > 0) {
             const twitchUser = result.data[0];
-            const urlParams = new URLSearchParams(window.location.search);
-            const userParam = urlParams.get('user') || "";
-
-            // UNIVERSAL-CHECK: Matched der Login mit dem Namen in der URL?
-            if (userParam.toLowerCase() === twitchUser.login.toLowerCase()) {
+            if (twitchUser.id) {
                 data.name = twitchUser.display_name;
-                myID = twitchUser.id; // ID für JEDEN setzen
+                myID = twitchUser.id;
                 isIdentified = true; 
-                if (data.name.toLowerCase() === BOSS_NAME.toLowerCase()) isAdmin = true;
+                
+                // ADMIN FIX: Vor dem Laden setzen
+                if (myID === BROADCASTER_ID) isAdmin = true;
+
+                await loadUserData(); 
                 await validateTwitchFollower(myID);
-            } else {
-                // Zuschauer-Modus
-                data.name = userParam;
-                myID = ""; 
-                isIdentified = false;
-                isLoadingFollower = false;
             }
         }
     } catch (err) { console.error("Twitch Session Error:", err); }
@@ -196,14 +190,29 @@ async function validateTwitchFollower(userID) {
 }
 
 // ==========================================
-// SECTION 3: FIREBASE & ROLES
+// SECTION 3: FIREBASE CORE
 // ==========================================
+async function loadUserData() {
+    if (!myID) return;
+    try {
+        const snapshot = await db.ref('players/' + myID).once('value');
+        if (snapshot.exists()) {
+            const dbData = snapshot.val();
+            data.lxp = dbData.lxp || 0;
+            data.stats = dbData.stats || data.stats;
+            data.inventar = dbData.inventar || {};
+            data.hp = dbData.hp || data.maxHp;
+            data.x = dbData.x || 960;
+            data.y = dbData.y || 540;
+        }
+    } catch (err) { console.error("Load Error:", err); }
+    updateUI();
+}
+
 function save() {
     localStorage.setItem('nestData', JSON.stringify(data));
     updateUI(); 
-
-    // SCHREIBRECHTE FIX: Wenn identifiziert, dann speichern (für zicke7001 & alle)
-    if (isIdentified && myID) {
+    if (isIdentified && myID && !isLoadingFollower) {
         db.ref('players/' + myID).update({
             hp: data.hp, lxp: data.lxp, x: data.x, y: data.y, name: data.name,
             stats: data.stats, inventar: data.inventar, 
@@ -241,7 +250,7 @@ function renderPlayers(players) {
     const layer = document.getElementById('charLayer'); layer.innerHTML = '';
     Object.keys(players).forEach(id => {
         const p = players[id];
-        if (p.hidden || !p.name || (Date.now() - p.lastSeen > 60000)) return;
+        if (p.hidden || !p.name || (Date.now() - (p.lastSeen || 0) > 60000)) return;
         const div = document.createElement('div'); div.className = 'creature';
         div.style.left = p.x + "px"; div.style.top = p.y + "px";
         const isBoss = p.name.toLowerCase() === BOSS_NAME.toLowerCase();
@@ -253,30 +262,41 @@ function renderPlayers(players) {
 }
 
 // ==========================================
-// SECTION 4: PvP RADAR
+// SECTION 4: PvP RADAR & ARENA (REPAIRED)
 // ==========================================
 function listenForChallenges() {
     if (!myID) return;
-    db.ref('battles').on('child_added', snap => {
-        const battle = snap.val();
-        if (battle.defenderID === myID && battle.status === 'pending') {
-            const inviteBox = document.getElementById('battleInvite');
-            document.getElementById('inviteText').innerText = battle.attacker + " fordert dich!";
-            inviteBox.style.display = 'block';
-            document.getElementById('btnAcceptInvite').onclick = () => {
-                db.ref('battles/' + snap.key).update({ status: 'active' });
-                inviteBox.style.display = 'none';
-                startCombat(onlinePlayers[battle.attackerID], false, battle.attackerID);
-            };
-        }
+    // REPARATUR: .on('value') für zuverlässiges Radar
+    db.ref('battles').on('value', snap => {
+        snap.forEach(child => {
+            const battle = child.val();
+            // Prüfe, ob ich der Verteidiger bin und die Einladung offen ist
+            if (battle.defenderID === myID && battle.status === 'pending') {
+                const inviteBox = document.getElementById('battleInvite');
+                document.getElementById('inviteText').innerText = battle.attacker + " fordert dich!";
+                inviteBox.style.display = 'block';
+                
+                document.getElementById('btnAcceptInvite').onclick = () => {
+                    db.ref('battles/' + child.key).update({ status: 'active' });
+                    inviteBox.style.display = 'none';
+                    startCombat(onlinePlayers[battle.attackerID], false, battle.attackerID);
+                };
+            }
+        });
     });
 }
 
 function challengePlayer(targetID, targetName) {
     if (!isIdentified || (!data.isFollower && !isAdmin)) return alert("Nur aktive Follower dürfen fordern!");
-    const battleID = myID + "_vs_" + targetID;
-    db.ref('battles/' + battleID).set({
-        attacker: data.name, attackerID: myID, defender: targetName, defenderID: targetID, status: 'pending', timestamp: Date.now()
+    
+    // REPARATUR: ID des Verteidigers als Pfad (Postfach-Logik)
+    db.ref('battles/' + targetID).set({
+        attacker: data.name,
+        attackerID: myID,
+        defender: targetName,
+        defenderID: targetID,
+        status: 'pending',
+        timestamp: Date.now()
     });
     alert("Duell-Anfrage an " + targetName + " gesendet!");
 }
@@ -286,9 +306,18 @@ function renderArenaMatchmaking() {
     const canFight = isAdmin || (isIdentified && data.isFollower);
     const lockAttr = !canFight ? 'disabled' : '';
     let html = `<div style="padding:20px;"><h2>🛡️ Arena</h2><p>${canFight?'✅ Kampfbereit':'❌ Gesperrt'}</p><button class="btn-action" style="width:100%;" ${lockAttr} onclick="startCombat(null, true)">🐗 Monster</button><div style="margin-top:20px;">`;
+    
     Object.keys(onlinePlayers).forEach(id => {
         const p = onlinePlayers[id];
-        if (id !== myID) html += `<div style="padding:10px; border:1px solid gold; margin-bottom:5px;">${p.name} <button class="btn-action" ${lockAttr} onclick="challengePlayer('${id}', '${p.name}')">Fordern</button></div>`;
+        const isActive = (Date.now() - (p.lastSeen || 0) < 60000);
+        
+        // REPARATUR: Filter für hidden & inaktive Spieler
+        if (id !== myID && !p.hidden && isActive) {
+            html += `<div style="padding:10px; border:1px solid gold; margin-bottom:5px; display:flex; justify-content:space-between; align-items:center;">
+                <span><strong>${p.name}</strong> (LVL ${p.stats?.totalEvoLevel || 0})</span>
+                <button class="btn-action" ${lockAttr} onclick="challengePlayer('${id}', '${p.name}')">Fordern</button>
+            </div>`;
+        }
     });
     left.innerHTML = html + `</div></div>`;
 }
@@ -306,7 +335,7 @@ window.onload = async () => {
         else return alert("Fehler: Kein User");
     }
 
-    listenForChallenges();
+    if (myID) listenForChallenges();
 
     db.ref('players').on('value', snap => {
         onlinePlayers = snap.val() || {};
