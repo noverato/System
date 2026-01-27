@@ -45,18 +45,8 @@
         .ff-status { flex: 1.2; padding: 20px; border-left: 2px solid #fff; display: flex; flex-direction: column; justify-content: center; }
         .bar-wrap { height: 18px; background: #000; border: 2px solid #fff; border-radius: 4px; overflow: hidden; margin-bottom: 10px; position: relative; }
         
-        #playerHpFill { 
-            background: linear-gradient(to right, #8a2be2, #4b0082) !important; 
-            box-shadow: 0 0 15px #8a2be2; 
-            height: 100%; 
-            transition: width 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
-        }
-        #enemyHpFill { 
-            background: linear-gradient(to right, #ff4500, #ff0000) !important; 
-            box-shadow: 0 0 15px #ff4500; 
-            height: 100%; 
-            transition: width 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
-        }
+        #playerHpFill { background: linear-gradient(to right, #8a2be2, #4b0082) !important; box-shadow: 0 0 15px #8a2be2; height: 100%; transition: width 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        #enemyHpFill { background: linear-gradient(to right, #ff4500, #ff0000) !important; box-shadow: 0 0 15px #ff4500; height: 100%; transition: width 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
     </style>
 </head>
 <body>
@@ -72,11 +62,11 @@
 </div>
 
 <div id="hud">
-    <div style="color:gold; font-size: 20px; font-weight:bold;"><span id="playerName">Warte auf Bot...</span></div>
+    <div style="color:gold; font-size: 20px; font-weight:bold;"><span id="playerName">Lade...</span></div>
     <div id="hudClass" style="font-size:13px; color: #3b82f6; font-weight: bold;">Synchronisierung...</div>
     <div style="font-size:12px; color:#4ade80; margin-top: 5px;">💎 LXP: <span id="lxpC">0</span> | ⭐ LVL: <span id="lvlTotal">0</span> | 👥 Follower: <span id="isFollower">Prüfe...</span></div>
     <div style="font-size:10px; color: #aaa;">⏳ Follow: <span id="followDaysDisplay">0</span> Tage</div>
-    <div id="adminHud" style="display:none; margin-top:10px;"><button class="btn-action" style="background:var(--admin-grad); width:100%;" onclick="openAdminPanel()">🛠 GÖTTER-MENÜ</button></div>
+    <div id="adminHud" style="display:none; margin-top:10px;"><button class="btn-action" style="background:linear-gradient(135deg, #ff0000, #8b0000); width:100%;" onclick="openAdminPanel()">🛠 GÖTTER-MENÜ</button></div>
     <button class="btn-action" style="background:#ff4444; width:100%; margin-top:10px; border-color:#fff;" onclick="exitGame()">❌ NEST VERLASSEN</button>
 </div>
 
@@ -96,7 +86,7 @@
 
 <script>
 // ==========================================
-// SECTION 1: CONFIG & BRIDGE UPDATE
+// SECTION 1: CONFIG & BRIDGE
 // ==========================================
 const firebaseConfig = { apiKey: "AIzaSyCKNXJ-ouAOAcLr5ut-EemWQI8_zJxhqa8", authDomain: "thenest-81de6.firebaseapp.com", databaseURL: "https://thenest-81de6-default-rtdb.firebaseio.com", projectId: "thenest-81de6" };
 firebase.initializeApp(firebaseConfig);
@@ -114,42 +104,33 @@ let sb;
 function connectStreamerBot() {
     sb = new WebSocket('ws://127.0.0.1:8080/');
     sb.onopen = () => {
-        console.log("Brücke zu Streamer.bot geschlagen!");
+        console.log("WebSocket aktiv: Identität wird synchronisiert...");
         sb.send(JSON.stringify({ "request": "Subscribe", "id": "NestConnect", "events": { "Twitch": ["ChatMessage", "Follow", "Sub"] } }));
     };
     sb.onmessage = (msg) => {
         const payload = JSON.parse(msg.data);
-        
-        // WEBSOCKET-UPDATE: Liest User, Follower-Status und Tage aus C#
         if (payload.user) {
+            // ADMIN-STICKY: Wenn wir über URL als Boss drin sind, lassen wir uns nicht vom Bot überschreiben
+            if(isAdmin && payload.user !== BOSS_NAME) return; 
+
             const tempID = payload.user.replace(/\s+/g, '_');
-            
-            // FIREBASE-INITIALISIERUNG: Einmaliges Laden der gespeicherten Daten
             db.ref('players/' + tempID).once('value', (snap) => {
                 let existingData = snap.val() || {};
-                
-                // Zusammenführung der Daten (Bot-Identität + Firebase-Fortschritt)
                 data.name = payload.user;
                 data.isFollower = (payload.isFollower === true || payload.isFollower === "True");
                 data.followDays = parseInt(payload.followDays) || existingData.followDays || 0;
-                
-                // Fortschritt wiederherstellen
                 data.lxp = existingData.lxp || 0;
                 data.stats = existingData.stats || data.stats;
                 data.inventar = existingData.inventar || {};
-                
                 myID = tempID;
-                if(data.name.replace(/\s+/g, '') === BOSS_NAME) isAdmin = true;
-                
-                save(); // Initialer Sync & UI Update
-                console.log("User identifiziert: " + data.name + " (Tage: " + data.followDays + ")");
+                save(); 
             });
         }
     };
 }
 
 // ==========================================
-// SECTION 2: PLAYER DATA & LOGOUT
+// SECTION 2: PLAYER DATA & LOGIC
 // ==========================================
 let data = { 
     name: "Held", x: 960, y: 540, lxp: 0, hp: 100, maxHp: 100, mp: 50, maxMp: 50, 
@@ -160,28 +141,38 @@ let data = {
 let myID = "", onlinePlayers = {}, isAdmin = false, currentEnemy = null, isActionLocked = false;
 
 function save() {
+    // DER ENTSCHEIDENDE ADMIN-CHECK
+    if (data.name.replace(/\s+/g, '') === BOSS_NAME) {
+        isAdmin = true;
+    }
+    
     localStorage.setItem('nestData', JSON.stringify(data));
     updateUI(); 
     if (myID) db.ref('players/' + myID).update({
         hp: data.hp, lxp: data.lxp, x: data.x, y: data.y, name: data.name,
         stats: data.stats, inventar: data.inventar, 
-        isFollower: data.isFollower, // SYNC FELDER
-        followDays: data.followDays,  // SYNC FELDER
+        isFollower: data.isFollower,
+        followDays: data.followDays, 
         battleAction: data.battleAction, battleReady: data.battleReady, hidden: data.hidden
     });
 }
 
 function updateUI() {
+    // UI-ELEMENTE ANSTEUERN
     document.getElementById('playerName').innerText = isAdmin ? "OVERLORD Spawn2909" : data.name;
     document.getElementById('hudClass').innerText = isAdmin ? "SYSTEM-ARCHITEKT" : data.stats.className;
     document.getElementById('lxpC').innerText = data.lxp;
     document.getElementById('lvlTotal').innerText = data.stats.totalEvoLevel;
-    
-    // UI ANZEIGE KORREKTUR
     document.getElementById('isFollower').innerText = data.isFollower ? "Ja" : "Nein";
     document.getElementById('followDaysDisplay').innerText = data.followDays;
     
-    if(isAdmin) document.getElementById('adminHud').style.display = 'block';
+    // GÖTTER-MENÜ SICHTBARKEIT
+    const adminPanel = document.getElementById('adminHud');
+    if(isAdmin) {
+        adminPanel.style.display = 'block';
+    } else {
+        adminPanel.style.display = 'none';
+    }
 
     const invDiv = document.getElementById('miniInv'); invDiv.innerHTML = '';
     Object.keys(data.inventar).forEach(i => { if(data.inventar[i]>0) invDiv.innerHTML += `<div style="padding:5px; border-bottom:1px solid #444;">${i} x${data.inventar[i]}</div>`; });
@@ -191,7 +182,7 @@ function exitGame() {
     if(myID) {
         db.ref('players/' + myID).remove().then(() => {
             localStorage.removeItem('nestData');
-            location.reload();
+            location.href = location.pathname; // Reload ohne Parameter
         });
     }
 }
@@ -228,10 +219,31 @@ function openBuilding(b) {
 }
 
 window.onload = () => {
+    const p = new URLSearchParams(window.location.search);
+    const userParam = p.get('user');
+    
+    if (userParam) {
+        data.name = userParam;
+        if(userParam.replace(/\s+/g, '') === BOSS_NAME) {
+            isAdmin = true;
+            console.log("Admin-Modus via URL aktiviert.");
+        }
+    }
+    
+    myID = data.name.replace(/\s+/g, '_');
     connectStreamerBot();
+    db.ref('players/' + myID).onDisconnect().remove();
+    
+    save(); // Erste Initialisierung
+
     db.ref('players').on('value', snap => {
         onlinePlayers = snap.val() || {};
         renderPlayers(onlinePlayers);
+        if(onlinePlayers[myID]) {
+            data.isFollower = onlinePlayers[myID].isFollower;
+            data.followDays = onlinePlayers[myID].followDays;
+            updateUI();
+        }
     });
 };
 
@@ -240,16 +252,12 @@ window.onload = () => {
 // ==========================================
 function renderArenaMatchmaking() {
     const left = document.getElementById('modalLeft');
-    
-    // ARENA-CHECK: Sperre für Nicht-Follower
     const canFight = data.isFollower || isAdmin;
     const lockAttr = !canFight ? 'disabled title="Nur für Follower!"' : '';
-    
     let html = `<div style="padding:20px;"><h2>🛡️ Arena-Halle</h2>
         <p style="color:${canFight?'#4ade80':'#ff4444'}">${canFight?'✅ Kampfbereit':'❌ Nur Follower können kämpfen!'}</p>
         <button class="btn-action" style="width:100%;" ${lockAttr} onclick="startCombat(null, true)">🐗 Monster-Jagd</button>
         <div id="pvpList" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:20px;">`;
-        
     Object.keys(onlinePlayers).forEach(id => {
         const p = onlinePlayers[id];
         if (id !== myID) {
@@ -325,19 +333,14 @@ function resolveBattleTurn() {
     let healVal = 25;
     let myHpChange = 0; let enemyHpChange = 0;
     let myTxt = ""; let enemyTxt = "";
-
     if(data.battleAction === 'attack') { enemyHpChange -= myDmg; myTxt = `${data.name} führt einen vernichtenden Schlag aus!`; }
     else { myHpChange += healVal; myTxt = `${data.name} kanalisiert dunkle Heilung!`; }
-
     if(currentEnemy.battleAction === 'attack') { myHpChange -= enemyDmg; enemyTxt = `${currentEnemy.name} kontert grausam!`; }
     else { enemyHpChange += healVal; enemyTxt = `${currentEnemy.name} regeneriert seine Form!`; }
-
     log.innerHTML = `<div>${myTxt}<br>${enemyTxt}</div><div style="color:gold; font-size:18px;">Resultat: ${myHpChange >= 0 ? '+' : ''}${myHpChange} HP</div>`;
-
     data.hp = Math.min(data.maxHp, Math.max(0, data.hp + myHpChange));
     currentEnemy.hp = Math.min(currentEnemy.maxHp, Math.max(0, currentEnemy.hp + enemyHpChange));
     data.battleReady = false; data.battleAction = "none";
-
     setTimeout(() => {
         if(currentEnemy.hp <= 0) { alert("SIEG!"); data.lxp += 50; currentEnemy = null; save(); return openBuilding('arena'); }
         if(data.hp <= 0) { data.hp = data.maxHp; alert("DU BIST GEFALLEN!"); currentEnemy = null; save(); return openBuilding('arena'); }
@@ -346,7 +349,7 @@ function resolveBattleTurn() {
 }
 
 // ==========================================
-// SECTIONS 4-7 (UNVERÄNDERT)
+// SECTIONS 4-7
 // ==========================================
 function renderSmithy() {
     let html = `<div style="padding:30px;"><h2>Wald-Schmiede</h2>`;
@@ -377,6 +380,7 @@ function renderEvoMenu() {
     document.getElementById('modalLeft').innerHTML = html + `</div></div>`;
 }
 function tryEvolve(path, tier, days) { if(data.followDays < days && !isAdmin) return alert(`${days} Tage benötigt!`); data.stats[path] = tier; data.stats.totalEvoLevel++; save(); renderEvoMenu(); }
+
 function openAdminPanel() {
     toggleModal('gameModal', true);
     document.getElementById('modalLeft').innerHTML = `<h2>🛠 GÖTTER-MENÜ</h2>
