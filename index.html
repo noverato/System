@@ -62,7 +62,7 @@
 
 <div id="hud">
     <div style="color:gold; font-size: 20px; font-weight:bold;"><span id="playerName">Lade...</span></div>
-    <div id="hudClass" style="font-size:13px; color: #3b82f6; font-weight: bold;">Synchronisierung...</div>
+    <div id="hudClass" style="font-size:13px; color: #3b82f6; font-weight: bold;">Identifikation...</div>
     <div style="font-size:12px; color:#4ade80; margin-top: 5px;">💎 LXP: <span id="lxpC">0</span> | ⭐ LVL: <span id="lvlTotal">0</span> | 👥 Follower: <span id="isFollower">Prüfe...</span></div>
     <div style="font-size:10px; color: #aaa;">⏳ Follow: <span id="followDaysDisplay">0</span> Tage</div>
     <div id="adminHud" style="display:none; margin-top:10px;"><button class="btn-action" style="background:linear-gradient(135deg, #ff0000, #8b0000); width:100%;" onclick="openAdminPanel()">🛠 GÖTTER-MENÜ</button></div>
@@ -85,13 +85,17 @@
 
 <script>
 // ==========================================
-// SECTION 1: CONFIG & REALTIME BRIDGE
+// SECTION 1: TWITCH & FIREBASE CONFIG
 // ==========================================
 const firebaseConfig = { apiKey: "AIzaSyCKNXJ-ouAOAcLr5ut-EemWQI8_zJxhqa8", authDomain: "thenest-81de6.firebaseapp.com", databaseURL: "https://thenest-81de6-default-rtdb.firebaseio.com", projectId: "thenest-81de6" };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
+const TWITCH_CLIENT_ID = "futhxsgrshkh2h6cqywavg5cous3q0";
+const BROADCASTER_ID = "573773653";
+const REDIRECT_URI = "https://noverato.github.io/System";
 const BOSS_NAME = "Spawn2909";
+
 const EVO_IMGS = ['Ei.png', 'Schleim.png', 'Skelett.png', 'Goblin.png', 'Oger.png', 'Lich.png', 'HoeheresWesen.png'];
 const MONSTERS = [
     { name: "Waldschleim", hp: 40, maxHp: 40, lxp: 15, img: 'Monster1.png' },
@@ -99,46 +103,7 @@ const MONSTERS = [
     { name: "Finster-Goblin", hp: 120, maxHp: 120, lxp: 60, img: 'Monster3.png' }
 ];
 
-let sb;
-function connectStreamerBot() {
-    sb = new WebSocket('ws://127.0.0.1:8080/');
-    sb.onopen = () => {
-        console.log("WebSocket aktiv: Identität wird synchronisiert...");
-        // Wir hören auf alle Action-Broadcasting-Events
-        sb.send(JSON.stringify({ "request": "Subscribe", "id": "NestConnect", "events": { "Raw": ["Action"] } }));
-    };
-    sb.onmessage = (msg) => {
-        const raw = JSON.parse(msg.data);
-        const payload = raw.data ? raw.data : raw; // Unterstützung für gewrappte Daten
-
-        // VARIABLEN-SYNC: Wenn ein 'spawn' Signal kommt
-        if (payload.type === "spawn") {
-            const currentName = data.name.toLowerCase().replace(/\s+/g, '');
-            const incomingName = payload.user.toLowerCase().replace(/\s+/g, '');
-
-            // Nur verarbeiten, wenn es den aktuellen User betrifft
-            if (incomingName === currentName || incomingName === "raphael_2909") {
-                console.log("C# Signal empfangen:", payload);
-                
-                // Boolean-Fix & Tage-Sync
-                data.isFollower = (payload.isFollower === true || payload.isFollower === "True");
-                data.followDays = parseInt(payload.followDays) || 0;
-                
-                // Digitierung/Evo-Stage Mapping
-                if(payload.stage) {
-                    data.stats.className = payload.stage;
-                }
-
-                // Sofortiges Firebase-Update
-                save(); 
-            }
-        }
-    };
-}
-
-// ==========================================
-// SECTION 2: PLAYER DATA & REALTIME SYNC
-// ==========================================
+let twitchToken = "";
 let data = { 
     name: "Held", x: 960, y: 540, lxp: 0, hp: 100, maxHp: 100, mp: 50, maxMp: 50, 
     followDays: 0, isFollower: false, inventar: {}, 
@@ -147,25 +112,79 @@ let data = {
 };
 let myID = "", onlinePlayers = {}, isAdmin = false, currentEnemy = null, isActionLocked = false;
 
-function save() {
-    // Admin Check
-    if (data.name.replace(/\s+/g, '').toLowerCase() === BOSS_NAME.toLowerCase()) {
-        isAdmin = true;
+// ==========================================
+// TWITCH API LOGIC (HELIX UPGRADED)
+// ==========================================
+function checkTwitchAuth() {
+    const hash = window.location.hash;
+    if (hash.includes("access_token")) {
+        twitchToken = hash.split("access_token=")[1].split("&")[0];
+        window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+        return true;
     }
-    
+    return false;
+}
+
+function redirectToTwitch() {
+    // SCOPE HINZUGEFÜGT: moderator:read:followers
+    const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${TWITCH_CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=token&scope=moderator:read:followers`;
+    window.location.href = authUrl;
+}
+
+async function validateTwitchFollower(userName) {
+    if (!twitchToken) return;
+
+    try {
+        // 1. User ID holen
+        const userResp = await fetch(`https://api.twitch.tv/helix/users?login=${userName}`, {
+            headers: { 'Client-ID': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchToken}` }
+        });
+        const userData = await userResp.json();
+        
+        if (userData.data && userData.data.length > 0) {
+            const userId = userData.data[0].id;
+            
+            // 2. HELIX ENDPOINT UPDATE: Abfrage der Beziehung
+            const followUrl = `https://api.twitch.tv/helix/channels/followers?broadcaster_id=${BROADCASTER_ID}&user_id=${userId}`;
+            const followResp = await fetch(followUrl, {
+                headers: { 
+                    'Client-ID': TWITCH_CLIENT_ID, 
+                    'Authorization': `Bearer ${twitchToken}` 
+                }
+            });
+            const followData = await followResp.json();
+
+            // 3. VARIABLEN-SYNC: Überschreibe Firebase-Daten mit Twitch-Wahrheit
+            if (followData.data && followData.data.length > 0) {
+                data.isFollower = true;
+                const followDate = new Date(followData.data[0].followed_at);
+                const diffTime = Math.abs(new Date() - followDate);
+                data.followDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            } else {
+                data.isFollower = false;
+                data.followDays = 0;
+            }
+            save(); // Sofortiger Sync zu Firebase
+        }
+    } catch (err) {
+        console.error("Twitch API Fehler:", err);
+    }
+}
+
+// ==========================================
+// SECTION 2: PLAYER DATA & PERSISTENCE
+// ==========================================
+function save() {
+    if (data.name.replace(/\s+/g, '').toLowerCase() === BOSS_NAME.toLowerCase()) isAdmin = true;
     localStorage.setItem('nestData', JSON.stringify(data));
     updateUI(); 
-
-    if (myID) {
-        // Pfad: players/Name_mit_Unterstrich
-        db.ref('players/' + myID).update({
-            hp: data.hp, lxp: data.lxp, x: data.x, y: data.y, name: data.name,
-            stats: data.stats, inventar: data.inventar, 
-            isFollower: data.isFollower, // Variablen-Sync mit C#
-            followDays: data.followDays,  // Variablen-Sync mit C#
-            battleAction: data.battleAction, battleReady: data.battleReady, hidden: data.hidden
-        });
-    }
+    if (myID) db.ref('players/' + myID).update({
+        hp: data.hp, lxp: data.lxp, x: data.x, y: data.y, name: data.name,
+        stats: data.stats, inventar: data.inventar, 
+        isFollower: data.isFollower, 
+        followDays: data.followDays, 
+        battleAction: data.battleAction, battleReady: data.battleReady, hidden: data.hidden
+    });
 }
 
 function updateUI() {
@@ -173,25 +192,19 @@ function updateUI() {
     document.getElementById('hudClass').innerText = isAdmin ? "SYSTEM-ARCHITEKT" : (data.stats.className || "Novize");
     document.getElementById('lxpC').innerText = data.lxp;
     document.getElementById('lvlTotal').innerText = data.stats.totalEvoLevel;
-    
-    // Echtzeit-Anzeige Status
     document.getElementById('isFollower').innerText = data.isFollower ? "Ja" : "Nein";
     document.getElementById('followDaysDisplay').innerText = data.followDays;
     
-    const adminPanel = document.getElementById('adminHud');
-    if(isAdmin) adminPanel.style.display = 'block';
-
+    if(isAdmin) document.getElementById('adminHud').style.display = 'block';
     const invDiv = document.getElementById('miniInv'); invDiv.innerHTML = '';
-    if(data.inventar) {
-        Object.keys(data.inventar).forEach(i => { if(data.inventar[i]>0) invDiv.innerHTML += `<div style="padding:5px; border-bottom:1px solid #444;">${i} x${data.inventar[i]}</div>`; });
-    }
+    Object.keys(data.inventar).forEach(i => { if(data.inventar[i]>0) invDiv.innerHTML += `<div style="padding:5px; border-bottom:1px solid #444;">${i} x${data.inventar[i]}</div>`; });
 }
 
 function exitGame() {
     if(myID) {
         db.ref('players/' + myID).remove().then(() => {
             localStorage.removeItem('nestData');
-            location.href = location.pathname; 
+            location.href = REDIRECT_URI;
         });
     }
 }
@@ -205,7 +218,6 @@ function renderPlayers(players) {
         div.style.left = p.x + "px"; div.style.top = p.y + "px";
         const isBoss = p.name.replace(/\s+/g, '').toLowerCase() === BOSS_NAME.toLowerCase();
         
-        // Visuelle Logik der Evolutionsstufen bleibt unberührt
         const imgIdx = Math.min(Math.max((p.stats?.totalEvoLevel || 0), 0), 6);
         const imgSrc = isBoss ? 'Overlord.png' : EVO_IMGS[imgIdx];
         div.innerHTML = `<img src="${imgSrc}" onerror="this.src='Ei.png'"><div class="name-tag ${isBoss?'boss-aura':''}">${isBoss?'OVERLORD':p.name}</div>`;
@@ -229,31 +241,33 @@ function openBuilding(b) {
     else if (b === 'rathaus') renderEvoMenu();
 }
 
-window.onload = () => {
-    const p = new URLSearchParams(window.location.search);
-    const userParam = p.get('user');
+window.onload = async () => {
+    if (!checkTwitchAuth()) {
+        redirectToTwitch();
+        return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const userParam = params.get('user');
     
     if (userParam) {
         data.name = userParam;
+        myID = data.name.replace(/\s+/g, '_');
+        
+        // Twitch-Validierung hat Priorität
+        await validateTwitchFollower(data.name);
     }
-    
-    myID = data.name.replace(/\s+/g, '_');
-    connectStreamerBot();
-    
-    // Sicherstellen, dass das Götter-Erscheinen getriggert wird
-    if(data.name.replace(/\s+/g, '').toLowerCase() === BOSS_NAME.toLowerCase()) isAdmin = true;
 
-    // REALTIME LISTENER: Reagiert sofort auf Firebase-Änderungen (aus C#)
     db.ref('players').on('value', snap => {
         onlinePlayers = snap.val() || {};
         renderPlayers(onlinePlayers);
         
-        // Eigene Daten vom Server synchronisieren (falls C# dort reingeschrieben hat)
         if(onlinePlayers[myID]) {
             const pData = onlinePlayers[myID];
-            data.isFollower = pData.isFollower;
-            data.followDays = pData.followDays;
-            if(pData.stats) data.stats.className = pData.stats.className;
+            // Nur RPG-Werte laden, Follower-Status wurde bereits durch Twitch validiert
+            data.lxp = pData.lxp || 0;
+            data.stats = pData.stats || data.stats;
+            data.inventar = pData.inventar || {};
             updateUI();
         }
     });
@@ -263,7 +277,7 @@ window.onload = () => {
 };
 
 // ==========================================
-// SECTION 3: ARENA-HALL & COMBAT (UNCHANGED)
+// SECTION 3: ARENA & CRAFTING (UNVERÄNDERT)
 // ==========================================
 function renderArenaMatchmaking() {
     const left = document.getElementById('modalLeft');
@@ -331,14 +345,6 @@ function executeCombatAction(type) {
     }
 }
 
-function checkBattleSync() {
-    if (!currentEnemy || currentEnemy.isMonster) return;
-    const enemyData = onlinePlayers[currentEnemy.id];
-    if (data.battleReady && enemyData && enemyData.battleReady) {
-        currentEnemy.battleAction = enemyData.battleAction; resolveBattleTurn();
-    }
-}
-
 function resolveBattleTurn() {
     const log = document.getElementById('battleLog');
     let myDmg = 15 + (data.inventar['Schwert'] ? 10 : 0);
@@ -361,9 +367,6 @@ function resolveBattleTurn() {
     }, 2800);
 }
 
-// ==========================================
-// SECTIONS 4-7: CRAFTING & EVO
-// ==========================================
 function renderSmithy() {
     let html = `<div style="padding:30px;"><h2>Wald-Schmiede</h2>`;
     [{ name: "Spitzhacke", needs: { "Eisenerz": 3 } }, { name: "Schwert", needs: { "Eisenerz": 5 } }].forEach(recipe => {
