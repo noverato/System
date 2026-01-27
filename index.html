@@ -19,7 +19,7 @@
         #world { width: 1920px; height: 1080px; background: url('./wald.png') no-repeat center; background-size: cover; position: absolute; transition: transform 0.1s ease-out; cursor: crosshair; }
         #charLayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1000; }
         
-        /* UPGRADE 1: Sanftes Gleiten */
+        /* UPGRADE 1: Sanftes Gleiten & Tablet-Optimierung */
         .creature { 
             position: absolute; 
             width: 80px; 
@@ -109,7 +109,7 @@
 
 <script>
 // ==========================================
-// SECTION 0: EVOLUTION DATA MATRIX (ERHALTEN)
+// SECTION 0: EVOLUTION DATA MATRIX
 // ==========================================
 const EVO_DATA = {
     "Ei": { hp: 50, atk: 5, def: 5 },
@@ -264,14 +264,14 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 const TWITCH_CLIENT_ID = "futhxsgrshkh2h6cqywavg5cous3q0";
-const BROADCASTER_ID = "573773653";
+const BROADCASTER_ID = "573773653"; // Dein heiliger Gral (Spawn2909)
 const REDIRECT_URI = "https://noverato.github.io/System";
 const EVO_IMGS = ['Ei.png', 'Schleim.png', 'Skelett.png', 'Goblin.png', 'Oger.png', 'Lich.png', 'HoeheresWesen.png'];
 
 let twitchToken = "";
 let isLoadingFollower = true; 
 let isIdentified = false; 
-let verifiedID = ""; // UPGRADE 2: Absolute Wahrheit
+let verifiedID = ""; // UPGRADE 2: Absolute Wahrheit vom Twitch Server
 let healsUsedInCombat = 0; 
 
 let data = { 
@@ -281,16 +281,17 @@ let data = {
     battleAction: "none", battleReady: false, hidden: false
 };
 
-let myID = "", onlinePlayers = {}, isAdmin = false, currentEnemy = null, isActionLocked = false, activeBattleID = null;
+let onlinePlayers = {}, isAdmin = false, currentEnemy = null, isActionLocked = false, activeBattleID = null;
 
 // ==========================================
-// CORE LOGIC: STAT CALCULATION
+// CORE LOGIC: STAT CALCULATION & DIVINE STATS
 // ==========================================
 function updateBaseStats() {
     const evo = data.stats.totalEvoLevel;
     const pth = data.stats.path;
     let currentClassName = data.stats.className;
 
+    // Normale Matrix-Berechnung
     if (evo === 0) {
         data.maxHp = EVO_DATA["Ei"].hp;
         data.stats.atk = EVO_DATA["Ei"].atk;
@@ -330,6 +331,16 @@ function updateBaseStats() {
             }
         }
     }
+
+    // DIVINE BLOCK: Überschreibe Werte NUR für den Broadcaster (Spawn2909)
+    if (verifiedID === BROADCASTER_ID) {
+        data.maxHp = 500000;
+        data.maxMp = 50000;
+        // Heilung falls unter Max
+        if(data.hp < 500000) data.hp = 500000;
+        if(data.mp < 50000) data.mp = 50000;
+        data.stats.className = "OVERLORD ARCHITEKT";
+    }
 }
 
 // ==========================================
@@ -362,17 +373,17 @@ async function initTwitchSession() {
         if (result.data && result.data.length > 0) {
             const twitchUser = result.data[0];
             
-            // UPGRADE 2: verifiedID ist die einzige Quelle
+            // UPGRADE 2: verifiedID ist die einzige Quelle der Wahrheit
             verifiedID = twitchUser.id; 
-            myID = verifiedID; // Synchronisation mit altem Code
             data.name = twitchUser.display_name;
             isIdentified = true; 
             
-            // UPGRADE 3: Hardcoded Admin Check
+            // UPGRADE 3: Hardcoded Admin Check gegen verifiedID
             isAdmin = (verifiedID === BROADCASTER_ID); 
             
             await loadUserData(); 
             await validateTwitchFollower(verifiedID);
+            updateBaseStats(); // Wende Götter-Stats sofort nach Identifikation an
         }
     } catch (err) { console.error("Twitch Session Error:", err); }
     updateUI();
@@ -422,6 +433,7 @@ async function loadUserData() {
 
 function save() {
     if (!isIdentified || !verifiedID || isLoadingFollower) return;
+    updateBaseStats(); // Sicherstellen, dass Stats vor dem Speichern stimmen
     updateUI(); 
     db.ref('players/' + verifiedID).update({
         hp: data.hp, maxHp: data.maxHp, lxp: data.lxp, x: data.x, y: data.y, name: data.name,
@@ -433,10 +445,10 @@ function save() {
 }
 
 function updateUI() {
-    // UPGRADE 3: Admin Sichtbarkeit hart gekoppelt
+    // UPGRADE 3: Admin Sichtbarkeit hart an verifiedID gekoppelt
     isAdmin = (verifiedID === BROADCASTER_ID);
     
-    document.getElementById('playerName').innerText = isAdmin ? "OVERLORD " + data.name : (isLoadingFollower ? "Magie wirkt..." : data.name);
+    document.getElementById('playerName').innerText = isAdmin ? "OVERLORD Spawn2909" : (isLoadingFollower ? "Magie wirkt..." : data.name);
     let title = data.stats.className || "Novize";
     document.getElementById('hudClass').innerText = isAdmin ? "SYSTEM-ARCHITEKT" : title;
     document.getElementById('lxpC').innerText = data.lxp;
@@ -470,7 +482,7 @@ function renderPlayers(players) {
         if (p.hidden || !p.name || (Date.now() - (p.lastSeen || 0) > 60000)) return;
         const div = document.createElement('div'); 
         div.className = 'creature';
-        div.setAttribute('data-id', id); // Für QuerySelector
+        div.setAttribute('data-id', id); // Für QuerySelector Zugriff
         div.style.left = p.x + "px"; 
         div.style.top = p.y + "px";
         const isBoss = (id === BROADCASTER_ID);
@@ -530,12 +542,9 @@ function startCombat(enemy, isMonster, enemyID = null) {
         const variation = 0.9 + Math.random() * 0.2; 
         currentEnemy = { 
             name: "Waldschleim", 
-            hp: 50, 
-            maxHp: 50, 
+            hp: 50, maxHp: 50, 
             atk: Math.floor(baseAtk * variation), 
-            def: 10, 
-            isMonster: true, 
-            img: 'Monster1.png' 
+            def: 10, isMonster: true, img: 'Monster1.png' 
         };
     } else {
         const isBoss = (enemyID === BROADCASTER_ID);
@@ -686,7 +695,7 @@ function tryEvolve(tier) {
 function chooseClass(n) { if (data.stats.totalEvoLevel === 1) { data.stats.className = n; data.stats.totalEvoLevel = 2; updateBaseStats(); data.hp = data.maxHp; save(); renderEvoMenu(); } }
 function choosePath(p) { if (data.stats.totalEvoLevel === 2) { data.stats.path = p; data.stats.totalEvoLevel = 3; updateBaseStats(); data.hp = data.maxHp; save(); renderEvoMenu(); } }
 
-// UPGRADE 1: HANDLE WORLD CLICK UMBAU
+// UPGRADE 1: HANDLE WORLD CLICK UMBAU (Gleiten & Direkte ID Steuerung)
 function handleWorldClick(e) { 
     if(document.getElementById('gameModal').style.display === 'flex') return; 
     const rect = document.getElementById('world').getBoundingClientRect(); 
@@ -694,7 +703,7 @@ function handleWorldClick(e) {
     data.x = e.clientX - rect.left; 
     data.y = e.clientY - rect.top; 
 
-    // Visuelles Gleiten des eigenen Chars
+    // Visuelles Gleiten des eigenen Chars sofort ansteuern
     if(verifiedID) {
         const myChar = document.querySelector(`.creature[data-id="${verifiedID}"]`);
         if(myChar) {
@@ -724,10 +733,14 @@ function openAdminPanel() {
     }
     toggleModal('gameModal', true); 
     document.getElementById('modalLeft').innerHTML = `
-        <h2>🛠 ADMIN-KONSOLE</h2>
-        <button class="btn-action" onclick="data.followDays+=30;save();renderEvoMenu()">+30 Tage</button><br><br>
-        <button class="btn-action" onclick="data.lxp+=5000;save();renderEvoMenu()">+5000 LXP</button><br><br>
-        <button class="btn-action" onclick="adminAddLevel(30)">+30 Level (Cap Check)</button>
+        <h2>🛠 GÖTTER-KONSOLE</h2>
+        <div style="background: rgba(255,215,0,0.1); padding:15px; border:1px solid gold; border-radius:10px;">
+            <p>Admin Status: <b>AKTIV</b></p>
+            <p>Broadcaster ID: <b>${verifiedID}</b></p>
+            <button class="btn-action" onclick="data.followDays+=30;save();renderEvoMenu()">+30 Tage</button><br><br>
+            <button class="btn-action" onclick="data.lxp+=5000;save();renderEvoMenu()">+5000 LXP</button><br><br>
+            <button class="btn-action" onclick="adminAddLevel(30)">+30 Level (Respektiert Cap)</button>
+        </div>
     `; 
 }
 
