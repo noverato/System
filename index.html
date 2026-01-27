@@ -156,10 +156,7 @@ async function initTwitchSession() {
                 data.name = twitchUser.display_name;
                 myID = twitchUser.id;
                 isIdentified = true; 
-                
-                // ADMIN FIX: Vor dem Laden setzen
                 if (myID === BROADCASTER_ID) isAdmin = true;
-
                 await loadUserData(); 
                 await validateTwitchFollower(myID);
             }
@@ -262,16 +259,17 @@ function renderPlayers(players) {
 }
 
 // ==========================================
-// SECTION 4: REPAIRED BATTLE CODE (Observer & Realtime Actions)
+// SECTION 4: ARENA-SYNC (REPAIRED GLOBAL OBSERVER)
 // ==========================================
 function listenForChallenges() {
     if (!myID) return;
+    
     db.ref('battles').on('value', snap => {
         snap.forEach(child => {
             const battle = child.val();
             const bID = child.key;
 
-            // 1. INVITE: Ich bin Verteidiger und Anfrage ist offen
+            // 1. EINLADUNG ANZEIGEN (Nur für Verteidiger im Postfach)
             if (battle.defenderID === myID && battle.status === 'pending') {
                 const inviteBox = document.getElementById('battleInvite');
                 document.getElementById('inviteText').innerText = battle.attackerName + " fordert dich!";
@@ -282,18 +280,44 @@ function listenForChallenges() {
                 };
             }
 
-            // 2. OBSERVER / TELEPORT: Kampf ist aktiv -> Beide IDs teleportieren
+            // 2. REPARIERTER GLOBALER TELEPORT-TRIGGER
             if ((battle.attackerID === myID || battle.defenderID === myID) && battle.status === 'active') {
-                if (!currentEnemy) {
+                // Nur auslösen, wenn noch kein Kampf läuft oder die Szene nicht offen ist
+                if (!currentEnemy || activeBattleID !== bID) {
                     activeBattleID = bID;
                     const oppID = (battle.attackerID === myID) ? battle.defenderID : battle.attackerID;
-                    startCombat(onlinePlayers[oppID], false, oppID);
+                    
+                    if(onlinePlayers[oppID]) {
+                        // REPARATUR: Modal zwingend öffnen (für Verteidiger!)
+                        toggleModal('gameModal', true);
+                        startCombat(onlinePlayers[oppID], false, oppID);
+                        
+                        // REPARATUR: inArena Flagge erst nach dem Teleport senden
+                        db.ref(`battles/${bID}/actions/${myID}`).update({ inArena: true });
+                    }
                 }
 
-                // 3. JUDGE: Prüfe Echtzeit-Aktionen beider Clients
-                const atkAct = battle.actions[battle.attackerID];
-                const defAct = battle.actions[battle.defenderID];
-                if (atkAct.ready && defAct.ready && !isActionLocked) {
+                // 3. ATB-SYNCHRONISATION
+                const atkStatus = battle.actions[battle.attackerID];
+                const defStatus = battle.actions[battle.defenderID];
+                const log = document.getElementById('battleLog');
+
+                if (log) {
+                    if (atkStatus?.inArena && defStatus?.inArena) {
+                        if (!isActionLocked) {
+                            log.innerText = "Bereit zum Kampf! Wähle eine Aktion.";
+                            document.getElementById('btnAtk').disabled = false;
+                            document.getElementById('btnHeal').disabled = false;
+                        }
+                    } else {
+                        log.innerText = "Synchronisation... Warte auf Gegner.";
+                        document.getElementById('btnAtk').disabled = true;
+                        document.getElementById('btnHeal').disabled = true;
+                    }
+                }
+
+                // 4. JUDGE: Züge auswerten
+                if (atkStatus?.ready && defStatus?.ready && !isActionLocked) {
                     resolvePvPTurn(battle);
                 }
             }
@@ -304,20 +328,26 @@ function listenForChallenges() {
 function challengePlayer(targetID, targetName) {
     if (!isIdentified || (!data.isFollower && !isAdmin)) return alert("Nur aktive Follower dürfen fordern!");
     const bID = targetID; // Verteidiger-Postfach
+    
+    // REPARATUR: activeBattleID sofort setzen, damit der Herausforderer trackt
+    activeBattleID = bID;
+
     db.ref('battles/' + bID).set({
         attackerName: data.name, attackerID: myID,
         defenderName: targetName, defenderID: targetID,
         status: 'pending', timestamp: Date.now(),
         actions: {
-            [myID]: { type: 'none', ready: false },
-            [targetID]: { type: 'none', ready: false }
+            [myID]: { type: 'none', ready: false, inArena: false },
+            [targetID]: { type: 'none', ready: false, inArena: false }
         }
     });
     alert("Duell-Anfrage an " + targetName + " gesendet!");
 }
 
 function startCombat(enemy, isMonster, enemyID = null) {
-    toggleModal('gameModal', true);
+    // Falls startCombat direkt aufgerufen wird (z.B. Monster), Modal zur Sicherheit öffnen
+    if(document.getElementById('gameModal').style.display !== 'flex') toggleModal('gameModal', true);
+    
     isActionLocked = false;
     if (isMonster) {
         currentEnemy = { ...MONSTERS[Math.floor(Math.random() * MONSTERS.length)], isMonster: true };
@@ -336,8 +366,8 @@ function renderCombatStage() {
         <div class="combatant-wrap"><img src="${currentEnemy.img || 'Monster1.png'}" onerror="this.src='Ei.png'" class="combatant-img"><br><strong>${currentEnemy.name}</strong></div>
         <div id="ffMenu">
             <div class="ff-buttons">
-                <button id="btnAtk" class="btn-action" onclick="executeCombatAction('attack')" ${isActionLocked?'disabled':''}>ATTACKE</button>
-                <button id="btnHeal" class="btn-action" onclick="executeCombatAction('heal')" ${isActionLocked?'disabled':''}>HEILUNG</button>
+                <button id="btnAtk" class="btn-action" disabled onclick="executeCombatAction('attack')">ATTACKE</button>
+                <button id="btnHeal" class="btn-action" disabled onclick="executeCombatAction('heal')">HEILUNG</button>
                 <button class="btn-action" onclick="endCombat()">FLUCHT</button>
             </div>
             <div class="ff-status">
@@ -345,7 +375,7 @@ function renderCombatStage() {
                 <div class="bar-wrap"><div id="enemyHpFill" style="width:${(currentEnemy.hp/currentEnemy.maxHp)*100}%;"></div></div>
             </div>
         </div>
-        <div id="battleLog">Warte auf Synchronisation...</div>
+        <div id="battleLog">Initialisiere Magie...</div>
     </div>`;
 }
 
@@ -361,8 +391,7 @@ function executeCombatAction(type) {
             resolveBattleTurn();
         }, 1200);
     } else {
-        // ECHTZEIT-BRÜCKE: Aktion in das aktive Battle-Dokument schreiben
-        db.ref(`battles/${activeBattleID}/actions/${myID}`).set({ type: type, ready: true });
+        db.ref(`battles/${activeBattleID}/actions/${myID}`).update({ type: type, ready: true });
     }
 }
 
@@ -392,12 +421,9 @@ function resolvePvPTurn(battle) {
             alert(data.hp <= 0 ? "Gefallen!" : "Sieg!");
             endCombat();
         } else {
-            // Reset für nächsten Zug (nur einer muss resetten)
             if (myID === battle.attackerID) {
-                db.ref(`battles/${activeBattleID}/actions`).set({
-                    [battle.attackerID]: { type: 'none', ready: false },
-                    [battle.defenderID]: { type: 'none', ready: false }
-                });
+                db.ref(`battles/${activeBattleID}/actions/${battle.attackerID}`).update({ type: 'none', ready: false });
+                db.ref(`battles/${activeBattleID}/actions/${battle.defenderID}`).update({ type: 'none', ready: false });
             }
             isActionLocked = false;
             renderCombatStage();
