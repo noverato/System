@@ -19,7 +19,6 @@
         #world { width: 1920px; height: 1080px; background: url('./wald.png') no-repeat center; background-size: cover; position: absolute; transition: transform 0.1s ease-out; cursor: crosshair; }
         #charLayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1000; }
         
-        /* UPGRADE 1: Sanftes Gleiten & Tablet-Optimierung */
         .creature { 
             position: absolute; 
             width: 80px; 
@@ -70,7 +69,7 @@
 <div id="viewport">
     <div id="world" onclick="handleWorldClick(event)">
         <div class="building" style="left:1500px; top:200px; width:220px; height:220px; background-image:url('./steinbruch.png');" onclick="event.stopPropagation(); openBuilding('steinbruch')"><div class="label">Steinbruch</div></div>
-        <div class="building" style="left:700px; top:500px; width:180px; height:180px; background-image:url('./schmiede.png');" onclick="event.stopPropagation(); openBuilding('wald')"><div class="label">Wald-Schmiede</div></div>
+        <div class="building" style="left:700px; top:500px; width:180px; height:180px; background-image:url('./schmiede.png');" onclick="event.stopPropagation(); openBuilding('schmiede')"><div class="label">Wald-Schmiede</div></div>
         <div class="building" style="left:300px; top:700px; width:200px; height:200px; background-image:url('./arena.png');" onclick="event.stopPropagation(); openBuilding('arena')"><div class="label">PvP Arena</div></div>
         <div class="building" style="left:1000px; top:600px; width:250px; height:250px; background-image:url('./rathaus.png');" onclick="event.stopPropagation(); openBuilding('rathaus')"><div class="label">Halle der Evolution</div></div>
         <div id="charLayer"></div>
@@ -256,22 +255,19 @@ const EVO_DATA = {
     }
 };
 
-// ==========================================
-// SECTION 1: CONFIG & UPGRADE 2
-// ==========================================
 const firebaseConfig = { apiKey: "AIzaSyCKNXJ-ouAOAcLr5ut-EemWQI8_zJxhqa8", authDomain: "thenest-81de6.firebaseapp.com", databaseURL: "https://thenest-81de6-default-rtdb.firebaseio.com", projectId: "thenest-81de6" };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 const TWITCH_CLIENT_ID = "futhxsgrshkh2h6cqywavg5cous3q0";
-const BROADCASTER_ID = "573773653"; // Dein heiliger Gral (Spawn2909)
+const BROADCASTER_ID = "573773653";
 const REDIRECT_URI = "https://noverato.github.io/System";
 const EVO_IMGS = ['Ei.png', 'Schleim.png', 'Skelett.png', 'Goblin.png', 'Oger.png', 'Lich.png', 'HoeheresWesen.png'];
 
 let twitchToken = "";
 let isLoadingFollower = true; 
 let isIdentified = false; 
-let verifiedID = ""; // UPGRADE 2: Absolute Wahrheit vom Twitch Server
+let verifiedID = ""; 
 let healsUsedInCombat = 0; 
 
 let data = { 
@@ -283,15 +279,11 @@ let data = {
 
 let onlinePlayers = {}, isAdmin = false, currentEnemy = null, isActionLocked = false, activeBattleID = null;
 
-// ==========================================
-// CORE LOGIC: STAT CALCULATION & DIVINE STATS
-// ==========================================
 function updateBaseStats() {
     const evo = data.stats.totalEvoLevel;
     const pth = data.stats.path;
     let currentClassName = data.stats.className;
 
-    // Normale Matrix-Berechnung
     if (evo === 0) {
         data.maxHp = EVO_DATA["Ei"].hp;
         data.stats.atk = EVO_DATA["Ei"].atk;
@@ -332,20 +324,15 @@ function updateBaseStats() {
         }
     }
 
-    // DIVINE BLOCK: Überschreibe Werte NUR für den Broadcaster (Spawn2909)
     if (verifiedID === BROADCASTER_ID) {
         data.maxHp = 500000;
         data.maxMp = 50000;
-        // Heilung falls unter Max
         if(data.hp < 500000) data.hp = 500000;
         if(data.mp < 50000) data.mp = 50000;
         data.stats.className = "OVERLORD ARCHITEKT";
     }
 }
 
-// ==========================================
-// SECTION 2: IDENTITY & UPGRADE 2
-// ==========================================
 function checkTwitchAuth() {
     const hash = window.location.hash.substring(1);
     if (!hash) return false;
@@ -372,18 +359,13 @@ async function initTwitchSession() {
         const result = await resp.json();
         if (result.data && result.data.length > 0) {
             const twitchUser = result.data[0];
-            
-            // UPGRADE 2: verifiedID ist die einzige Quelle der Wahrheit
             verifiedID = twitchUser.id; 
             data.name = twitchUser.display_name;
             isIdentified = true; 
-            
-            // UPGRADE 3: Hardcoded Admin Check gegen verifiedID
             isAdmin = (verifiedID === BROADCASTER_ID); 
-            
             await loadUserData(); 
             await validateTwitchFollower(verifiedID);
-            updateBaseStats(); // Wende Götter-Stats sofort nach Identifikation an
+            updateBaseStats(); 
         }
     } catch (err) { console.error("Twitch Session Error:", err); }
     updateUI();
@@ -410,9 +392,6 @@ async function validateTwitchFollower(userID) {
     }
 }
 
-// ==========================================
-// SECTION 3: FIREBASE & UPGRADE 2/3
-// ==========================================
 async function loadUserData() {
     if (!verifiedID) return;
     try {
@@ -433,7 +412,7 @@ async function loadUserData() {
 
 function save() {
     if (!isIdentified || !verifiedID || isLoadingFollower) return;
-    updateBaseStats(); // Sicherstellen, dass Stats vor dem Speichern stimmen
+    updateBaseStats(); 
     updateUI(); 
     db.ref('players/' + verifiedID).update({
         hp: data.hp, maxHp: data.maxHp, lxp: data.lxp, x: data.x, y: data.y, name: data.name,
@@ -445,9 +424,7 @@ function save() {
 }
 
 function updateUI() {
-    // UPGRADE 3: Admin Sichtbarkeit hart an verifiedID gekoppelt
     isAdmin = (verifiedID === BROADCASTER_ID);
-    
     document.getElementById('playerName').innerText = isAdmin ? "OVERLORD Spawn2909" : (isLoadingFollower ? "Magie wirkt..." : data.name);
     let title = data.stats.className || "Novize";
     document.getElementById('hudClass').innerText = isAdmin ? "SYSTEM-ARCHITEKT" : title;
@@ -482,7 +459,7 @@ function renderPlayers(players) {
         if (p.hidden || !p.name || (Date.now() - (p.lastSeen || 0) > 60000)) return;
         const div = document.createElement('div'); 
         div.className = 'creature';
-        div.setAttribute('data-id', id); // Für QuerySelector Zugriff
+        div.setAttribute('data-id', id); 
         div.style.left = p.x + "px"; 
         div.style.top = p.y + "px";
         const isBoss = (id === BROADCASTER_ID);
@@ -493,9 +470,6 @@ function renderPlayers(players) {
     });
 }
 
-// ==========================================
-// SECTION 4: KAMPF-LOGIK (ERHALTEN)
-// ==========================================
 function listenForChallenges() {
     if (!verifiedID) return;
     db.ref('battles').on('value', snap => {
@@ -536,13 +510,11 @@ function startCombat(enemy, isMonster, enemyID = null) {
     if(document.getElementById('gameModal').style.display !== 'flex') toggleModal('gameModal', true);
     isActionLocked = false;
     healsUsedInCombat = 0; 
-    
     if (isMonster) {
         const baseAtk = 25;
         const variation = 0.9 + Math.random() * 0.2; 
         currentEnemy = { 
-            name: "Waldschleim", 
-            hp: 50, maxHp: 50, 
+            name: "Waldschleim", hp: 50, maxHp: 50, 
             atk: Math.floor(baseAtk * variation), 
             def: 10, isMonster: true, img: 'Monster1.png' 
         };
@@ -560,7 +532,7 @@ function renderCombatStage() {
         <div class="combatant-wrap">
             <img src="${myImg}" onerror="this.src='Ei.png'" class="combatant-img">
             <br><strong>${data.name}</strong>
-            <div style="font-size:12px; color:gold;">⚔️ ATK: ${data.stats.atk} | 🛡️ DEF: ${data.stats.def}</div>
+            <div style="font-size:12px; color:gold;">⚔️ ATK: ${isAdmin ? 999 : data.stats.atk} | 🛡️ DEF: ${data.stats.def}</div>
         </div>
         <div class="combatant-wrap">
             <img src="${currentEnemy.img || 'Monster1.png'}" onerror="this.src='Ei.png'" class="combatant-img">
@@ -598,7 +570,7 @@ function executeCombatAction(type) {
 }
 
 function resolveBattleTurn() {
-    const playerAtk = data.stats.atk || 5;
+    const playerAtk = isAdmin ? 999 : (data.stats.atk || 5);
     const playerDef = data.stats.def || 5;
     const monsterAtk = currentEnemy.atk || 20;
     const log = document.getElementById('battleLog');
@@ -616,7 +588,7 @@ function resolveBattleTurn() {
         turnReport += `<div style="color:#4ade80;">Du triffst für ${pDmg} Schaden!</div>`;
     }
 
-    let mDmg = Math.max(2, Math.floor(monsterAtk - playerDef * 0.2));
+    let mDmg = isAdmin ? 0 : Math.max(2, Math.floor(monsterAtk - playerDef * 0.2));
     data.hp -= mDmg;
     turnReport += `<div style="color:#ff4444;">${currentEnemy.name} trifft dich für ${mDmg} Schaden!</div>`;
     log.innerHTML = turnReport;
@@ -643,15 +615,11 @@ function endCombat() {
 
 function closeGeneralModal() { if (activeBattleID || currentEnemy) endCombat(); else toggleModal('gameModal', false); }
 
-// ==========================================
-// SECTION 5: EVOLUTION & UPGRADE 1 CLICK
-// ==========================================
 function renderEvoMenu() {
     const left = document.getElementById('modalLeft');
     const curEvo = data.stats.totalEvoLevel;
     const ep = data.followDays;
     const lvl = data.stats.currentLevel;
-    
     let html = `<div style="padding:30px; text-align:center;">
         <h2 style="color:gold; font-size:32px;">Halle der Evolution</h2>
         <p style="color:#aaa;">Form: <b style="color:cyan;">${data.stats.className}</b> | Pfad: <b style="color:cyan;">${data.stats.path}</b></p>
@@ -695,29 +663,36 @@ function tryEvolve(tier) {
 function chooseClass(n) { if (data.stats.totalEvoLevel === 1) { data.stats.className = n; data.stats.totalEvoLevel = 2; updateBaseStats(); data.hp = data.maxHp; save(); renderEvoMenu(); } }
 function choosePath(p) { if (data.stats.totalEvoLevel === 2) { data.stats.path = p; data.stats.totalEvoLevel = 3; updateBaseStats(); data.hp = data.maxHp; save(); renderEvoMenu(); } }
 
-// UPGRADE 1: HANDLE WORLD CLICK UMBAU (Gleiten & Direkte ID Steuerung)
 function handleWorldClick(e) { 
     if(document.getElementById('gameModal').style.display === 'flex') return; 
     const rect = document.getElementById('world').getBoundingClientRect(); 
-    
     data.x = e.clientX - rect.left; 
     data.y = e.clientY - rect.top; 
-
-    // Visuelles Gleiten des eigenen Chars sofort ansteuern
     if(verifiedID) {
         const myChar = document.querySelector(`.creature[data-id="${verifiedID}"]`);
-        if(myChar) {
-            myChar.style.left = data.x + "px";
-            myChar.style.top = data.y + "px";
-        }
+        if(myChar) { myChar.style.left = data.x + "px"; myChar.style.top = data.y + "px"; }
     }
     save(); 
 }
 
 function toggleModal(id, s) { document.getElementById(id).style.display = s ? 'flex' : 'none'; }
-function openBuilding(b) { toggleModal('gameModal', true); if (b === 'steinbruch') renderMiningMenu(); else if (b === 'rathaus') renderEvoMenu(); else if (b === 'arena') renderArenaMatchmaking(); }
+
+// FIX 2: openBuilding erweitert
+function openBuilding(b) { 
+    toggleModal('gameModal', true); 
+    if (b === 'steinbruch') renderMiningMenu(); 
+    else if (b === 'rathaus') renderEvoMenu(); 
+    else if (b === 'arena') renderArenaMatchmaking(); 
+    else if (b === 'schmiede') renderCraftingMenu();
+}
 
 function renderMiningMenu() { document.getElementById('modalLeft').innerHTML = `<div style="padding:30px;"><h2>Steinbruch</h2><button class="btn-action" onclick="startMining()">⛏️ Abbau</button></div>`; }
+
+// FIX 3: Schmiede-Menü hinzugefügt
+function renderCraftingMenu() { 
+    document.getElementById('modalLeft').innerHTML = `<div style="padding:30px;"><h2>Wald-Schmiede</h2><p>Hier kannst du bald Ausrüstung herstellen.</p><button class="btn-action" disabled>Hammer schwingen (In Kürze)</button></div>`; 
+}
+
 function startMining() { 
     data.lxp += 10; 
     let cap = (data.stats.totalEvoLevel === 0) ? 1 : (data.stats.totalEvoLevel * 30);
@@ -725,21 +700,16 @@ function startMining() {
     save(); 
 }
 
-// UPGRADE 3: ADMIN ABSICHERUNG
 function openAdminPanel() { 
-    if (verifiedID !== BROADCASTER_ID) {
-        alert("Zugriff verweigert!");
-        return;
-    }
+    if (verifiedID !== BROADCASTER_ID) { alert("Zugriff verweigert!"); return; }
     toggleModal('gameModal', true); 
     document.getElementById('modalLeft').innerHTML = `
         <h2>🛠 GÖTTER-KONSOLE</h2>
         <div style="background: rgba(255,215,0,0.1); padding:15px; border:1px solid gold; border-radius:10px;">
-            <p>Admin Status: <b>AKTIV</b></p>
-            <p>Broadcaster ID: <b>${verifiedID}</b></p>
+            <p>Admin Status: <b style="color:#4ade80;">VERIFIZIERT</b></p>
             <button class="btn-action" onclick="data.followDays+=30;save();renderEvoMenu()">+30 Tage</button><br><br>
             <button class="btn-action" onclick="data.lxp+=5000;save();renderEvoMenu()">+5000 LXP</button><br><br>
-            <button class="btn-action" onclick="adminAddLevel(30)">+30 Level (Respektiert Cap)</button>
+            <button class="btn-action" onclick="adminAddLevel(30)">+30 Level (Cap Check)</button>
         </div>
     `; 
 }
@@ -755,11 +725,8 @@ function renderArenaMatchmaking() {
 }
 
 window.onload = async () => {
-    if (checkTwitchAuth()) {
-        await initTwitchSession();
-    } else {
-        redirectToTwitch();
-    }
+    if (checkTwitchAuth()) await initTwitchSession();
+    else redirectToTwitch();
     db.ref('players').on('value', snap => {
         onlinePlayers = snap.val() || {};
         renderPlayers(onlinePlayers);
