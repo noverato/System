@@ -46,6 +46,9 @@
         .btn-action:hover:not(:disabled) { filter: brightness(1.2); transform: scale(1.05); }
         .btn-action:disabled { opacity: 0.35; cursor: not-allowed; filter: grayscale(1); }
 
+        /* Edit Mode Highlight */
+        .building.editing { outline: 2px dashed #4ade80; cursor: move !important; }
+
         #battleInvite { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--ff-blue); border: 3px solid #fff; padding: 30px; z-index: 30000; display: none; text-align: center; box-shadow: 0 0 50px #000; border-radius: 15px; }
 
         #arenaStage { width: 100%; height: 100%; background: url('./arena_innen.png') no-repeat center; background-size: cover; position: relative; display: flex; align-items: center; justify-content: space-around; overflow: hidden; }
@@ -68,10 +71,14 @@
 
 <div id="viewport">
     <div id="world" onclick="handleWorldClick(event)">
-        <div class="building" style="left:1500px; top:200px; width:220px; height:220px; background-image:url('./steinbruch.png');" onclick="event.stopPropagation(); openBuilding('steinbruch')"><div class="label">Steinbruch</div></div>
-        <div class="building" style="left:700px; top:500px; width:180px; height:180px; background-image:url('./schmiede.png');" onclick="event.stopPropagation(); openBuilding('schmiede')"><div class="label">Wald-Schmiede</div></div>
-        <div class="building" style="left:300px; top:700px; width:200px; height:200px; background-image:url('./arena.png');" onclick="event.stopPropagation(); openBuilding('arena')"><div class="label">PvP Arena</div></div>
-        <div class="building" style="left:1000px; top:600px; width:250px; height:250px; background-image:url('./rathaus.png');" onclick="event.stopPropagation(); openBuilding('rathaus')"><div class="label">Halle der Evolution</div></div>
+        <div id="b-steinbruch" class="building" style="left:1500px; top:200px; width:220px; height:220px; background-image:url('./steinbruch.png');" onclick="event.stopPropagation(); openBuilding('steinbruch')"><div class="label">Steinbruch</div></div>
+        <div id="b-schmiede" class="building" style="left:700px; top:500px; width:180px; height:180px; background-image:url('./schmiede.png');" onclick="event.stopPropagation(); openBuilding('schmiede')"><div class="label">Wald-Schmiede</div></div>
+        <div id="b-arena" class="building" style="left:300px; top:700px; width:200px; height:200px; background-image:url('./arena.png');" onclick="event.stopPropagation(); openBuilding('arena')"><div class="label">PvP Arena</div></div>
+        <div id="b-rathaus" class="building" style="left:1000px; top:600px; width:250px; height:250px; background-image:url('./rathaus.png');" onclick="event.stopPropagation(); openBuilding('rathaus')"><div class="label">Halle der Evolution</div></div>
+        
+        <div id="b-markt" class="building" style="left:1200px; top:800px; width:180px; height:180px; background-image:url('./rathaus.png'); filter:hue-rotate(90deg);" onclick="event.stopPropagation(); openBuilding('markt')"><div class="label">Marktplatz</div></div>
+        <div id="b-heilige" class="building" style="left:500px; top:250px; width:180px; height:180px; background-image:url('./schmiede.png'); filter:brightness(1.5);" onclick="event.stopPropagation(); openBuilding('heilige')"><div class="label">Heilige Schmiede</div></div>
+
         <div id="charLayer"></div>
     </div>
 </div>
@@ -664,7 +671,7 @@ function chooseClass(n) { if (data.stats.totalEvoLevel === 1) { data.stats.class
 function choosePath(p) { if (data.stats.totalEvoLevel === 2) { data.stats.path = p; data.stats.totalEvoLevel = 3; updateBaseStats(); data.hp = data.maxHp; save(); renderEvoMenu(); } }
 
 function handleWorldClick(e) { 
-    if(document.getElementById('gameModal').style.display === 'flex') return; 
+    if(document.getElementById('gameModal').style.display === 'flex' || isEditMode) return; 
     const rect = document.getElementById('world').getBoundingClientRect(); 
     data.x = e.clientX - rect.left; 
     data.y = e.clientY - rect.top; 
@@ -677,21 +684,21 @@ function handleWorldClick(e) {
 
 function toggleModal(id, s) { document.getElementById(id).style.display = s ? 'flex' : 'none'; }
 
-// FIX 2: openBuilding erweitert
 function openBuilding(b) { 
+    if (isEditMode) return;
     toggleModal('gameModal', true); 
     if (b === 'steinbruch') renderMiningMenu(); 
     else if (b === 'rathaus') renderEvoMenu(); 
     else if (b === 'arena') renderArenaMatchmaking(); 
     else if (b === 'schmiede') renderCraftingMenu();
+    else if (b === 'markt') renderMarketplace();
+    else if (b === 'heilige') renderHolyForge();
 }
 
 function renderMiningMenu() { document.getElementById('modalLeft').innerHTML = `<div style="padding:30px;"><h2>Steinbruch</h2><button class="btn-action" onclick="startMining()">⛏️ Abbau</button></div>`; }
-
-// FIX 3: Schmiede-Menü hinzugefügt
-function renderCraftingMenu() { 
-    document.getElementById('modalLeft').innerHTML = `<div style="padding:30px;"><h2>Wald-Schmiede</h2><p>Hier kannst du bald Ausrüstung herstellen.</p><button class="btn-action" disabled>Hammer schwingen (In Kürze)</button></div>`; 
-}
+function renderCraftingMenu() { document.getElementById('modalLeft').innerHTML = `<div style="padding:30px;"><h2>Wald-Schmiede</h2><p>Hier kannst du bald Ausrüstung herstellen.</p><button class="btn-action" disabled>Hammer schwingen (In Kürze)</button></div>`; }
+function renderMarketplace() { document.getElementById('modalLeft').innerHTML = `<div style="padding:30px;"><h2>Marktplatz</h2><p>Handel ist aktuell deaktiviert.</p></div>`; }
+function renderHolyForge() { document.getElementById('modalLeft').innerHTML = `<div style="padding:30px;"><h2>Heilige Schmiede</h2><p>Göttliche Artefakte erfordern Level 200.</p></div>`; }
 
 function startMining() { 
     data.lxp += 10; 
@@ -707,9 +714,13 @@ function openAdminPanel() {
         <h2>🛠 GÖTTER-KONSOLE</h2>
         <div style="background: rgba(255,215,0,0.1); padding:15px; border:1px solid gold; border-radius:10px;">
             <p>Admin Status: <b style="color:#4ade80;">VERIFIZIERT</b></p>
-            <button class="btn-action" onclick="data.followDays+=30;save();renderEvoMenu()">+30 Tage</button><br><br>
-            <button class="btn-action" onclick="data.lxp+=5000;save();renderEvoMenu()">+5000 LXP</button><br><br>
-            <button class="btn-action" onclick="adminAddLevel(30)">+30 Level (Cap Check)</button>
+            <button class="btn-action" onclick="data.followDays+=30;save();renderEvoMenu()">+30 Tage</button>
+            <button class="btn-action" onclick="data.lxp+=5000;save();renderEvoMenu()">+5000 LXP</button>
+            <button class="btn-action" onclick="adminAddLevel(30)">+30 Level</button>
+            <hr>
+            <h3>WELT-EDITOR</h3>
+            <button class="btn-action" id="btnEditToggle" style="background:${isEditMode?'#4ade80':'#444'};" onclick="toggleEditMode()">EDIT-MODUS: ${isEditMode?'AN':'AUS'}</button>
+            <p style="font-size:11px; color:#aaa;">Tipp: Im Edit-Modus Gebäude ziehen zum Verschieben. Shift + Ziehen zum Skalieren.</p>
         </div>
     `; 
 }
@@ -724,7 +735,92 @@ function renderArenaMatchmaking() {
     document.getElementById('modalLeft').innerHTML = `<div style="padding:20px;"><h2>🛡️ Arena</h2><button class="btn-action" onclick="startCombat(null, true)">🐗 Monsterkampf</button></div>`;
 }
 
+// ==========================================
+// SECTION 6: ISOLATED LAYOUT EDITOR (ADMIN ONLY)
+// ==========================================
+let isEditMode = false;
+let currentDragging = null;
+let layoutData = JSON.parse(localStorage.getItem('nestLayout')) || {};
+
+function initLayout() {
+    Object.keys(layoutData).forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.style.left = layoutData[id].x + "px";
+            el.style.top = layoutData[id].y + "px";
+            el.style.width = layoutData[id].w + "px";
+            el.style.height = layoutData[id].h + "px";
+        }
+    });
+}
+
+function toggleEditMode() {
+    if (verifiedID !== BROADCASTER_ID) return;
+    isEditMode = !isEditMode;
+    const buildings = document.querySelectorAll('.building');
+    buildings.forEach(b => {
+        if (isEditMode) {
+            b.classList.add('editing');
+            b.onmousedown = startBuildingDrag;
+        } else {
+            b.classList.remove('editing');
+            b.onmousedown = null;
+        }
+    });
+    openAdminPanel(); // Refresh UI
+}
+
+function startBuildingDrag(e) {
+    if (!isEditMode) return;
+    e.preventDefault();
+    e.stopPropagation();
+    currentDragging = e.currentTarget;
+    const isResize = e.shiftKey;
+    
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startW = currentDragging.offsetWidth;
+    const startH = currentDragging.offsetHeight;
+    const startL = currentDragging.offsetLeft;
+    const startT = currentDragging.offsetTop;
+
+    document.onmousemove = (moveE) => {
+        const dx = moveE.clientX - startX;
+        const dy = moveE.clientY - startY;
+
+        if (isResize) {
+            currentDragging.style.width = (startW + dx) + "px";
+            currentDragging.style.height = (startH + dy) + "px";
+        } else {
+            currentDragging.style.left = (startL + dx) + "px";
+            currentDragging.style.top = (startT + dy) + "px";
+        }
+    };
+
+    document.onmouseup = () => {
+        document.onmousemove = null;
+        document.onmouseup = null;
+        saveLayout();
+    };
+}
+
+function saveLayout() {
+    const buildings = document.querySelectorAll('.building');
+    buildings.forEach(b => {
+        if (b.id) {
+            layoutData[b.id] = {
+                x: b.offsetLeft,
+                y: b.offsetTop,
+                w: b.offsetWidth,
+                h: b.offsetHeight
+            };
+        }
+    });
+    localStorage.setItem('nestLayout', JSON.stringify(layoutData));
+}
+
 window.onload = async () => {
+    initLayout(); // Layout laden
     if (checkTwitchAuth()) await initTwitchSession();
     else redirectToTwitch();
     db.ref('players').on('value', snap => {
