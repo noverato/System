@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>The Nest: Overlord Edition 2026 - Identity Fixed</title>
+    <title>The Nest: Overlord Edition 2026 - Evolution Lore Build</title>
 
-    <script src="loot.js"></script>
+    <script src="items.js"></script> <script src="loot.js"></script>
     <script src="storage.js"></script>
-    <script src="items.js"></script> <script src="evolution.js"></script>
-    <script src="inventar.js"></script>
+    <script src="evolution.js"></script> <script src="mining.js"></script> <script src="inventar.js"></script>
     <script src="markt.js"></script>
     <script src="battle.js"></script>
     <script src="admin.js"></script>
@@ -27,6 +26,31 @@
         #viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; }
         #world { width: 1920px; height: 1080px; background: url('./wald.png') no-repeat center; background-size: cover; position: absolute; transition: transform 0.1s ease-out; cursor: crosshair; }
         #charLayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1000; }
+        
+        /* --- EVOLUTION INTERFACE CSS --- */
+        .evo-container { padding: 20px; text-align: center; }
+        .evo-status-bar { background: rgba(0,0,0,0.6); border: 1px solid var(--gold); padding: 15px; border-radius: 10px; margin-bottom: 20px; }
+        
+        .requirement-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 30px; }
+        .req-box { background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.3); padding: 10px; border-radius: 8px; }
+        .req-box.met { border-color: #4ade80; color: #4ade80; }
+        .req-box.locked { opacity: 0.5; color: #ff4444; }
+
+        .class-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
+        .class-tile { 
+            background: rgba(0,0,0,0.5); border: 1px solid var(--gold); padding: 15px; border-radius: 10px; 
+            cursor: pointer; transition: 0.3s; position: relative; overflow: hidden;
+        }
+        .class-tile:hover:not(.locked) { transform: translateY(-5px); background: rgba(255,215,0,0.1); }
+        .class-tile.locked { filter: grayscale(1); opacity: 0.6; cursor: not-allowed; }
+        .class-tile.locked::after { content: "🔒 GESPERRT"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-weight: bold; color: var(--gold); font-size: 10px; }
+
+        .path-selection { display: flex; gap: 30px; justify-content: center; margin-top: 40px; border-top: 1px solid var(--gold); padding-top: 20px; }
+        .path-card { width: 200px; padding: 20px; border-radius: 15px; cursor: pointer; transition: 0.4s; }
+        .path-light { background: linear-gradient(135deg, #fff, #ffd700); color: #000; }
+        .path-dark { background: linear-gradient(135deg, #20002c, #a855f7); color: #fff; border: 1px solid #fff; }
+
+        /* Existing HUD & Creature Styles... */
         .creature { position: absolute; width: 80px; height: 100px; text-align: center; transform: translate(-50%, -50%); transition: all 0.6s ease-out; pointer-events: auto; }
         .creature img { height: 80px; filter: drop-shadow(0 0 10px rgba(0,0,0,0.9)); }
         .name-tag { font-size: 14px; font-weight: bold; background: rgba(0,0,0,0.8); padding: 2px 12px; border-radius: 6px; border: 1px solid var(--gold); margin-top: 5px; white-space: nowrap; }
@@ -80,6 +104,51 @@
     </div>
 </div>
 
+<template id="evo-hall-template">
+    <div class="evo-container">
+        <h2 style="color:gold; font-size: 28px;">Halle der Evolution</h2>
+        <div class="evo-status-bar">
+            Aktuelle Form: <span id="current-form-display" style="color:cyan; font-weight:bold;">Prüfe...</span>
+        </div>
+
+        <h3 style="text-align:left; color:var(--gold);">Lore-Anforderungen</h3>
+        <div class="requirement-grid">
+            <div class="req-box" id="req-lxp">LXP: <span id="evo-lxp-val">0</span> / 5.000</div>
+            <div class="req-box" id="req-lvl">Level: <span id="evo-lvl-val">0</span> / <span id="evo-lvl-req">30</span></div>
+            <div class="req-box" id="req-ep">EP (Daily): <span id="evo-ep-val">0</span> / <span id="evo-ep-req">30</span></div>
+        </div>
+
+        <div style="background:rgba(0,255,255,0.1); border:1px solid cyan; padding:10px; border-radius:8px; margin-top:-15px; margin-bottom:20px;">
+            ✨ XP-SPEICHER: <span id="evo-buffer-val" style="color:cyan; font-weight:bold;">0</span> LXP (bereit für Evolution)
+        </div>
+
+        <h3 style="text-align:left; color:var(--gold);">Die 7 Pfade der Bestimmung</h3>
+        <div class="class-grid">
+            <div class="class-tile locked" id="evo-class-waldlaeufer"><h4>Waldläufer</h4></div>
+            <div class="class-tile locked" id="evo-class-krieger"><h4>Krieger</h4></div>
+            <div class="class-tile locked" id="evo-class-druide"><h4>Druide</h4></div>
+            <div class="class-tile locked" id="evo-class-hueter"><h4>Hüter</h4></div>
+            <div class="class-tile locked" id="evo-class-sucher"><h4>Sucher</h4></div>
+            <div class="class-tile locked" id="evo-class-einsiedler"><h4>Einsiedler</h4></div>
+            <div class="class-tile locked" id="evo-class-waechter"><h4>Wächter</h4></div>
+        </div>
+
+        <div id="alignment-section" style="display:none;">
+            <h3 style="margin-top:30px; color:var(--gold);">Zweig der Gesinnung (Stufe 3)</h3>
+            <div class="path-selection">
+                <div class="path-card path-light" onclick="chooseEvoPath('Licht')">
+                    <h3>LICHT-PFAD</h3>
+                    <p style="font-size:12px;">Glanz, Schutz & göttliche Macht</p>
+                </div>
+                <div class="path-card path-dark" onclick="chooseEvoPath('Dunkel')">
+                    <h3>DUNKEL-PFAD</h3>
+                    <p style="font-size:12px;">Schatten, Chaos & Leere</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
@@ -91,10 +160,10 @@ const db = firebase.database();
 const TWITCH_CLIENT_ID = "futhxsgrshkh2h6cqywavg5cous3q0";
 const BROADCASTER_ID = "573773653";
 const REDIRECT_URI = "https://noverato.github.io/System";
-let data = { name: "Held", x: 960, y: 540, lxp: 0, hp: 100, maxHp: 100, stats: { totalEvoLevel: 0, currentLevel: 0, className: "Ei" }, inventar: {} };
+let data = { name: "Held", x: 960, y: 540, lxp: 0, hp: 100, maxHp: 100, stats: { totalEvoLevel: 0, currentLevel: 0, className: "Ei" }, inventar: {}, ep: 0, followDays: 0, lxpBuffer: 0 };
 let twitchToken = "", verifiedID = "", isIdentified = false, onlinePlayers = {}, isAdmin = false;
 
-// Authentifizierungs-Logik bleibt erhalten...
+// Authentifizierungs-Logik & Firebase Sync...
 async function checkTwitchAuth() {
     const hash = window.location.hash.substring(1);
     const params = new URLSearchParams(hash);
@@ -148,6 +217,7 @@ function updateUI() {
     document.getElementById('hudClass').innerText = data.stats.className;
     document.getElementById('lxpC').innerText = data.lxp;
     document.getElementById('lvlTotal').innerText = data.stats.currentLevel;
+    document.getElementById('followDaysDisplay').innerText = data.followDays;
     if(isAdmin) document.getElementById('adminHud').style.display = 'block';
 }
 
@@ -193,8 +263,17 @@ function closeGeneralModal() { toggleModal('gameModal', false); }
 
 function openBuilding(b) { 
     toggleModal('gameModal', true);
+    const left = document.getElementById('modalLeft');
+    left.innerHTML = ''; 
+
     if (b === 'steinbruch') renderMiningMenu(); 
-    else if (b === 'rathaus') renderEvoMenu(); 
+    else if (b === 'rathaus') {
+        const temp = document.getElementById('evo-hall-template');
+        left.appendChild(temp.content.cloneNode(true));
+        if (typeof initEvoHallDisplay === 'function') {
+            initEvoHallDisplay(); 
+        }
+    } 
     else if (b === 'markt') renderMarketplace(); 
     else if (b === 'arena') renderArenaMatchmaking();
 }
