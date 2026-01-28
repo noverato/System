@@ -4,7 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>The Nest: Overlord Edition 2026 - Divine Bridge Build</title>
+
     <script src="loot.js"></script>
+    <script src="storage.js"></script>
+    <script src="evolution.js"></script>
+    <script src="inventar.js"></script>
+    <script src="markt.js"></script>
+    <script src="battle.js"></script>
+    <script src="admin.js"></script>
+
     <style>
         :root { 
             --fantasy-bg: rgba(25, 15, 10, 0.98); 
@@ -114,169 +122,27 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
-// ==========================================
-// SECTION 0: EVOLUTION DATA MATRIX
-// ==========================================
-const EVO_DATA = {
-    "Ei": { hp: 50, atk: 5, def: 5 },
-    "Sprössling": { hp: 55, atk: 10, def: 10 },
-    "Waldläufer": {
-        "Licht": [
-            { name: "Licht-Novize", hp: 45, atk: 65, def: 40 },
-            { name: "Pfadfinder des Glanzes", hp: 50, atk: 80, def: 45 },
-            { name: "Licht-Bogenschütze", hp: 55, atk: 100, def: 50 },
-            { name: "Scharfschütze des Hains", hp: 60, atk: 125, def: 55 },
-            { name: "Elite-Waidmann", hp: 65, atk: 150, def: 60 },
-            { name: "Meister-Wildläufer", hp: 75, atk: 180, def: 70 },
-            { name: "Legendärer Licht-Schütze", hp: 90, atk: 220, def: 80 }
-        ],
-        "Dunkel": [
-            { name: "Schatten-Striezi", hp: 45, atk: 65, def: 40 },
-            { name: "Nacht-Schleicher", hp: 50, atk: 90, def: 40 },
-            { name: "Gift-Dolch-Adept", hp: 55, atk: 120, def: 40 },
-            { name: "Hinterhalt-Assassine", hp: 60, atk: 155, def: 40 },
-            { name: "Schatten-Viper", hp: 65, atk: 195, def: 45 },
-            { name: "Meister der lautlosen Klinge", hp: 70, atk: 240, def: 45 },
-            { name: "Legendärer Nachtschatten-Assassine", hp: 80, atk: 285, def: 50 }
-        ]
-    },
-    "Krieger": {
-        "Licht": [
-            { name: "Knappe des Lichts", hp: 80, atk: 50, def: 60 },
-            { name: "Strahlender Soldat", hp: 100, atk: 65, def: 80 },
-            { name: "Sonnen-Ritter", hp: 130, atk: 85, def: 110 },
-            { name: "Paladin der Morgenröte", hp: 170, atk: 110, def: 150 },
-            { name: "Heiliger Champion", hp: 220, atk: 140, def: 200 },
-            { name: "Göttlicher Kriegsfürst", hp: 280, atk: 180, def: 260 },
-            { name: "Legendärer Sonnen-Souverän", hp: 350, atk: 230, def: 350 }
-        ],
-        "Dunkel": [
-            { name: "Schatten-Klinge", hp: 70, atk: 70, def: 40 },
-            { name: "Finsterer Rebell", hp: 90, atk: 95, def: 55 },
-            { name: "Chaos-Ritter", hp: 110, atk: 130, def: 75 },
-            { name: "Dunkler Eroberer", hp: 140, atk: 175, def: 100 },
-            { name: "Schatten-Berserker", hp: 180, atk: 230, def: 130 },
-            { name: "Fürst der Finsternis", hp: 230, atk: 300, def: 170 },
-            { name: "Legendärer Schatten-Souverän", hp: 300, atk: 415, def: 220 }
-        ]
-    },
-    "Druide": {
-        "Licht": [
-            { name: "Hain-Lehrling", hp: 60, atk: 40, def: 40 },
-            { name: "Sonnen-Rufer", hp: 75, atk: 55, def: 50 },
-            { name: "Hüter der Quellen", hp: 95, atk: 75, def: 65 },
-            { name: "Moos-Erzmagier", hp: 120, atk: 100, def: 85 },
-            { name: "Wald-Avatar", hp: 160, atk: 135, def: 110 },
-            { name: "Meister der Entropie", hp: 210, atk: 180, def: 140 },
-            { name: "Legendärer Ur-Vater", hp: 280, atk: 250, def: 190 }
-        ],
-        "Dunkel": [
-            { name: "Dornen-Wirker", hp: 55, atk: 50, def: 35 },
-            { name: "Sumpf-Hexe", hp: 70, atk: 70, def: 45 },
-            { name: "Schimmel-Priester", hp: 85, atk: 95, def: 55 },
-            { name: "Verderbnis-Druide", hp: 110, atk: 130, def: 70 },
-            { name: "Eiter-Warlock", hp: 140, atk: 170, def: 90 },
-            { name: "Herold der Fäulnis", hp: 180, atk: 220, def: 115 },
-            { name: "Legendärer Totenwald-Gott", hp: 240, atk: 310, def: 150 }
-        ]
-    },
-    "Hüter": {
-        "Licht": [
-            { name: "Wachposten", hp: 100, atk: 40, def: 70 },
-            { name: "Schildwache", hp: 130, atk: 50, def: 95 },
-            { name: "Banner-Träger", hp: 170, atk: 65, def: 130 },
-            { name: "Tempel-Wächter", hp: 220, atk: 85, def: 180 },
-            { name: "Himmels-Hüter", hp: 280, atk: 110, def: 240 },
-            { name: "Ewiger Beschützer", hp: 350, atk: 145, def: 320 },
-            { name: "Legendärer Licht-Bollwerk", hp: 450, atk: 200, def: 450 }
-        ],
-        "Dunkel": [
-            { name: "Kerker-Wart", hp: 90, atk: 55, def: 60 },
-            { name: "Eisen-Goliath", hp: 120, atk: 75, def: 85 },
-            { name: "Abgrund-Hüter", hp: 150, atk: 100, def: 110 },
-            { name: "Schatten-Hüter", hp: 190, atk: 135, def: 145 },
-            { name: "Dreadnought", hp: 240, atk: 180, def: 190 },
-            { name: "Titan des Leids", hp: 310, atk: 245, def: 250 },
-            { name: "Legendärer Verdammnis-Hüter", hp: 400, atk: 335, def: 330 }
-        ]
-    },
-    "Sucher": {
-        "Licht": [
-            { name: "Späher", hp: 50, atk: 60, def: 30 },
-            { name: "Wahrheits-Finder", hp: 60, atk: 85, def: 40 },
-            { name: "Sternen-Jäger", hp: 75, atk: 115, def: 50 },
-            { name: "Geist-Sucher", hp: 95, atk: 155, def: 60 },
-            { name: "Orakel-Krieger", hp: 120, atk: 205, def: 75 },
-            { name: "Erleuchteter Jäger", hp: 150, atk: 270, def: 90 },
-            { name: "Legendärer Licht-Spross", hp: 200, atk: 360, def: 120 }
-        ],
-        "Dunkel": [
-            { name: "Ratten-Fänger", hp: 50, atk: 65, def: 25 },
-            { name: "Nacht-Auge", hp: 60, atk: 95, def: 30 },
-            { name: "Blut-Sucher", hp: 70, atk: 135, def: 35 },
-            { name: "Leichen-Sammler", hp: 85, atk: 185, def: 40 },
-            { name: "Seelen-Dieb", hp: 105, atk: 255, def: 45 },
-            { name: "Schatten-Schnitter", hp: 130, atk: 345, def: 50 },
-            { name: "Legendärer Phantom-Pirschler", hp: 170, atk: 470, def: 60 }
-        ]
-    },
-    "Einsiedler": {
-        "Licht": [
-            { name: "Wanderer", hp: 65, atk: 45, def: 45 },
-            { name: "Weiser", hp: 85, atk: 60, def: 60 },
-            { name: "Berg-Mystiker", hp: 110, atk: 80, def: 80 },
-            { name: "Gipfel-Mönch", hp: 145, atk: 105, def: 105 },
-            { name: "Himmels-Eremit", hp: 190, atk: 140, def: 140 },
-            { name: "Auserwählter Solitär", hp: 250, atk: 190, def: 190 },
-            { name: "Legendärer Welten-Wanderer", hp: 330, atk: 260, def: 260 }
-        ],
-        "Dunkel": [
-            { name: "Verstoßener", hp: 60, atk: 55, def: 35 },
-            { name: "Exilant", hp: 80, atk: 80, def: 45 },
-            { name: "Höhlen-Schamane", hp: 100, atk: 110, def: 55 },
-            { name: "Fluch-Bringer", hp: 130, atk: 155, def: 70 },
-            { name: "Schatten-Eremit", hp: 170, atk: 215, def: 90 },
-            { name: "Nachtmar-Einsiedler", hp: 220, atk: 300, def: 115 },
-            { name: "Legendärer Leerengänger", hp: 290, atk: 415, def: 150 }
-        ]
-    },
-    "Wächter": {
-        "Licht": [
-            { name: "Tor-Hüter", hp: 90, atk: 45, def: 80 },
-            { name: "Ehren-Wache", hp: 120, atk: 60, def: 110 },
-            { name: "Heiliger Wächter", hp: 160, atk: 80, def: 150 },
-            { name: "Licht-Bastion", hp: 210, atk: 105, def: 200 },
-            { name: "Himmlischer Schutzwall", hp: 280, atk: 140, def: 270 },
-            { name: "Gottes-Schild", hp: 370, atk: 190, def: 360 },
-            { name: "Legendärer Ægis-Träger", hp: 480, atk: 260, def: 480 }
-        ],
-        "Dunkel": [
-            { name: "Grab-Wächter", hp: 85, atk: 55, def: 70 },
-            { name: "Knochen-Wall", hp: 110, atk: 75, def: 95 },
-            { name: "Nacht-Wächter", hp: 145, atk: 105, def: 130 },
-            { name: "Schatten-Schild", hp: 190, atk: 145, def: 175 },
-            { name: "Chaos-Festung", hp: 250, atk: 200, def: 235 },
-            { name: "Finsterer Obelisk", hp: 330, atk: 280, def: 315 },
-            { name: "Legendärer Obsidianspiegel", hp: 430, atk: 385, def: 420 }
-        ]
-    }
-};
+/**
+ * THE NEST: MASTER INTEGRATION BRIDGE
+ * Diese Datei verknüpft die HTML mit den externen Master-Files.
+ */
 
-const firebaseConfig = { apiKey: "AIzaSyCKNXJ-ouAOAcLr5ut-EemWQI8_zJxhqa8", authDomain: "thenest-81de6.firebaseapp.com", databaseURL: "https://thenest-81de6-default-rtdb.firebaseio.com", projectId: "thenest-81de6" };
+// EXAKTE FIREBASE KONFIGURATION
+const firebaseConfig = { 
+    apiKey: "AIzaSyCKNXJ-ouAOAcLr5ut-EemWQI8_zJxhqa8", 
+    authDomain: "thenest-81de6.firebaseapp.com", 
+    databaseURL: "https://thenest-81de6-default-rtdb.firebaseio.com", 
+    projectId: "thenest-81de6" 
+};
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
+// GLOBALE KONSTANTEN
 const TWITCH_CLIENT_ID = "futhxsgrshkh2h6cqywavg5cous3q0";
 const BROADCASTER_ID = "573773653";
 const REDIRECT_URI = "https://noverato.github.io/System";
-const EVO_IMGS = ['Ei.png', 'Schleim.png', 'Skelett.png', 'Goblin.png', 'Oger.png', 'Lich.png', 'HoeheresWesen.png'];
 
-let twitchToken = "";
-let isLoadingFollower = true; 
-let isIdentified = false; 
-let verifiedID = ""; 
-let healsUsedInCombat = 0; 
-
+// DAS ZENTRALE DATEN-OBJEKT (Synchronisiert mit storage.js)
 let data = { 
     name: "Held", x: 960, y: 540, lxp: 0, hp: 100, maxHp: 100, mp: 50, maxMp: 50, 
     followDays: 0, isFollower: false, inventar: {}, 
@@ -284,181 +150,30 @@ let data = {
     battleAction: "none", battleReady: false, hidden: false
 };
 
+// GLOBALE STATE-VARIABLEN
 let onlinePlayers = {}, isAdmin = false, currentEnemy = null, isActionLocked = false, activeBattleID = null;
+let twitchToken = "", isLoadingFollower = true, isIdentified = false, verifiedID = "", healsUsedInCombat = 0;
 
-function updateBaseStats() {
-    const evo = data.stats.totalEvoLevel;
-    const pth = data.stats.path;
-    let currentClassName = data.stats.className;
-
-    if (evo === 0) {
-        data.maxHp = EVO_DATA["Ei"].hp;
-        data.stats.atk = EVO_DATA["Ei"].atk;
-        data.stats.def = EVO_DATA["Ei"].def;
-        data.stats.className = "Ei";
-    } else if (evo === 1) {
-        data.maxHp = EVO_DATA["Sprössling"].hp;
-        data.stats.atk = EVO_DATA["Sprössling"].atk;
-        data.stats.def = EVO_DATA["Sprössling"].def;
-        data.stats.className = "Sprössling";
-    } else {
-        let baseClass = null;
-        const classKeys = ["Waldläufer", "Krieger", "Druide", "Hüter", "Sucher", "Einsiedler", "Wächter"];
-        
-        if (classKeys.includes(currentClassName)) {
-            baseClass = currentClassName;
-        } else {
-            for (let key of classKeys) {
-                if (EVO_DATA[key]["Licht"].some(e => e.name === currentClassName) || 
-                    EVO_DATA[key]["Dunkel"].some(e => e.name === currentClassName)) {
-                    baseClass = key;
-                    break;
-                }
-            }
-        }
-
-        if (baseClass && EVO_DATA[baseClass]) {
-            const currentPathKey = (pth === "Neutral" || !pth) ? "Licht" : pth; 
-            const index = Math.min(evo - 2, 6); 
-            const entry = EVO_DATA[baseClass][currentPathKey][index];
-            
-            if (entry) {
-                data.maxHp = entry.hp;
-                data.stats.atk = entry.atk;
-                data.stats.def = entry.def;
-                data.stats.className = entry.name; 
-            }
-        }
-    }
-
-    if (verifiedID === BROADCASTER_ID) {
-        data.maxHp = 500000;
-        data.maxMp = 50000;
-        if(data.hp < 500000) data.hp = 500000;
-        if(data.mp < 50000) data.mp = 50000;
-        data.stats.className = "OVERLORD ARCHITEKT";
-    }
-}
-
-function checkTwitchAuth() {
-    const hash = window.location.hash.substring(1);
-    if (!hash) return false;
-    const params = new URLSearchParams(hash);
-    if (params.has("access_token")) {
-        twitchToken = params.get("access_token");
-        window.history.replaceState({}, document.title, window.location.pathname);
-        return true;
-    }
-    return false;
-}
-
-function redirectToTwitch() {
-    const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${TWITCH_CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=token&scope=moderator:read:followers`;
-    window.location.href = authUrl;
-}
-
-async function initTwitchSession() {
-    if (!twitchToken) return;
-    try {
-        const resp = await fetch(`https://api.twitch.tv/helix/users`, {
-            headers: { 'Client-ID': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchToken}` }
-        });
-        const result = await resp.json();
-        if (result.data && result.data.length > 0) {
-            const twitchUser = result.data[0];
-            verifiedID = twitchUser.id; 
-            data.name = twitchUser.display_name;
-            isIdentified = true; 
-            isAdmin = (verifiedID === BROADCASTER_ID); 
-            await loadUserData(); 
-            await validateTwitchFollower(verifiedID);
-            updateBaseStats(); 
-        }
-    } catch (err) { console.error("Twitch Session Error:", err); }
-    updateUI();
-}
-
-async function validateTwitchFollower(userID) {
-    try {
-        const followUrl = `https://api.twitch.tv/helix/channels/followers?broadcaster_id=${BROADCASTER_ID}&user_id=${userID}`;
-        const resp = await fetch(followUrl, {
-            headers: { 'Client-ID': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchToken}` }
-        });
-        const followData = await resp.json();
-        if (followData.data && followData.data.length > 0) {
-            data.isFollower = true;
-            const followDate = new Date(followData.data[0].followed_at);
-            data.followDays = Math.ceil(Math.abs(new Date() - followDate) / (1000 * 60 * 60 * 24));
-        } else {
-            data.isFollower = false;
-        }
-    } catch (err) { console.error("Follow Check Error:", err); }
-    finally {
-        isLoadingFollower = false;
-        updateUI();
-    }
-}
-
-async function loadUserData() {
-    if (!verifiedID) return;
-    try {
-        const snapshot = await db.ref('players/' + verifiedID).once('value');
-        if (snapshot.exists()) {
-            const dbData = snapshot.val();
-            data.lxp = dbData.lxp || 0;
-            data.stats = dbData.stats || data.stats;
-            data.inventar = dbData.inventar || {};
-            data.hp = dbData.hp || data.maxHp;
-            data.maxHp = dbData.maxHp || data.maxHp;
-            data.x = dbData.x || 960;
-            data.y = dbData.y || 540;
-        }
-    } catch (err) { console.error("Load Error:", err); }
-    updateUI();
-}
-
-function save() {
-    if (!isIdentified || !verifiedID || isLoadingFollower) return;
-    updateBaseStats(); 
-    updateUI(); 
-    db.ref('players/' + verifiedID).update({
-        hp: data.hp, maxHp: data.maxHp, lxp: data.lxp, x: data.x, y: data.y, name: data.name,
-        stats: data.stats, inventar: data.inventar, 
-        isFollower: data.isFollower, followDays: data.followDays, 
-        battleAction: data.battleAction, battleReady: data.battleReady, hidden: data.hidden,
-        lastSeen: Date.now()
-    });
-}
-
-function updateUI() {
-    isAdmin = (verifiedID === BROADCASTER_ID);
-    document.getElementById('playerName').innerText = isAdmin ? "OVERLORD Spawn2909" : (isLoadingFollower ? "Magie wirkt..." : data.name);
-    let title = data.stats.className || "Novize";
-    document.getElementById('hudClass').innerText = isAdmin ? "SYSTEM-ARCHITEKT" : title;
-    document.getElementById('lxpC').innerText = data.lxp;
-    document.getElementById('lvlTotal').innerText = data.stats.currentLevel;
-    document.getElementById('followDaysDisplay').innerText = data.followDays;
-    const followDisplay = document.getElementById('isFollower');
-    followDisplay.innerText = isLoadingFollower ? "Prüfe..." : (data.isFollower ? "Ja" : "Nein");
+/**
+ * BRÜCKE: GEBÄUDE-ROUTING
+ * Ruft die Funktionen aus den jeweiligen Master-Dateien auf.
+ */
+function openBuilding(b) { 
+    if (typeof isEditMode !== 'undefined' && isEditMode) return;
+    toggleModal('gameModal', true); 
     
-    if(isAdmin) document.getElementById('adminHud').style.display = 'block';
-    else document.getElementById('adminHud').style.display = 'none';
-
-    const invDiv = document.getElementById('miniInv'); invDiv.innerHTML = '';
-    if(data.inventar) {
-        Object.keys(data.inventar).forEach(i => { if(data.inventar[i]>0) invDiv.innerHTML += `<div style="padding:5px; border-bottom:1px solid #444;">${i} x${data.inventar[i]}</div>`; });
-    }
+    if (b === 'steinbruch') renderMiningMenu(); 
+    else if (b === 'rathaus') renderEvoMenu(); // Aus evolution.js
+    else if (b === 'arena') renderArenaMatchmaking(); // Aus battle.js
+    else if (b === 'schmiede') renderCraftingMenu(); // Aus inventar.js
+    else if (b === 'markt') renderMarketplace(); // Aus markt.js
+    else if (b === 'heilige') renderHolyForge(); 
 }
 
-function exitGame() {
-    if(verifiedID) {
-        db.ref('players/' + verifiedID).remove().then(() => {
-            localStorage.removeItem('nestData');
-            location.href = REDIRECT_URI;
-        });
-    }
-}
-
+/**
+ * ERHALTUNG: PLAYER RENDERING
+ * Nutzt Bilder-Pfade vom Evolution-Meister.
+ */
 function renderPlayers(players) {
     const layer = document.getElementById('charLayer'); layer.innerHTML = '';
     Object.keys(players).forEach(id => {
@@ -469,219 +184,44 @@ function renderPlayers(players) {
         div.setAttribute('data-id', id); 
         div.style.left = p.x + "px"; 
         div.style.top = p.y + "px";
+        
         const isBoss = (id === BROADCASTER_ID);
-        const imgIdx = Math.min(Math.max((p.stats?.totalEvoLevel || 0), 0), 6);
-        const imgSrc = isBoss ? 'Overlord.png' : EVO_IMGS[imgIdx];
+        // Bezieht Pfad aus evolution.js Funktion (oder globalem Array)
+        const imgSrc = getCreatureSprite ? getCreatureSprite(p, isBoss) : (isBoss ? 'Overlord.png' : 'Ei.png');
+        
         div.innerHTML = `<img src="${imgSrc}" onerror="this.src='Ei.png'"><div class="name-tag ${isBoss?'boss-aura':''}">${isBoss?'OVERLORD':p.name}</div>`;
         layer.appendChild(div);
     });
 }
 
-function listenForChallenges() {
-    if (!verifiedID) return;
-    db.ref('battles').on('value', snap => {
-        const allBattles = snap.val() || {};
-        if (activeBattleID) {
-            const b = allBattles[activeBattleID];
-            if (!b || b.status === 'finished') {
-                activeBattleID = null; currentEnemy = null; isActionLocked = false;
-                toggleModal('gameModal', false); return;
-            }
-        }
-        Object.keys(allBattles).forEach(bID => {
-            const battle = allBattles[bID];
-            if (battle.defenderID === verifiedID && battle.status === 'pending' && !activeBattleID) {
-                document.getElementById('battleInvite').style.display = 'block';
-                document.getElementById('inviteText').innerText = battle.attackerName + " fordert dich!";
-                document.getElementById('btnAcceptInvite').onclick = () => {
-                    db.ref('battles/' + bID).update({ status: 'active' });
-                    document.getElementById('battleInvite').style.display = 'none';
-                };
-            }
-            if ((battle.attackerID === verifiedID || battle.defenderID === verifiedID) && battle.status === 'active') {
-                if (!currentEnemy || activeBattleID !== bID) {
-                    activeBattleID = bID;
-                    const oppID = (battle.attackerID === verifiedID) ? battle.defenderID : battle.attackerID;
-                    if(onlinePlayers[oppID]) {
-                        toggleModal('gameModal', true);
-                        startCombat(onlinePlayers[oppID], false, oppID);
-                        db.ref(`battles/${bID}/actions/${verifiedID}`).update({ inArena: true });
-                    }
-                }
-            }
-        });
+/**
+ * INITIALISIERUNG
+ */
+window.onload = async () => {
+    if (typeof initLayout === 'function') initLayout(); 
+    
+    // Trigger storage.js Authentication
+    if (typeof checkTwitchAuth === 'function' && checkTwitchAuth()) {
+        await initTwitchSession(); 
+    } else {
+        redirectToTwitch();
+    }
+
+    // Realtime Sync für Player-Layer
+    db.ref('players').on('value', snap => {
+        onlinePlayers = snap.val() || {};
+        renderPlayers(onlinePlayers);
+        if(verifiedID && onlinePlayers[verifiedID] && typeof updateUI === 'function') updateUI();
     });
-}
 
-function startCombat(enemy, isMonster, enemyID = null) {
-    if(document.getElementById('gameModal').style.display !== 'flex') toggleModal('gameModal', true);
-    isActionLocked = false;
-    healsUsedInCombat = 0; 
-    if (isMonster) {
-        const baseAtk = 25;
-        const variation = 0.9 + Math.random() * 0.2; 
-        currentEnemy = { 
-            name: "Waldschleim", hp: 50, maxHp: 50, 
-            atk: Math.floor(baseAtk * variation), 
-            def: 10, isMonster: true, img: 'Monster1.png' 
-        };
-    } else {
-        const isBoss = (enemyID === BROADCASTER_ID);
-        currentEnemy = { ...enemy, id: enemyID, isMonster: false, img: (isBoss ? 'Overlord.png' : EVO_IMGS[enemy.stats?.totalEvoLevel || 0]) };
-    }
-    renderCombatStage();
-}
+    // Auto-Save Brücke zu storage.js
+    setInterval(() => { if(typeof save === 'function') save(); }, 30000);
+};
 
-function renderCombatStage() {
-    const left = document.getElementById('modalLeft');
-    const myImg = (isAdmin ? 'Overlord.png' : EVO_IMGS[data.stats?.totalEvoLevel || 0]);
-    left.innerHTML = `<div id="arenaStage">
-        <div class="combatant-wrap">
-            <img src="${myImg}" onerror="this.src='Ei.png'" class="combatant-img">
-            <br><strong>${data.name}</strong>
-            <div style="font-size:12px; color:gold;">⚔️ ATK: ${isAdmin ? 999 : data.stats.atk} | 🛡️ DEF: ${data.stats.def}</div>
-        </div>
-        <div class="combatant-wrap">
-            <img src="${currentEnemy.img || 'Monster1.png'}" onerror="this.src='Ei.png'" class="combatant-img">
-            <br><strong>${currentEnemy.name}</strong>
-            <div style="font-size:12px; color:#ff4444;">⚔️ ATK: ${currentEnemy.atk} | 🛡️ DEF: ${currentEnemy.def}</div>
-        </div>
-        <div id="ffMenu">
-            <div class="ff-buttons">
-                <button id="btnAtk" class="btn-action" onclick="executeCombatAction('attack')">ATTACKE</button>
-                <button id="btnHeal" class="btn-action" onclick="executeCombatAction('heal')">HEILUNG (${3 - healsUsedInCombat})</button>
-                <button class="btn-action" onclick="endCombat()">FLUCHT</button>
-            </div>
-            <div class="ff-status">
-                <div class="bar-wrap"><div id="playerHpFill" style="width:${(data.hp/data.maxHp)*100}%;"></div></div>
-                <div class="bar-wrap"><div id="enemyHpFill" style="width:${(currentEnemy.hp/currentEnemy.maxHp)*100}%;"></div></div>
-            </div>
-        </div>
-        <div id="battleLog">Warte auf Magie...</div>
-    </div>`;
-}
-
-function executeCombatAction(type) {
-    if (isActionLocked) return;
-    if (type === 'heal') {
-        if (healsUsedInCombat >= 3) { alert("Keine Heilung mehr!"); return; }
-        healsUsedInCombat++;
-    }
-    isActionLocked = true;
-    if (currentEnemy.isMonster) {
-        data.battleAction = type;
-        setTimeout(resolveBattleTurn, 1200);
-    } else {
-        db.ref(`battles/${activeBattleID}/actions/${verifiedID}`).update({ type: type, ready: true });
-    }
-}
-
-function resolveBattleTurn() {
-    const playerAtk = isAdmin ? 999 : (data.stats.atk || 5);
-    const playerDef = data.stats.def || 5;
-    const monsterAtk = currentEnemy.atk || 20;
-    const log = document.getElementById('battleLog');
-    let turnReport = "";
-
-    if (data.battleAction === 'heal') {
-        const healAmt = Math.floor(data.maxHp * 0.25);
-        data.hp = Math.min(data.maxHp, data.hp + healAmt);
-        turnReport += `<div style="color:cyan;">Du heilst dich um ${healAmt} HP!</div>`;
-    } else {
-        let isCrit = Math.random() < 0.1;
-        let pDmg = Math.floor(playerAtk * 0.5);
-        if (isCrit) { pDmg *= 2; turnReport += `<div style="color:gold; font-weight:bold;">KRITISCHER TREFFER!</div>`; }
-        currentEnemy.hp -= pDmg;
-        turnReport += `<div style="color:#4ade80;">Du triffst für ${pDmg} Schaden!</div>`;
-    }
-
-    let mDmg = isAdmin ? 0 : Math.max(2, Math.floor(monsterAtk - playerDef * 0.2));
-    data.hp -= mDmg;
-    turnReport += `<div style="color:#ff4444;">${currentEnemy.name} trifft dich für ${mDmg} Schaden!</div>`;
-    log.innerHTML = turnReport;
-
-    let cap = (data.stats.totalEvoLevel === 0) ? 1 : (data.stats.totalEvoLevel * 30);
-    if (data.stats.currentLevel < cap) data.stats.currentLevel += 2;
-
-    setTimeout(() => {
-        if (currentEnemy.hp <= 0) { 
-            data.lxp += 50; 
-            let victoryMsg = `<div style="color:gold; font-weight:bold;">SIEG! +50 LXP</div>`;
-            
-            // ==========================================
-            // LOOT-INTEGRATION: Trigger external database
-            // ==========================================
-            const drop = processLootDrop();
-            if (drop) {
-                victoryMsg += `<div style="color:#a855f7; font-weight:bold; margin-top:5px; border:1px solid gold; padding:2px;">BEUTE GEFUNDEN: ${drop.name} (${drop.stat})</div>`;
-            }
-            
-            log.innerHTML += victoryMsg;
-            setTimeout(endCombat, 1500);
-        } else if (data.hp <= 0) { 
-            data.hp = data.maxHp; 
-            alert("Gefallen!"); endCombat(); 
-        } else { isActionLocked = false; renderCombatStage(); }
-    }, 2000);
-}
-
-function endCombat() {
-    activeBattleID = null; currentEnemy = null; isActionLocked = false; healsUsedInCombat = 0;
-    toggleModal('gameModal', false); save();
-}
-
-function closeGeneralModal() { if (activeBattleID || currentEnemy) endCombat(); else toggleModal('gameModal', false); }
-
-function renderEvoMenu() {
-    const left = document.getElementById('modalLeft');
-    const curEvo = data.stats.totalEvoLevel;
-    const ep = data.followDays;
-    const lvl = data.stats.currentLevel;
-    let html = `<div style="padding:30px; text-align:center;">
-        <h2 style="color:gold; font-size:32px;">Halle der Evolution</h2>
-        <p style="color:#aaa;">Form: <b style="color:cyan;">${data.stats.className}</b> | Pfad: <b style="color:cyan;">${data.stats.path}</b></p>
-        <p style="color:#ffd700;">Stats: HP ${data.maxHp} | ATK ${data.stats.atk} | DEF ${data.stats.def}</p>
-        <hr style="border-color:gold; margin:20px 0;">`;
-
-    if (curEvo === 0) {
-        html += `<h3>Stufe 1: Das Schlüpfen</h3><p>5.000 LXP benötigt.</p><button class="btn-action" onclick="tryEvolve(1)">SCHLÜPFEN</button>`;
-    } else if (curEvo === 1) {
-        html += `<h3>Stufe 2: Die Hauptklasse</h3><p>Tag 30 & Level 30 benötigt.</p><p>Status: Tag ${ep}/30 | Level ${lvl}/30</p>
-                 <div class="evo-choice-box">
-                    <div class="evo-card" onclick="chooseClass('Krieger')"><h4>KRIEGER</h4></div>
-                    <div class="evo-card" onclick="chooseClass('Waldläufer')"><h4>WALDLÄUFER</h4></div>
-                    <div class="evo-card" onclick="chooseClass('Druide')"><h4>DRUIDE</h4></div>
-                    <div class="evo-card" onclick="chooseClass('Hüter')"><h4>HÜTER</h4></div>
-                    <div class="evo-card" onclick="chooseClass('Sucher')"><h4>SUCHER</h4></div>
-                    <div class="evo-card" onclick="chooseClass('Einsiedler')"><h4>EINSIEDLER</h4></div>
-                    <div class="evo-card" onclick="chooseClass('Wächter')"><h4>WÄCHTER</h4></div>
-                 </div>`;
-    } else if (curEvo === 2) {
-        html += `<h3>Stufe 3: Die Gesinnung</h3><p>Tag 60 & Level 60 benötigt.</p>
-                 <div class="evo-choice-box">
-                    <div class="evo-card" onclick="choosePath('Licht')"><h4>LICHT-PFAD</h4></div>
-                    <div class="evo-card" onclick="choosePath('Dunkel')"><h4>DUNKEL-PFAD</h4></div>
-                 </div>`;
-    } else if (curEvo < 7) {
-        const next = (curEvo) * 30;
-        html += `<h3>Stufe ${curEvo + 1}: Aufstieg</h3><p>Tag ${next} & Level ${next}.</p><button class="btn-action" onclick="tryEvolve(${curEvo + 1})">EVOLVIEREN</button>`;
-    } else { html += `<h2>MAXIMALSTUFE</h2>`; }
-    left.innerHTML = html + `</div>`;
-}
-
-function tryEvolve(tier) {
-    if (tier === 1 && data.lxp >= 5000) { data.lxp -= 5000; data.stats.totalEvoLevel = 1; updateBaseStats(); data.hp = data.maxHp; save(); renderEvoMenu(); }
-    else if (tier > 1) {
-        const req = tier * 30;
-        if (data.followDays >= req && data.stats.currentLevel >= req) { data.stats.totalEvoLevel = tier; updateBaseStats(); save(); renderEvoMenu(); }
-    }
-}
-
-function chooseClass(n) { if (data.stats.totalEvoLevel === 1) { data.stats.className = n; data.stats.totalEvoLevel = 2; updateBaseStats(); data.hp = data.maxHp; save(); renderEvoMenu(); } }
-function choosePath(p) { if (data.stats.totalEvoLevel === 2) { data.stats.path = p; data.stats.totalEvoLevel = 3; updateBaseStats(); data.hp = data.maxHp; save(); renderEvoMenu(); } }
-
+// Hilfsfunktionen für UI (Können bei Bedarf auch in eine ui.js)
+function toggleModal(id, s) { document.getElementById(id).style.display = s ? 'flex' : 'none'; }
 function handleWorldClick(e) { 
-    if(document.getElementById('gameModal').style.display === 'flex' || isEditMode) return; 
+    if(document.getElementById('gameModal').style.display === 'flex' || (typeof isEditMode !== 'undefined' && isEditMode)) return; 
     const rect = document.getElementById('world').getBoundingClientRect(); 
     data.x = e.clientX - rect.left; 
     data.y = e.clientY - rect.top; 
@@ -689,179 +229,10 @@ function handleWorldClick(e) {
         const myChar = document.querySelector(`.creature[data-id="${verifiedID}"]`);
         if(myChar) { myChar.style.left = data.x + "px"; myChar.style.top = data.y + "px"; }
     }
-    save(); 
+    if(typeof save === 'function') save(); 
 }
+function closeGeneralModal() { if (activeBattleID || currentEnemy) endCombat(); else toggleModal('gameModal', false); }
 
-function toggleModal(id, s) { document.getElementById(id).style.display = s ? 'flex' : 'none'; }
-
-function openBuilding(b) { 
-    if (isEditMode) return;
-    toggleModal('gameModal', true); 
-    if (b === 'steinbruch') renderMiningMenu(); 
-    else if (b === 'rathaus') renderEvoMenu(); 
-    else if (b === 'arena') renderArenaMatchmaking(); 
-    else if (b === 'schmiede') renderCraftingMenu();
-    else if (b === 'markt') renderMarketplace();
-    else if (b === 'heilige') renderHolyForge();
-}
-
-function renderMiningMenu() { document.getElementById('modalLeft').innerHTML = `<div style="padding:30px;"><h2>Steinbruch</h2><button class="btn-action" onclick="startMining()">⛏️ Abbau</button></div>`; }
-function renderCraftingMenu() { document.getElementById('modalLeft').innerHTML = `<div style="padding:30px;"><h2>Wald-Schmiede</h2><p>Hier kannst du bald Ausrüstung herstellen.</p><button class="btn-action" disabled>Hammer schwingen (In Kürze)</button></div>`; }
-function renderMarketplace() { document.getElementById('modalLeft').innerHTML = `<div style="padding:30px;"><h2>Marktplatz</h2><p>Handel ist aktuell deaktiviert.</p></div>`; }
-function renderHolyForge() { document.getElementById('modalLeft').innerHTML = `<div style="padding:30px;"><h2>Heilige Schmiede</h2><p>Göttliche Artefakte erfordern Level 200.</p></div>`; }
-
-function startMining() { 
-    data.lxp += 10; 
-    let cap = (data.stats.totalEvoLevel === 0) ? 1 : (data.stats.totalEvoLevel * 30);
-    if (data.stats.currentLevel < cap) data.stats.currentLevel += 1;
-    save(); 
-}
-
-function openAdminPanel() { 
-    if (verifiedID !== BROADCASTER_ID) { alert("Zugriff verweigert!"); return; }
-    toggleModal('gameModal', true); 
-    document.getElementById('modalLeft').innerHTML = `
-        <h2>🛠 GÖTTER-KONSOLE</h2>
-        <div style="background: rgba(255,215,0,0.1); padding:15px; border:1px solid gold; border-radius:10px;">
-            <p>Admin Status: <b style="color:#4ade80;">VERIFIZIERT</b></p>
-            <button class="btn-action" onclick="data.followDays+=30;save();renderEvoMenu()">+30 Tage</button>
-            <button class="btn-action" onclick="data.lxp+=5000;save();renderEvoMenu()">+5000 LXP</button>
-            <button class="btn-action" onclick="adminAddLevel(30)">+30 Level</button>
-            <hr>
-            <h3>WELT-EDITOR</h3>
-            <button class="btn-action" id="btnEditToggle" style="background:${isEditMode?'#4ade80':'#444'};" onclick="toggleEditMode()">EDIT-MODUS: ${isEditMode?'AN':'AUS'}</button>
-            <p style="font-size:11px; color:#aaa;">Tipp: Im Edit-Modus Gebäude ziehen zum Verschieben. Shift + Ziehen zum Skalieren.</p>
-        </div>
-    `; 
-}
-
-function adminAddLevel(amt) {
-    let cap = (data.stats.totalEvoLevel === 0) ? 1 : (data.stats.totalEvoLevel * 30);
-    data.stats.currentLevel = Math.min(cap, data.stats.currentLevel + amt);
-    save();
-}
-
-function renderArenaMatchmaking() {
-    document.getElementById('modalLeft').innerHTML = `<div style="padding:20px;"><h2>🛡️ Arena</h2><button class="btn-action" onclick="startCombat(null, true)">🐗 Monsterkampf</button></div>`;
-}
-
-// ==========================================
-// SECTION 6: ISOLATED LAYOUT EDITOR (ADMIN ONLY)
-// ==========================================
-let isEditMode = false;
-let currentDragging = null;
-let layoutData = JSON.parse(localStorage.getItem('nestLayout')) || {};
-
-function initLayout() {
-    Object.keys(layoutData).forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.style.left = layoutData[id].x + "px";
-            el.style.top = layoutData[id].y + "px";
-            el.style.width = layoutData[id].w + "px";
-            el.style.height = layoutData[id].h + "px";
-        }
-    });
-}
-
-function toggleEditMode() {
-    if (verifiedID !== BROADCASTER_ID) return;
-    isEditMode = !isEditMode;
-    const buildings = document.querySelectorAll('.building');
-    buildings.forEach(b => {
-        if (isEditMode) {
-            b.classList.add('editing');
-            b.onmousedown = startBuildingDrag;
-        } else {
-            b.classList.remove('editing');
-            b.onmousedown = null;
-        }
-    });
-    openAdminPanel(); // Refresh UI
-}
-
-function startBuildingDrag(e) {
-    if (!isEditMode) return;
-    e.preventDefault();
-    e.stopPropagation();
-    currentDragging = e.currentTarget;
-    const isResize = e.shiftKey;
-    
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const startW = currentDragging.offsetWidth;
-    const startH = currentDragging.offsetHeight;
-    const startL = currentDragging.offsetLeft;
-    const startT = currentDragging.offsetTop;
-
-    document.onmousemove = (moveE) => {
-        const dx = moveE.clientX - startX;
-        const dy = moveE.clientY - startY;
-
-        if (isResize) {
-            currentDragging.style.width = (startW + dx) + "px";
-            currentDragging.style.height = (startH + dy) + "px";
-        } else {
-            currentDragging.style.left = (startL + dx) + "px";
-            currentDragging.style.top = (startT + dy) + "px";
-        }
-    };
-
-    document.onmouseup = () => {
-        document.onmousemove = null;
-        document.onmouseup = null;
-        saveLayout();
-    };
-}
-
-function saveLayout() {
-    const buildings = document.querySelectorAll('.building');
-    buildings.forEach(b => {
-        if (b.id) {
-            layoutData[b.id] = {
-                x: b.offsetLeft,
-                y: b.offsetTop,
-                w: b.offsetWidth,
-                h: b.offsetHeight
-            };
-        }
-    });
-    localStorage.setItem('nestLayout', JSON.stringify(layoutData));
-}
-
-// ==========================================
-// SECTION 7: ISOLATED LOOT ENGINE INTERFACE
-// ==========================================
-function processLootDrop() {
-    // Prüfen, ob loot.js geladen ist
-    if (typeof getRandomItem === 'function') {
-        // Test-Konfiguration laut Befehl: category: 'SWORDS', tier: 1, path: 'light'
-        const item = getRandomItem('SWORDS', 1, 'light');
-        if (item) {
-            const itemKey = item.name;
-            // Item ins Inventar legen
-            data.inventar[itemKey] = (data.inventar[itemKey] || 0) + 1;
-            // UI Update triggern
-            updateUI();
-            return item; 
-        }
-    } else {
-        console.warn("Loot Engine (loot.js) nicht gefunden oder nicht geladen.");
-    }
-    return null;
-}
-
-window.onload = async () => {
-    initLayout(); // Layout laden
-    if (checkTwitchAuth()) await initTwitchSession();
-    else redirectToTwitch();
-    db.ref('players').on('value', snap => {
-        onlinePlayers = snap.val() || {};
-        renderPlayers(onlinePlayers);
-        if(verifiedID && onlinePlayers[verifiedID]) updateUI();
-    });
-    setInterval(save, 30000);
-};
 </script>
 </body>
 </html>
