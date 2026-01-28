@@ -1,7 +1,7 @@
 /**
  * monsterLibrary.js
- * * Diese Bibliothek verwaltet die Generierung von Monstern für das Twitch-RPG "Nest Overlord Edition".
- * Sie berechnet dynamisch Werte basierend auf Präfixen, Kernen und dem Spieler-Level.
+ * Diese Bibliothek verwaltet die Generierung von Monstern für das Twitch-RPG "Nest Overlord Edition".
+ * Inklusive Emoji-System für visuelle Darstellung (img-Feld).
  */
 
 const MonsterLibrary = {
@@ -19,19 +19,32 @@ const MonsterLibrary = {
         { name: "Goldenes", hpMod: 1.0, atkMod: 1.0, lxpMod: 10.0 }
     ],
 
+    // Wildnis-Kerne als Objekte mit Emojis
     wildnisKerne: [
-        "Slime", "Goblin", "Skelett", "Waldspinne", "Hornisse", "Schattenwolf", 
-        "Moos-Golem", "Grab-Untoter", "Sumpf-Echse", "Wildschwein", "Riesenkäfer", 
-        "Waldgeist", "Harpyie", "Kobold", "Irrlicht", "Dunkel-Elf", "Bandit", 
-        "Pilz-Kreatur", "Ranken-Monster", "Fledermaus", "Skorpion", "Erdegeler", 
-        "Steinbeißer", "Nebel-Panzer", "Blut-Adler", "Reißzahn-Luchs", 
-        "Krallenfrosch", "Weiden-Wächter", "Ruinen-Wächter", "Mimic"
+        { name: "Slime", emoji: "💧" }, { name: "Goblin", emoji: "👺" }, 
+        { name: "Skelett", emoji: "💀" }, { name: "Waldspinne", emoji: "🕷️" }, 
+        { name: "Hornisse", emoji: "🐝" }, { name: "Schattenwolf", emoji: "🐺" }, 
+        { name: "Moos-Golem", emoji: "🗿" }, { name: "Grab-Untoter", emoji: "🧟" }, 
+        { name: "Sumpf-Echse", emoji: "🦎" }, { name: "Wildschwein", emoji: "🐗" }, 
+        { name: "Riesenkäfer", emoji: "🪲" }, { name: "Waldgeist", emoji: "👻" }, 
+        { name: "Harpyie", emoji: "🦅" }, { name: "Kobold", emoji: "🧌" }, 
+        { name: "Irrlicht", emoji: "✨" }, { name: "Dunkel-Elf", emoji: "🧝" }, 
+        { name: "Bandit", emoji: "🗡️" }, { name: "Pilz-Kreatur", emoji: "🍄" }, 
+        { name: "Ranken-Monster", emoji: "🌿" }, { name: "Fledermaus", emoji: "🦇" }, 
+        { name: "Skorpion", emoji: "🦂" }, { name: "Erdegeler", emoji: "🐛" }, 
+        { name: "Steinbeißer", emoji: "🪨" }, { name: "Nebel-Panzer", emoji: "🌫️" }, 
+        { name: "Blut-Adler", emoji: "🩸" }, { name: "Reißzahn-Luchs", emoji: "🐆" }, 
+        { name: "Krallenfrosch", emoji: "🐸" }, { name: "Weiden-Wächter", emoji: "🌳" }, 
+        { name: "Ruinen-Wächter", emoji: "🏰" }, { name: "Mimic", emoji: "📦" }
     ],
 
+    // Arena-Bosse als Objekte mit Emojis
     arenaBosse: [
-        "Der Arena-Meister", "Knochen-Gigant", "Mantikor", "Minotaurus-Wächter", 
-        "Hydra-Setzling", "Vampir-Lord", "Dämonen-Ritter", "Medusa", 
-        "Zerberus", "Der Schatten-Monarch"
+        { name: "Der Arena-Meister", emoji: "👑" }, { name: "Knochen-Gigant", emoji: "🦴" }, 
+        { name: "Mantikor", emoji: "🦁" }, { name: "Minotaurus-Wächter", emoji: "🐂" }, 
+        { name: "Hydra-Setzling", emoji: "🐍" }, { name: "Vampir-Lord", emoji: "🧛" }, 
+        { name: "Dämonen-Ritter", emoji: "😈" }, { name: "Medusa", emoji: "🐍" }, 
+        { name: "Zerberus", emoji: "🐕‍🦺" }, { name: "Der Schatten-Monarch", emoji: "🌑" }
     ],
 
     suffixes: [
@@ -42,70 +55,54 @@ const MonsterLibrary = {
 
     // --- LOGIK-FUNKTIONEN ---
 
-    /**
-     * Erstellt ein zufälliges Monster aus dem Wildnis-Pool.
-     * @param {number} playerLevel - Das aktuelle Level des Spielers für das Scaling.
-     */
     generateWildnisMonster(playerLevel) {
         const prefix = this.prefixes[Math.floor(Math.random() * this.prefixes.length)];
-        const kern = this.wildnisKerne[Math.floor(Math.random() * this.wildnisKerne.length)];
+        const kernObj = this.wildnisKerne[Math.floor(Math.random() * this.wildnisKerne.length)];
         const suffix = this.suffixes[Math.floor(Math.random() * this.suffixes.length)];
 
-        const name = `${prefix.name} ${kern} ${suffix}`;
-        return this.createMonsterObject(name, playerLevel, prefix, false);
+        const name = `${prefix.name} ${kernObj.name} ${suffix}`;
+        return this.createMonsterObject(name, playerLevel, prefix, false, kernObj.emoji);
     },
 
-    /**
-     * Erstellt einen festen Boss aus dem Arena-Pool.
-     * @param {number} playerLevel - Level des Spielers.
-     */
     generateArenaBoss(playerLevel) {
-        const kern = this.arenaBosse[Math.floor(Math.random() * this.arenaBosse.length)];
-        // Bosse können optional auch Präfixe erhalten, hier nutzen wir ein neutrales "Ewiger"
+        const kernObj = this.arenaBosse[Math.floor(Math.random() * this.arenaBosse.length)];
         const bossPrefix = { name: "Ewiger", hpMod: 1.0, atkMod: 1.0, lxpMod: 1.0 };
         
-        const name = `BOSS: ${kern}`;
-        return this.createMonsterObject(name, playerLevel, bossPrefix, true);
+        const name = `BOSS: ${kernObj.name}`;
+        return this.createMonsterObject(name, playerLevel, bossPrefix, true, kernObj.emoji);
     },
 
-    /**
-     * Kern-Algorithmus zur Berechnung der Stats.
-     */
-    createMonsterObject(name, level, prefix, isBoss) {
-        // 1. Basis-Werte (Tier 1)
-        let hp = 75;  // Mittelwert von 50-100
-        let atk = 8;   // Mittelwert von 5-10
-        let lxp = 75;  // Mittelwert von 50-100
+    createMonsterObject(name, level, prefix, isBoss, emoji) {
+        let hp = 75;
+        let atk = 8;
+        let lxp = 75;
 
-        // 2. Level-Scaling (10% Steigerung pro Level über 1)
         const scaleFactor = 1 + (level - 1) * 0.1;
         hp *= scaleFactor;
         atk *= scaleFactor;
         lxp *= scaleFactor;
 
-        // 3. Präfix-Bonus anwenden
         hp *= prefix.hpMod;
         atk *= prefix.atkMod;
         lxp *= prefix.lxpMod;
 
-        // 4. Boss-Multiplikator
         if (isBoss) {
             hp *= 5;
-            atk *= 1.5; // Zusätzlicher Boost für Bosse
+            atk *= 1.5;
             lxp *= 3;
         }
 
-        // 5. Objekt abrunden und zurückgeben
         return {
             name: name,
             level: level,
             hp: Math.round(hp),
+            maxHp: Math.round(hp), // Nützlich für Battle-Logik
             atk: Math.round(atk),
-            def: Math.round(atk * 0.8), // DEF ist standardmäßig 80% der ATK
-            lxpReward: Math.round(lxp)
+            def: Math.round(atk * 0.8),
+            lxpReward: Math.round(lxp),
+            img: emoji // Hier wird das Emoji gespeichert
         };
     }
 };
 
-// Export für die Verwendung in battle.js
-// module.exports = MonsterLibrary; // Falls in Node.js genutzt
+// module.exports = MonsterLibrary;
