@@ -1,123 +1,90 @@
 /**
  * THE NEST: STORAGE & SYNC MODULE (storage.js)
- * Hüter der Beständigkeit für das Spawn2909 Isekai-Nest.
+ * Hüter der Beständigkeit - Zentralisierte Version.
+ * Greift auf die globalen Variablen der Master-HTML zu.
  */
 
-// --- 1. INITIALISIERUNG ---
-const firebaseConfig = { 
-    apiKey: "AIzaSyCKNXJ-ouAOAcLr5ut-EemWQI8_zJxhqa8", 
-    authDomain: "thenest-81de6.firebaseapp.com", 
-    databaseURL: "https://thenest-81de6-default-rtdb.firebaseio.com", 
-    projectId: "thenest-81de6" 
-};
-
-if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
-}
-const db = firebase.database();
-
-// Globales Daten-Objekt
-let data = {
-    lxp: 0,
-    inventar: {},
-    evolutionStage: "Ei",
-    stats: {},
-    hp: 100,
-    maxHp: 100,
-    x: 960,
-    y: 540,
-    name: "Unbekannter Abenteurer"
-};
-
-// --- 2. SICHERHEIT & SPEICHER-LOGIK ---
+// --- 1. CORE SPEICHER-LOGIK ---
 
 /**
- * Zentrale Save-Funktion mit Korruptions-Schutz
+ * Zentrale Save-Funktion mit Korruptions-Schutz.
+ * Schreibt direkt das globale 'data' Objekt in die Firebase.
  */
 function save() {
-    if (!isIdentified || !verifiedID) return;
+    // Zugriff auf globale Variablen der HTML (verifiedID, isIdentified)
+    if (typeof verifiedID === 'undefined' || !verifiedID || !isIdentified) return;
 
     // SICHERHEITSABFRAGE: Abbruch bei korrupten Daten
     if (data.lxp === undefined || data.inventar === undefined) {
-        console.error("Hüter-Alarm: Speichern abgebrochen! Daten-Integrität gefährdet (LXP oder Inventar fehlt).");
+        console.error("Hüter-Alarm: Speichern abgebrochen! Globales 'data' Objekt unvollständig.");
         return;
     }
 
-    const savePacket = {
-        lxp: data.lxp,
-        inventar: data.inventar,
-        evolutionStage: data.evolutionStage,
-        hp: data.hp,
-        maxHp: data.maxHp,
-        stats: data.stats,
-        x: data.x,
-        y: data.y,
-        name: data.name,
+    // Firebase Sync (nutzt die globale 'db' Instanz)
+    db.ref('players/' + verifiedID).update({
+        ...data,
         lastSeen: Date.now()
-    };
+    })
+    .then(() => {
+        console.log("💾 Hüter: Fortschritt global festgeschrieben.");
+        // HUD nach dem Speichern aktualisieren
+        if (typeof updateUI === "function") updateUI();
+    })
+    .catch(err => console.error("Hüter-Fehler beim Sichern:", err));
 
-    // Backup & Cloud Sync
-    localStorage.setItem('nest_backup_' + verifiedID, JSON.stringify(savePacket));
-    db.ref('players/' + verifiedID).update(savePacket)
-        .then(() => console.log("Hüter: Fortschritt gesichert."))
-        .catch(err => console.error("Hüter-Fehler:", err));
+    // Lokales Backup als zusätzliche Sicherheit
+    localStorage.setItem('nest_backup_' + verifiedID, JSON.stringify(data));
 }
 
 /**
- * TRIGGER-SAVE: Exportiert die Funktion global, damit battle.js sie nutzen kann.
+ * TRIGGER-SAVE: Kann von überall (battle.js, inventar.js) aufgerufen werden.
  */
 function triggerAutoSave() {
-    console.log("Hüter: Automatisches Speichern ausgelöst...");
     save();
 }
 
-// Global verfügbar machen
+// Global verfügbar machen für andere Skripte
 window.triggerAutoSave = triggerAutoSave;
 
-// --- 3. INITIALISIERUNG (Startschuss) ---
+// --- 2. DATEN-LADEN & SYNCHRONISATION ---
 
 /**
- * Lädt Daten und füttert andere Module
+ * Lädt die Cloud-Daten in das globale 'data' Objekt.
  */
 async function loadUserData() {
-    if (!verifiedID) {
-        console.warn("Hüter: Keine VerifiedID gefunden. Warte auf Identifizierung...");
-        return;
-    }
+    if (typeof verifiedID === 'undefined' || !verifiedID) return;
     
     try {
         const snapshot = await db.ref('players/' + verifiedID).once('value');
         if (snapshot.exists()) {
             const dbData = snapshot.val();
             
-            // Mapping mit Fallback auf Standardwerte
-            data.lxp = dbData.lxp ?? 0;
-            data.inventar = dbData.inventar || {};
-            data.evolutionStage = dbData.evolutionStage || "Ei";
-            data.stats = dbData.stats || data.stats;
-            data.hp = dbData.hp ?? data.maxHp;
+            // Globales Objekt befüllen (Spread-Operator erhält bestehende lokale Werte)
+            // Wir mappen die Cloud-Daten direkt auf das globale 'data'
+            Object.assign(data, dbData);
             
-            console.log("Hüter: Daten aus der Cloud wiederhergestellt.");
+            console.log("📂 Hüter: Profil erfolgreich geladen.");
             
-            // Inventar informieren
-            if (typeof updateInventoryUI === "function") {
-                updateInventoryUI(data.inventar); 
-            }
+            // DIE BRÜCKE: HUD und Inventar-UI aktualisieren
+            if (typeof updateUI === "function") updateUI();
+            if (typeof updateInventoryUI === "function") updateInventoryUI(data.inventar);
+            
+        } else {
+            console.log("📂 Hüter: Kein Cloud-Profil gefunden. Initialer Save...");
+            save(); 
         }
     } catch (err) { 
         console.error("Hüter-Ladefehler:", err); 
     }
 }
 
-// --- 4. EVENT LISTENER ---
+// --- 3. AUTOMATISIERUNG ---
 
-// Startschuss: Sobald das Dokument bereit ist
-window.addEventListener('DOMContentLoaded', () => {
-    // Falls die ID schon da ist (z.B. durch Redirect), laden wir sofort
-    if (typeof verifiedID !== 'undefined' && verifiedID) {
-        loadUserData();
+/**
+ * Ein Sicherheits-Timer, der alle 30 Sekunden den aktuellen Stand sichert.
+ */
+setInterval(() => {
+    if (typeof isIdentified !== 'undefined' && isIdentified) {
+        save();
     }
-});
-
-// Automatischer Fangnetz-Save alle 30 Sekunden
-setInterval(save, 30000);
+}, 30000);
