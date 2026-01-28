@@ -7,7 +7,7 @@
 
     <script src="loot.js"></script>
     <script src="storage.js"></script>
-    <script src="evolution.js"></script>
+    <script src="items.js"></script> <script src="evolution.js"></script>
     <script src="inventar.js"></script>
     <script src="markt.js"></script>
     <script src="battle.js"></script>
@@ -69,7 +69,9 @@
 
 <div id="gameModal" class="modal">
     <div class="mmo-panel">
-        <div class="panel-main" id="modalLeft"></div>
+        <div class="panel-main" id="modalLeft">
+            <div id="admin-item-grid" style="width: 100%; min-height: 100px; position: relative; z-index: 10;"></div>
+        </div>
         <div class="panel-side">
             <h3 style="color:gold; margin-top:0;">🎒 RUCKSACK</h3>
             <div id="miniInv" style="flex-grow: 1; overflow-y: auto;"></div>
@@ -82,33 +84,23 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
-// --- KONFIGURATION ---
-const firebaseConfig = { 
-    apiKey: "AIzaSyCKNXJ-ouAOAcLr5ut-EemWQI8_zJxhqa8", 
-    authDomain: "thenest-81de6.firebaseapp.com", 
-    databaseURL: "https://thenest-81de6-default-rtdb.firebaseio.com", 
-    projectId: "thenest-81de6" 
-};
+// --- KONFIGURATION (UNBERÜHRT) ---
+const firebaseConfig = { apiKey: "AIzaSyCKNXJ-ouAOAcLr5ut-EemWQI8_zJxhqa8", authDomain: "thenest-81de6.firebaseapp.com", databaseURL: "https://thenest-81de6-default-rtdb.firebaseio.com", projectId: "thenest-81de6" };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
-
 const TWITCH_CLIENT_ID = "futhxsgrshkh2h6cqywavg5cous3q0";
 const BROADCASTER_ID = "573773653";
 const REDIRECT_URI = "https://noverato.github.io/System";
-
-// --- GLOBALE VARIABLEN ---
 let data = { name: "Held", x: 960, y: 540, lxp: 0, hp: 100, maxHp: 100, stats: { totalEvoLevel: 0, currentLevel: 0, className: "Ei" }, inventar: {} };
 let twitchToken = "", verifiedID = "", isIdentified = false, onlinePlayers = {}, isAdmin = false;
 
-// --- AUTH-KERN: DIE TWITCH-FEUERWEHR ---
-
+// Authentifizierungs-Logik bleibt erhalten...
 async function checkTwitchAuth() {
     const hash = window.location.hash.substring(1);
     const params = new URLSearchParams(hash);
     if (params.has("access_token")) {
         twitchToken = params.get("access_token");
         window.history.replaceState({}, document.title, window.location.pathname);
-        console.log("✅ Twitch-Token empfangen.");
         return true;
     }
     return false;
@@ -121,20 +113,15 @@ async function initTwitchSession() {
             headers: { 'Client-ID': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchToken}` }
         });
         const result = await resp.json();
-        
         if (result.data && result.data.length > 0) {
             const twitchUser = result.data[0];
             verifiedID = twitchUser.id;
             data.name = twitchUser.display_name;
             isIdentified = true;
             isAdmin = (verifiedID === BROADCASTER_ID);
-            
-            console.log("🆔 Twitch-ID empfangen: JA (" + verifiedID + ")");
             await loadUserData();
-        } else {
-            console.error("❌ Twitch-ID konnte nicht aus dem Token gelesen werden.");
         }
-    } catch (err) { console.error("Critical Auth Error:", err); }
+    } catch (err) { console.error("Identity Error:", err); }
 }
 
 async function loadUserData() {
@@ -142,27 +129,19 @@ async function loadUserData() {
     try {
         const snapshot = await db.ref('players/' + verifiedID).once('value');
         if (snapshot.exists()) {
-            console.log("📂 Firebase-Profil gefunden: JA");
             const dbData = snapshot.val();
-            // Sync Firebase -> Lokal
             data = { ...data, ...dbData };
         } else {
-            console.log("📂 Firebase-Profil gefunden: NEIN (Erstelle neues Profil)");
-            save(); // Initialer Save für neue User
+            save();
         }
         updateUI();
-    } catch (err) { console.error("Firebase Sync Error:", err); }
+    } catch (err) { console.error("Sync Error:", err); }
 }
 
 function save() {
-    if (!verifiedID) return;
-    db.ref('players/' + verifiedID).update({
-        ...data,
-        lastSeen: Date.now()
-    }).then(() => console.log("💾 Fortschritt gespeichert."));
+    if (!verifiedID || !isIdentified) return;
+    db.ref('players/' + verifiedID).update({ ...data, lastSeen: Date.now() });
 }
-
-// --- RENDER-BRÜCKE ---
 
 function updateUI() {
     document.getElementById('playerName').innerText = isAdmin ? "OVERLORD " + data.name : data.name;
@@ -177,27 +156,20 @@ function renderPlayers(players) {
     Object.keys(players).forEach(id => {
         const p = players[id];
         if (p.hidden || (Date.now() - (p.lastSeen || 0) > 60000)) return;
-        
         const div = document.createElement('div');
         div.className = 'creature';
         div.style.left = p.x + "px";
         div.style.top = p.y + "px";
-        
-        // Brücke zur evolution.js (oder Fallback)
         const imgSrc = (typeof getCreatureSprite === 'function') ? getCreatureSprite(p, id === BROADCASTER_ID) : 'Ei.png';
-        
         div.innerHTML = `<img src="${imgSrc}"><div class="name-tag ${id===BROADCASTER_ID?'boss-aura':''}">${p.name}</div>`;
         layer.appendChild(div);
     });
 }
 
-// --- STARTSEQUENZ ---
-
 window.onload = async () => {
     const authenticated = await checkTwitchAuth();
     if (authenticated) {
         await initTwitchSession();
-        // Start Realtime-Sync
         db.ref('players').on('value', snap => {
             onlinePlayers = snap.val() || {};
             renderPlayers(onlinePlayers);
@@ -216,6 +188,16 @@ function handleWorldClick(e) {
     save();
 }
 
+function toggleModal(id, s) { document.getElementById(id).style.display = s ? 'flex' : 'none'; }
+function closeGeneralModal() { toggleModal('gameModal', false); }
+
+function openBuilding(b) { 
+    toggleModal('gameModal', true);
+    if (b === 'steinbruch') renderMiningMenu(); 
+    else if (b === 'rathaus') renderEvoMenu(); 
+    else if (b === 'markt') renderMarketplace(); 
+    else if (b === 'arena') renderArenaMatchmaking();
+}
 </script>
 </body>
 </html>
