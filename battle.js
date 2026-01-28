@@ -2,7 +2,7 @@
  * THE NEST: OVERLORD EDITION 2026
  * BATTLE ENGINE MODULE (battle.js)
  * Rolle: Battle-Meister
- * Fokus: Emoji-Fallback-Logik, Arena-Hintergrund & ATB-Präzision
+ * Fokus: Arena-Matchmaking, Hintergrund-Wechsel & UI-Präzision
  */
 
 const BattleEngine = {
@@ -17,14 +17,43 @@ const BattleEngine = {
     maxHeals: 3,
     animationLock: false,
 
+    // --- ARENA MATCHMAKING (Einstiegs-Menü) ---
+    renderArenaMatchmaking() {
+        const left = document.getElementById('modalLeft');
+        if (!left) return;
+
+        // Hintergrund auf die Arena-Ansicht setzen
+        left.style.backgroundImage = "url('./arena.png')";
+        left.style.backgroundSize = "cover";
+        left.style.backgroundPosition = "center";
+
+        left.innerHTML = `
+            <div style="height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(0,0,0,0.4); backdrop-filter:blur(2px);">
+                <h2 style="color:var(--gold); font-size:42px; text-shadow:0 0 20px black;">🛡️ PvP ARENA</h2>
+                <div style="background:var(--fantasy-bg); padding:30px; border:var(--border); border-radius:15px; text-align:center; box-shadow:var(--shadow);">
+                    <p style="font-size:18px; margin-bottom:20px;">Wähle deine Herausforderung, Krieger!</p>
+                    <button class="btn-action" style="font-size:22px; padding:15px 30px; width:100%;" onclick="startMonsterFight()">
+                        ⚔️ GEGEN MONSTER KÄMPFEN
+                    </button>
+                    <br><br>
+                    <button class="btn-action" style="width:100%; opacity:0.5;" disabled>
+                        👥 PvP DUELL (Bald verfügbar)
+                    </button>
+                </div>
+            </div>
+        `;
+    },
+
     // --- Initialisierung ---
     startCombat(enemyData, isMonster, enemyID = null) {
         console.log("⚔️ Battle-Meister: Kampf-Initialisierung...");
         this.resetState();
 
+        // Ausrüstung prüfen
         const weaponPower = data.equipment?.weapon?.power || 0;
         const armorValue = data.equipment?.armor?.value || 0;
 
+        // Spieler-Stats skalieren
         this.player = {
             name: data.name,
             hp: data.hp,
@@ -37,6 +66,7 @@ const BattleEngine = {
             lvl: data.stats.currentLevel || 1
         };
 
+        // Monster-Integration mit Emoji-Fallback
         if (isMonster) {
             if (typeof MonsterLibrary !== 'undefined') {
                 this.enemy = MonsterLibrary.generateMonster(this.player.lvl);
@@ -49,7 +79,7 @@ const BattleEngine = {
         }
 
         this.active = true;
-        this.renderArena();
+        this.renderArena(); // Wechselt auf arena_innen.png
         this.startLoop();
     },
 
@@ -88,7 +118,7 @@ const BattleEngine = {
         }
     },
 
-    // --- Aktionen ---
+    // --- Kampf-Logik ---
     executeAction(type) {
         if (this.playerATB < 100 || this.animationLock) return;
         this.animationLock = true;
@@ -113,24 +143,15 @@ const BattleEngine = {
         }, 800);
     },
 
-    // --- Mathematik ---
-    calculateDamage(attacker, defender, side, attackType = 'physical') {
-        const isCrit = Math.random() < 0.15;
+    calculateDamage(attacker, defender, side) {
         const variance = 0.9 + Math.random() * 0.2;
         let dmg = Math.floor((attacker.atk * variance) - (defender.def * 0.7));
-
-        if (attackType === 'fire' && defender.name.includes("Brennend")) dmg = Math.floor(dmg * 0.8);
         dmg = Math.max(1, dmg); 
-
-        if (isCrit) {
-            dmg = Math.floor(dmg * 1.5);
-            this.log(`💥 KRITISCH!`, 'gold');
-        }
 
         defender.hp -= dmg;
         if (side === 'enemy') data.hp = this.player.hp;
 
-        this.log(`${attacker.name}: -${dmg} HP`, side === 'player' ? '#4ade80' : '#ff4444');
+        this.log(`${attacker.name} verursacht ${dmg} Schaden!`, side === 'player' ? '#4ade80' : '#ff4444');
         this.updateBars();
     },
 
@@ -172,6 +193,7 @@ const BattleEngine = {
         setTimeout(() => this.endCombat(), 2000);
     },
 
+    // --- UI Sync & Rendering ---
     log(msg, color) {
         const logEl = document.getElementById('battleLog');
         if (logEl) logEl.innerHTML = `<div style="color:${color}">${msg}</div>`;
@@ -187,6 +209,8 @@ const BattleEngine = {
         if (pFill) pFill.style.width = `${(this.player.hp / this.player.maxHp) * 100}%`;
         if (eFill) eFill.style.width = `${(this.enemy.hp / this.enemy.maxHp) * 100}%`;
         if (pAtbFill) pAtbFill.style.width = `${this.playerATB}%`;
+        
+        // Zwingende HP-Zahlen Anzeige
         if (pTxt) pTxt.innerText = `${Math.ceil(this.player.hp)} / ${this.player.maxHp}`;
         if (eTxt) eTxt.innerText = `${Math.ceil(this.enemy.hp)} / ${this.enemy.maxHp}`;
     },
@@ -202,59 +226,57 @@ const BattleEngine = {
         this.active = false;
         const left = document.getElementById('modalLeft');
         if (left) left.style.backgroundImage = "none";
-        if (typeof closeGeneralModal === 'function') closeGeneralModal(); 
-        else document.getElementById('gameModal').style.display = 'none';
-        if (typeof updateUI === 'function') updateUI();
-        if (typeof save === 'function') save();
+        closeGeneralModal();
     },
 
     renderArena() {
         const left = document.getElementById('modalLeft');
         if (!left) return;
 
+        // --- HINTERGRUND-WECHSEL ZU INNEN ---
         left.style.backgroundImage = "url('./arena_innen.png')";
-        left.style.backgroundSize = "cover";
-        left.style.backgroundPosition = "center";
-
+        
         const myImg = isAdmin ? 'Overlord.png' : (typeof EVO_IMGS !== 'undefined' ? EVO_IMGS[data.stats?.totalEvoLevel || 0] : 'Ei.png');
-        const barTextStyle = "position:absolute; width:100%; top:0; left:0; text-align:center; color:white; font-size:10px; font-weight:bold; text-shadow: 1px 1px 2px #000; line-height:12px; pointer-events:none;";
+        const barTextStyle = "position:absolute; width:100%; top:0; left:0; text-align:center; color:white; font-size:11px; font-weight:bold; text-shadow: 1px 1px 2px #000; line-height:14px; pointer-events:none; z-index:5;";
 
-        // --- DER EMOJI-TRICK ---
+        // Emoji-Fallback-Logik
         const enemyVisual = this.enemy.img.length < 4 
-            ? `<div style="font-size: 100px; text-align: center; filter: drop-shadow(0 0 15px red);">${this.enemy.img}</div>` 
+            ? `<div style="font-size: 100px; filter: drop-shadow(0 0 15px red);">${this.enemy.img}</div>` 
             : `<img src="${this.enemy.img}" style="width:140px; filter:drop-shadow(0 0 15px red);">`;
 
         left.innerHTML = `
-            <div id="arenaStage" style="user-select:none; height:100%; display:flex; flex-direction:column; justify-content:space-between; animation: fadeIn 0.5s;">
-                <div class="combat-grid" style="display:flex; justify-content:space-around; align-items:flex-end; padding:40px 20px;">
-                    <div class="unit">
+            <div id="arenaStage" style="height:100%; display:flex; flex-direction:column; justify-content:space-between; animation: fadeIn 0.5s; padding:20px; box-sizing:border-box;">
+                <div class="combat-grid" style="display:flex; justify-content:space-around; align-items:flex-end; padding-top:40px;">
+                    <div class="unit" style="text-align:center;">
                         <img src="${myImg}" style="width:140px; filter:drop-shadow(0 0 15px gold);">
-                        <div class="bar-container" style="position:relative; width:120px; height:12px; background:#111; border:2px solid gold; margin:10px auto; overflow:hidden;">
+                        <div class="bar-container" style="position:relative; width:130px; height:14px; background:#111; border:2px solid gold; margin:10px auto; border-radius:4px; overflow:hidden;">
                             <div id="playerHpFill" style="height:100%; background:var(--hp-color); width:100%; transition:0.3s;"></div>
-                            <div id="playerHpText" style="${barTextStyle}">0 / 0</div>
+                            <div id="playerHpText" style="${barTextStyle}">- / -</div>
                         </div>
-                        <div class="bar-container" style="width:120px; height:6px; background:#111; margin:2px auto; border:1px solid #555;">
+                        <div class="bar-container" style="width:130px; height:6px; background:#111; margin:5px auto; border:1px solid #555; border-radius:2px;">
                             <div id="playerAtbFill" style="height:100%; background:var(--mp-color); width:0%;"></div>
                         </div>
-                        <div style="color:gold; font-weight:bold; text-align:center; text-shadow: 2px 2px 4px #000;">${this.player.name}</div>
+                        <div style="color:gold; font-weight:bold;">${this.player.name}</div>
                     </div>
 
-                    <div class="unit">
+                    <div style="font-size:32px; color:gold; text-shadow:0 0 10px red; font-style:italic;">VS</div>
+
+                    <div class="unit" style="text-align:center;">
                         ${enemyVisual}
-                        <div class="bar-container" style="position:relative; width:120px; height:12px; background:#111; border:2px solid #ff4444; margin:10px auto; overflow:hidden;">
+                        <div class="bar-container" style="position:relative; width:130px; height:14px; background:#111; border:2px solid #ff4444; margin:10px auto; border-radius:4px; overflow:hidden;">
                             <div id="enemyHpFill" style="height:100%; background:var(--hp-color); width:100%; transition:0.3s;"></div>
-                            <div id="enemyHpText" style="${barTextStyle}">0 / 0</div>
+                            <div id="enemyHpText" style="${barTextStyle}">- / -</div>
                         </div>
-                        <div style="color:#ff4444; font-weight:bold; text-align:center; text-shadow: 2px 2px 4px #000;">${this.enemy.name}</div>
+                        <div style="color:#ff4444; font-weight:bold;">${this.enemy.name}</div>
                     </div>
                 </div>
 
-                <div style="padding-bottom:30px;">
-                    <div id="battleLog" style="background:rgba(0,0,0,0.8); padding:10px; border-radius:8px; margin:0 40px 15px 40px; text-align:center; border:1px solid gold; font-size:20px; color:white; min-height:30px;">Kampf beginnt!</div>
+                <div style="margin-bottom:20px;">
+                    <div id="battleLog" style="background:rgba(0,0,0,0.8); padding:15px; border-radius:8px; margin:0 40px 15px 40px; text-align:center; border:1px solid gold; font-size:20px; min-height:30px;">Bereit machen!</div>
                     <div class="ff-buttons" style="display:flex; gap:15px; justify-content:center;">
-                        <button id="btnAtk" class="btn-action" onclick="BattleEngine.executeAction('attack')" style="min-width:160px; font-size:18px;">⚔️ ANGRIFF</button>
-                        <button id="btnHeal" class="btn-action" onclick="BattleEngine.executeAction('heal')" style="min-width:160px; font-size:18px;">🧪 HEILUNG</button>
-                        <button class="btn-action" onclick="BattleEngine.endCombat()" style="min-width:120px; background:linear-gradient(135deg, #444, #222);">🏳️ FLUCHT</button>
+                        <button id="btnAtk" class="btn-action" onclick="BattleEngine.executeAction('attack')" style="min-width:160px;">⚔️ ANGRIFF</button>
+                        <button id="btnHeal" class="btn-action" onclick="BattleEngine.executeAction('heal')" style="min-width:160px;">🧪 HEILUNG</button>
+                        <button class="btn-action" onclick="BattleEngine.endCombat()" style="min-width:120px; background:#444;">🏳️ FLUCHT</button>
                     </div>
                 </div>
             </div>
@@ -262,11 +284,11 @@ const BattleEngine = {
     }
 };
 
-function startMonsterFight() {
-    BattleEngine.startCombat(null, true);
-}
-
-function startCombat(enemy, isMonster, id) { BattleEngine.startCombat(enemy, isMonster, id); }
+/**
+ * Globale Schnittstellen für HTML-Aufrufe
+ */
+function renderArenaMatchmaking() { BattleEngine.renderArenaMatchmaking(); }
+function startMonsterFight() { BattleEngine.startCombat(null, true); }
 function executeCombatAction(type) { BattleEngine.executeAction(type); }
 function closeGeneralModal() { 
     const left = document.getElementById('modalLeft');
