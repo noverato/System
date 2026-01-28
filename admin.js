@@ -1,12 +1,10 @@
 /**
  * admin.js - Die absolute Kontrollinstanz für Spawn2909
- * Mission: Direkte Manipulation des globalen data-Objekts
+ * Fokus: Integration der ITEM_DATABASE & Cloud-Sync
  */
 
 const AdminConsole = {
-    // 1. GÖTTER-BEFEHLE (Direkte Daten-Manipulation)
-    
-    // LXP vergeben
+    // 1. GÖTTER-BEFEHLE
     giveLXP: function(amount) {
         if (typeof data !== 'undefined') {
             data.lxp += parseInt(amount);
@@ -14,7 +12,6 @@ const AdminConsole = {
         }
     },
 
-    // Level direkt setzen
     setLevel: function(amount) {
         if (typeof data !== 'undefined' && data.stats) {
             data.stats.currentLevel += parseInt(amount);
@@ -22,7 +19,6 @@ const AdminConsole = {
         }
     },
 
-    // Evolution manuell ändern
     changeEvolution: function(newStage) {
         if (typeof data !== 'undefined' && data.stats) {
             data.stats.className = newStage;
@@ -30,22 +26,53 @@ const AdminConsole = {
         }
     },
 
-    // Item-Beschwörung (Greift auf loot.js & inventar.js zu)
+    // 2. ITEM-BESCHWÖRUNG (Neu: Integration items.js)
     spawnItem: function(itemID) {
         if (!itemID) return;
-        // Prüfung ob globaler Inventar-Handler existiert
-        if (typeof window.addItemToInventory === 'function') {
-            window.addItemToInventory(itemID);
-            this.sync(`Gegenstand [${itemID}] aus dem Nichts erschaffen.`);
-        } else {
-            // Fallback: Direkt in das data-Objekt
-            data.inventar = data.inventar || {};
-            data.inventar[itemID] = (data.inventar[itemID] || 0) + 1;
-            this.sync(`Item ${itemID} direkt ins Datenpaket geschrieben.`);
-        }
+
+        // Nutze die Funktion aus items.js falls vorhanden
+        const itemData = (typeof getItemById === 'function') ? getItemById(itemID) : null;
+        const itemName = itemData ? itemData.name : itemID;
+
+        // Sicherstellen, dass das Inventar-Array existiert
+        if (!data.inventar) data.inventar = {};
+        
+        // Hinzufügen (Logik: Erhöhe Anzahl oder setze auf 1)
+        data.inventar[itemID] = (data.inventar[itemID] || 0) + 1;
+
+        this.sync(`Item [${itemName}] erfolgreich beschworen.`);
     },
 
-    // Welt-Editor Toggle
+    // 3. LISTEN-GENERATOR (Dynamische UI)
+    updateAdminItemSpawner: function() {
+        const container = document.getElementById('admin-item-grid');
+        if (!container) return;
+
+        // Prüfen ob Datenbank geladen ist
+        if (typeof ITEM_DATABASE === 'undefined') {
+            container.innerHTML = `<p style="color:orange; animation: pulse 1s infinite;">Lade Warenlager...</p>`;
+            // Erneuter Versuch in 1 Sekunde
+            setTimeout(() => this.updateAdminItemSpawner(), 1000);
+            return;
+        }
+
+        let html = `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px; max-height: 200px; overflow-y: auto; padding-right: 5px;">`;
+        
+        Object.keys(ITEM_DATABASE).forEach(id => {
+            const item = ITEM_DATABASE[id];
+            const color = item.rarity === 'legendary' ? '#ff4500' : '#ffd700';
+            html += `
+                <button class="btn-action" 
+                        style="font-size: 10px; padding: 5px; border-color: ${color}; text-align: left;" 
+                        onclick="AdminConsole.spawnItem('${id}')">
+                    + ${item.name || id}
+                </button>`;
+        });
+
+        html += `</div>`;
+        container.innerHTML = html;
+    },
+
     toggleEditMode: function() {
         window.isEditMode = !window.isEditMode;
         const btn = document.getElementById('btnEditToggle');
@@ -53,72 +80,67 @@ const AdminConsole = {
             btn.innerText = window.isEditMode ? "EDIT-MODUS: AN" : "EDIT-MODUS: AUS";
             btn.style.boxShadow = window.isEditMode ? "0 0 15px #4ade80" : "none";
         }
-        console.log(`[Admin] Edit-Modus: ${window.isEditMode}`);
     },
 
-    // 2. SYNCHRONISATION (Speichern & UI Update)
+    // 4. SYNCHRONISATION (Greift auf storage.js zu)
     sync: function(msg) {
         console.log(`%c[GOTT]: ${msg}`, "color: gold; font-weight: bold; background: #000; padding: 2px 5px;");
         
-        // Triggert die Funktionen aus der Master-HTML
-        if (typeof save === 'function') save(); 
+        // UI im HUD sofort aktualisieren
         if (typeof updateUI === 'function') updateUI();
         
-        // Falls vorhanden, Firebase-AutoSave forcieren
-        if (typeof window.triggerAutoSave === 'function') window.triggerAutoSave();
+        // Speichern in LocalStorage & Firebase (via storage.js / master-save)
+        if (typeof save === 'function') {
+            save(); 
+        } else if (typeof window.triggerAutoSave === 'function') {
+            window.triggerAutoSave();
+        }
+        
+        // Optionales visuelles Feedback im Admin-Panel
+        const feedback = document.getElementById('admin-feedback');
+        if (feedback) {
+            feedback.innerText = msg;
+            setTimeout(() => { feedback.innerText = ""; }, 3000);
+        }
     }
 };
 
-// 3. UI-GENERIERUNG (Wird in modalLeft gerendert)
+// 5. UI-GENERIERUNG
 function openAdminPanel() {
     const modal = document.getElementById('gameModal');
     const container = document.getElementById('modalLeft');
     
     if (!modal || !container) return;
 
-    // Item-Dropdown generieren (aus loot.js)
-    let itemOptions = `<option value="">-- Item wählen --</option>`;
-    if (window.lootTable) {
-        Object.keys(window.lootTable).forEach(id => {
-            itemOptions += `<option value="${id}">${window.lootTable[id].name || id}</option>`;
-        });
-    }
-
     container.innerHTML = `
         <div style="font-family: 'Courier New', monospace; color: gold; padding: 10px;">
-            <h1 style="text-shadow: 0 0 10px red; border-bottom: 2px solid gold;">🛠 GÖTTER-KONSOLE</h1>
-            <p>Eingeloggt als: <span style="color:#4ade80;">OVERLORD</span></p>
+            <h1 style="text-shadow: 0 0 10px red; border-bottom: 2px solid gold; margin-bottom: 5px;">🛠 GÖTTER-KONSOLE</h1>
+            <div id="admin-feedback" style="height: 20px; color: #4ade80; font-size: 12px; font-weight: bold;"></div>
             
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px;">
                 <button class="btn-action" onclick="AdminConsole.giveLXP(5000)">+5000 LXP</button>
                 <button class="btn-action" onclick="AdminConsole.setLevel(30)">+30 LEVEL</button>
-                <button class="btn-action" onclick="data.followDays += 30; AdminConsole.sync('+30 Tage Follower-Zeit');">+30 TAGE</button>
                 <button class="btn-action" id="btnEditToggle" onclick="AdminConsole.toggleEditMode()">EDIT-MODUS: AUS</button>
+                <button class="btn-action" style="background: #444;" onclick="AdminConsole.sync('Cloud-Sync erzwungen')">☁ CLOUD SAVE</button>
             </div>
 
-            <hr style="border: 1px solid #444; margin: 20px 0;">
+            <hr style="border: 1px solid #444; margin: 15px 0;">
 
-            <h3>WELTEN-MANIPULATION</h3>
-            <div style="display: flex; gap: 10px; flex-direction: column;">
-                <label>Item beschwören:</label>
-                <select id="adminItemSelect" style="background:#111; color:gold; border:1px solid gold; padding:8px;">
-                    ${itemOptions}
-                </select>
-                <button class="btn-action" onclick="AdminConsole.spawnItem(document.getElementById('adminItemSelect').value)">GEGENSTAND GEWÄHREN</button>
-            </div>
+            <h3>📦 ITEM-WARENLAGER (Klicken zum Beschwören)</h3>
+            <div id="admin-item-grid">
+                </div>
 
-            <div style="margin-top: 20px;">
+            <div style="margin-top: 15px;">
                 <label>Evolutions-Stufe erzwingen:</label>
                 <input type="text" id="evoInput" placeholder="Klassenname..." style="width:100%; background:#111; color:gold; border:1px solid gold; padding:5px; margin-top:5px;">
-                <button class="btn-action" style="width:100%; margin-top:5px;" onclick="AdminConsole.changeEvolution(document.getElementById('evoInput').value)">EVOLUTION AUSLÖSEN</button>
+                <button class="btn-action" style="width:100%; margin-top:5px;" onclick="AdminConsole.changeEvolution(document.getElementById('evoInput').value)">EVOLUTION SETZEN</button>
             </div>
-
-            <button class="btn-action" style="width:100%; margin-top:30px; background: #444;" onclick="AdminConsole.sync('Manueller Cloud-Sync')">💾 FORCIERE CLOUD-SPEICHERUNG</button>
         </div>
     `;
 
     modal.style.display = 'flex';
+    // Starte den Listen-Generator
+    AdminConsole.updateAdminItemSpawner();
 }
 
-// Globaler Hilfs-Befehl für die Konsole
 window.adminAddLevel = (n) => AdminConsole.setLevel(n);
