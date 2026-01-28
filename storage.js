@@ -1,56 +1,50 @@
 /**
  * THE NEST: STORAGE & SYNC MODULE (storage.js)
- * Hüter der Beständigkeit - Zentralisierte Version.
- * Greift auf die globalen Variablen der Master-HTML zu.
+ * Spezialisierung: Evolutions-Beständigkeit & Kapselung im Stats-Objekt.
  */
 
 // --- 1. CORE SPEICHER-LOGIK ---
 
-/**
- * Zentrale Save-Funktion mit Korruptions-Schutz.
- * Schreibt direkt das globale 'data' Objekt in die Firebase.
- */
 function save() {
-    // Zugriff auf globale Variablen der HTML (verifiedID, isIdentified)
     if (typeof verifiedID === 'undefined' || !verifiedID || !isIdentified) return;
 
-    // SICHERHEITSABFRAGE: Abbruch bei korrupten Daten
-    if (data.lxp === undefined || data.inventar === undefined) {
-        console.error("Hüter-Alarm: Speichern abgebrochen! Globales 'data' Objekt unvollständig.");
+    // SICHERHEITSABFRAGE
+    if (data.lxp === undefined || data.inventar === undefined || data.stats === undefined) {
+        console.error("Hüter-Alarm: Speichern abgebrochen! Datenstruktur (stats) beschädigt.");
         return;
     }
 
-    // Firebase Sync (nutzt die globale 'db' Instanz)
-    db.ref('players/' + verifiedID).update({
+    // Wir strukturieren das Paket so, dass die Evolutions-Werte in stats landen
+    const savePacket = {
         ...data,
+        stats: {
+            ...data.stats,
+            currentClass: data.stats.currentClass || "Ei",
+            currentPath: data.stats.currentPath || "Neutral",
+            dailyMarkers: data.stats.dailyMarkers || 0,
+            hiddenXP: data.stats.hiddenXP || 0,
+            evolutionDate: data.stats.evolutionDate || Date.now()
+        },
         lastSeen: Date.now()
-    })
+    };
+
+    db.ref('players/' + verifiedID).update(savePacket)
     .then(() => {
-        console.log("💾 Hüter: Fortschritt global festgeschrieben.");
-        // HUD nach dem Speichern aktualisieren
+        console.log("💾 Hüter: Stats & Evolution sicher verwahrt.");
         if (typeof updateUI === "function") updateUI();
     })
     .catch(err => console.error("Hüter-Fehler beim Sichern:", err));
 
-    // Lokales Backup als zusätzliche Sicherheit
-    localStorage.setItem('nest_backup_' + verifiedID, JSON.stringify(data));
+    localStorage.setItem('nest_backup_' + verifiedID, JSON.stringify(savePacket));
 }
 
-/**
- * TRIGGER-SAVE: Kann von überall (battle.js, inventar.js) aufgerufen werden.
- */
 function triggerAutoSave() {
     save();
 }
-
-// Global verfügbar machen für andere Skripte
 window.triggerAutoSave = triggerAutoSave;
 
-// --- 2. DATEN-LADEN & SYNCHRONISATION ---
+// --- 2. DATEN-LADEN & EVOLUTION-SYNC ---
 
-/**
- * Lädt die Cloud-Daten in das globale 'data' Objekt.
- */
 async function loadUserData() {
     if (typeof verifiedID === 'undefined' || !verifiedID) return;
     
@@ -59,18 +53,31 @@ async function loadUserData() {
         if (snapshot.exists()) {
             const dbData = snapshot.val();
             
-            // Globales Objekt befüllen (Spread-Operator erhält bestehende lokale Werte)
-            // Wir mappen die Cloud-Daten direkt auf das globale 'data'
+            // Tiefen-Mapping für das stats-Objekt
             Object.assign(data, dbData);
             
-            console.log("📂 Hüter: Profil erfolgreich geladen.");
+            // Sicherstellen, dass das stats-Objekt und seine neuen Felder existieren
+            data.stats = {
+                ...(dbData.stats || {}),
+                currentClass: dbData.stats?.currentClass || "Ei",
+                currentPath: dbData.stats?.currentPath || "Neutral",
+                dailyMarkers: dbData.stats?.dailyMarkers || 0,
+                hiddenXP: dbData.stats?.hiddenXP || 0,
+                evolutionDate: dbData.stats?.evolutionDate || Date.now()
+            };
             
-            // DIE BRÜCKE: HUD und Inventar-UI aktualisieren
+            console.log("📂 Hüter: Profil & Evolutions-Stats erfolgreich geladen.");
+            
             if (typeof updateUI === "function") updateUI();
             if (typeof updateInventoryUI === "function") updateInventoryUI(data.inventar);
             
+            // Die evolution.js kann nun direkt auf data.stats.hiddenXP etc. zugreifen
+            if (typeof syncEvolutionState === "function") {
+                syncEvolutionState(data);
+            }
+            
         } else {
-            console.log("📂 Hüter: Kein Cloud-Profil gefunden. Initialer Save...");
+            console.log("📂 Hüter: Kein Profil gefunden. Erschaffe neuen Helden...");
             save(); 
         }
     } catch (err) { 
@@ -80,9 +87,6 @@ async function loadUserData() {
 
 // --- 3. AUTOMATISIERUNG ---
 
-/**
- * Ein Sicherheits-Timer, der alle 30 Sekunden den aktuellen Stand sichert.
- */
 setInterval(() => {
     if (typeof isIdentified !== 'undefined' && isIdentified) {
         save();
