@@ -1,177 +1,141 @@
 /**
- * THE NEST: EVOLUTION & CLASS SYSTEM (evolution.js)
- * Verantwortlich für: Transformation, Stat-Berechnung & Pfad-Logik.
+ * THE NEST: EVOLUTION SYSTEM (evolution.js)
+ * Master-Struktur für die Overlord Edition 2026
  */
 
-// ==========================================
-// 1. DIE DATEN-MATRIX (EVO_DATA)
-// ==========================================
+// 1. DIE DATEN-MATRIX (Konstanten bleiben hier, da sie global für alle gelten)
 const EVO_DATA = {
-    "Ei": { hp: 50, atk: 5, def: 5 },
-    "Sprössling": { hp: 55, atk: 10, def: 10 },
+    "Ei": { hp: 50, atk: 5, def: 5, img: 'Ei.png' },
+    "Sprössling": { hp: 55, atk: 10, def: 10, img: 'Schleim.png' },
     "Waldläufer": {
         "Licht": [
-            { name: "Licht-Novize", hp: 45, atk: 65, def: 40 },
-            { name: "Pfadfinder des Glanzes", hp: 50, atk: 80, def: 45 },
-            { name: "Licht-Bogenschütze", hp: 55, atk: 100, def: 50 },
-            { name: "Scharfschütze des Hains", hp: 60, atk: 125, def: 55 },
-            { name: "Elite-Waidmann", hp: 65, atk: 150, def: 60 },
-            { name: "Meister-Wildläufer", hp: 75, atk: 180, def: 70 },
-            { name: "Legendärer Licht-Schütze", hp: 90, atk: 220, def: 80 }
+            { name: "Licht-Novize", hp: 45, atk: 65, def: 40, img: 'Skelett.png' },
+            { name: "Pfadfinder des Glanzes", hp: 50, atk: 80, def: 45, img: 'Skelett.png' },
+            { name: "Licht-Bogenschütze", hp: 55, atk: 100, def: 50, img: 'Goblin.png' },
+            { name: "Scharfschütze des Hains", hp: 60, atk: 125, def: 55, img: 'Goblin.png' },
+            { name: "Elite-Waidmann", hp: 65, atk: 150, def: 60, img: 'Oger.png' },
+            { name: "Meister-Wildläufer", hp: 75, atk: 180, def: 70, img: 'Lich.png' },
+            { name: "Legendärer Licht-Schütze", hp: 90, atk: 220, def: 80, img: 'HoeheresWesen.png' }
         ],
         "Dunkel": [
-            { name: "Schatten-Striezi", hp: 45, atk: 65, def: 40 },
-            { name: "Nacht-Schleicher", hp: 50, atk: 90, def: 40 },
-            { name: "Gift-Dolch-Adept", hp: 55, atk: 120, def: 40 },
-            { name: "Hinterhalt-Assassine", hp: 60, atk: 155, def: 40 },
-            { name: "Schatten-Viper", hp: 65, atk: 195, def: 45 },
-            { name: "Meister der lautlosen Klinge", hp: 70, atk: 240, def: 45 },
-            { name: "Legendärer Nachtschatten-Assassine", hp: 80, atk: 285, def: 50 }
+            { name: "Schatten-Striezi", hp: 45, atk: 65, def: 40, img: 'Skelett.png' },
+            { name: "Nacht-Schleicher", hp: 50, atk: 90, def: 40, img: 'Skelett.png' },
+            { name: "Gift-Dolch-Adept", hp: 55, atk: 120, def: 40, img: 'Goblin.png' },
+            { name: "Hinterhalt-Assassine", hp: 60, atk: 155, def: 40, img: 'Goblin.png' },
+            { name: "Schatten-Viper", hp: 65, atk: 195, def: 45, img: 'Oger.png' },
+            { name: "Meister der lautlosen Klinge", hp: 70, atk: 240, def: 45, img: 'Lich.png' },
+            { name: "Legendärer Nachtschatten-Assassine", hp: 80, atk: 285, def: 50, img: 'HoeheresWesen.png' }
         ]
     },
     "Krieger": {
         "Licht": [
-            { name: "Knappe des Lichts", hp: 80, atk: 50, def: 60 },
-            { name: "Strahlender Soldat", hp: 100, atk: 65, def: 80 },
-            { name: "Sonnen-Ritter", hp: 130, atk: 85, def: 110 },
-            { name: "Paladin der Morgenröte", hp: 170, atk: 110, def: 150 },
-            { name: "Heiliger Champion", hp: 220, atk: 140, def: 200 },
-            { name: "Göttlicher Kriegsfürst", hp: 280, atk: 180, def: 260 },
-            { name: "Legendärer Sonnen-Souverän", hp: 350, atk: 230, def: 350 }
+            { name: "Knappe des Lichts", hp: 80, atk: 50, def: 60, img: 'Skelett.png' },
+            { name: "Strahlender Soldat", hp: 100, atk: 65, def: 80, img: 'Skelett.png' },
+            { name: "Sonnen-Ritter", hp: 130, atk: 85, def: 110, img: 'Goblin.png' },
+            { name: "Paladin der Morgenröte", hp: 170, atk: 110, def: 150, img: 'Oger.png' },
+            { name: "Heiliger Champion", hp: 220, atk: 140, def: 200, img: 'Oger.png' },
+            { name: "Göttlicher Kriegsfürst", hp: 280, atk: 180, def: 260, img: 'Lich.png' },
+            { name: "Legendärer Sonnen-Souverän", hp: 350, atk: 230, def: 350, img: 'HoeheresWesen.png' }
         ],
         "Dunkel": [
-            { name: "Schatten-Klinge", hp: 70, atk: 70, def: 40 },
-            { name: "Finsterer Rebell", hp: 90, atk: 95, def: 55 },
-            { name: "Chaos-Ritter", hp: 110, atk: 130, def: 75 },
-            { name: "Dunkler Eroberer", hp: 140, atk: 175, def: 100 },
-            { name: "Schatten-Berserker", hp: 180, atk: 230, def: 130 },
-            { name: "Fürst der Finsternis", hp: 230, atk: 300, def: 170 },
-            { name: "Legendärer Schatten-Souverän", hp: 300, atk: 415, def: 220 }
+            { name: "Schatten-Klinge", hp: 70, atk: 70, def: 40, img: 'Skelett.png' },
+            { name: "Finsterer Rebell", hp: 90, atk: 95, def: 55, img: 'Skelett.png' },
+            { name: "Chaos-Ritter", hp: 110, atk: 130, def: 75, img: 'Goblin.png' },
+            { name: "Dunkler Eroberer", hp: 140, atk: 175, def: 100, img: 'Oger.png' },
+            { name: "Schatten-Berserker", hp: 180, atk: 230, def: 130, img: 'Oger.png' },
+            { name: "Fürst der Finsternis", hp: 230, atk: 300, def: 170, img: 'Lich.png' },
+            { name: "Legendärer Schatten-Souverän", hp: 300, atk: 415, def: 220, img: 'HoeheresWesen.png' }
         ]
     }
-    // Druide, Hüter, Sucher folgen hier analog...
 };
 
-// ==========================================
 // 2. LOGIK-FUNKTIONEN
-// ==========================================
 
 /**
- * Ermittelt die exakte Form basierend auf Zeit (Monate) und Wahl.
- * @param {Object} user - Das User-Objekt aus storage.js
+ * Zieht das richtige Sprite-Bild basierend auf der Evolutionsebene.
+ * Wird direkt von renderPlayers() in der HTML aufgerufen.
  */
-function calculateCurrentForm(user) {
-    const evoLevel = user.stats.totalEvoLevel; // 0 = Ei, 1 = Sprössling, 2-8 = Stufen 1-7
-    const path = user.stats.path || "Licht";
-    const className = user.stats.baseClass;
+function getCreatureSprite(player, isBoss = false) {
+    const evo = player.stats.totalEvoLevel || 0;
+    const path = player.stats.path || "Licht";
+    const className = player.stats.baseClass || "Waldläufer";
 
-    if (evoLevel === 0) return "Ei";
-    if (evoLevel === 1) return "Sprössling";
+    if (evo === 0) return EVO_DATA["Ei"].img;
+    if (evo === 1) return EVO_DATA["Sprössling"].img;
 
-    const classData = EVO_DATA[className];
-    if (!classData) return "Unbekanntes Wesen";
+    // Klassen-Logik
+    const classSet = EVO_DATA[className];
+    if (classSet && classSet[path]) {
+        const tierIndex = Math.min(evo - 2, 6);
+        return classSet[path][tierIndex].img;
+    }
 
-    // Index-Berechnung: evoLevel 2 entspricht Index 0 in der Liste
-    const tierIndex = Math.min(Math.max(evoLevel - 2, 0), 6);
-    return classData[path][tierIndex].name;
+    return 'Ei.png'; // Fallback
 }
 
 /**
- * Berechnet den Bonus-Multiplikator für Subscriber.
- * @param {Object} baseStats - Die Basis-Werte aus EVO_DATA
- * @param {string} subTier - "Küken", "Adept", "Göttlicher Avatar", etc.
+ * Öffnet das Evolutions-Menü im modalLeft Panel.
  */
-function applySubBonus(baseStats, subTier) {
-    const bonuses = {
-        "None": 1.0,
-        "Küken": 1.05,
-        "Nest-Hüter": 1.25,
-        "Phönix-Ritter": 1.50,
-        "Göttlicher Avatar": 3.00 // +200% entspricht Faktor 3
-    };
+function renderEvoMenu() {
+    const leftPanel = document.getElementById('modalLeft');
+    const evoLevel = data.stats.totalEvoLevel;
+    const days = data.followDays || 0;
+    const level = data.stats.currentLevel || 0;
 
-    const multiplier = bonuses[subTier] || 1.0;
-    return {
-        hp: Math.floor(baseStats.hp * multiplier),
-        atk: Math.floor(baseStats.atk * multiplier),
-        def: Math.floor(baseStats.def * multiplier)
-    };
-}
+    let html = `<div style="padding:20px; text-align:center;">
+                <h1 style="color:var(--gold);">HALLE DER EVOLUTION</h1>`;
 
-/**
- * Aktualisiert die CSS-Klassen für das Frontend.
- */
-function updateAvatarVisuals(user) {
-    const avatarElement = document.getElementById(`avatar-${user.id}`);
-    if (!avatarElement) return;
-
-    // Klassen zurücksetzen
-    avatarElement.className = "avatar-sprite";
-
-    // Pfad-Aura zuweisen
-    if (user.stats.path === "Dunkel") avatarElement.classList.add("shadow-path");
-    else if (user.stats.path === "Licht") avatarElement.classList.add("light-path");
-
-    // Sub-Glühen (Boss-Aura)
-    if (user.isSub) avatarElement.classList.add("boss-aura");
-}
-
-// ==========================================
-// 3. STORAGE & BATTLE INTERFACE
-// ==========================================
-
-/**
- * Speichert die Wahl des Users permanent.
- */
-function saveEvolutionChoice(userId, chosenClass, chosenPath) {
-    const userData = Storage.getUser(userId);
-    userData.stats.baseClass = chosenClass;
-    userData.stats.path = chosenPath;
-    userData.stats.totalEvoLevel = 2; // Erster Aufstieg nach Sprössling
-    Storage.saveUser(userData);
-}
-
-/**
- * Bereitstellung der finalen Stats für battle.js
- */
-function getBattleStats(user) {
-    const formName = calculateCurrentForm(user);
-    let baseStats;
-
-    if (user.stats.totalEvoLevel < 2) {
-        baseStats = EVO_DATA[formName === "Ei" ? "Ei" : "Sprössling"];
+    if (evoLevel === 0 && level >= 1) {
+        html += `<p>Du bist bereit für das Schlüpfen!</p>
+                 <button class="btn-action" onclick="evolveTo(1)">VOM EI ZUM SPRÖSSLING</button>`;
+    } else if (evoLevel === 1 && level >= 2) {
+        html += `<p>Wähle deinen Pfad für die Ewigkeit:</p>
+                 <div style="display:flex; gap:20px; justify-content:center; margin-top:20px;">
+                    <div class="evo-card" onclick="evolveTo(2, 'Krieger', 'Licht')" style="border:1px solid var(--warrior); padding:10px; cursor:pointer;">
+                        <h3>Licht-Krieger</h3><small>DEF-Bonus</small>
+                    </div>
+                    <div class="evo-card" onclick="evolveTo(2, 'Waldläufer', 'Dunkel')" style="border:1px solid var(--shadow-path); padding:10px; cursor:pointer;">
+                        <h3>Schatten-Waldläufer</h3><small>ATK-Bonus</small>
+                    </div>
+                 </div>`;
+    } else if (evoLevel >= 2) {
+        const nextReq = (evoLevel + 1) * 30;
+        html += `<h3>Aktuelle Stufe: ${data.stats.className}</h3>
+                 <p>Nächste Evolution bei <b>${nextReq} Tagen</b> und <b>Level ${nextReq}</b>.</p>
+                 <p>Fortschritt: ${days}/${nextReq} Tage | ${level}/${nextReq} Level</p>`;
+        
+        if (days >= nextReq && level >= nextReq) {
+            html += `<button class="btn-action" onclick="evolveTo(${evoLevel + 1})">NÄCHSTE STUFE AUFSTEIGEN</button>`;
+        }
     } else {
-        const tierIndex = Math.min(user.stats.totalEvoLevel - 2, 6);
-        baseStats = EVO_DATA[user.stats.baseClass][user.stats.path][tierIndex];
+        html += `<p>Du bist noch ein unschuldiges Ei. Sammle LXP und steige im Level auf!</p>`;
     }
 
-    return applySubBonus(baseStats, user.subTier);
+    html += `</div>`;
+    leftPanel.innerHTML = html;
+    document.getElementById('gameModal').style.display = 'flex';
 }
 
-// ==========================================
-// 4. UI: EVOLUTIONS-MENÜ
-// ==========================================
+/**
+ * Führt die Evolution durch und speichert in Firebase.
+ */
+function evolveTo(newTier, chosenClass = null, chosenPath = null) {
+    data.stats.totalEvoLevel = newTier;
+    if (chosenClass) data.stats.baseClass = chosenClass;
+    if (chosenPath) data.stats.path = chosenPath;
 
-function openEvoModal(user) {
-    if (user.stats.currentLevel < 2) {
-        console.log("Du bist noch zu jung zum Evoluieren!");
-        return;
+    // Stats aktualisieren
+    if (newTier === 1) {
+        data.stats.className = "Sprössling";
+        data.maxHp = EVO_DATA["Sprössling"].hp;
+    } else {
+        const tierIndex = Math.min(newTier - 2, 6);
+        const entry = EVO_DATA[data.stats.baseClass][data.stats.path][tierIndex];
+        data.stats.className = entry.name;
+        data.maxHp = entry.hp;
     }
 
-    const modalHTML = `
-        <div class="evo-modal">
-            <h2>Wähle dein Schicksal, Sprössling!</h2>
-            <div class="evo-choice-box">
-                <div class="evo-card" onclick="confirmEvo('${user.id}', 'Krieger', 'Licht')">
-                    <h3>Licht-Krieger</h3>
-                    <p>Hohe DEF & HP. Ein Schild für das Nest.</p>
-                </div>
-                <div class="evo-card" onclick="confirmEvo('${user.id}', 'Waldläufer', 'Dunkel')">
-                    <h3>Schatten-Assassine</h3>
-                    <p>Massiver ATK. Schlag aus dem Dunkeln zu.</p>
-                </div>
-            </div>
-        </div>
-    `;
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    save(); // Firebase-Sync aus der Master-HTML
+    updateUI(); // UI-Refresh aus der Master-HTML
+    renderEvoMenu(); // Menü-Refresh
 }
