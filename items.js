@@ -4,6 +4,14 @@
  */
 
 const ITEM_DATABASE = {
+    // --- RESSOURCEN (NEU: Futter für Buddy 11 & Buddy 8) ---
+    resources: {
+        "res_stein": { id: "res_stein", name: "Stein", emoji: "🪨", type: "resource", rarity: "Common", description: "Einfacher Baumaterial." },
+        "res_eisen": { id: "res_eisen", name: "Eisen", emoji: "⛓️", type: "resource", rarity: "Common", description: "Wichtig für stabile Ausrüstung." },
+        "res_gold": { id: "res_gold", name: "Gold-Erz", emoji: "🟡", type: "resource", rarity: "Uncommon", description: "Glänzt und ist wertvoll." },
+        "lxp_shard": { id: "lxp_shard", name: "LXP-Splitter", emoji: "💎", type: "lxp", rarity: "Rare", description: "Ein Fragment purer Erfahrung." }
+    },
+
     // --- WAFFEN: LICHT-PFAD ---
     weapons_light: {
         boegen: {
@@ -26,9 +34,7 @@ const ITEM_DATABASE = {
         },
         kristallstaebe: {
             "w_f_stab_1_5": { id: "w_f_stab_1_5", name: "Einfacher Ast", levelReq: 5, evoReq: 1, stats: { atk: 12 }, type: "Waffe", rarity: "Follower" }
-        },
-        kurzschwerter: {},
-        rapiere: {}
+        }
     },
 
     // --- WAFFEN: DUNKEL-PFAD ---
@@ -50,43 +56,25 @@ const ITEM_DATABASE = {
             "w_f_dolch_5_20": { id: "w_f_dolch_5_20", name: "Lautloser Tod", levelReq: 20, evoReq: 5, stats: { atk: 55 }, type: "Waffe", rarity: "Follower" },
             "w_f_dolch_6_25": { id: "w_f_dolch_6_25", name: "Seelenschlitzer", levelReq: 25, evoReq: 6, stats: { atk: 80 }, type: "Waffe", rarity: "Follower" },
             "w_f_dolch_7_30": { id: "w_f_dolch_7_30", name: "Abgrund-Stachel", levelReq: 30, evoReq: 7, stats: { atk: 110 }, type: "Waffe", rarity: "Follower" }
-        },
-        degen: {},
-        runen: {},
-        katanas: {}
+        }
     },
 
     // --- RÜSTUNGEN (EINZELTEILE) ---
     armor: {
-        head: {
-            "a_f_head_1": { id: "a_f_head_1", name: "Lederhaube", levelReq: 5, evoReq: 1, stats: { def: 5 }, type: "Rüstung", rarity: "Follower" }
-        },
-        chest: {
-            "a_f_chest_1": { id: "a_f_chest_1", name: "Leinenwams", levelReq: 5, evoReq: 1, stats: { def: 8 }, type: "Rüstung", rarity: "Follower" }
-        },
-        legs: {
-            "a_f_legs_1": { id: "a_f_legs_1", name: "Stoffhose", levelReq: 5, evoReq: 1, stats: { def: 4 }, type: "Rüstung", rarity: "Follower" }
-        },
-        feet: {
-            "a_f_feet_1": { id: "a_f_feet_1", name: "Wanderschuhe", levelReq: 5, evoReq: 1, stats: { def: 3 }, type: "Rüstung", rarity: "Follower" }
-        }
+        head: { "a_f_head_1": { id: "a_f_head_1", name: "Lederhaube", levelReq: 5, evoReq: 1, stats: { def: 5 }, type: "Rüstung", rarity: "Follower" } },
+        chest: { "a_f_chest_1": { id: "a_f_chest_1", name: "Leinenwams", levelReq: 5, evoReq: 1, stats: { def: 8 }, type: "Rüstung", rarity: "Follower" } },
+        legs: { "a_f_legs_1": { id: "a_f_legs_1", name: "Stoffhose", levelReq: 5, evoReq: 1, stats: { def: 4 }, type: "Rüstung", rarity: "Follower" } },
+        feet: { "a_f_feet_1": { id: "a_f_feet_1", name: "Wanderschuhe", levelReq: 5, evoReq: 1, stats: { def: 3 }, type: "Rüstung", rarity: "Follower" } }
     },
 
     // --- SCHILDE ---
     shields: {
-        light: {
-            "s_f_light_1": { id: "s_f_light_1", name: "Holzschild", levelReq: 5, evoReq: 1, stats: { def: 10 }, type: "Schild", rarity: "Follower" }
-        },
-        dark: {
-            "s_f_dark_1": { id: "s_f_dark_1", name: "Verstärkter Rundschild", levelReq: 5, evoReq: 1, stats: { def: 12 }, type: "Schild", rarity: "Follower" }
-        }
+        light: { "s_f_light_1": { id: "s_f_light_1", name: "Holzschild", levelReq: 5, evoReq: 1, stats: { def: 10 }, type: "Schild", rarity: "Follower" } },
+        dark: { "s_f_dark_1": { id: "s_f_dark_1", name: "Verstärkter Rundschild", levelReq: 5, evoReq: 1, stats: { def: 12 }, type: "Schild", rarity: "Follower" } }
     },
 
     // --- SUB-SPECIALS ---
-    specials: {
-        sub_armor: {},
-        sub_weapons: {}
-    }
+    specials: { sub_armor: {}, sub_weapons: {} }
 };
 
 /**
@@ -122,4 +110,4 @@ function getItemsByEvo(stufe) {
     return results;
 }
 
-console.log("⚔️ Item-Warenlager mit Follower-Waffen (7 Stufen) bestückt.");
+console.log("⚔️ Item-Warenlager mit Follower-Waffen & Bergbau-Ressourcen synchronisiert.");
