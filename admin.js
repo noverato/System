@@ -1,6 +1,7 @@
 /**
  * admin.js - Die absolute Kontrollinstanz für Spawn2909
- * Fokus: Rekursiver Deep-Scan der ITEM_DATABASE & Multi-Level Sortierung
+ * Fokus: Rekursiver Deep-Scan der ITEM_DATABASE & Welt-Editor (Drag, Drop & Scale)
+ * Status: STABILITÄTS-MASTER V1.0 (Versiegelt 2026)
  */
 
 const AdminConsole = {
@@ -13,11 +14,9 @@ const AdminConsole = {
         let items = [];
         for (let key in obj) {
             if (obj[key] !== null && typeof obj[key] === 'object') {
-                // Wenn das Objekt eine ID hat, ist es ein Item
                 if (obj[key].id) {
                     items.push(obj[key]);
                 } else {
-                    // Ansonsten tiefer graben (rekursiv)
                     items = items.concat(this.flattenDatabase(obj[key]));
                 }
             }
@@ -50,10 +49,7 @@ const AdminConsole = {
     spawnItem: function(itemID) {
         if (!itemID) return;
         if (!data.inventar) data.inventar = {};
-        
         data.inventar[itemID] = (data.inventar[itemID] || 0) + 1;
-
-        // Namen für das Feedback finden
         const itemData = (typeof getItemById === 'function') ? getItemById(itemID) : null;
         this.sync(`Item [${itemData ? itemData.name : itemID}] beschworen.`);
     },
@@ -69,16 +65,12 @@ const AdminConsole = {
             return;
         }
 
-        // Schritt 1: Datenbank flachklopfen
         let flatItems = this.flattenDatabase(ITEM_DATABASE);
-
-        // Schritt 2: Sortierung (Primär: evoReq, Sekundär: levelReq)
         flatItems.sort((a, b) => {
             if (a.evoReq !== b.evoReq) return a.evoReq - b.evoReq;
             return a.levelReq - b.levelReq;
         });
 
-        // Schritt 3: HTML generieren
         let html = `<div style="display: grid; grid-template-columns: 1fr; gap: 5px; max-height: 300px; overflow-y: auto; padding-right: 10px; border: 1px solid rgba(255,215,0,0.3); padding: 5px; background: rgba(0,0,0,0.3);">`;
         
         flatItems.forEach(item => {
@@ -106,6 +98,10 @@ const AdminConsole = {
             btn.innerText = window.isEditMode ? "EDIT-MODUS: AN" : "EDIT-MODUS: AUS";
             btn.style.boxShadow = window.isEditMode ? "0 0 15px #4ade80" : "none";
         }
+        
+        document.querySelectorAll('.building').forEach(b => {
+            b.classList.toggle('editing', window.isEditMode);
+        });
     },
 
     // 4. SYNCHRONISATION
@@ -157,3 +153,71 @@ function openAdminPanel() {
     modal.style.display = 'flex';
     AdminConsole.updateAdminItemSpawner();
 }
+
+// --- 6. WELT-EDITOR LOGIK (DRAG, DROP & SCALE) ---
+
+let draggedElement = null;
+let offset = { x: 0, y: 0 };
+
+document.addEventListener('mousedown', (e) => {
+    if (!window.isEditMode) return;
+    
+    const target = e.target.closest('.building') || (e.target.tagName === 'IMG' ? e.target : null);
+    
+    if (target) {
+        draggedElement = target;
+        const rect = draggedElement.getBoundingClientRect();
+        
+        // Offset speichern für pixelgenaues Greifen
+        offset.x = e.clientX - rect.left;
+        offset.y = e.clientY - rect.top;
+        
+        draggedElement.style.zIndex = "10000";
+        draggedElement.style.cursor = "grabbing";
+    }
+});
+
+document.addEventListener('mousemove', (e) => {
+    if (!window.isEditMode || !draggedElement) return;
+
+    const world = document.getElementById('world');
+    const worldRect = world.getBoundingClientRect();
+
+    // Berechnung: Aktuelle Maus-Position minus Welt-Anker minus Klick-Offset
+    const x = e.clientX - worldRect.left - offset.x;
+    const y = e.clientY - worldRect.top - offset.y;
+
+    // Setzen der Position rein über top/left (Kein translate-Konflikt)
+    draggedElement.style.left = `${x}px`;
+    draggedElement.style.top = `${y}px`;
+});
+
+document.addEventListener('mouseup', () => {
+    if (draggedElement) {
+        draggedElement.style.zIndex = "";
+        draggedElement.style.cursor = "";
+        draggedElement = null;
+        AdminConsole.sync("Position fixiert");
+    }
+});
+
+// Proportionale Skalierung via Shift + Mausrad
+document.addEventListener('wheel', (e) => {
+    if (!window.isEditMode || !e.shiftKey) return;
+
+    const target = e.target.closest('.building') || (e.target.tagName === 'IMG' ? e.target : null);
+    
+    if (target) {
+        e.preventDefault(); 
+        
+        let currentScale = target.dataset.scale ? parseFloat(target.dataset.scale) : 1;
+        const delta = e.deltaY > 0 ? -0.05 : 0.05;
+        currentScale = Math.max(0.1, currentScale + delta); 
+        
+        target.dataset.scale = currentScale;
+        
+        // Stabilisierung durch zentrierten Origin und reine Skalierung
+        target.style.transformOrigin = "center center";
+        target.style.transform = `scale(${currentScale})`;
+    }
+}, { passive: false });
