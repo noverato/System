@@ -1,7 +1,7 @@
 /**
  * THE NEST: EVOLUTION SYSTEM (evolution.js)
  * Vollständige Matrix: 7 Klassen, 7 Stufen, 2 Pfade.
- * Synchronisiert mit der Overlord Edition 2026.
+ * Master-Struktur inkl. Evo-Halle Integration (.class-tile Fix).
  */
 
 const EVO_DATA = {
@@ -157,6 +157,51 @@ const EVO_DATA = {
 };
 
 // ==========================================
+// 1. INITIALISIERUNG DER EVO-HALLE
+// ==========================================
+
+/**
+ * Aktualisiert das Display der Evolutionshalle im HTML.
+ * Verwendet .class-tile für die Sperr-Logik.
+ */
+function initEvoHallDisplay() {
+    if (!data || !data.stats) return;
+
+    // Werte in die UI-Felder schreiben
+    const lxpVal = document.getElementById('evo-lxp-val');
+    const lvlVal = document.getElementById('evo-lvl-val');
+    const epVal = document.getElementById('evo-ep-val');
+    const currentFormVal = document.getElementById('current-form-display');
+
+    if (lxpVal) lxpVal.innerText = data.lxp || 0;
+    if (lvlVal) lvlVal.innerText = data.stats.currentLevel || 0;
+    if (epVal) epVal.innerText = data.stats.dailyMarkers || 0;
+    if (currentFormVal) currentFormVal.innerText = data.stats.className || "Ei";
+
+    // Puffer Anzeige
+    const bufferVal = document.getElementById('evo-buffer-val');
+    if (bufferVal) bufferVal.innerText = data.stats.hiddenXP || 0;
+
+    // Bedingung prüfen: Level 30 + 30 EP
+    const lvl = data.stats.currentLevel || 0;
+    const ep = data.stats.dailyMarkers || 0;
+    
+    // ZIEL-FIX: class-tile statt class-card
+    const classKacheln = document.querySelectorAll('.class-tile');
+    
+    if (lvl >= 30 && ep >= 30) {
+        classKacheln.forEach(tile => {
+            tile.classList.remove('locked');
+        });
+        console.log("🧬 Evolutionshalle: Kacheln entsperrt!");
+    } else {
+        classKacheln.forEach(tile => {
+            tile.classList.add('locked');
+        });
+    }
+}
+
+// ==========================================
 // 2. LOGIK: LEVEL-CAP & XP-PUFFER
 // ==========================================
 
@@ -164,11 +209,10 @@ function gainLXP(amount) {
     const evo = data.stats.totalEvoLevel || 0;
     const lvl = data.stats.currentLevel || 0;
     
-    // Lore Caps
     let cap = 1;
     if (evo === 1) cap = 2;
     if (evo >= 2) cap = (evo - 1) * 30;
-    if (evo >= 5) cap = 240; // Spezielle Skalierung ab Stufe 6
+    if (evo >= 5) cap = 240; 
     if (evo >= 6) cap = 270;
 
     if (lvl >= cap) {
@@ -177,6 +221,8 @@ function gainLXP(amount) {
         data.lxp += amount;
         checkLevelUp();
     }
+    
+    if (document.getElementById('modalLeft')) initEvoHallDisplay();
 }
 
 function checkLevelUp() {
@@ -188,70 +234,13 @@ function checkLevelUp() {
 }
 
 // ==========================================
-// 3. UI: EVOLUTIONSMENÜ (MIT SPERR-VISUALISIERUNG)
+// 3. TRANSFORMATION & UI
 // ==========================================
 
 function renderEvoMenu() {
-    const leftPanel = document.getElementById('modalLeft');
-    const evo = data.stats.totalEvoLevel;
-    const lvl = data.stats.currentLevel;
-    const ep = data.stats.dailyMarkers || 0;
-    const days = data.stats.daysInNest || 0;
-
-    // Lore Requirements
-    let reqLvl = 1, reqEP = 1, reqDays = 1;
-    if (evo === 1) { reqLvl = 30; reqEP = 30; reqDays = 30; }
-    else if (evo === 2) { reqLvl = 60; reqEP = 60; reqDays = 60; }
-    else if (evo >= 3) { 
-        reqLvl = (evo - 1) * 30; 
-        reqEP = reqLvl; 
-        reqDays = reqLvl; 
-    }
-
-    const canEvolve = (lvl >= reqLvl && ep >= reqEP && days >= reqDays);
-
-    let html = `<div style="padding:20px; text-align:center; color:white;">
-        <h2 style="color:var(--gold);">HALLE DER EVOLUTION</h2>
-        <div style="background:rgba(0,0,0,0.6); padding:15px; border:1px solid var(--gold); margin-bottom:20px;">
-            <p>Aktuelle Form: <b style="color:var(--gold);">${data.stats.className}</b></p>
-            <p>XP-PUFFER: <span style="color:cyan; font-weight:bold; text-shadow:0 0 10px cyan;">${data.stats.hiddenXP || 0} LXP</span></p>
-        </div>
-
-        <div style="text-align:left; display:inline-block; margin-bottom:20px;">
-            <p style="color:${lvl >= reqLvl ? '#4ade80' : '#ff4444'}">⭐ Level: ${lvl} / ${reqLvl}</p>
-            <p style="color:${ep >= reqEP ? '#4ade80' : '#ff4444'}">🧬 EP-Marker: ${ep} / ${reqEP}</p>
-            <p style="color:${days >= reqDays ? '#4ade80' : '#ff4444'}">⏳ Nest-Tage: ${days} / ${reqDays}</p>
-        </div><br>`;
-
-    if (evo === 1 && canEvolve) {
-        html += `<h3>Wähle deine Bestimmung:</h3>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-                <button class="btn-action" onclick="evolveTo(2, 'Waldläufer', 'Licht')">Waldläufer</button>
-                <button class="btn-action" onclick="evolveTo(2, 'Natur-Krieger', 'Licht')">Natur-Krieger</button>
-                <button class="btn-action" onclick="evolveTo(2, 'Druide', 'Licht')">Druide</button>
-                <button class="btn-action" onclick="evolveTo(2, 'Hüter', 'Licht')">Hüter</button>
-                <button class="btn-action" onclick="evolveTo(2, 'Sucher', 'Licht')">Sucher</button>
-                <button class="btn-action" onclick="evolveTo(2, 'Einsiedler', 'Licht')">Einsiedler</button>
-                <button class="btn-action" onclick="evolveTo(2, 'Wächter', 'Licht')">Wächter</button>
-            </div>`;
-    } else if (evo === 3 && canEvolve) {
-        html += `<h3>Wähle deinen Pfad:</h3>
-                <button class="btn-action" onclick="evolveTo(4, null, 'Licht')">PFAD DES LICHTS</button>
-                <button class="btn-action" style="background:purple;" onclick="evolveTo(4, null, 'Dunkel')">PFAD DER DUNKELHEIT</button>`;
-    } else if (canEvolve && evo < 7) {
-        html += `<button class="btn-action" style="width:100%" onclick="evolveTo(${evo + 1})">EVOLUTION STARTEN</button>`;
-    } else if (!canEvolve) {
-        html += `<p style="color:#888;">Die Voraussetzungen für den nächsten Aufstieg sind noch nicht erfüllt.</p>`;
-    }
-
-    html += `</div>`;
-    leftPanel.innerHTML = html;
-    document.getElementById('gameModal').style.display = 'flex';
+    // Ruft das Display-Update auf, sobald das Menü gerendert wird
+    initEvoHallDisplay();
 }
-
-// ==========================================
-// 4. TRANSFORMATION & SPEICHERUNG
-// ==========================================
 
 function evolveTo(newTier, chosenClass = null, chosenPath = null) {
     if (chosenClass) data.stats.baseClass = chosenClass;
@@ -273,7 +262,6 @@ function evolveTo(newTier, chosenClass = null, chosenPath = null) {
     data.stats.atk = entry.atk;
     data.stats.def = entry.def;
 
-    // Puffer-Release
     if (data.stats.hiddenXP > 0) {
         let b = data.stats.hiddenXP;
         data.stats.hiddenXP = 0;
@@ -282,7 +270,7 @@ function evolveTo(newTier, chosenClass = null, chosenPath = null) {
 
     save();
     updateUI();
-    renderEvoMenu();
+    initEvoHallDisplay();
 }
 
 function getCreatureSprite(player) {
