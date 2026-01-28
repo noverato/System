@@ -1,65 +1,47 @@
 /**
- * admin.js - Die ultimative Schaltzentrale für Spawn2909
- * Mission: Absolute Kontrolle über das Isekai-Nest
+ * admin.js - Die absolute Kontrollinstanz für Spawn2909
+ * Mission: Direkte Manipulation des globalen data-Objekts
  */
 
-// 1. GÖTTLICHE KONFIGURATION
-const ADMIN_CONFIG = {
-    BROADCASTER_ID: "573773653",
-    styles: {
-        success: "background: #00ff00; color: #000; padding: 5px; border-radius: 3px;",
-        error: "background: #ff0000; color: #fff; padding: 5px; border-radius: 3px;"
-    }
-};
-
-// 2. INITIALISIERUNG & ZUGRIFFSKONTROLLE
-document.addEventListener("DOMContentLoaded", () => {
-    checkAdminPrivileges();
-});
-
-function checkAdminPrivileges() {
-    // Prüft, ob der User die Berechtigung hat (isAdmin muss global gesetzt sein)
-    if (window.isAdmin || window.data?.userId === ADMIN_CONFIG.BROADCASTER_ID) {
-        const hud = document.getElementById('adminHud');
-        if (hud) hud.style.display = 'block';
-        console.log("%c[ADMIN] Götter-Status verifiziert. Willkommen, Spawn2909.", ADMIN_CONFIG.styles.success);
-    }
-}
-
-// 3. KERNFUNKTIONEN (GÖTTER-BEFEHLE)
-const AdminActions = {
+const AdminConsole = {
+    // 1. GÖTTER-BEFEHLE (Direkte Daten-Manipulation)
     
     // LXP vergeben
     giveLXP: function(amount) {
         if (typeof data !== 'undefined') {
-            data.lxp += amount;
-            this.notify(`Göttlicher Segen: +${amount} LXP gewährt.`);
-            this.finalize();
+            data.lxp += parseInt(amount);
+            this.sync(`Segen erteilt: +${amount} LXP.`);
         }
     },
 
-    // Item-Beschwörung aus loot.js
-    giveItem: function(itemID) {
-        // Prüfen, ob das Item in der loot.js existiert (angenommen: window.lootTable)
-        const lootSource = window.lootTable || window.allItems; 
-        if (lootSource && lootSource[itemID]) {
-            if (typeof window.addItemToInventory === 'function') {
-                window.addItemToInventory(itemID);
-                this.notify(`Item [${itemID}] erfolgreich beschworen!`);
-                this.finalize();
-            }
-        } else {
-            this.notify("Fehler: Item-ID nicht in der Welt-Datenbank gefunden.", true);
+    // Level direkt setzen
+    setLevel: function(amount) {
+        if (typeof data !== 'undefined' && data.stats) {
+            data.stats.currentLevel += parseInt(amount);
+            this.sync(`Macht gesteigert: +${amount} Level.`);
         }
     },
 
-    // Evolution manuell setzen
+    // Evolution manuell ändern
     changeEvolution: function(newStage) {
-        if (data) {
-            data.evolutionStage = newStage;
-            this.notify(`Realität gefaltet: Evolution auf [${newStage}] gesetzt.`);
-            if (typeof renderEvoMenu === 'function') renderEvoMenu();
-            this.finalize();
+        if (typeof data !== 'undefined' && data.stats) {
+            data.stats.className = newStage;
+            this.sync(`Realität gefaltet: Klasse auf [${newStage}] gesetzt.`);
+        }
+    },
+
+    // Item-Beschwörung (Greift auf loot.js & inventar.js zu)
+    spawnItem: function(itemID) {
+        if (!itemID) return;
+        // Prüfung ob globaler Inventar-Handler existiert
+        if (typeof window.addItemToInventory === 'function') {
+            window.addItemToInventory(itemID);
+            this.sync(`Gegenstand [${itemID}] aus dem Nichts erschaffen.`);
+        } else {
+            // Fallback: Direkt in das data-Objekt
+            data.inventar = data.inventar || {};
+            data.inventar[itemID] = (data.inventar[itemID] || 0) + 1;
+            this.sync(`Item ${itemID} direkt ins Datenpaket geschrieben.`);
         }
     },
 
@@ -67,39 +49,34 @@ const AdminActions = {
     toggleEditMode: function() {
         window.isEditMode = !window.isEditMode;
         const btn = document.getElementById('btnEditToggle');
-        
-        if (window.isEditMode) {
-            btn.innerText = "EDIT-MODUS: AN";
-            btn.style.background = "linear-gradient(135deg, #4ade80, #22c55e)";
-            document.body.classList.add('admin-edit-active');
-        } else {
-            btn.innerText = "EDIT-MODUS: AUS";
-            btn.style.background = ""; 
+        if (btn) {
+            btn.innerText = window.isEditMode ? "EDIT-MODUS: AN" : "EDIT-MODUS: AUS";
+            btn.style.boxShadow = window.isEditMode ? "0 0 15px #4ade80" : "none";
         }
-        this.notify(`Edit-Modus: ${window.isEditMode ? 'AKTIVIERT' : 'DEAKTIVIERT'}`);
+        console.log(`[Admin] Edit-Modus: ${window.isEditMode}`);
     },
 
-    // Feedback & Speicherung
-    finalize: function() {
-        if (typeof window.save === 'function') window.save();
+    // 2. SYNCHRONISATION (Speichern & UI Update)
+    sync: function(msg) {
+        console.log(`%c[GOTT]: ${msg}`, "color: gold; font-weight: bold; background: #000; padding: 2px 5px;");
+        
+        // Triggert die Funktionen aus der Master-HTML
+        if (typeof save === 'function') save(); 
+        if (typeof updateUI === 'function') updateUI();
+        
+        // Falls vorhanden, Firebase-AutoSave forcieren
         if (typeof window.triggerAutoSave === 'function') window.triggerAutoSave();
-        if (typeof renderUI === 'function') renderUI();
-    },
-
-    notify: function(msg, isError = false) {
-        console.log(`%c[ADMIN] ${msg}`, isError ? ADMIN_CONFIG.styles.error : ADMIN_CONFIG.styles.success);
-        // Optional: Ein kleines In-Game Toast-Feedback
-        const log = document.getElementById('game-log'); // Falls vorhanden
-        if (log) log.innerHTML += `<p style="color:gold;">[GOTT]: ${msg}</p>`;
     }
 };
 
-// 4. UI-GENERIERUNG (Das dynamische Panel)
+// 3. UI-GENERIERUNG (Wird in modalLeft gerendert)
 function openAdminPanel() {
-    const container = document.getElementById('modalLeftContainer');
-    if (!container) return;
+    const modal = document.getElementById('gameModal');
+    const container = document.getElementById('modalLeft');
+    
+    if (!modal || !container) return;
 
-    // Erzeuge Item-Optionen aus der loot.js (falls vorhanden)
+    // Item-Dropdown generieren (aus loot.js)
     let itemOptions = `<option value="">-- Item wählen --</option>`;
     if (window.lootTable) {
         Object.keys(window.lootTable).forEach(id => {
@@ -108,51 +85,40 @@ function openAdminPanel() {
     }
 
     container.innerHTML = `
-        <div class="admin-console-content" style="font-family:'Courier New', monospace; color: gold;">
-            <h2>🛠 GÖTTER-KONSOLE</h2>
-            <div style="background: rgba(255,215,0,0.1); padding:15px; border:1px solid gold; border-radius:10px;">
-                <p>Status: <b style="color:#4ade80;">GEBIETER</b></p>
-                
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 5px;">
-                    <button class="btn-action" onclick="data.followDays+=30;AdminActions.finalize();">+30 Tage</button>
-                    <button class="btn-action" onclick="AdminActions.giveLXP(5000)">+5000 LXP</button>
-                </div>
+        <div style="font-family: 'Courier New', monospace; color: gold; padding: 10px;">
+            <h1 style="text-shadow: 0 0 10px red; border-bottom: 2px solid gold;">🛠 GÖTTER-KONSOLE</h1>
+            <p>Eingeloggt als: <span style="color:#4ade80;">OVERLORD</span></p>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px;">
+                <button class="btn-action" onclick="AdminConsole.giveLXP(5000)">+5000 LXP</button>
+                <button class="btn-action" onclick="AdminConsole.setLevel(30)">+30 LEVEL</button>
+                <button class="btn-action" onclick="data.followDays += 30; AdminConsole.sync('+30 Tage Follower-Zeit');">+30 TAGE</button>
+                <button class="btn-action" id="btnEditToggle" onclick="AdminConsole.toggleEditMode()">EDIT-MODUS: AUS</button>
+            </div>
 
-                <hr style="border:0.5px solid gold; margin: 15px 0;">
+            <hr style="border: 1px solid #444; margin: 20px 0;">
 
-                <h3>OBJEKT-BESCHWÖRUNG</h3>
-                <select id="adminItemSelect" style="width:100%; background:#000; color:gold; border:1px solid gold; padding:5px;">
+            <h3>WELTEN-MANIPULATION</h3>
+            <div style="display: flex; gap: 10px; flex-direction: column;">
+                <label>Item beschwören:</label>
+                <select id="adminItemSelect" style="background:#111; color:gold; border:1px solid gold; padding:8px;">
                     ${itemOptions}
                 </select>
-                <button class="btn-action" style="width:100%; margin-top:5px;" 
-                        onclick="AdminActions.giveItem(document.getElementById('adminItemSelect').value)">
-                    GEGENSTAND GEWÄHREN
-                </button>
-
-                <hr style="border:0.5px solid gold; margin: 15px 0;">
-
-                <h3>WELT-EDITOR</h3>
-                <button class="btn-action" id="btnEditToggle" onclick="AdminActions.toggleEditMode()">
-                    EDIT-MODUS: ${window.isEditMode ? 'AN' : 'AUS'}
-                </button>
-                <p style="font-size:11px; color:#aaa; margin-top:10px;">
-                    Gebäude ziehen: Verschieben | Shift + Ziehen: Skalieren
-                </p>
-                
-                <button class="btn-action" style="background: #444; width:100%; margin-top:20px;" 
-                        onclick="AdminActions.finalize()">
-                    ☁ MANUELLES CLOUD-BACKUP
-                </button>
+                <button class="btn-action" onclick="AdminConsole.spawnItem(document.getElementById('adminItemSelect').value)">GEGENSTAND GEWÄHREN</button>
             </div>
+
+            <div style="margin-top: 20px;">
+                <label>Evolutions-Stufe erzwingen:</label>
+                <input type="text" id="evoInput" placeholder="Klassenname..." style="width:100%; background:#111; color:gold; border:1px solid gold; padding:5px; margin-top:5px;">
+                <button class="btn-action" style="width:100%; margin-top:5px;" onclick="AdminConsole.changeEvolution(document.getElementById('evoInput').value)">EVOLUTION AUSLÖSEN</button>
+            </div>
+
+            <button class="btn-action" style="width:100%; margin-top:30px; background: #444;" onclick="AdminConsole.sync('Manueller Cloud-Sync')">💾 FORCIERE CLOUD-SPEICHERUNG</button>
         </div>
     `;
+
+    modal.style.display = 'flex';
 }
 
-// Globaler Shortcut für schnelle Korrekturen (Level-Cheat)
-window.adminAddLevel = (amount) => {
-    if (data) {
-        data.level = (data.level || 0) + amount;
-        AdminActions.notify(`Level auf ${data.level} erhöht.`);
-        AdminActions.finalize();
-    }
-};
+// Globaler Hilfs-Befehl für die Konsole
+window.adminAddLevel = (n) => AdminConsole.setLevel(n);
