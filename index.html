@@ -159,13 +159,22 @@
 </template>
 
 <script>
+// --- SESSION REHYDRATION ---
+const savedID = sessionStorage.getItem("verifiedID");
+if (!window.isIdentified && savedID) {
+    window.verifiedID = savedID;
+    window.isIdentified = true;
+    window.isAdmin = sessionStorage.getItem("isAdmin") === "true";
+    console.log("Session rehydrated:", savedID);
+}
+
 // --- CORE CONFIG ---
 const TWITCH_CLIENT_ID = "futhxsgrshkh2h6cqywavg5cous3q0";
 const BROADCASTER_ID = "573773653";
 const REDIRECT_URI = "https://noverato.github.io/System";
 
-let isIdentified = false;
-let twitchToken = "", verifiedID = "", onlinePlayers = {}, isAdmin = false;
+let isIdentified = window.isIdentified || false;
+let twitchToken = "", verifiedID = window.verifiedID || "", onlinePlayers = {}, isAdmin = window.isAdmin || false;
 let data = { name: "Held", x: 960, y: 540, lxp: 0, hp: 100, maxHp: 100, stats: { atk: 10, def: 10, currentLevel: 1, className: "Ei" }, inventar: {}, equipment: {}, lxpBuffer: 0 };
 
 // --- RENDERING ENGINE ---
@@ -192,7 +201,6 @@ function updateUI() {
     document.getElementById('lxpC').innerText = data.lxp;
     document.getElementById('lvlTotal').innerText = data.stats.currentLevel;
     
-    // Login Button Sichtbarkeit
     const loginBtn = document.getElementById('loginBtn');
     if (loginBtn) loginBtn.style.display = isIdentified ? 'none' : 'block';
 
@@ -265,6 +273,12 @@ window.onload = async () => {
                 data.name = result.data[0].display_name;
                 isIdentified = true;
                 isAdmin = (verifiedID === BROADCASTER_ID);
+
+                // PERSIST SESSION
+                sessionStorage.setItem("verifiedID", verifiedID);
+                sessionStorage.setItem("isIdentified", "true");
+                sessionStorage.setItem("isAdmin", isAdmin ? "true" : "false");
+
                 await loadUserData();
                 db.ref('players').on('value', snap => {
                     onlinePlayers = snap.val() || {};
@@ -273,7 +287,15 @@ window.onload = async () => {
             }
         } catch (e) { console.error("Twitch Login Error:", e); }
     } else {
-        console.log("System bereit. Bitte über HUD einloggen.");
+        // Handle rehydrated session
+        if (isIdentified) {
+            await loadUserData();
+            db.ref('players').on('value', snap => {
+                onlinePlayers = snap.val() || {};
+                renderPlayers(onlinePlayers);
+            });
+        }
+        console.log("System bereit.");
         updateUI();
     }
 };
