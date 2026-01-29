@@ -6,11 +6,13 @@
 
 // Konfiguration der Fundraten mit eindeutigen IDs
 const MINING_LOOT_TABLE = [
-    { id: "res_stein", name: "Stein", emoji: "🪨", chance: 0.60, amount: 1, type: "resource" },
-    { id: "res_eisen", name: "Eisen", emoji: "⛓️", chance: 0.25, amount: 1, type: "resource" },
-    { id: "res_gold", name: "Gold-Erz", emoji: "🟡", chance: 0.05, amount: 1, type: "resource" },
-    { id: "lxp_shard", name: "LXP-Splitter", emoji: "💎", chance: 0.10, amount: 5, type: "lxp" }
+    { id: "res_stein", name: "Stein", emoji: "🪨", chance: 0.55, amount: 1, type: "resource" },
+    { id: "res_eisen", name: "Eisen", emoji: "⛓️", chance: 0.18, amount: 1, type: "resource" },
+    { id: "res_gold", name: "Gold-Erz", emoji: "🟡", chance: 0.04, amount: 1, type: "resource" },
+    { id: "lxp_shard", name: "LXP-Splitter", emoji: "💎", chance: 0.03, amount: 5, type: "lxp" }
 ];
+
+// Summe = 0.80 → 20 %: „Nichts gefunden“
 
 /**
  * Erstellt das Mining-Interface im modalLeft
