@@ -1,131 +1,107 @@
 /**
  * THE NEST: STORAGE & SYNC MODULE (storage.js)
- * Alleinige Instanz für Firebase, Auth-Sync und Daten-Persistenz.
- * V1-Zentralisierung: Ausgelagert aus der Master-HTML.
+ * Phase A: System-Stabilisierung & Firebase-Zentralisierung.
+ * Ziel: Lauffähigkeit ohne F12-Fehler.
  */
 
-// --- 1. FIREBASE & AUTH INITIALISIERUNG ---
-// Firebase wird hier zentral verwaltet (Config aus HTML-Vorgabe)
-if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
-}
-const db = firebase.database();
-
-// --- 2. GLOBALE DATEN-VERWALTUNG ---
-// Diese Variablen steuern den Status des Nests
-window.isIdentified = false;
-window.twitchToken = "";
-window.verifiedID = "";
-window.onlinePlayers = {};
-window.isAdmin = false;
-
-// Das zentrale Daten-Objekt (Initialzustand)
-window.data = { 
-    name: "Held", 
-    x: 960, 
-    y: 540, 
-    lxp: 0, 
-    hp: 100, 
-    maxHp: 100, 
-    stats: { 
-        atk: 10, 
-        def: 10, 
-        currentLevel: 1, 
-        className: "Ei",
-        currentPath: "Neutral",
-        dailyMarkers: 0,
-        hiddenXP: 0,
-        evolutionDate: Date.now()
-    }, 
-    inventar: {}, 
-    equipment: {}, 
-    lxpBuffer: 0 
+// 1. FIREBASE INITIALISIERUNG (Defensiv gegen Doppel-Initialisierung)
+// Die Config wird hier festgeschrieben, da sie in der HTML oft zu spät oder doppelt kommt.
+const storageFirebaseConfig = { 
+    apiKey: "AIzaSyCKNXJ-ouAOAcLr5ut-EemWQI8_zJxhqa8", 
+    authDomain: "thenest-81de6.firebaseapp.com", 
+    databaseURL: "https://thenest-81de6-default-rtdb.firebaseio.com", 
+    projectId: "thenest-81de6" 
 };
 
-// --- 3. CORE SPEICHER-LOGIK ---
+// Schutz vor "Redeclaration of const db" und "Firebase App already exists"
+if (!firebase.apps.length) {
+    firebase.initializeApp(storageFirebaseConfig);
+}
+
+// Global verfügbare Datenbank-Instanz (var statt const/let zur Vermeidung von Redeclaration-Fehlern)
+if (typeof window.db === "undefined") {
+    window.db = firebase.database();
+}
+
+// 2. GLOBALE VARIABLEN ABSICHERN (Nur initialisieren, wenn sie nicht existieren)
+window.isIdentified = window.isIdentified || false;
+window.twitchToken = window.twitchToken || "";
+window.verifiedID = window.verifiedID || "";
+window.onlinePlayers = window.onlinePlayers || {};
+window.isAdmin = window.isAdmin || false;
+
+// Zentrales Daten-Objekt (Sicherer Fallback)
+if (!window.data) {
+    window.data = { 
+        name: "Held", x: 960, y: 540, lxp: 0, hp: 100, maxHp: 100, 
+        stats: { atk: 10, def: 10, currentLevel: 1, className: "Ei" }, 
+        inventar: {}, equipment: {}, lxpBuffer: 0 
+    };
+}
+
+// 3. ÖFFENTLICHE API (Funktionen für die HTML)
 
 /**
- * Schreibt den aktuellen Stand des globalen 'data' Objekts in die Firebase.
+ * Lädt Spielerdaten aus der Firebase.
  */
-function save() {
-    if (!window.isIdentified || !window.verifiedID) return;
-
-    // Sicherheitsabfrage: Abbruch bei Daten-Korruption
-    if (data.lxp === undefined || data.stats === undefined) {
-        console.error("Hüter-Alarm: Speichern abgebrochen! Datenstruktur unvollständig.");
-        return;
+window.loadUserData = async function() {
+    if (!window.verifiedID) return;
+    try {
+        const snap = await window.db.ref('players/' + window.verifiedID).once('value');
+        if (snap.exists()) {
+            const dbData = snap.val();
+            // Daten-Merge: Cloud-Werte überschreiben lokale Standardwerte
+            Object.assign(window.data, dbData);
+            console.log("📂 Storage: Profil geladen (" + window.verifiedID + ")");
+        } else {
+            console.log("📂 Storage: Neues Profil wird bei erstem Save erstellt.");
+        }
+        // UI-Update-Trigger (falls vorhanden)
+        if (typeof updateUI === "function") updateUI();
+    } catch (e) {
+        console.error("❌ Storage Load Error:", e);
     }
+};
 
+/**
+ * Speichert den aktuellen Status in die Firebase.
+ */
+window.save = function() {
+    if (!window.isIdentified || !window.verifiedID) return;
+    
     const savePacket = {
-        ...data,
+        ...window.data,
         lastSeen: Date.now()
     };
 
-    db.ref('players/' + window.verifiedID).update(savePacket)
-    .then(() => {
-        console.log("💾 Hüter: Fortschritt gesichert.");
-        if (typeof updateUI === "function") updateUI();
-    })
-    .catch(err => console.error("Hüter-Fehler beim Sichern:", err));
-
-    localStorage.setItem('nest_backup_' + window.verifiedID, JSON.stringify(savePacket));
-}
-
-function triggerAutoSave() {
-    save();
-}
-window.triggerAutoSave = triggerAutoSave;
-
-// --- 4. DATEN-LADEN & TWITCH-SYNC ---
-
-/**
- * Lädt Spielerdaten aus der Cloud und mappt sie auf das globale Objekt.
- */
-async function loadUserData() {
-    if (!window.verifiedID) return;
+    window.db.ref('players/' + window.verifiedID).update(savePacket)
+        .then(() => console.log("💾 Storage: Fortschritt gespeichert."))
+        .catch(e => console.error("❌ Storage Save Error:", e));
     
-    try {
-        const snapshot = await db.ref('players/' + window.verifiedID).once('value');
-        if (snapshot.exists()) {
-            const dbData = snapshot.val();
-            
-            // Tiefen-Mapping (Sicherstellung der stats-Struktur)
-            Object.assign(data, dbData);
-            data.stats = { ...(data.stats || {}), ...dbData.stats };
-            
-            console.log("📂 Hüter: Profil erfolgreich geladen.");
-            
-            if (typeof updateUI === "function") updateUI();
-            if (typeof renderInventoryUI === "function") renderInventoryUI();
-        } else {
-            console.log("📂 Hüter: Neues Profil wird angelegt.");
-            save(); 
-        }
-    } catch (err) { 
-        console.error("Hüter-Ladefehler:", err); 
-    }
-}
+    // Lokales Backup
+    localStorage.setItem('nest_backup_' + window.verifiedID, JSON.stringify(savePacket));
+};
 
 /**
- * Übernimmt die Echtzeit-Synchronisation aller Spieler auf der Karte.
+ * Aktiviert den Realtime-Sync für die Map.
  */
-function initRealtimeSync() {
-    db.ref('players').on('value', snap => {
+window.initRealtimeSync = function() {
+    if (!window.db) return;
+    window.db.ref('players').on('value', snap => {
         window.onlinePlayers = snap.val() || {};
-        if (typeof renderPlayers === 'function') {
+        // Render-Trigger (falls vorhanden)
+        if (typeof renderPlayers === "function") {
             renderPlayers(window.onlinePlayers);
         }
     });
-}
+    console.log("📡 Storage: Realtime-Sync aktiv.");
+};
 
-// --- 5. AUTOMATISIERUNG & CLEANUP ---
-
-// Intervall-Save alle 30 Sekunden
+// 4. AUTOMATISIERUNG
+// Sicherheits-Intervall alle 30 Sekunden
 setInterval(() => {
-    if (window.isIdentified) save();
+    if (window.isIdentified) window.save();
 }, 30000);
 
-// Macht die Hauptfunktionen global für die HTML-Event-Handler verfügbar
-window.loadUserData = loadUserData;
-window.save = save;
-window.initRealtimeSync = initRealtimeSync;
+// triggerAutoSave Alias für Kompatibilität mit battle.js
+window.triggerAutoSave = window.save;
