@@ -69,17 +69,34 @@ function renderArenaMatchmaking() {
  * Nutzt die globale 'items' Brücke für den Zugriff.
  */
 function getMarketPrice(itemID, istVerkauf = false) {
-    // Zugriff über die neue globale Brücke 'items'
     const item = (typeof items !== 'undefined') ? items[itemID] : null;
     if (!item) return 0;
 
     const basis = item.basisPreis || item.price || 100;
-    const bestand = (data.inventar && data.inventar[itemID]) ? data.inventar[itemID] : 0;
-    
-    const saettigung = 1 / (1 + bestand * 0.15);
-    const aktuellerPreis = Math.floor(basis * (0.4 + saettigung));
 
-    return istVerkauf ? Math.floor(aktuellerPreis * 0.7) : aktuellerPreis;
+    // 🔹 Lokaler Besitz (Spieler)
+    const bestand = (data.inventar && data.inventar[itemID]) ? data.inventar[itemID] : 0;
+    const saettigung = 1 / (1 + bestand * 0.15);
+
+    // 🔹 Globaler Markt (Inflation)
+    let marketMult = 1;
+    if (typeof MarketState !== 'undefined') {
+        const circulation = MarketState.getCirculation(itemID);
+        const ideal = MarketState.config.defaultIdeal;
+
+        const delta = (ideal - circulation) / ideal;
+        marketMult = 1 + (delta * MarketState.config.damping);
+
+        marketMult = Math.max(
+            MarketState.config.minPriceMult,
+            Math.min(MarketState.config.maxPriceMult, marketMult)
+        );
+    }
+
+    let price = basis * (0.4 + saettigung) * marketMult;
+    price = Math.floor(price);
+
+    return istVerkauf ? Math.floor(price * 0.7) : price;
 }
 
 /**
