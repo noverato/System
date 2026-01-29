@@ -7,12 +7,15 @@
 
     <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:wght@400;700&display=swap" rel="stylesheet">
 
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
     <script src="items.js"></script> 
     <script src="loot.js"></script>
     <script src="storage.js"></script>
-    <script src="avatar_anchors.js"></script> <script src="evolution.js"></script> 
-    <script src="mining.js"></script> 
-    <script src="inventar.js"></script>
+    <script src="avatar_anchors.js"></script> 
+    <script src="evolution.js"></script> 
+    <script src="mining.js"></script> <script src="inventar.js"></script>
     <script src="markt.js"></script>
     <script src="battle.js"></script>
     <script src="admin.js"></script>
@@ -160,15 +163,19 @@ const TWITCH_CLIENT_ID = "futhxsgrshkh2h6cqywavg5cous3q0";
 const BROADCASTER_ID = "573773653";
 const REDIRECT_URI = "https://noverato.github.io/System";
 
+// BLOCK 2: VARIABLEN-SICHERHEIT (GLOBAL INITIALISIERT)
+let isIdentified = false;
+let twitchToken = "", verifiedID = "", onlinePlayers = {}, isAdmin = false;
+
 let data = { 
     name: "Held", x: 960, y: 540, lxp: 0, hp: 100, maxHp: 100, 
     stats: { atk: 10, def: 10, currentLevel: 1, className: "Ei" }, 
     inventar: {}, equipment: {}, lxpBuffer: 0, setBonusActive: false 
 };
-let twitchToken = "", verifiedID = "", isIdentified = false, onlinePlayers = {}, isAdmin = false;
 
 // --- AUTH ---
 async function checkTwitchAuth() { const hash = window.location.hash.substring(1); const params = new URLSearchParams(hash); if (params.has("access_token")) { twitchToken = params.get("access_token"); return true; } return false; }
+
 async function initTwitchSession() {
     if (!twitchToken) return;
     try {
@@ -177,18 +184,20 @@ async function initTwitchSession() {
         if (result.data && result.data.length > 0) {
             verifiedID = result.data[0].id;
             data.name = result.data[0].display_name;
-            isIdentified = true;
+            isIdentified = true; // JETZT SICHER GESETZT
             isAdmin = (verifiedID === BROADCASTER_ID);
             await loadUserData();
         }
     } catch (err) { console.error(err); }
 }
+
 async function loadUserData() {
     if (!verifiedID) return;
     const snap = await db.ref('players/' + verifiedID).once('value');
     if (snap.exists()) { Object.assign(data, snap.val()); }
     updateUI();
 }
+
 function save() { if (isIdentified) db.ref('players/' + verifiedID).update({ ...data, lastSeen: Date.now() }); }
 
 function updateUI() {
@@ -232,11 +241,10 @@ function renderInventoryUI() {
     document.getElementById('avatar-base').src = (typeof getCreatureSprite === 'function') ? getCreatureSprite(data, isAdmin) : 'Ei.png';
     const wLayer = document.getElementById('weapon-layer');
     if (data.equipment.weapon && items[data.equipment.weapon]) {
-        // PIXEL-KORREKTUR: Zieht die exakten Ankerpunkte aus der avatar_anchors.js
         const off = (typeof getWeaponOffsets === 'function') ? getWeaponOffsets(data) : { x: 160, y: 160, rotate: 0 };
         const img = document.createElement('img');
         img.src = items[data.equipment.weapon].icon;
-        // WICHTIG: CSS-Zuweisung erfolgt konsequent in PX für pixelgenaues Alignment
+        // BLOCK 2: KONSEQUENTE PIXEL-WERTE
         img.style.cssText = `position:absolute; left:${off.x}px; top:${off.y}px; transform:translate(-50%,-50%) rotate(${off.rotate}deg); width:65px;`;
         wLayer.appendChild(img);
     }
@@ -298,7 +306,7 @@ window.onload = async () => {
 };
 
 function handleWorldClick(e) {
-    if (!isIdentified) return;
+    if (!isIdentified) return; // SICHERHEITS-CHECK: OK
     const rect = document.getElementById('world').getBoundingClientRect();
     data.x = e.clientX - rect.left; data.y = e.clientY - rect.top;
     save();
