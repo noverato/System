@@ -154,7 +154,7 @@
 </template>
 
 <script>
-// --- GLOBAL DATA ---
+// --- CORE CONFIG ---
 const firebaseConfig = { apiKey: "AIzaSyCKNXJ-ouAOAcLr5ut-EemWQI8_zJxhqa8", authDomain: "thenest-81de6.firebaseapp.com", databaseURL: "https://thenest-81de6-default-rtdb.firebaseio.com", projectId: "thenest-81de6" };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
@@ -166,7 +166,11 @@ let isIdentified = false;
 let twitchToken = "", verifiedID = "", onlinePlayers = {}, isAdmin = false;
 let data = { name: "Held", x: 960, y: 540, lxp: 0, hp: 100, maxHp: 100, stats: { atk: 10, def: 10, currentLevel: 1, className: "Ei" }, inventar: {}, equipment: {}, lxpBuffer: 0 };
 
-// --- RENDERING ENGINE (HOISTED) ---
+// --- COMPATIBILITY SHIELD (KEIN REFACTOR) ---
+// Verhindert ReferenceError durch veraltete battle.js Aufrufe
+window.startMonsterFight = function() { console.warn("Legacy Battle Call suppressed. System uses ENCOUNTER_START event."); };
+
+// --- RENDERING ENGINE ---
 function renderPlayers(players) {
     const layer = document.getElementById('charLayer');
     if (!layer) return;
@@ -189,7 +193,6 @@ function updateUI() {
     document.getElementById('hudClass').innerText = data.stats.className;
     document.getElementById('lxpC').innerText = data.lxp;
     document.getElementById('lvlTotal').innerText = data.stats.currentLevel;
-    
     const adminPanel = document.getElementById('adminHud');
     if (adminPanel) adminPanel.style.display = isAdmin ? 'block' : 'none';
 }
@@ -200,22 +203,15 @@ function clearPanels() {
 }
 
 function renderInventoryUI() {
-    if (typeof items === 'undefined') {
-        console.error("Scope Error: Global reference 'items' missing.");
-        return;
-    }
-
-    clearPanels(); // Verhindert UI-Reste
+    if (typeof items === 'undefined') return;
+    clearPanels(); 
     const main = document.getElementById('modalLeft');
     main.appendChild(document.getElementById('inventory-template').content.cloneNode(true));
-
     document.getElementById('stat-hp').innerText = data.maxHp;
     document.getElementById('stat-atk').innerText = data.stats.atk;
     document.getElementById('stat-def').innerText = data.stats.def;
     document.getElementById('inv-lxp-display').innerText = data.lxp + " LXP";
-
     document.getElementById('avatar-base').src = (typeof getCreatureSprite === 'function') ? getCreatureSprite(data, isAdmin) : 'Ei.png';
-    
     const grid = document.getElementById('backpack-slots');
     let itemCount = 0;
     if (data.inventar) {
@@ -234,57 +230,39 @@ function renderInventoryUI() {
     for (let i = itemCount; i < 40; i++) grid.appendChild(document.createElement('div')).className = 'slot';
 }
 
-function openInventory() {
-    toggleModal('gameModal', true);
-    renderInventoryUI();
-}
+function openInventory() { toggleModal('gameModal', true); renderInventoryUI(); }
 
-// --- LOGIC ENGINE ---
+// --- LOGIC ---
 async function loadUserData() {
     if (!verifiedID) return;
     const snap = await db.ref('players/' + verifiedID).once('value');
     if (snap.exists()) { Object.assign(data, snap.val()); }
     updateUI();
 }
-
 function save() { if (isIdentified) db.ref('players/' + verifiedID).update({ ...data, lastSeen: Date.now() }); }
-
-function cleanURL() {
-    if (window.location.hash) {
-        window.history.replaceState({}, document.title, window.location.pathname);
-    }
-}
+function cleanURL() { if (window.location.hash) window.history.replaceState({}, document.title, window.location.pathname); }
 
 window.onload = async () => {
-    // Falls MARKT_WAREN fehlt, hier als Fallback definieren
     if (typeof MARKT_WAREN === 'undefined') window.MARKT_WAREN = {};
-
-    const hash = window.location.hash.substring(1);
-    const params = new URLSearchParams(hash);
-    
+    const params = new URLSearchParams(window.location.hash.substring(1));
     if (params.has("access_token")) {
         twitchToken = params.get("access_token");
         cleanURL();
-        
         try {
-            const resp = await fetch(`https://api.twitch.tv/helix/users`, { 
-                headers: { 'Client-ID': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchToken}` } 
-            });
+            const resp = await fetch(`https://api.twitch.tv/helix/users`, { headers: { 'Client-ID': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchToken}` } });
             const result = await resp.json();
             if (result.data && result.data.length > 0) {
                 verifiedID = result.data[0].id;
                 data.name = result.data[0].display_name;
                 isIdentified = true;
                 isAdmin = (verifiedID === BROADCASTER_ID);
-                
                 await loadUserData();
-                
                 db.ref('players').on('value', snap => {
                     onlinePlayers = snap.val() || {};
                     renderPlayers(onlinePlayers);
                 });
             }
-        } catch (e) { console.error("Auth Error", e); }
+        } catch (e) { console.error(e); }
     } else {
         window.location.href = `https://id.twitch.tv/oauth2/authorize?client_id=${TWITCH_CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=token&scope=user:read:email`;
     }
@@ -302,9 +280,8 @@ function closeGeneralModal() { toggleModal('gameModal', false); }
 
 function openBuilding(b) {
     toggleModal('gameModal', true);
-    clearPanels(); // Verhindert Reste alter Gebäude
+    clearPanels(); 
     const left = document.getElementById('modalLeft');
-
     if (b === 'steinbruch' && typeof renderMiningMenu === 'function') renderMiningMenu();
     else if (b === 'rathaus') {
         left.appendChild(document.getElementById('evo-hall-template').content.cloneNode(true));
