@@ -4,9 +4,9 @@
  */
 
 const ITEM_DATABASE = {
-    // --- RESSOURCEN (NEU: Futter für Buddy 11 & Buddy 8) ---
+    // --- RESSOURCEN (Synchronisiert mit mining.js) ---
     resources: {
-        "res_stein": { id: "res_stein", name: "Stein", emoji: "🪨", type: "resource", rarity: "Common", description: "Einfacher Baumaterial." },
+        "res_stein": { id: "res_stein", name: "Stein", emoji: "🪨", type: "resource", rarity: "Common", description: "Einfaches Baumaterial." },
         "res_eisen": { id: "res_eisen", name: "Eisen", emoji: "⛓️", type: "resource", rarity: "Common", description: "Wichtig für stabile Ausrüstung." },
         "res_gold": { id: "res_gold", name: "Gold-Erz", emoji: "🟡", type: "resource", rarity: "Uncommon", description: "Glänzt und ist wertvoll." },
         "lxp_shard": { id: "lxp_shard", name: "LXP-Splitter", emoji: "💎", type: "lxp", rarity: "Rare", description: "Ein Fragment purer Erfahrung." }
@@ -81,11 +81,17 @@ const ITEM_DATABASE = {
  * HELPER FUNCTIONS
  */
 
+/**
+ * Sucht rekursiv nach einem Item anhand der ID
+ */
 function getItemById(id) {
+    if (!id) return null;
     const search = (obj) => {
         for (const key in obj) {
+            // Wenn das Objekt eine ID hat und diese übereinstimmt -> gefunden!
             if (obj[key] && obj[key].id === id) return obj[key];
-            if (typeof obj[key] === 'object' && obj[key] !== null) {
+            // Wenn es ein Unterobjekt ist (und kein Item), tiefer suchen
+            if (typeof obj[key] === 'object' && obj[key] !== null && !obj[key].id) {
                 const found = search(obj[key]);
                 if (found) return found;
             }
@@ -110,4 +116,17 @@ function getItemsByEvo(stufe) {
     return results;
 }
 
-console.log("⚔️ Item-Warenlager mit Follower-Waffen & Bergbau-Ressourcen synchronisiert.");
+/**
+ * DIE FINALE BRÜCKE (Globaler Zugriff & Proxy)
+ * Ermöglicht der inventar.js den Zugriff via items[id]
+ */
+window.items = new Proxy(ITEM_DATABASE, {
+    get: function(target, prop) {
+        // Falls direkt auf ITEM_DATABASE zugegriffen wird (z.B. items.resources)
+        if (prop in target) return target[prop];
+        // Falls via items["res_stein"] zugegriffen wird -> Nutze getItemById
+        return getItemById(prop);
+    }
+});
+
+console.log("⚔️ Item-Warenlager geladen. Globale 'items' Brücke aktiv.");
