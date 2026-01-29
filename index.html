@@ -59,7 +59,7 @@
         .evo-container { padding: 20px; text-align: center; }
         .class-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
         .class-tile { background: rgba(20, 15, 10, 0.8); border: 1px solid var(--gold); padding: 20px 10px; border-radius: 10px; cursor: pointer; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100px; }
-        .class-tile h4 { margin: 0; color: var(--gold); font-size: 18px; }
+        .class-tile h4 { margin: 0; color: var(--gold); font-size: 18px; text-align: center; }
         .class-tile.locked { filter: grayscale(0.8); opacity: 0.6; cursor: not-allowed; }
 
         #hud { position: fixed; top: 20px; left: 20px; background: var(--fantasy-bg); padding: 15px; border-radius: 12px; border: var(--border); z-index: 5000; min-width: 200px; box-shadow: var(--shadow); }
@@ -101,8 +101,8 @@
     <div class="mmo-panel">
         <div class="panel-main" id="modalLeft"></div>
         <div class="panel-side">
-            <h3 style="color:gold; margin-top:0;">🎒 RUCKSACK</h3>
-            <div id="miniInv" style="flex-grow: 1; overflow-y: auto;"></div>
+            <h3 style="color:gold; margin-top:0;">🎒 INFO</h3>
+            <div id="sideContent" style="flex-grow: 1; overflow-y: auto;"></div>
             <button class="btn-action" style="width:100%; margin-top:20px;" onclick="closeGeneralModal()">X SCHLIESSEN</button>
         </div>
     </div>
@@ -140,12 +140,15 @@
 
 <template id="evo-hall-template">
     <div class="evo-container">
-        <h2 style="color:gold; font-size: 32px;">Halle der Evolution</h2>
-        <div class="class-grid">
+        <h2 style="color:gold; font-size: 32px; text-shadow: 0 0 15px rgba(255,215,0,0.5);">Halle der Evolution</h2>
+        <div class="class-grid" id="evo-class-list">
             <div class="class-tile locked" id="evo-class-waldlaeufer"><h4>Waldläufer</h4></div>
             <div class="class-tile locked" id="evo-class-krieger"><h4>Krieger</h4></div>
             <div class="class-tile locked" id="evo-class-druide"><h4>Druide</h4></div>
             <div class="class-tile locked" id="evo-class-hueter"><h4>Hüter</h4></div>
+            <div class="class-tile locked" id="evo-class-sucher"><h4>Sucher</h4></div>
+            <div class="class-tile locked" id="evo-class-einsiedler"><h4>Einsiedler</h4></div>
+            <div class="class-tile locked" id="evo-class-waechter"><h4>Wächter</h4></div>
         </div>
     </div>
 </template>
@@ -163,7 +166,7 @@ let isIdentified = false;
 let twitchToken = "", verifiedID = "", onlinePlayers = {}, isAdmin = false;
 let data = { name: "Held", x: 960, y: 540, lxp: 0, hp: 100, maxHp: 100, stats: { atk: 10, def: 10, currentLevel: 1, className: "Ei" }, inventar: {}, equipment: {}, lxpBuffer: 0 };
 
-// --- RENDERING ENGINE ---
+// --- RENDERING ENGINE (HOISTED) ---
 function renderPlayers(players) {
     const layer = document.getElementById('charLayer');
     if (!layer) return;
@@ -187,21 +190,23 @@ function updateUI() {
     document.getElementById('lxpC').innerText = data.lxp;
     document.getElementById('lvlTotal').innerText = data.stats.currentLevel;
     
-    // Admin Hud Check
     const adminPanel = document.getElementById('adminHud');
     if (adminPanel) adminPanel.style.display = isAdmin ? 'block' : 'none';
 }
 
+function clearPanels() {
+    document.getElementById('modalLeft').innerHTML = '';
+    document.getElementById('sideContent').innerHTML = '';
+}
+
 function renderInventoryUI() {
-    // Scope Check: Existiert das items-Objekt?
     if (typeof items === 'undefined') {
         console.error("Scope Error: Global reference 'items' missing.");
         return;
     }
 
+    clearPanels(); // Verhindert UI-Reste
     const main = document.getElementById('modalLeft');
-    if (!main) return;
-    main.innerHTML = '';
     main.appendChild(document.getElementById('inventory-template').content.cloneNode(true));
 
     document.getElementById('stat-hp').innerText = data.maxHp;
@@ -229,6 +234,11 @@ function renderInventoryUI() {
     for (let i = itemCount; i < 40; i++) grid.appendChild(document.createElement('div')).className = 'slot';
 }
 
+function openInventory() {
+    toggleModal('gameModal', true);
+    renderInventoryUI();
+}
+
 // --- LOGIC ENGINE ---
 async function loadUserData() {
     if (!verifiedID) return;
@@ -239,7 +249,6 @@ async function loadUserData() {
 
 function save() { if (isIdentified) db.ref('players/' + verifiedID).update({ ...data, lastSeen: Date.now() }); }
 
-// URL Hygiene Routine
 function cleanURL() {
     if (window.location.hash) {
         window.history.replaceState({}, document.title, window.location.pathname);
@@ -247,12 +256,15 @@ function cleanURL() {
 }
 
 window.onload = async () => {
+    // Falls MARKT_WAREN fehlt, hier als Fallback definieren
+    if (typeof MARKT_WAREN === 'undefined') window.MARKT_WAREN = {};
+
     const hash = window.location.hash.substring(1);
     const params = new URLSearchParams(hash);
     
     if (params.has("access_token")) {
         twitchToken = params.get("access_token");
-        cleanURL(); // Sofortige Hygiene
+        cleanURL();
         
         try {
             const resp = await fetch(`https://api.twitch.tv/helix/users`, { 
@@ -287,13 +299,17 @@ function handleWorldClick(e) {
 
 function toggleModal(id, s) { document.getElementById(id).style.display = s ? 'flex' : 'none'; }
 function closeGeneralModal() { toggleModal('gameModal', false); }
+
 function openBuilding(b) {
     toggleModal('gameModal', true);
+    clearPanels(); // Verhindert Reste alter Gebäude
     const left = document.getElementById('modalLeft');
-    left.innerHTML = '';
-    // Ressourcen-Check vor Aufruf
+
     if (b === 'steinbruch' && typeof renderMiningMenu === 'function') renderMiningMenu();
-    else if (b === 'rathaus') left.appendChild(document.getElementById('evo-hall-template').content.cloneNode(true));
+    else if (b === 'rathaus') {
+        left.appendChild(document.getElementById('evo-hall-template').content.cloneNode(true));
+        if (typeof initEvoHallDisplay === 'function') initEvoHallDisplay();
+    }
     else if (b === 'markt' && typeof renderMarketplace === 'function') renderMarketplace();
     else if (b === 'arena' && typeof renderArenaMatchmaking === 'function') renderArenaMatchmaking();
 }
