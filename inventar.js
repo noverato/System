@@ -1,16 +1,32 @@
-// --- OPTIMIERTE INVENTAR & MAPPING LOGIK ---
+/**
+ * SPAWN2909 - INVENTAR-LOGIK (Emoji-First Edition)
+ * Stoppt URI-Fehler durch intelligente Icon/Emoji-Abfrage.
+ */
+
+// --- HILFSFUNKTION FÜR VISUALS ---
 
 /**
- * Öffnet das Inventar und stößt das Rendering an
+ * Erzeugt das passende HTML-Markup für ein Item (Bild, Emoji oder Fallback).
+ * @param {Object} item - Das Item-Objekt
+ * @param {string} cssClass - Optionale CSS-Klasse
  */
+function getItemMarkup(item, cssStyle = "") {
+    if (item && item.icon && item.icon.trim() !== "" && item.icon !== "stone.png") {
+        return `<img src="${item.icon}" style="${cssStyle} object-fit: contain;">`;
+    } else if (item && item.emoji) {
+        return `<span style="font-size: 2em; ${cssStyle}">${item.emoji}</span>`;
+    } else {
+        return `<span style="font-size: 2em; ${cssStyle}">📦</span>`; // Globaler Fallback
+    }
+}
+
+// --- KERN-LOGIK ---
+
 function openInventory() {
     toggleModal('gameModal', true);
     renderInventoryUI();
 }
 
-/**
- * Kern-Rendering: Synchronisiert Stats, Ausrüstung und Waffen-Mapping
- */
 function renderInventoryUI() {
     const main = document.getElementById('modalLeft');
     if (!main) return;
@@ -19,7 +35,7 @@ function renderInventoryUI() {
     const temp = document.getElementById('inventory-template');
     main.appendChild(temp.content.cloneNode(true));
 
-    // 1. STAT-SYNCHRONISATION (Basis + Boni)
+    // 1. STAT-SYNCHRONISATION
     const bonuses = typeof getEquipmentStats === 'function' ? getEquipmentStats() : { atk:0, def:0, hp:0, mp:0, setBonusActive: false };
     
     document.getElementById('stat-hp').innerText = (data.maxHp || 100) + (bonuses.hp || 0);
@@ -27,21 +43,21 @@ function renderInventoryUI() {
     document.getElementById('stat-atk').innerText = (data.stats.atk || 0) + (bonuses.atk || 0);
     document.getElementById('stat-def').innerText = (data.stats.def || 0) + (bonuses.def || 0);
 
-    // 2. SET-BONUS ANZEIGE
+    // 2. SET-BONUS
     const setMsg = document.getElementById('set-bonus-msg');
     if (setMsg) {
         setMsg.style.display = bonuses.setBonusActive ? 'block' : 'none';
         if(bonuses.setName) setMsg.innerText = `✨ ${bonuses.setName.toUpperCase()}-SET AKTIV ✨`;
     }
 
-    // 3. AVATAR & WAFFEN-MAPPING (Anker-System)
+    // 3. AVATAR & WAFFEN-MAPPING
     const baseImg = (typeof getCreatureSprite === 'function') ? getCreatureSprite(data, verifiedID === BROADCASTER_ID) : 'Ei.png';
     document.getElementById('avatar-base').src = baseImg;
 
     const weaponLayer = document.getElementById('weapon-layer');
-    weaponLayer.innerHTML = ''; // Vorherige Waffen leeren
+    weaponLayer.innerHTML = ''; 
 
-    // 4. SLOT-VISUALISIERUNG & ANKER-LOGIK
+    // 4. SLOT-VISUALISIERUNG & ANKER
     for (let slotKey in data.equipment) {
         const slotEl = document.getElementById(`slot-${slotKey}`);
         if (!slotEl) continue;
@@ -50,27 +66,31 @@ function renderInventoryUI() {
         if (itemName) {
             const itemData = (window.allItems && allItems[itemName]) || (window.items && items[itemName]);
             if (itemData) {
-                // Icon im Slot anzeigen
-                slotEl.innerHTML = `<img src="${itemData.icon || 'stone.png'}" style="cursor:pointer;" onclick="unequipItem('${slotKey}')">`;
+                // EMOJI-FIRST LOGIK FÜR SLOTS
+                slotEl.innerHTML = getItemMarkup(itemData, "cursor:pointer; max-width:100%; max-height:100%;");
+                slotEl.onclick = () => unequipItem(slotKey);
                 slotEl.onmouseenter = (e) => showTooltip(e, itemData);
                 slotEl.onmouseleave = hideTooltip;
 
-                // Visuelles Mapping auf dem Avatar (nur für Weapon/Offhand)
+                // Visuelles Mapping auf dem Avatar (Weapon/Offhand)
                 if (slotKey === 'weapon' || slotKey === 'offhand') {
                     const offsets = getWeaponOffsets(data.stats.className, itemName);
-                    const wImg = document.createElement('img');
-                    wImg.src = itemData.icon || '';
-                    wImg.style.position = 'absolute';
-                    wImg.style.left = offsets.x + "px";
-                    wImg.style.top = offsets.y + "px";
-                    wImg.style.transform = `rotate(${offsets.rotation || 0}deg)`;
-                    wImg.style.width = "100px"; // Beispielgröße, anpassen falls nötig
-                    wImg.style.pointerEvents = "none";
-                    weaponLayer.appendChild(wImg);
+                    const visualWrap = document.createElement('div');
+                    visualWrap.style.position = 'absolute';
+                    visualWrap.style.left = offsets.x + "px";
+                    visualWrap.style.top = offsets.y + "px";
+                    visualWrap.style.transform = `rotate(${offsets.rotation || 0}deg)`;
+                    visualWrap.style.pointerEvents = "none";
+                    visualWrap.style.zIndex = "10";
+                    
+                    // Nutze auch hier das Markup (für Emojis auf dem Avatar!)
+                    visualWrap.innerHTML = getItemMarkup(itemData, "width:80px; height:80px; display:flex; align-items:center; justify-content:center;");
+                    weaponLayer.appendChild(visualWrap);
                 }
             }
         } else {
-            slotEl.innerHTML = ''; // Slot leeren wenn nichts ausgerüstet
+            slotEl.innerHTML = ''; 
+            slotEl.onclick = null;
         }
     }
 
@@ -82,14 +102,13 @@ function renderInventoryUI() {
         Object.keys(data.inventar).forEach(id => {
             const count = data.inventar[id];
             if (count > 0) {
-                const item = (window.allItems && allItems[id]) || (window.items && items[id]) || { name: id, icon: 'stone.png' };
+                const item = (window.allItems && allItems[id]) || (window.items && items[id]) || { name: id };
                 grid.appendChild(createItemSlot(id, item, count));
                 itemCount++;
             }
         });
     }
 
-    // Leere Slots auffüllen (RPG Look)
     for (let i = itemCount; i < 40; i++) {
         const empty = document.createElement('div');
         empty.className = 'slot';
@@ -100,18 +119,22 @@ function renderInventoryUI() {
 }
 
 /**
- * Erstellt einen klickbaren Item-Slot für den Rucksack
+ * Erstellt einen klickbaren Item-Slot für den Rucksack (Emoji-Safe)
  */
 function createItemSlot(id, item, count) {
     const div = document.createElement('div');
     div.className = 'slot';
     div.style.cursor = 'pointer';
-    div.innerHTML = `<img src="${item.icon || 'stone.png'}"><span style="position:absolute; bottom:2px; right:4px; font-size:10px; pointer-events:none;">${count}</span>`;
+    div.style.display = 'flex';
+    div.style.alignItems = 'center';
+    div.style.justifyContent = 'center';
+    
+    // EMOJI-FIRST LOGIK
+    const visual = getItemMarkup(item, "max-width:45px; max-height:45px;");
+    div.innerHTML = `${visual}<span style="position:absolute; bottom:2px; right:4px; font-size:10px; pointer-events:none; background:rgba(0,0,0,0.6); padding:0 2px; border-radius:3px;">${count}</span>`;
     
     div.onclick = () => {
-        if (item.slot) {
-            if (typeof equipItem === 'function') equipItem(id);
-        }
+        if (item.slot && typeof equipItem === 'function') equipItem(id);
     };
     
     div.onmouseenter = (e) => showTooltip(e, item);
@@ -119,9 +142,8 @@ function createItemSlot(id, item, count) {
     return div;
 }
 
-/**
- * Hilfsfunktion zum Ablegen (wird von Slot-Icons gerufen)
- */
+// --- RESTLICHE FUNKTIONEN (UNBERÜHRT) ---
+
 window.unequipItem = function(slot) {
     if (data.equipment[slot]) {
         const itemName = data.equipment[slot];
@@ -132,16 +154,11 @@ window.unequipItem = function(slot) {
     }
 };
 
-/**
- * RPG Tooltip Anzeige
- */
 function showTooltip(e, item) {
     const tt = document.getElementById('item-tooltip');
     if (!tt) return;
-    
     const statText = (typeof getStatPreview === 'function') ? getStatPreview(item.name || item) : "Gegenstand";
-    
-    tt.innerHTML = `<h4>${item.name || 'Unbekannt'}</h4><div style="font-size:13px; white-space:pre-line;">${statText}</div>`;
+    tt.innerHTML = `<h4>${item.emoji || ''} ${item.name || 'Unbekannt'}</h4><div style="font-size:13px; white-space:pre-line;">${statText}</div>`;
     tt.style.display = 'block';
     tt.style.left = (e.clientX + 15) + "px";
     tt.style.top = (e.clientY + 15) + "px";
