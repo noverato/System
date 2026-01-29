@@ -1,166 +1,153 @@
-/**
- * SPAWN2909 - INVENTAR-LOGIK (Kampf- & Anker-Update)
- * Fokus: Stats-Erweiterung, Waffen-Positionierung & UI-Vorschau.
- */
+// --- OPTIMIERTE INVENTAR & MAPPING LOGIK ---
 
-// 1. Initialisierung mit erweiterten Slots
-if (window.data) {
-    if (!data.inventar) data.inventar = {};
-    if (!data.equipment) {
-        data.equipment = { 
-            head: null, chest: null, legs: null, feet: null, 
-            weapon: null, ring1: null, ring2: null, necklace: null 
-        };
-    }
+/**
+ * Öffnet das Inventar und stößt das Rendering an
+ */
+function openInventory() {
+    toggleModal('gameModal', true);
+    renderInventoryUI();
 }
 
 /**
- * AVATAR-ANKER-SYSTEM
- * Findet die genauen Koordinaten für eine Waffe auf einem speziellen Avatar.
- * @param {string} avatarID - Die ID des aktuellen Avatars (z.B. "Warrior_Male")
- * @param {string} weaponName - Name der Waffe
- */
-window.getWeaponOffsets = function(avatarID, weaponName) {
-    const item = window.allItems?.[weaponName];
-    if (item && item.offsets && item.offsets[avatarID]) {
-        return item.offsets[avatarID]; // Gibt {x, y, rotation} zurück
-    }
-    return { x: 0, y: 0, rotation: 0 }; // Fallback
-};
-
-/**
- * ERWEITERTE STATS-BERECHNUNG
- * Berechnet ATK, DEF, HP, MP und prüft auf Set-Boni.
- */
-function getEquipmentStats() {
-    let stats = { atk: 0, def: 0, hp: 0, mp: 0, setBonusActive: false, setName: "" };
-    if (!data.equipment || !window.allItems) return stats;
-
-    const armorSlots = ['head', 'chest', 'legs', 'feet'];
-    let activeSets = [];
-
-    Object.values(data.equipment).forEach(itemName => {
-        const item = window.allItems[itemName];
-        if (item) {
-            stats.atk += item.atk || 0;
-            stats.def += item.def || 0;
-            stats.hp += item.hp || 0;
-            stats.mp += item.mp || 0;
-            if (item.setName) activeSets.push(item.setName);
-        }
-    });
-
-    // Set-Bonus Logik: Wenn alle 4 Rüstungsteile denselben Set-Namen haben
-    const armorSets = armorSlots
-        .map(slot => window.allItems?.[data.equipment[slot]]?.setName)
-        .filter(name => name !== undefined);
-
-    if (armorSets.length === 4 && new Set(armorSets).size === 1) {
-        stats.setBonusActive = true;
-        stats.setName = armorSets[0];
-        // Hier könnten wir noch globale Set-Boni addieren, falls in loot.js definiert
-    }
-
-    return stats;
-}
-
-/**
- * UI-VORSCHAU (Final Fantasy Stil)
- * Generiert einen Tooltip-String für Stat-Veränderungen.
- */
-function getStatPreview(itemName) {
-    const item = window.allItems?.[itemName];
-    if (!item) return "";
-    
-    let preview = `--- ${itemName.toUpperCase()} ---`;
-    if (item.atk) preview += `\nATK: +${item.atk}`;
-    if (item.def) preview += `\nDEF: +${item.def}`;
-    if (item.hp) preview += `\nHP: +${item.hp}`;
-    if (item.mp) preview += `\nMP: +${item.mp}`;
-    if (item.setName) preview += `\nSET: ${item.setName}`;
-    
-    return preview;
-}
-
-/**
- * KERN-FUNKTION: UI-Rendering
+ * Kern-Rendering: Synchronisiert Stats, Ausrüstung und Waffen-Mapping
  */
 function renderInventoryUI() {
-    const invDiv = document.getElementById('miniInv');
-    if (!invDiv) return;
-    invDiv.innerHTML = '';
-
-    // 1. RENDER AUSRÜSTUNG
-    let equipHtml = `<div style="margin-bottom:15px; border-bottom:1px solid var(--gold); padding-bottom:10px;">
-                        <h4 style="margin:0 0 10px 0; font-size: 11px; color: gold; letter-spacing:1px;">EQUIPMENT</h4>`;
+    const main = document.getElementById('modalLeft');
+    if (!main) return;
     
-    for (let slot in data.equipment) {
-        const item = data.equipment[slot];
-        const itemData = item && window.allItems ? allItems[item] : null;
-        const iconClass = itemData?.iconType ? `icon-${itemData.iconType}` : 'icon-empty';
-        
-        equipHtml += `
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 11px;" title="${item ? getStatPreview(item) : 'Leer'}">
-                <div class="${iconClass}" style="width:16px; height:16px; background: rgba(255,215,0,0.1); border: 1px solid #444;"></div>
-                <span style="color:#888; width:65px;">${slot.toUpperCase()}</span>
-                <span style="color:${item ? 'white' : '#444'};">${item || '---'}</span>
-            </div>`;
+    main.innerHTML = '';
+    const temp = document.getElementById('inventory-template');
+    main.appendChild(temp.content.cloneNode(true));
+
+    // 1. STAT-SYNCHRONISATION (Basis + Boni)
+    const bonuses = typeof getEquipmentStats === 'function' ? getEquipmentStats() : { atk:0, def:0, hp:0, mp:0, setBonusActive: false };
+    
+    document.getElementById('stat-hp').innerText = (data.maxHp || 100) + (bonuses.hp || 0);
+    document.getElementById('stat-mp').innerText = (data.maxMp || 50) + (bonuses.mp || 0);
+    document.getElementById('stat-atk').innerText = (data.stats.atk || 0) + (bonuses.atk || 0);
+    document.getElementById('stat-def').innerText = (data.stats.def || 0) + (bonuses.def || 0);
+
+    // 2. SET-BONUS ANZEIGE
+    const setMsg = document.getElementById('set-bonus-msg');
+    if (setMsg) {
+        setMsg.style.display = bonuses.setBonusActive ? 'block' : 'none';
+        if(bonuses.setName) setMsg.innerText = `✨ ${bonuses.setName.toUpperCase()}-SET AKTIV ✨`;
     }
-    equipHtml += `</div>`;
-    invDiv.innerHTML = equipHtml;
 
-    // 2. RENDER RUCKSACK
+    // 3. AVATAR & WAFFEN-MAPPING (Anker-System)
+    const baseImg = (typeof getCreatureSprite === 'function') ? getCreatureSprite(data, verifiedID === BROADCASTER_ID) : 'Ei.png';
+    document.getElementById('avatar-base').src = baseImg;
+
+    const weaponLayer = document.getElementById('weapon-layer');
+    weaponLayer.innerHTML = ''; // Vorherige Waffen leeren
+
+    // 4. SLOT-VISUALISIERUNG & ANKER-LOGIK
+    for (let slotKey in data.equipment) {
+        const slotEl = document.getElementById(`slot-${slotKey}`);
+        if (!slotEl) continue;
+
+        const itemName = data.equipment[slotKey];
+        if (itemName) {
+            const itemData = (window.allItems && allItems[itemName]) || (window.items && items[itemName]);
+            if (itemData) {
+                // Icon im Slot anzeigen
+                slotEl.innerHTML = `<img src="${itemData.icon || 'stone.png'}" style="cursor:pointer;" onclick="unequipItem('${slotKey}')">`;
+                slotEl.onmouseenter = (e) => showTooltip(e, itemData);
+                slotEl.onmouseleave = hideTooltip;
+
+                // Visuelles Mapping auf dem Avatar (nur für Weapon/Offhand)
+                if (slotKey === 'weapon' || slotKey === 'offhand') {
+                    const offsets = getWeaponOffsets(data.stats.className, itemName);
+                    const wImg = document.createElement('img');
+                    wImg.src = itemData.icon || '';
+                    wImg.style.position = 'absolute';
+                    wImg.style.left = offsets.x + "px";
+                    wImg.style.top = offsets.y + "px";
+                    wImg.style.transform = `rotate(${offsets.rotation || 0}deg)`;
+                    wImg.style.width = "100px"; // Beispielgröße, anpassen falls nötig
+                    wImg.style.pointerEvents = "none";
+                    weaponLayer.appendChild(wImg);
+                }
+            }
+        } else {
+            slotEl.innerHTML = ''; // Slot leeren wenn nichts ausgerüstet
+        }
+    }
+
+    // 5. RUCKSACK RENDERING
+    const grid = document.getElementById('backpack-slots');
+    let itemCount = 0;
+    
     if (data.inventar) {
-        Object.entries(data.inventar).forEach(([itemName, count]) => {
-            if (count <= 0) return;
-            const itemData = window.allItems ? allItems[itemName] : {};
-            const iconClass = itemData.iconType ? `icon-${itemData.iconType}` : 'icon-default';
-            const statBonus = itemData.atk ? `<span style="color:#4ade80; margin-left:5px;">+${itemData.atk} ATK</span>` : '';
-
-            invDiv.innerHTML += `
-                <div class="inv-item" 
-                     style="padding:8px; border-bottom:1px solid #333; display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.02); cursor:help;"
-                     title="${getStatPreview(itemName)}">
-                    <div class="${iconClass}" style="width:24px; height:24px; border: 1px solid var(--gold); flex-shrink:0;"></div>
-                    <div style="flex-grow: 1;">
-                        <div style="display: flex; justify-content: space-between; font-size: 13px;">
-                            <b style="color:#fdf5e6;">${itemName} ${statBonus}</b>
-                            <span style="color: var(--gold);">x${count}</span>
-                        </div>
-                        <div style="font-size: 10px; color: #888;">Wert: ${itemData.baseValue || 0} LXP</div>
-                    </div>
-                    ${itemData.slot ? 
-                        `<button class="btn-action" style="font-size:9px; padding:2px 6px;" onclick="equipItem('${itemName}')">EQUIP</button>` 
-                        : ''}
-                </div>`;
+        Object.keys(data.inventar).forEach(id => {
+            const count = data.inventar[id];
+            if (count > 0) {
+                const item = (window.allItems && allItems[id]) || (window.items && items[id]) || { name: id, icon: 'stone.png' };
+                grid.appendChild(createItemSlot(id, item, count));
+                itemCount++;
+            }
         });
     }
-}
 
-// Grundfunktionen bleiben erhalten
-function addItemToInventory(itemName, amount = 1) {
-    if (!data.inventar) data.inventar = {};
-    data.inventar[itemName] = (data.inventar[itemName] || 0) + amount;
-    if (typeof updateUI === "function") updateUI();
-    if (typeof save === "function") save(); 
-}
-
-function equipItem(itemName) {
-    const itemData = window.allItems ? allItems[itemName] : null;
-    if (!itemData || !itemData.slot) return;
-    const slot = itemData.slot;
-    if (data.equipment[slot]) {
-        const oldItem = data.equipment[slot];
-        data.inventar[oldItem] = (data.inventar[oldItem] || 0) + 1;
+    // Leere Slots auffüllen (RPG Look)
+    for (let i = itemCount; i < 40; i++) {
+        const empty = document.createElement('div');
+        empty.className = 'slot';
+        grid.appendChild(empty);
     }
-    data.equipment[slot] = itemName;
-    if (data.inventar[itemName] > 1) data.inventar[itemName]--;
-    else delete data.inventar[itemName];
-    if (typeof updateUI === "function") updateUI();
-    if (typeof save === "function") save();
+    
+    document.getElementById('bag-count').innerText = itemCount;
 }
 
-window.adminGetItem = function(itemName, amount = 1) {
-    console.log(`%c[ADMIN] Schöpfung: ${amount}x ${itemName}`, "color: gold; font-weight: bold;");
-    addItemToInventory(itemName, amount);
+/**
+ * Erstellt einen klickbaren Item-Slot für den Rucksack
+ */
+function createItemSlot(id, item, count) {
+    const div = document.createElement('div');
+    div.className = 'slot';
+    div.style.cursor = 'pointer';
+    div.innerHTML = `<img src="${item.icon || 'stone.png'}"><span style="position:absolute; bottom:2px; right:4px; font-size:10px; pointer-events:none;">${count}</span>`;
+    
+    div.onclick = () => {
+        if (item.slot) {
+            if (typeof equipItem === 'function') equipItem(id);
+        }
+    };
+    
+    div.onmouseenter = (e) => showTooltip(e, item);
+    div.onmouseleave = hideTooltip;
+    return div;
+}
+
+/**
+ * Hilfsfunktion zum Ablegen (wird von Slot-Icons gerufen)
+ */
+window.unequipItem = function(slot) {
+    if (data.equipment[slot]) {
+        const itemName = data.equipment[slot];
+        data.inventar[itemName] = (data.inventar[itemName] || 0) + 1;
+        data.equipment[slot] = null;
+        renderInventoryUI();
+        if (typeof save === "function") save();
+    }
 };
+
+/**
+ * RPG Tooltip Anzeige
+ */
+function showTooltip(e, item) {
+    const tt = document.getElementById('item-tooltip');
+    if (!tt) return;
+    
+    const statText = (typeof getStatPreview === 'function') ? getStatPreview(item.name || item) : "Gegenstand";
+    
+    tt.innerHTML = `<h4>${item.name || 'Unbekannt'}</h4><div style="font-size:13px; white-space:pre-line;">${statText}</div>`;
+    tt.style.display = 'block';
+    tt.style.left = (e.clientX + 15) + "px";
+    tt.style.top = (e.clientY + 15) + "px";
+}
+
+function hideTooltip() {
+    const tt = document.getElementById('item-tooltip');
+    if (tt) tt.style.display = 'none';
+}
