@@ -51,7 +51,7 @@ function renderArenaMatchmaking() {
                 <div style="background:rgba(0,0,0,0.4); border:1px solid var(--gold); padding:30px; border-radius:15px; width: 80%; box-shadow: inset 0 0 20px rgba(0,0,0,0.5);">
                     <h3 style="margin-top:0; color:var(--gold);">PvE: Monster-Jagd</h3>
                     <p style="font-size:14px; color:#ccc; margin-bottom:20px;">Tritt gegen die wilden Kreaturen des Waldes an.</p>
-                    <button class="btn-action" style="font-size:18px; padding:15px 40px; width:100%;" onclick="startMonsterFight()">
+                    <button class="btn-action" style="font-size:18px; padding:15px 40px; width:100%;" onclick="Arena.startMonsterFight()">
                         ⚔️ GEGEN MONSTER KÄMPFEN
                     </button>
                 </div>
