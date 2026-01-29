@@ -31,6 +31,7 @@
             --hp-color: #ff4444; --mp-color: #3b82f6;
             --warrior: #ef4444; --mage: #3b82f6; --ranger: #22c55e; --craft: #eab308; --shadow-path: #a855f7;
             --ff-blue: rgba(0, 0, 150, 0.9);
+            --twitch-purple: #9146FF;
         }
         body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Crimson Text', serif; background: #000; color: #fdf5e6; }
         #viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; }
@@ -92,6 +93,9 @@
     <div style="color:gold; font-size: 20px; font-weight:bold;"><span id="playerName">Identifiziere...</span></div>
     <div id="hudClass" style="font-size:13px; color: #3b82f6; font-weight: bold;">Klasse...</div>
     <div style="font-size:12px; color:#4ade80; margin-top: 5px;">💎 LXP: <span id="lxpC">0</span> | ⭐ LVL: <span id="lvlTotal">0</span></div>
+    
+    <button id="loginBtn" class="btn-action" style="width:100%; margin-top:10px; background: var(--twitch-purple);" onclick="loginWithTwitch()">🔑 TWITCH LOGIN</button>
+    
     <button class="btn-action" style="width:100%; margin-top:10px;" onclick="openInventory()">🎒 INVENTAR</button>
     <div id="adminHud" style="display:none; margin-top:10px;">
         <button class="btn-action" style="background:linear-gradient(135deg, #ff0000, #8b0000); width:100%;" onclick="openAdminPanel()">🛠 GÖTTER-MENÜ</button>
@@ -187,6 +191,11 @@ function updateUI() {
     document.getElementById('hudClass').innerText = data.stats.className;
     document.getElementById('lxpC').innerText = data.lxp;
     document.getElementById('lvlTotal').innerText = data.stats.currentLevel;
+    
+    // Login Button Sichtbarkeit
+    const loginBtn = document.getElementById('loginBtn');
+    if (loginBtn) loginBtn.style.display = isIdentified ? 'none' : 'block';
+
     const adminPanel = document.getElementById('adminHud');
     if (adminPanel) adminPanel.style.display = isAdmin ? 'block' : 'none';
 }
@@ -233,12 +242,18 @@ async function loadUserData() {
     if (snap.exists()) { Object.assign(data, snap.val()); }
     updateUI();
 }
+
 function save() { if (isIdentified) db.ref('players/' + verifiedID).update({ ...data, lastSeen: Date.now() }); }
 function cleanURL() { if (window.location.hash) window.history.replaceState({}, document.title, window.location.pathname); }
+
+function loginWithTwitch() {
+    window.location.href = `https://id.twitch.tv/oauth2/authorize?client_id=${TWITCH_CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=token&scope=user:read:email`;
+}
 
 window.onload = async () => {
     if (typeof MARKT_WAREN === 'undefined') window.MARKT_WAREN = {};
     const params = new URLSearchParams(window.location.hash.substring(1));
+    
     if (params.has("access_token")) {
         twitchToken = params.get("access_token");
         cleanURL();
@@ -256,9 +271,10 @@ window.onload = async () => {
                     renderPlayers(onlinePlayers);
                 });
             }
-        } catch (e) { console.error(e); }
+        } catch (e) { console.error("Twitch Login Error:", e); }
     } else {
-        window.location.href = `https://id.twitch.tv/oauth2/authorize?client_id=${TWITCH_CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=token&scope=user:read:email`;
+        console.log("System bereit. Bitte über HUD einloggen.");
+        updateUI();
     }
 };
 
