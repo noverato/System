@@ -80,4 +80,6 @@ function getVisibleMarketItems(player) {
     return availableItems;
 }
 
-export { MarketCatalog, getVisibleMarketItems };
+window.MarketCatalog = MarketCatalog;
+window.getVisibleMarketItems = getVisibleMarketItems;
+
