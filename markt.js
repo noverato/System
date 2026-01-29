@@ -1,6 +1,6 @@
 /**
  * THE NEST: MARKET SYSTEM (markt.js)
- * Synchronisierte Logik: Nutzt die globale 'items'-Schnittstelle und bietet URI-Stabilität.
+ * Synchronisierte Logik: Nutzt MarketCatalog, GlobalMarketState und die items-Schnittstelle.
  */
 
 /**
@@ -17,7 +17,7 @@ function renderMarketplace() {
                 <div style="font-size:18px; color:var(--gold);">💰 Guthaben: <span id="marketGold">${data.lxp}</span> LXP</div>
             </div>
             
-            <p style="color:#aaa; font-style:italic; margin-top:10px;">"Willkommen im Nest. Die Waren fließen durch die globale Schnittstelle."</p>
+            <p style="color:#aaa; font-style:italic; margin-top:10px;">"Preise atmen. Bestände fließen. Handle weise, Reisender."</p>
             
             <div style="display:flex; gap:10px; margin-top:20px;">
                 <button class="btn-action" style="flex:1;" onclick="renderShopTab()">🛒 KAUFEN</button>
@@ -51,7 +51,7 @@ function renderArenaMatchmaking() {
                 <div style="background:rgba(0,0,0,0.4); border:1px solid var(--gold); padding:30px; border-radius:15px; width: 80%; box-shadow: inset 0 0 20px rgba(0,0,0,0.5);">
                     <h3 style="margin-top:0; color:var(--gold);">PvE: Monster-Jagd</h3>
                     <p style="font-size:14px; color:#ccc; margin-bottom:20px;">Tritt gegen die wilden Kreaturen des Waldes an.</p>
-                    <button class="btn-action" style="font-size:18px; padding:15px 40px; width:100%;" onclick="Arena.startMonsterFight()">
+                    <button class="btn-action" style="font-size:18px; padding:15px 40px; width:100%;" onclick="window.Arena ? Arena.startMonsterFight() : startMonsterFight()">
                         ⚔️ GEGEN MONSTER KÄMPFEN
                     </button>
                 </div>
@@ -65,8 +65,7 @@ function renderArenaMatchmaking() {
 }
 
 /**
- * DYNAMISCHE PREISBERECHNUNG
- * Nutzt die globale 'items' Brücke für den Zugriff.
+ * DYNAMISCHE PREISBERECHNUNG (Isekai-Ökonomie)
  */
 function getMarketPrice(itemID, istVerkauf = false) {
     const item = (typeof items !== 'undefined') ? items[itemID] : null;
@@ -74,53 +73,63 @@ function getMarketPrice(itemID, istVerkauf = false) {
 
     const basis = item.basisPreis || item.price || 100;
 
-    // 🔹 Lokaler Besitz (Spieler)
+    // 1. Lokale Sättigung (Spieler-Bestand senkt Ankaufswert)
     const bestand = (data.inventar && data.inventar[itemID]) ? data.inventar[itemID] : 0;
-    const saettigung = 1 / (1 + bestand * 0.15);
+    const saettigung = 1 / (1 + bestand * 0.10);
 
-    // 🔹 Globaler Markt (Inflation)
+    // 2. Globale Marktdynamik (Inflation/Deflation)
     let marketMult = 1;
     if (typeof MarketState !== 'undefined') {
         const circulation = MarketState.getCirculation(itemID);
-        const ideal = MarketState.config.defaultIdeal;
+        const ideal = item.idealBestand || MarketState.config.defaultIdeal;
 
+        // Formel: Wenn Umlauf > Ideal -> Preis sinkt. Wenn Umlauf < Ideal -> Preis steigt.
         const delta = (ideal - circulation) / ideal;
         marketMult = 1 + (delta * MarketState.config.damping);
 
+        // Begrenzung durch Global Config
         marketMult = Math.max(
             MarketState.config.minPriceMult,
             Math.min(MarketState.config.maxPriceMult, marketMult)
         );
     }
 
-    let price = basis * (0.4 + saettigung) * marketMult;
+    // Finale Berechnung
+    let price = basis * (0.5 + saettigung) * marketMult;
     price = Math.floor(price);
 
-    return istVerkauf ? Math.floor(price * 0.7) : price;
+    // Händler-Marge (Ankauf ist immer günstiger als Verkauf)
+    return istVerkauf ? Math.max(1, Math.floor(price * 0.7)) : price;
 }
 
 /**
  * TAB: KAUFEN
+ * Nutzt die Brücke zum MarketCatalog
  */
 function renderShopTab() {
     const container = document.getElementById('marketContent');
     if (!container) return;
     container.innerHTML = '';
 
-    const spielerStufe = (data.stats && data.stats.totalEvoLevel) ? data.stats.totalEvoLevel : 0;
-    
+    // Player-Kontext für die Filterung erstellen
+    const playerContext = {
+        level: data.stats.currentLevel || 0,
+        evoStufe: data.stats.totalEvoLevel || 0,
+        isSub: data.isSub || false
+    };
+
+    // Waren über die globale Brücke aus market_catalog.js holen
     let verfügbareWaren = [];
-    if (typeof getItemsByEvo === 'function') {
-        verfügbareWaren = getItemsByEvo(spielerStufe);
+    if (typeof window.getVisibleMarketItems === 'function') {
+        verfügbareWaren = window.getVisibleMarketItems(playerContext);
     }
 
     verfügbareWaren.forEach(item => {
         const preis = getMarketPrice(item.id, false);
-        // URI-Stabilität: Fallback auf stone.png falls kein Icon definiert
         const icon = item.icon || 'stone.png';
 
         container.innerHTML += `
-            <div style="background:rgba(0,0,0,0.3); border:1px solid #444; padding:15px; border-radius:10px; text-align:center;" class="shop-slot">
+            <div style="background:rgba(0,0,0,0.3); border:1px solid #444; padding:15px; border-radius:10px; text-align:center; transition: 0.2s;" class="shop-slot">
                 <img src="${icon}" style="width:40px; height:40px; margin-bottom:5px; filter: drop-shadow(0 0 5px var(--gold));">
                 <div style="font-weight:bold; color:cyan; margin-bottom:5px;">${item.name || item.id}</div>
                 <div style="font-size:11px; color:#aaa; height:35px; overflow:hidden;">${item.desc || 'Ein nützliches Item'}</div>
@@ -131,7 +140,7 @@ function renderShopTab() {
     });
 
     if (verfügbareWaren.length === 0) {
-        container.innerHTML = '<p style="grid-column: 1/-1; text-align:center; color:#666;">Keine Waren verfügbar.</p>';
+        container.innerHTML = '<p style="grid-column: 1/-1; text-align:center; color:#666;">Der Händler hat momentan keine Waren für deine Stufe.</p>';
     }
 }
 
@@ -146,8 +155,9 @@ function renderSellTab() {
     let hatItems = false;
     for (const itemID in data.inventar) {
         if (data.inventar[itemID] > 0) {
-            // Auch hier: Suche über globale 'items' Schnittstelle
             const item = (typeof items !== 'undefined') ? items[itemID] : { name: itemID, icon: 'stone.png' };
+            
+            // Drop-Only Items können verkauft, aber nie gekauft werden (ID Check)
             hatItems = true;
             const preis = getMarketPrice(itemID, true);
             const icon = item.icon || 'stone.png';
@@ -176,6 +186,12 @@ function buyItem(itemID) {
     const preis = getMarketPrice(itemID, false);
     if (data.lxp >= preis) {
         data.lxp -= preis;
+        
+        // Marktdynamik: Item wird dem Umlauf entzogen (Verknappung)
+        if (typeof MarketState !== 'undefined') {
+            MarketState.updateCirculation(itemID, -1);
+        }
+
         if (typeof addItem === 'function') {
             addItem(itemID, 1);
         } else {
@@ -184,7 +200,7 @@ function buyItem(itemID) {
         }
         finalizeMarketTrade(`${itemID} gekauft!`);
     } else {
-        alert("Nicht genug LXP!");
+        alert("Deine LXP reichen nicht aus!");
     }
 }
 
@@ -195,6 +211,12 @@ function sellItem(itemID) {
     if (data.inventar && data.inventar[itemID] > 0) {
         const preis = getMarketPrice(itemID, true);
         data.lxp += preis;
+        
+        // Marktdynamik: Item wird dem Umlauf zugeführt (Sättigung)
+        if (typeof MarketState !== 'undefined') {
+            MarketState.updateCirculation(itemID, 1);
+        }
+
         if (typeof removeItem === 'function') {
             removeItem(itemID, 1);
         } else {
