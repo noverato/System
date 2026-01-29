@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>The Nest: Overlord Edition 2026 - Debugged Build</title>
+    <title>The Nest: Overlord Edition 2026 - Master Build</title>
 
     <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:wght@400;700&display=swap" rel="stylesheet">
 
@@ -92,6 +92,9 @@
     <div id="hudClass" style="font-size:13px; color: #3b82f6; font-weight: bold;">Klasse...</div>
     <div style="font-size:12px; color:#4ade80; margin-top: 5px;">💎 LXP: <span id="lxpC">0</span> | ⭐ LVL: <span id="lvlTotal">0</span></div>
     <button class="btn-action" style="width:100%; margin-top:10px;" onclick="openInventory()">🎒 INVENTAR</button>
+    <div id="adminHud" style="display:none; margin-top:10px;">
+        <button class="btn-action" style="background:linear-gradient(135deg, #ff0000, #8b0000); width:100%;" onclick="openAdminPanel()">🛠 GÖTTER-MENÜ</button>
+    </div>
 </div>
 
 <div id="gameModal" class="modal">
@@ -160,7 +163,7 @@ let isIdentified = false;
 let twitchToken = "", verifiedID = "", onlinePlayers = {}, isAdmin = false;
 let data = { name: "Held", x: 960, y: 540, lxp: 0, hp: 100, maxHp: 100, stats: { atk: 10, def: 10, currentLevel: 1, className: "Ei" }, inventar: {}, equipment: {}, lxpBuffer: 0 };
 
-// --- RENDERING ENGINE (HOISTED FOR SAFETY) ---
+// --- RENDERING ENGINE ---
 function renderPlayers(players) {
     const layer = document.getElementById('charLayer');
     if (!layer) return;
@@ -183,9 +186,19 @@ function updateUI() {
     document.getElementById('hudClass').innerText = data.stats.className;
     document.getElementById('lxpC').innerText = data.lxp;
     document.getElementById('lvlTotal').innerText = data.stats.currentLevel;
+    
+    // Admin Hud Check
+    const adminPanel = document.getElementById('adminHud');
+    if (adminPanel) adminPanel.style.display = isAdmin ? 'block' : 'none';
 }
 
 function renderInventoryUI() {
+    // Scope Check: Existiert das items-Objekt?
+    if (typeof items === 'undefined') {
+        console.error("Scope Error: Global reference 'items' missing.");
+        return;
+    }
+
     const main = document.getElementById('modalLeft');
     if (!main) return;
     main.innerHTML = '';
@@ -198,13 +211,12 @@ function renderInventoryUI() {
 
     document.getElementById('avatar-base').src = (typeof getCreatureSprite === 'function') ? getCreatureSprite(data, isAdmin) : 'Ei.png';
     
-    // BACKPACK MAPPING
     const grid = document.getElementById('backpack-slots');
     let itemCount = 0;
     if (data.inventar) {
         Object.keys(data.inventar).forEach(id => {
             if (data.inventar[id] > 0) {
-                const item = items[id] || { name: id, icon: 'stone.png' }; // FALLBACK FIX
+                const item = items[id] || { name: id, icon: 'stone.png' }; 
                 const slot = document.createElement('div');
                 slot.className = 'slot';
                 slot.innerHTML = `<img src="${item.icon}"><span style="position:absolute;bottom:2px;right:4px;font-size:10px;">${data.inventar[id]}</span>`;
@@ -227,21 +239,34 @@ async function loadUserData() {
 
 function save() { if (isIdentified) db.ref('players/' + verifiedID).update({ ...data, lastSeen: Date.now() }); }
 
+// URL Hygiene Routine
+function cleanURL() {
+    if (window.location.hash) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+}
+
 window.onload = async () => {
     const hash = window.location.hash.substring(1);
     const params = new URLSearchParams(hash);
+    
     if (params.has("access_token")) {
         twitchToken = params.get("access_token");
+        cleanURL(); // Sofortige Hygiene
+        
         try {
-            const resp = await fetch(`https://api.twitch.tv/helix/users`, { headers: { 'Client-ID': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchToken}` } });
+            const resp = await fetch(`https://api.twitch.tv/helix/users`, { 
+                headers: { 'Client-ID': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchToken}` } 
+            });
             const result = await resp.json();
             if (result.data && result.data.length > 0) {
                 verifiedID = result.data[0].id;
                 data.name = result.data[0].display_name;
                 isIdentified = true;
                 isAdmin = (verifiedID === BROADCASTER_ID);
+                
                 await loadUserData();
-                // LISTENER AKTIVIEREN ERST WENN ALLES DEFINIERT IST
+                
                 db.ref('players').on('value', snap => {
                     onlinePlayers = snap.val() || {};
                     renderPlayers(onlinePlayers);
@@ -266,8 +291,11 @@ function openBuilding(b) {
     toggleModal('gameModal', true);
     const left = document.getElementById('modalLeft');
     left.innerHTML = '';
+    // Ressourcen-Check vor Aufruf
     if (b === 'steinbruch' && typeof renderMiningMenu === 'function') renderMiningMenu();
     else if (b === 'rathaus') left.appendChild(document.getElementById('evo-hall-template').content.cloneNode(true));
+    else if (b === 'markt' && typeof renderMarketplace === 'function') renderMarketplace();
+    else if (b === 'arena' && typeof renderArenaMatchmaking === 'function') renderArenaMatchmaking();
 }
 </script>
 </body>
