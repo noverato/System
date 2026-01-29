@@ -1,331 +1,594 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
+
 <html lang="de">
+
 <head>
+
     <meta charset="UTF-8">
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
     <title>The Nest: Overlord Edition 2026 - RPG Inventory Build</title>
+
 
     <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:wght@400;700&display=swap" rel="stylesheet">
 
-    <script src="items.js"></script> 
-    <script src="loot.js"></script>
+
+    <script src="items.js"></script> <script src="loot.js"></script>
+
     <script src="storage.js"></script>
-    <script src="evolution.js"></script> 
-    <script src="mining.js"></script> 
-    <script src="inventar.js"></script>
+
+    <script src="evolution.js"></script> <script src="mining.js"></script> <script src="inventar.js"></script>
+
     <script src="markt.js"></script>
+
     <script src="battle.js"></script>
+
     <script src="admin.js"></script>
 
+
     <style>
+
         :root { 
+
             --fantasy-bg: rgba(25, 15, 10, 0.98); 
+
             --gold: #ffd700; --border: 2px solid #ffd700; 
+
             --shadow: 0 0 25px rgba(255, 215, 0, 0.6); 
+
             --btn-grad: linear-gradient(135deg, #b8860b, #8b4513); 
+
             --hp-color: #ff4444; --mp-color: #3b82f6;
+
             --warrior: #ef4444; --mage: #3b82f6; --ranger: #22c55e; --craft: #eab308; --shadow-path: #a855f7;
+
             --ff-blue: rgba(0, 0, 150, 0.9);
+
         }
+
         body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Crimson Text', serif; background: #000; color: #fdf5e6; }
+
         
+
         #viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; }
+
         #world { width: 1920px; height: 1080px; background: url('./wald.png') no-repeat center; background-size: cover; position: absolute; transition: transform 0.1s ease-out; cursor: crosshair; }
+
         #charLayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1000; }
+
         
+
         /* --- INVENTAR & RPG UI CSS --- */
+
         .inventory-container { display: flex; flex-direction: column; gap: 20px; height: 100%; color: #fff; }
+
         .inv-upper { display: grid; grid-template-columns: 120px 1fr 200px; gap: 20px; min-height: 400px; }
+
         
+
         .equip-slots { display: flex; flex-direction: column; gap: 10px; }
+
         .slot { 
+
             width: 60px; height: 60px; border: 1px solid var(--gold); 
+
             background: rgba(0,0,0,0.4); border-radius: 4px; position: relative;
+
             display: flex; align-items: center; justify-content: center;
+
             box-shadow: inset 0 0 10px rgba(255,215,0,0.1); transition: 0.2s;
+
             cursor: pointer;
+
         }
+
         .slot:hover { box-shadow: var(--shadow); background: rgba(255,215,0,0.1); }
+
         .slot::before { content: attr(data-label); position: absolute; font-size: 9px; bottom: -12px; color: var(--gold); white-space: nowrap; }
+
         .slot img { width: 45px; height: 45px; object-fit: contain; }
 
+
         .avatar-preview { 
+
             position: relative; border: 1px solid rgba(255,215,0,0.2); 
+
             background: radial-gradient(circle, rgba(255,215,0,0.05) 0%, rgba(0,0,0,0.5) 70%);
+
             border-radius: 15px; display: flex; align-items: center; justify-content: center;
+
             overflow: hidden;
+
         }
+
         #avatar-base { height: 300px; filter: drop-shadow(0 0 20px rgba(0,0,0,0.8)); z-index: 1; }
+
         #weapon-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
 
+
         .stats-display { background: rgba(0,0,0,0.3); padding: 15px; border-radius: 10px; border: 1px solid rgba(255,215,0,0.3); }
+
         .stat-line { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px; font-weight: bold; }
+
         .set-bonus-active { color: #4ade80; font-weight: bold; animation: glow-green 1.5s infinite alternate; font-size: 13px; margin-top: 15px; text-align: center; display: none; }
+
         @keyframes glow-green { from { text-shadow: 0 0 5px #4ade80; } to { text-shadow: 0 0 15px #4ade80; } }
 
+
         .backpack-section { border-top: 2px solid var(--gold); padding-top: 20px; }
+
         .backpack-grid { 
+
             display: grid; grid-template-columns: repeat(8, 1fr); gap: 10px; 
+
             max-height: 250px; overflow-y: auto; padding: 10px;
+
         }
+
 
         .ff-tooltip {
+
             position: fixed; display: none; z-index: 30000;
+
             background: var(--ff-blue); border: 2px solid #fff; border-radius: 8px;
+
             padding: 15px; min-width: 220px; pointer-events: none;
+
             box-shadow: 0 0 20px #000; color: #fff;
+
         }
+
         .ff-tooltip h4 { margin: 0 0 8px 0; color: var(--gold); border-bottom: 1px solid #fff; font-size: 18px; }
 
+
         #hud { position: fixed; top: 20px; left: 20px; background: var(--fantasy-bg); padding: 15px; border-radius: 12px; border: var(--border); z-index: 5000; min-width: 200px; box-shadow: var(--shadow); }
+
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); display: none; z-index: 20000; align-items: center; justify-content: center; backdrop-filter: blur(12px); }
+
         .mmo-panel { width: 1250px; height: 850px; background: var(--fantasy-bg); border: var(--border); border-radius: 20px; display: flex; overflow: hidden; box-shadow: var(--shadow); }
+
         .panel-main { flex: 3; padding: 25px; overflow-y: auto; position: relative; }
+
         .panel-side { flex: 0.8; padding: 25px; background: rgba(20, 15, 10, 0.85); border-left: 2px solid var(--gold); display: flex; flex-direction: column; }
+
         .btn-action { background: var(--btn-grad); color: white; border: 1px solid var(--gold); padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+
     </style>
+
 </head>
+
 <body>
 
+
 <div id="viewport">
+
     <div id="world" onclick="handleWorldClick(event)">
+
         <div id="b-rathaus" class="building" style="left:1000px; top:600px; width:250px; height:250px; background-image:url('./rathaus.png');" onclick="event.stopPropagation(); openBuilding('rathaus')"><div class="label">Halle der Evolution</div></div>
+
         <div id="charLayer"></div>
+
     </div>
+
 </div>
+
 
 <div id="item-tooltip" class="ff-tooltip"></div>
 
+
 <div id="hud">
+
     <div style="color:gold; font-size: 20px; font-weight:bold;"><span id="playerName">Identifiziere...</span></div>
+
     <div id="hudClass" style="font-size:13px; color: #3b82f6; font-weight: bold;">Klasse...</div>
+
     <div style="font-size:12px; color:#4ade80; margin-top: 5px;">💎 LXP: <span id="lxpC">0</span> | ⭐ LVL: <span id="lvlTotal">0</span></div>
+
     <div id="adminHud" style="display:none; margin-top:10px;"><button class="btn-action" onclick="openAdminPanel()">🛠 GÖTTER-MENÜ</button></div>
+
     <button class="btn-action" style="width:100%; margin-top:10px;" onclick="openInventory()">🎒 RUCKSACK ÖFFNEN</button>
+
 </div>
+
 
 <div id="gameModal" class="modal">
+
     <div class="mmo-panel">
+
         <div class="panel-main" id="modalLeft"></div>
+
         <div class="panel-side">
+
             <h3 style="color:gold; margin-top:0;">📜 INFO</h3>
+
             <div id="sideInfo" style="font-size: 14px; color: #ccc;">Nutze Items, um deine Attribute zu steigern.</div>
+
             <button class="btn-action" style="width:100%; margin-top:auto;" onclick="closeGeneralModal()">X SCHLIESSEN</button>
+
         </div>
+
     </div>
+
 </div>
 
+
 <template id="inventory-template">
+
     <div class="inventory-container">
+
         <h2 style="color:gold; margin:0;">Helden-Inventar</h2>
+
         
+
         <div class="inv-upper">
+
             <div class="equip-slots">
+
                 <div class="slot" data-label="Kopf" id="slot-head"></div>
+
                 <div class="slot" data-label="Brust" id="slot-chest"></div>
+
                 <div class="slot" data-label="Hose" id="slot-legs"></div>
+
                 <div class="slot" data-label="Füße" id="slot-feet"></div>
+
                 <div class="slot" data-label="Accessoire" id="slot-acc"></div>
+
                 <div class="slot" data-label="Waffe" id="slot-weapon" style="margin-top:10px;"></div>
+
                 <div class="slot" data-label="Schild" id="slot-offhand"></div>
+
             </div>
+
 
             <div class="avatar-preview">
+
                 <img id="avatar-base" src="Ei.png">
+
                 <div id="weapon-layer"></div>
+
             </div>
+
 
             <div class="stats-display">
+
                 <h3 style="color:gold; margin-top:0; font-size:18px;">Attribute</h3>
+
                 <div class="stat-line"><span>HP:</span> <span id="stat-hp" style="color:var(--hp-color);">0</span></div>
+
                 <div class="stat-line"><span>MP:</span> <span id="stat-mp" style="color:var(--mp-color);">0</span></div>
+
                 <div class="stat-line"><span>ATK:</span> <span id="stat-atk" style="color:#ffcc00;">0</span></div>
+
                 <div class="stat-line"><span>DEF:</span> <span id="stat-def" style="color:#4ade80;">0</span></div>
+
                 
+
                 <div id="set-bonus-msg" class="set-bonus-active">✨ SET-BONUS AKTIV ✨</div>
+
             </div>
+
         </div>
+
 
         <div class="backpack-section">
+
             <h3 style="color:gold; margin:0 0 10px 0;">Rucksack (<span id="bag-count">0</span> Items)</h3>
+
             <div class="backpack-grid" id="backpack-slots"></div>
+
         </div>
+
     </div>
+
 </template>
 
+
 <script>
-// --- KONFIGURATION & FIREBASE ---
+
+// --- KONFIGURATION (UNBERÜHRT) ---
+
 const firebaseConfig = { apiKey: "AIzaSyCKNXJ-ouAOAcLr5ut-EemWQI8_zJxhqa8", authDomain: "thenest-81de6.firebaseapp.com", databaseURL: "https://thenest-81de6-default-rtdb.firebaseio.com", projectId: "thenest-81de6" };
+
 firebase.initializeApp(firebaseConfig);
+
 const db = firebase.database();
+
 const TWITCH_CLIENT_ID = "futhxsgrshkh2h6cqywavg5cous3q0";
+
 const BROADCASTER_ID = "573773653";
+
 const REDIRECT_URI = "https://noverato.github.io/System";
 
-// Globales Datenobjekt (Hierarchie-Fix: Wird von allen Skripten genutzt)
+
+// Zentrales Datenobjekt
+
 let data = { 
+
     name: "Held", x: 960, y: 540, lxp: 0, hp: 100, maxHp: 100, mp: 50, maxMp: 50,
+
     stats: { atk: 10, def: 10, currentLevel: 1, className: "Ei" }, 
+
     inventar: {}, equipment: { head: null, chest: null, legs: null, feet: null, weapon: null, offhand: null, acc: null },
-    setBonusActive: false, lxpBuffer: 0, ep: 0, followDays: 0
+
+    setBonusActive: false
+
 };
+
 
 let twitchToken = "", verifiedID = "", isIdentified = false, onlinePlayers = {}, isAdmin = false;
 
+
 // --- AUTH LOGIK ---
+
 async function checkTwitchAuth() { const hash = window.location.hash.substring(1); const params = new URLSearchParams(hash); if (params.has("access_token")) { twitchToken = params.get("access_token"); window.history.replaceState({}, document.title, window.location.pathname); return true; } return false; }
+
 async function initTwitchSession() { if (!twitchToken) return; try { const resp = await fetch(`https://api.twitch.tv/helix/users`, { headers: { 'Client-ID': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchToken}` } }); const result = await resp.json(); if (result.data && result.data.length > 0) { const twitchUser = result.data[0]; verifiedID = twitchUser.id; data.name = twitchUser.display_name; isIdentified = true; isAdmin = (verifiedID === BROADCASTER_ID); await loadUserData(); } } catch (err) { console.error(err); } }
-async function loadUserData() { if (!verifiedID) return; try { const snap = await db.ref('players/' + verifiedID).once('value'); if (snap.exists()) { const dbData = snap.val(); Object.assign(data, dbData); } else { save(); } updateUI(); } catch (err) { console.error("Sync Error:", err); } }
+
+async function loadUserData() { if (!verifiedID) return; try { const snap = await db.ref('players/' + verifiedID).once('value'); if (snap.exists()) { data = { ...data, ...snap.val() }; } else { save(); } updateUI(); } catch (err) { console.error(snap); } }
+
 function save() { if (!verifiedID || !isIdentified) return; db.ref('players/' + verifiedID).update({ ...data, lastSeen: Date.now() }); }
 
+
 function updateUI() {
+
     document.getElementById('playerName').innerText = isAdmin ? "OVERLORD " + data.name : data.name;
+
     document.getElementById('hudClass').innerText = data.stats.className;
+
     document.getElementById('lxpC').innerText = data.lxp;
+
     document.getElementById('lvlTotal').innerText = data.stats.currentLevel;
+
     if(isAdmin) document.getElementById('adminHud').style.display = 'block';
+
 }
 
-// --- MASTER INVENTAR SYSTEM ---
+
+// --- MASTER INVENTAR SYSTEM (NUTZT inventar.js) ---
+
 
 function openInventory() {
+
     toggleModal('gameModal', true);
+
     renderInventoryUI();
+
 }
+
 
 function renderInventoryUI() {
+
     const main = document.getElementById('modalLeft');
+
     main.innerHTML = '';
+
     const temp = document.getElementById('inventory-template');
+
     main.appendChild(temp.content.cloneNode(true));
 
-    // 1. RPG-Stats & Set-Bonus Visualisierung
+
+    // 1. Attribute & Boni anzeigen
+
     document.getElementById('stat-hp').innerText = data.maxHp;
+
     document.getElementById('stat-mp').innerText = data.maxMp;
+
     document.getElementById('stat-atk').innerText = data.stats.atk;
+
     document.getElementById('stat-def').innerText = data.stats.def;
+
     if(data.setBonusActive) document.getElementById('set-bonus-msg').style.display = 'block';
 
-    // 2. Avatar & Waffen-Anker-System (FIX: Pixel statt Prozent)
+
+    // 2. Avatar & Waffen-Anker-System
+
     const baseImg = (typeof getCreatureSprite === 'function') ? getCreatureSprite(data, verifiedID === BROADCASTER_ID) : 'Ei.png';
+
     document.getElementById('avatar-base').src = baseImg;
+
     
+
     const weaponLayer = document.getElementById('weapon-layer');
+
     weaponLayer.innerHTML = '';
+
     if (data.equipment.weapon) {
+
         const weapon = items[data.equipment.weapon];
-        const offsets = (typeof getWeaponOffsets === 'function') ? getWeaponOffsets(data) : { x: 150, y: 150, rotate: 0 };
+
+        const offsets = (typeof getWeaponOffsets === 'function') ? getWeaponOffsets(data) : { x: 50, y: 50, rotate: 0 };
+
         const wImg = document.createElement('img');
+
         wImg.src = weapon.icon;
+
         wImg.style.position = 'absolute';
-        wImg.style.left = offsets.x + 'px'; // KORREKTUR: Pixel-Basis
-        wImg.style.top = offsets.y + 'px';  // KORREKTUR: Pixel-Basis
+
+        wImg.style.left = offsets.x + '%';
+
+        wImg.style.top = offsets.y + '%';
+
         wImg.style.transform = `translate(-50%, -50%) rotate(${offsets.rotate}deg)`;
-        wImg.style.width = '65px';
+
+        wImg.style.width = '60px';
+
         weaponLayer.appendChild(wImg);
+
     }
+
 
     // 3. Equipment Slots füllen
+
     const equipKeys = ["head", "chest", "legs", "feet", "acc", "weapon", "offhand"];
+
     equipKeys.forEach(key => {
+
         const slot = document.getElementById(`slot-${key}`);
+
         const itemID = data.equipment[key];
+
         if (itemID && items[itemID]) {
+
             slot.innerHTML = `<img src="${items[itemID].icon}">`;
-            slot.onclick = () => { if(typeof unequipItem === 'function') unequipItem(key); renderInventoryUI(); save(); };
+
+            slot.onclick = () => { if(typeof unequipItem === 'function') unequipItem(key); renderInventoryUI(); };
+
             slot.onmouseenter = (e) => showTooltip(e, items[itemID]);
+
             slot.onmouseleave = hideTooltip;
+
+        } else {
+
+            slot.onclick = null;
+
         }
+
     });
 
-    // 4. Rucksack Grid Generierung
+
+    // 4. Rucksack Grid (40 Slots)
+
     const grid = document.getElementById('backpack-slots');
+
     let itemCount = 0;
+
     if (data.inventar) {
+
         Object.keys(data.inventar).forEach(id => {
+
             if (data.inventar[id] > 0) {
+
                 const item = items[id] || { name: id, icon: 'stone.png' };
+
                 const slot = document.createElement('div');
+
                 slot.className = 'slot';
+
                 slot.innerHTML = `<img src="${item.icon}"><span style="position:absolute; bottom:2px; right:4px; font-size:10px;">${data.inventar[id]}</span>`;
+
                 
-                // Equip-Logik (Klick auf Item im Rucksack)
+
+                // Equip-Logik bei Klick
+
                 slot.onclick = () => { 
+
                     if(typeof equipItem === 'function') equipItem(id); 
-                    renderInventoryUI(); 
-                    save(); 
+
+                    renderInventoryUI(); // UI Refresh
+
                 };
+
                 
-                // RPG Tooltip
+
+                // Tooltip Logik
+
                 slot.onmouseenter = (e) => showTooltip(e, item);
+
                 slot.onmouseleave = hideTooltip;
+
                 
+
                 grid.appendChild(slot);
+
                 itemCount++;
+
             }
+
         });
+
     }
 
-    // Auffüllen leere Slots
+
+    // Leerslots für die Optik
+
     for (let i = itemCount; i < 40; i++) {
+
         const empty = document.createElement('div');
+
         empty.className = 'slot';
+
         grid.appendChild(empty);
+
     }
+
     document.getElementById('bag-count').innerText = itemCount;
+
 }
+
 
 function showTooltip(e, item) {
+
     const tt = document.getElementById('item-tooltip');
-    const statDesc = (typeof getStatPreview === 'function') ? getStatPreview(item) : "Ein mysteriöser Gegenstand.";
+
+    // Nutzt die getStatPreview aus inventar.js
+
+    const statDesc = (typeof getStatPreview === 'function') ? getStatPreview(item) : "Keine Details verfügbar.";
+
     
+
     tt.innerHTML = `<h4>${item.name}</h4><div style="font-size:13px; line-height:1.4;">${statDesc}</div>`;
+
     tt.style.display = 'block';
+
     tt.style.left = (e.clientX + 20) + "px";
+
     tt.style.top = (e.clientY + 10) + "px";
+
 }
+
 
 function hideTooltip() { document.getElementById('item-tooltip').style.display = 'none'; }
 
-// --- WELT & MODAL STEUERUNG ---
+
+// --- WELT LOGIK ---
+
 function openBuilding(b) {
+
     toggleModal('gameModal', true);
+
     const main = document.getElementById('modalLeft');
+
     main.innerHTML = '';
+
     if (b === 'rathaus') {
+
         const temp = document.getElementById('evo-hall-template');
+
         main.appendChild(temp.content.cloneNode(true));
+
         if (typeof initEvoHallDisplay === 'function') initEvoHallDisplay();
-    } else if (b === 'steinbruch') {
-        if (typeof renderMiningMenu === 'function') renderMiningMenu();
+
     }
+
 }
+
 
 window.onload = async () => {
-    const authenticated = await checkTwitchAuth();
-    if (authenticated) {
+
+    if (await checkTwitchAuth()) {
+
         await initTwitchSession();
+
         db.ref('players').on('value', snap => {
+
             onlinePlayers = snap.val() || {};
-            // renderPlayers(onlinePlayers); // Falls aktiv
+
+            // renderPlayers logic hier einfügen falls benötigt
+
         });
-    } else {
-        const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${TWITCH_CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=token&scope=user:read:email`;
-        window.location.href = authUrl;
+
     }
+
 };
 
-function handleWorldClick(e) {
-    if (!isIdentified) return;
-    const rect = document.getElementById('world').getBoundingClientRect();
-    data.x = e.clientX - rect.left;
-    data.y = e.clientY - rect.top;
-    save();
-}
+
+function handleWorldClick(e) { /* Klick-Logik */ }
 
 function toggleModal(id, s) { document.getElementById(id).style.display = s ? 'flex' : 'none'; }
+
 function closeGeneralModal() { toggleModal('gameModal', false); hideTooltip(); }
 
-</script>
-</body>
-</html>
+
+</script> 
