@@ -156,9 +156,6 @@
 
 <script>
 // --- CORE CONFIG ---
-const firebaseConfig = { apiKey: "AIzaSyCKNXJ-ouAOAcLr5ut-EemWQI8_zJxhqa8", authDomain: "thenest-81de6.firebaseapp.com", databaseURL: "https://thenest-81de6-default-rtdb.firebaseio.com", projectId: "thenest-81de6" };
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
 const TWITCH_CLIENT_ID = "futhxsgrshkh2h6cqywavg5cous3q0";
 const BROADCASTER_ID = "573773653";
 const REDIRECT_URI = "https://noverato.github.io/System";
@@ -166,10 +163,6 @@ const REDIRECT_URI = "https://noverato.github.io/System";
 let isIdentified = false;
 let twitchToken = "", verifiedID = "", onlinePlayers = {}, isAdmin = false;
 let data = { name: "Held", x: 960, y: 540, lxp: 0, hp: 100, maxHp: 100, stats: { atk: 10, def: 10, currentLevel: 1, className: "Ei" }, inventar: {}, equipment: {}, lxpBuffer: 0 };
-
-// --- COMPATIBILITY SHIELD (KEIN REFACTOR) ---
-// Verhindert ReferenceError durch veraltete battle.js Aufrufe
-window.startMonsterFight = function() { console.warn("Legacy Battle Call suppressed. System uses ENCOUNTER_START event."); };
 
 // --- RENDERING ENGINE ---
 function renderPlayers(players) {
