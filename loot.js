@@ -1,12 +1,20 @@
 /**
- * THE NEST - Loot-Datenbank
- * Enthält 420 Items, unterteilt in 7 Tiers, 5 Kategorien und 2 Pfade.
+ * THE NEST - Loot-Datenbank (System-Anbindung v2)
+ * Inklusive Slot-Mapping, Stat-Zuweisung und Offset-Containern.
  */
 
 const LootManager = {
     interpolate: (min, max, step) => Math.floor(min + (max - min) * (step / 5)),
 
-    // Die Master-Daten basierend auf deinen Listen
+    // Mapping-Konfiguration für die System-Anbindung
+    config: {
+        BOWS:    { slot: "weapon", statType: "atk", icon: "bow" },
+        SWORDS:  { slot: "weapon", statType: "atk", icon: "sword" },
+        DAGGERS: { slot: "weapon", statType: "atk", icon: "dagger" },
+        STAVES:  { slot: "weapon", statType: "atk", icon: "staff" },
+        SHIELDS: { slot: "shield", statType: "def", icon: "shield" }
+    },
+
     raw: {
         BOWS: [
             { t: 1, l: ["Esche-Kurzbogen", "Recurve-Bogen", "Sehnen-Verstärker", "Falken-Bogen", "Waldläufer-Präzision", "Meisterstück: Licht-Novize"], lV: [8, 70], d: ["Rostiger Dolch", "Gezinkter Wurfdolch", "Schatten-Klinge", "Nachtschleicher-Bolzen", "Gift-Stachel", "Meisterstück: Schatten-Striezi"], dV: [10, 80] },
@@ -26,15 +34,15 @@ const LootManager = {
             { t: 6, l: ["Excalibur-Splitter", "Götter-Klinge", "Licht-Säule", "Himmels-Zorn", "Äther-Schwert", "Licht-Souverän-Klinge"], lV: [1300, 2100], d: ["Leeren-Klinge", "Sternenfresser", "Nachtmahr", "Schatten-Riss", "Ewige Nacht", "Fürst d. Finsternis"], dV: [1500, 2500] },
             { t: 7, l: ["Ur-Licht-Schwert", "Genesis-Klinge", "Alfa-Stahl", "Gottes-Hand", "Ewigkeit", "Ewiger Vanguard-Zorn"], lV: [2400, 4200], d: ["Schatten-Monarch-Rapier", "Apokalypse", "Endzeit", "Weltentöter", "Nichts-Bringer", "Monarch-Ende"], dV: [2800, 5000] }
         ]
-        // Hinweis: SHIELDS, STAVES & DAGGERS folgen derselben Logik...
     }
 };
 
-// Generierung des FullLootPool Objekts
 const FullLootPool = (function() {
     const pool = {};
     for (const [cat, tiers] of Object.entries(LootManager.raw)) {
         pool[cat] = {};
+        const meta = LootManager.config[cat] || { slot: "none", statType: "atk", icon: "default" };
+
         tiers.forEach(tier => {
             pool[cat][tier.t] = { light: [], dark: [] };
             for (let i = 0; i < 6; i++) {
@@ -42,43 +50,39 @@ const FullLootPool = (function() {
                 const lStat = LootManager.interpolate(tier.lV[0], tier.lV[1], i);
                 const dStat = LootManager.interpolate(tier.dV[0], tier.dV[1], i);
                 
-                pool[cat][tier.t].light.push({
-                    id: `${cat[0]}${tier.t}_L${lvl}`,
-                    name: tier.l[i],
+                // Helper für die Objekterstellung
+                const createItem = (side, name, statValue) => ({
+                    id: `${cat[0]}${tier.t}_${side[0].toUpperCase()}${lvl}`,
+                    name: name,
                     tier: tier.t,
                     levelReq: lvl,
-                    stats: lStat,
-                    lxp: Math.floor(lStat * 0.1),
-                    path: "light"
+                    slot: meta.slot,
+                    [meta.statType]: statValue, // Dynamisches Mapping auf atk oder def
+                    lxp: Math.floor(statValue * 0.1),
+                    path: side,
+                    iconType: meta.icon,
+                    offsets: {}
                 });
 
-                pool[cat][tier.t].dark.push({
-                    id: `${cat[0]}${tier.t}_D${lvl}`,
-                    name: tier.d[i],
-                    tier: tier.t,
-                    levelReq: lvl,
-                    stats: dStat,
-                    lxp: Math.floor(dStat * 0.1),
-                    path: "dark"
-                });
+                pool[cat][tier.t].light.push(createItem("light", tier.l[i], lStat));
+                pool[cat][tier.t].dark.push(createItem("dark", tier.d[i], dStat));
             }
         });
     }
     return pool;
 })();
 
-/**
- * Haupt-Schnittstelle für die Engine
- */
 function getRandomItem(category, tier, path) {
     if (!FullLootPool[category] || !FullLootPool[category][tier] || !FullLootPool[category][tier][path]) {
         console.error(`Schatzmeister-Fehler: Ungültiger Abruf (${category}, Tier ${tier}, ${path})`);
         return null;
     }
-
     const items = FullLootPool[category][tier][path];
     const selectedItem = items[Math.floor(Math.random() * items.length)];
 
-    console.log(`[Schatzmeister] Loot generiert: ${selectedItem.name} (+${selectedItem.stats})`);
+    // Logging passend zum neuen Stat-Mapping
+    const statKey = LootManager.config[category].statType;
+    console.log(`[Schatzmeister] Loot generiert: ${selectedItem.name} (${statKey.toUpperCase()}: +${selectedItem[statKey]})`);
+    
     return selectedItem;
 }
