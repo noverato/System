@@ -1,41 +1,74 @@
 /**
  * THE NEST: STORAGE & SYNC MODULE (storage.js)
- * Spezialisierung: Evolutions-Beständigkeit & Kapselung im Stats-Objekt.
+ * Alleinige Instanz für Firebase, Auth-Sync und Daten-Persistenz.
+ * V1-Zentralisierung: Ausgelagert aus der Master-HTML.
  */
 
-// --- 1. CORE SPEICHER-LOGIK ---
+// --- 1. FIREBASE & AUTH INITIALISIERUNG ---
+// Firebase wird hier zentral verwaltet (Config aus HTML-Vorgabe)
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
+const db = firebase.database();
 
+// --- 2. GLOBALE DATEN-VERWALTUNG ---
+// Diese Variablen steuern den Status des Nests
+window.isIdentified = false;
+window.twitchToken = "";
+window.verifiedID = "";
+window.onlinePlayers = {};
+window.isAdmin = false;
+
+// Das zentrale Daten-Objekt (Initialzustand)
+window.data = { 
+    name: "Held", 
+    x: 960, 
+    y: 540, 
+    lxp: 0, 
+    hp: 100, 
+    maxHp: 100, 
+    stats: { 
+        atk: 10, 
+        def: 10, 
+        currentLevel: 1, 
+        className: "Ei",
+        currentPath: "Neutral",
+        dailyMarkers: 0,
+        hiddenXP: 0,
+        evolutionDate: Date.now()
+    }, 
+    inventar: {}, 
+    equipment: {}, 
+    lxpBuffer: 0 
+};
+
+// --- 3. CORE SPEICHER-LOGIK ---
+
+/**
+ * Schreibt den aktuellen Stand des globalen 'data' Objekts in die Firebase.
+ */
 function save() {
-    if (typeof verifiedID === 'undefined' || !verifiedID || !isIdentified) return;
+    if (!window.isIdentified || !window.verifiedID) return;
 
-    // SICHERHEITSABFRAGE
-    if (data.lxp === undefined || data.inventar === undefined || data.stats === undefined) {
-        console.error("Hüter-Alarm: Speichern abgebrochen! Datenstruktur (stats) beschädigt.");
+    // Sicherheitsabfrage: Abbruch bei Daten-Korruption
+    if (data.lxp === undefined || data.stats === undefined) {
+        console.error("Hüter-Alarm: Speichern abgebrochen! Datenstruktur unvollständig.");
         return;
     }
 
-    // Wir strukturieren das Paket so, dass die Evolutions-Werte in stats landen
     const savePacket = {
         ...data,
-        stats: {
-            ...data.stats,
-            currentClass: data.stats.currentClass || "Ei",
-            currentPath: data.stats.currentPath || "Neutral",
-            dailyMarkers: data.stats.dailyMarkers || 0,
-            hiddenXP: data.stats.hiddenXP || 0,
-            evolutionDate: data.stats.evolutionDate || Date.now()
-        },
         lastSeen: Date.now()
     };
 
-    db.ref('players/' + verifiedID).update(savePacket)
+    db.ref('players/' + window.verifiedID).update(savePacket)
     .then(() => {
-        console.log("💾 Hüter: Stats & Evolution sicher verwahrt.");
+        console.log("💾 Hüter: Fortschritt gesichert.");
         if (typeof updateUI === "function") updateUI();
     })
     .catch(err => console.error("Hüter-Fehler beim Sichern:", err));
 
-    localStorage.setItem('nest_backup_' + verifiedID, JSON.stringify(savePacket));
+    localStorage.setItem('nest_backup_' + window.verifiedID, JSON.stringify(savePacket));
 }
 
 function triggerAutoSave() {
@@ -43,41 +76,29 @@ function triggerAutoSave() {
 }
 window.triggerAutoSave = triggerAutoSave;
 
-// --- 2. DATEN-LADEN & EVOLUTION-SYNC ---
+// --- 4. DATEN-LADEN & TWITCH-SYNC ---
 
+/**
+ * Lädt Spielerdaten aus der Cloud und mappt sie auf das globale Objekt.
+ */
 async function loadUserData() {
-    if (typeof verifiedID === 'undefined' || !verifiedID) return;
+    if (!window.verifiedID) return;
     
     try {
-        const snapshot = await db.ref('players/' + verifiedID).once('value');
+        const snapshot = await db.ref('players/' + window.verifiedID).once('value');
         if (snapshot.exists()) {
             const dbData = snapshot.val();
             
-            // Tiefen-Mapping für das stats-Objekt
+            // Tiefen-Mapping (Sicherstellung der stats-Struktur)
             Object.assign(data, dbData);
+            data.stats = { ...(data.stats || {}), ...dbData.stats };
             
-            // Sicherstellen, dass das stats-Objekt und seine neuen Felder existieren
-            data.stats = {
-                ...(dbData.stats || {}),
-                currentClass: dbData.stats?.currentClass || "Ei",
-                currentPath: dbData.stats?.currentPath || "Neutral",
-                dailyMarkers: dbData.stats?.dailyMarkers || 0,
-                hiddenXP: dbData.stats?.hiddenXP || 0,
-                evolutionDate: dbData.stats?.evolutionDate || Date.now()
-            };
-            
-            console.log("📂 Hüter: Profil & Evolutions-Stats erfolgreich geladen.");
+            console.log("📂 Hüter: Profil erfolgreich geladen.");
             
             if (typeof updateUI === "function") updateUI();
-            if (typeof updateInventoryUI === "function") updateInventoryUI(data.inventar);
-            
-            // Die evolution.js kann nun direkt auf data.stats.hiddenXP etc. zugreifen
-            if (typeof syncEvolutionState === "function") {
-                syncEvolutionState(data);
-            }
-            
+            if (typeof renderInventoryUI === "function") renderInventoryUI();
         } else {
-            console.log("📂 Hüter: Kein Profil gefunden. Erschaffe neuen Helden...");
+            console.log("📂 Hüter: Neues Profil wird angelegt.");
             save(); 
         }
     } catch (err) { 
@@ -85,10 +106,26 @@ async function loadUserData() {
     }
 }
 
-// --- 3. AUTOMATISIERUNG ---
+/**
+ * Übernimmt die Echtzeit-Synchronisation aller Spieler auf der Karte.
+ */
+function initRealtimeSync() {
+    db.ref('players').on('value', snap => {
+        window.onlinePlayers = snap.val() || {};
+        if (typeof renderPlayers === 'function') {
+            renderPlayers(window.onlinePlayers);
+        }
+    });
+}
 
+// --- 5. AUTOMATISIERUNG & CLEANUP ---
+
+// Intervall-Save alle 30 Sekunden
 setInterval(() => {
-    if (typeof isIdentified !== 'undefined' && isIdentified) {
-        save();
-    }
+    if (window.isIdentified) save();
 }, 30000);
+
+// Macht die Hauptfunktionen global für die HTML-Event-Handler verfügbar
+window.loadUserData = loadUserData;
+window.save = save;
+window.initRealtimeSync = initRealtimeSync;
