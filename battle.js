@@ -16,10 +16,14 @@ const BattleEngine = {
     animationLock: false,
 
     // --- 1. INITIALISIERUNG ---
-    // Nimmt nun das Monster-Objekt direkt entgegen (z.B. vom Event)
     startCombat(monsterData) {
-        if (this.active) return; // Kein doppelter Kampfstart
-        console.log("⚔️ Battle-Meister: Signal empfangen. Kampf wird initialisiert...");
+        // Sicherheits-Check: Nur starten, wenn nicht aktiv und Daten vorhanden
+        if (this.active || !monsterData) {
+            console.warn("⚔️ Battle-Meister: Kampf-Start abgebrochen (Bereits aktiv oder keine Daten).");
+            return;
+        }
+
+        console.log("⚔️ Battle-Meister: ENCOUNTER_START empfangen. Monster:", monsterData.name);
         
         this.resetState();
 
@@ -27,28 +31,42 @@ const BattleEngine = {
         const weaponPower = data.equipment?.weapon?.power || 0;
         const armorValue = data.equipment?.armor?.value || 0;
 
-        // Spieler-Setup
+        // Lokale Spiegelung der Spieler-Stats für die Kampf-Mathematik
         this.player = {
-            name: data.name,
-            hp: data.hp,
-            maxHp: data.maxHp,
-            mp: data.stats.mp || 20,
-            maxMp: data.stats.mp || 20,
-            atk: (isAdmin ? 999 : (data.stats.atk || 10)) + weaponPower,
-            def: (data.stats.def || 5) + armorValue,
-            spd: data.stats.spd || 10,
-            lvl: data.stats.currentLevel || 1
+            name: data.name || "Held",
+            hp: data.hp || 100,
+            maxHp: data.maxHp || 100,
+            mp: data.stats?.mp || 20,
+            maxMp: data.stats?.mp || 20,
+            // GesamtAtk = (Basis + Waffe)
+            atk: (isAdmin ? 999 : (data.stats?.atk || 10)) + weaponPower,
+            // GesamtDef = (Basis + Rüstung)
+            def: (data.stats?.def || 5) + armorValue,
+            spd: data.stats?.spd || 10,
+            lvl: data.stats?.currentLevel || 1
         };
 
-        // Monster-Zuweisung (Daten kommen fertig aus dem Event)
-        this.enemy = monsterData;
-        this.enemy.isMonster = true;
+        // Monster-Daten übernehmen
+        this.enemy = {
+            ...monsterData,
+            hp: monsterData.hp,
+            maxHp: monsterData.maxHp,
+            isMonster: true
+        };
 
-        // UI-Vorbereitung (Modal & Hintergrund)
-        toggleModal('gameModal', true);
+        // UI-Aktivierung & State-Wechsel
         this.active = true;
+        
+        // Modal öffnen (via globaler Hilfsfunktion aus index.html)
+        if (typeof toggleModal === 'function') {
+            toggleModal('gameModal', true);
+        } else {
+            document.getElementById('gameModal').style.display = 'flex';
+        }
+
         this.renderArena();
         this.startLoop();
+        this.log(`Ein wildes ${this.enemy.name} erscheint!`, "white");
     },
 
     resetState() {
@@ -56,59 +74,90 @@ const BattleEngine = {
         this.enemyATB = 0;
         this.healsUsed = 0;
         this.animationLock = false;
+        this.isPaused = false;
     },
 
-    // --- 2. ATB ENGINE ---
+    // --- 2. ATB ENGINE (Das Herzstück) ---
     startLoop() {
         const tick = () => {
-            if (!this.active) return; 
+            if (!this.active) return; // Hardstop wenn Kampf beendet
+            
             if (!this.isPaused && !this.animationLock) {
-                this.playerATB += (this.player.spd * 0.065);
-                this.enemyATB += (this.enemy.spd * 0.065);
+                // ATB füllt sich basierend auf Speed-Stat
+                this.playerATB += (this.player.spd * 0.07);
+                this.enemyATB += (this.enemy.spd * 0.07);
+                
                 this.updateBars();
 
-                if (this.playerATB >= 100) { this.playerATB = 100; this.toggleActionButtons(true); }
-                if (this.enemyATB >= 100) { this.enemyATB = 100; this.executeEnemyTurn(); }
+                // Spieler Zug-Check
+                if (this.playerATB >= 100) {
+                    this.playerATB = 100;
+                    this.toggleActionButtons(true);
+                }
+
+                // Gegner Zug-Check
+                if (this.enemyATB >= 100) {
+                    this.enemyATB = 100;
+                    this.executeEnemyTurn();
+                }
             }
             requestAnimationFrame(tick);
         };
         requestAnimationFrame(tick);
     },
 
-    // --- 3. KAMPF-LOGIK ---
+    // --- 3. KAMPF-LOGIK & MATHEMATIK ---
     executeAction(type) {
         if (this.playerATB < 100 || this.animationLock) return;
+        
         this.animationLock = true;
         this.toggleActionButtons(false);
 
-        if (type === 'attack') this.calculateDamage(this.player, this.enemy, 'player');
-        else if (type === 'heal') this.executeHeal();
+        if (type === 'attack') {
+            this.calculateDamage(this.player, this.enemy, 'player');
+        } else if (type === 'heal') {
+            this.executeHeal();
+        }
 
         this.playerATB = 0;
         this.checkVictoryCondition();
-        if (this.active) setTimeout(() => { this.animationLock = false; }, 600);
+        
+        // Kurzer Lock für die Animation/Lesbarkeit
+        if (this.active) {
+            setTimeout(() => { this.animationLock = false; }, 600);
+        }
     },
 
     executeEnemyTurn() {
         this.animationLock = true;
+        this.toggleActionButtons(false);
+
         setTimeout(() => {
             if (!this.active) return;
             this.calculateDamage(this.enemy, this.player, 'enemy');
             this.enemyATB = 0;
             this.checkVictoryCondition();
-            if (this.active) this.animationLock = false;
+            
+            if (this.active) {
+                this.animationLock = false;
+            }
         }, 900);
     },
 
     calculateDamage(attacker, defender, side) {
         const variance = 0.85 + Math.random() * 0.3;
+        // Formel: (ATK * Varianz) - (DEF * 0.7)
         let dmg = Math.floor((attacker.atk * variance) - (defender.def * 0.7));
         dmg = Math.max(1, dmg); 
 
         defender.hp -= dmg;
-        if (side === 'enemy') data.hp = Math.ceil(this.player.hp);
+        
+        // Schaden an Spieler in globale data spiegeln (für Storage-Sync)
+        if (side === 'enemy') {
+            data.hp = Math.max(0, Math.ceil(this.player.hp));
+        }
 
-        this.log(`${attacker.name} verursacht ${dmg} Schaden!`, side === 'player' ? '#4ade80' : '#ff4444');
+        this.log(`${attacker.name} trifft für ${dmg} Schaden!`, side === 'player' ? '#4ade80' : '#ff4444');
         this.updateBars();
     },
 
@@ -119,18 +168,27 @@ const BattleEngine = {
         data.hp = this.player.hp;
         this.healsUsed++;
         this.log(`✨ Heilung! +${healAmt} HP`, 'cyan');
+        this.updateBars();
     },
 
     checkVictoryCondition() {
-        if (this.enemy.hp <= 0) { this.enemy.hp = 0; this.active = false; this.win(); }
-        else if (this.player.hp <= 0) { this.player.hp = 0; this.active = false; this.lose(); }
+        if (this.enemy.hp <= 0) {
+            this.enemy.hp = 0;
+            this.active = false;
+            this.win();
+        } else if (this.player.hp <= 0) {
+            this.player.hp = 0;
+            this.active = false;
+            this.lose();
+        }
     },
 
     win() {
         const reward = this.enemy.lxpReward || 50;
-        this.log(`🏆 SIEG! +${reward} LXP`, "gold");
+        this.log(`🏆 SIEG! +${reward} LXP erhalten!`, "gold");
         data.lxp += reward;
         
+        // Beute-Check via loot.js Modul
         if (typeof processLootDrop === 'function') {
             const drop = processLootDrop(); 
             if (drop) {
@@ -139,6 +197,7 @@ const BattleEngine = {
                 this.log(`🎒 Beute: ${drop.name}`, "#a855f7");
             }
         }
+        
         if (typeof updateUI === 'function') updateUI();
         if (typeof save === 'function') save();
         setTimeout(() => this.endCombat(), 2500);
@@ -163,7 +222,6 @@ const BattleEngine = {
         const myImg = isAdmin ? 'Overlord.png' : (typeof EVO_IMGS !== 'undefined' ? EVO_IMGS[data.stats?.totalEvoLevel || 0] : 'Ei.png');
         const barTextStyle = "position:absolute; width:100%; top:0; left:0; text-align:center; color:white; font-size:11px; font-weight:bold; text-shadow: 1px 1px 2px #000; line-height:14px; pointer-events:none; z-index:5;";
 
-        // Emoji-Fallback-Logik
         const enemyVisual = this.enemy.img.length < 4 
             ? `<div style="font-size: 100px; filter: drop-shadow(0 0 15px red);">${this.enemy.img}</div>` 
             : `<img src="${this.enemy.img}" style="width:140px; filter:drop-shadow(0 0 15px red);">`;
@@ -190,7 +248,7 @@ const BattleEngine = {
                     </div>
                 </div>
                 <div style="margin-bottom:20px;">
-                    <div id="battleLog" style="background:rgba(0,0,0,0.8); padding:10px; border-radius:8px; margin:0 40px 15px 40px; text-align:center; border:1px solid gold; font-size:20px; color:white; min-height:40px;">Kampf!</div>
+                    <div id="battleLog" style="background:rgba(0,0,0,0.8); padding:15px; border-radius:8px; margin:0 40px 15px 40px; text-align:center; border:1px solid gold; font-size:20px; color:white; min-height:40px;">Kampf beginnt!</div>
                     <div class="ff-buttons" style="display:flex; gap:15px; justify-content:center;">
                         <button id="btnAtk" class="btn-action" onclick="BattleEngine.executeAction('attack')" style="min-width:160px;">⚔️ ANGRIFF</button>
                         <button id="btnHeal" class="btn-action" onclick="BattleEngine.executeAction('heal')" style="min-width:160px;">🧪 HEILUNG</button>
@@ -204,7 +262,6 @@ const BattleEngine = {
     updateBars() {
         const pFill = document.getElementById('playerHpFill');
         const eFill = document.getElementById('enemyHpFill');
-        const pAtbFill = document.getElementById('playerAtbFill');
         const pTxt = document.getElementById('playerHpText');
         const eTxt = document.getElementById('enemyHpText');
 
@@ -230,17 +287,24 @@ const BattleEngine = {
         this.active = false;
         const left = document.getElementById('modalLeft');
         if (left) left.style.backgroundImage = "none";
-        if (typeof toggleModal === 'function') toggleModal('gameModal', false);
-        else document.getElementById('gameModal').style.display = 'none';
+        
+        if (typeof closeGeneralModal === 'function') {
+            closeGeneralModal();
+        } else if (typeof toggleModal === 'function') {
+            toggleModal('gameModal', false);
+        } else {
+            document.getElementById('gameModal').style.display = 'none';
+        }
     }
 };
 
 /**
- * --- EVENT-LISTENER (Decoupled Bridge) ---
- * BattleJS hört auf das Signal von externen Modulen (z.B. adventure.js)
+ * --- EVENT-LISTENER ---
+ * Hört auf das Signal vom EventHub.
  */
 window.addEventListener('ENCOUNTER_START', (event) => {
-    const { monster } = event.detail; // Payload extrahieren
+    // Falls EventHub.emitEncounter(monster) ein CustomEvent mit { monster } im detail sendet:
+    const monster = event.detail.monster || event.detail; 
     if (monster) {
         BattleEngine.startCombat(monster);
     }
