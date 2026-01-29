@@ -23,7 +23,7 @@ const BattleEngine = {
             return;
         }
 
-        console.log("⚔️ Battle-Meister: ENCOUNTER_START empfangen. Monster:", monsterData.name);
+        console.log("⚔️ Battle-Meister: Kampf wird initialisiert. Monster:", monsterData.name);
         
         this.resetState();
 
@@ -61,7 +61,8 @@ const BattleEngine = {
         if (typeof toggleModal === 'function') {
             toggleModal('gameModal', true);
         } else {
-            document.getElementById('gameModal').style.display = 'flex';
+            const modal = document.getElementById('gameModal');
+            if (modal) modal.style.display = 'flex';
         }
 
         this.renderArena();
@@ -77,25 +78,22 @@ const BattleEngine = {
         this.isPaused = false;
     },
 
-    // --- 2. ATB ENGINE (Das Herzstück) ---
+    // --- 2. ATB ENGINE ---
     startLoop() {
         const tick = () => {
-            if (!this.active) return; // Hardstop wenn Kampf beendet
+            if (!this.active) return; 
             
             if (!this.isPaused && !this.animationLock) {
-                // ATB füllt sich basierend auf Speed-Stat
                 this.playerATB += (this.player.spd * 0.07);
                 this.enemyATB += (this.enemy.spd * 0.07);
                 
                 this.updateBars();
 
-                // Spieler Zug-Check
                 if (this.playerATB >= 100) {
                     this.playerATB = 100;
                     this.toggleActionButtons(true);
                 }
 
-                // Gegner Zug-Check
                 if (this.enemyATB >= 100) {
                     this.enemyATB = 100;
                     this.executeEnemyTurn();
@@ -122,7 +120,6 @@ const BattleEngine = {
         this.playerATB = 0;
         this.checkVictoryCondition();
         
-        // Kurzer Lock für die Animation/Lesbarkeit
         if (this.active) {
             setTimeout(() => { this.animationLock = false; }, 600);
         }
@@ -146,13 +143,11 @@ const BattleEngine = {
 
     calculateDamage(attacker, defender, side) {
         const variance = 0.85 + Math.random() * 0.3;
-        // Formel: (ATK * Varianz) - (DEF * 0.7)
         let dmg = Math.floor((attacker.atk * variance) - (defender.def * 0.7));
         dmg = Math.max(1, dmg); 
 
         defender.hp -= dmg;
         
-        // Schaden an Spieler in globale data spiegeln (für Storage-Sync)
         if (side === 'enemy') {
             data.hp = Math.max(0, Math.ceil(this.player.hp));
         }
@@ -188,7 +183,6 @@ const BattleEngine = {
         this.log(`🏆 SIEG! +${reward} LXP erhalten!`, "gold");
         data.lxp += reward;
         
-        // Beute-Check via loot.js Modul
         if (typeof processLootDrop === 'function') {
             const drop = processLootDrop(); 
             if (drop) {
@@ -293,22 +287,29 @@ const BattleEngine = {
         } else if (typeof toggleModal === 'function') {
             toggleModal('gameModal', false);
         } else {
-            document.getElementById('gameModal').style.display = 'none';
+            const modal = document.getElementById('gameModal');
+            if (modal) modal.style.display = 'none';
         }
     }
 };
 
 /**
- * --- EVENT-LISTENER ---
- * Hört auf das Signal vom EventHub.
+ * --- EVENT-SYSTEM INTEGRATION ---
+ * Verknüpfung mit dem EventHub der Overlord Edition.
  */
-window.addEventListener('ENCOUNTER_START', (event) => {
-    // Falls EventHub.emitEncounter(monster) ein CustomEvent mit { monster } im detail sendet:
-    const monster = event.detail.monster || event.detail; 
-    if (monster) {
+if (typeof EventHub !== 'undefined' && EventHub.onEncounter) {
+    // Die Arena nutzt EventHub.emitEncounter(monster). 
+    // Hier registrieren wir den Listener für genau diesen Event-Typ.
+    EventHub.onEncounter((monster) => {
         BattleEngine.startCombat(monster);
-    }
-});
+    });
+} else {
+    // Fallback für konventionelle Event-Abwicklung
+    window.addEventListener('ENCOUNTER_START', (e) => {
+        const monster = e.detail?.monster || e.detail;
+        if (monster) BattleEngine.startCombat(monster);
+    });
+}
 
-/** * GLOBALE EXPORTS */
+/** GLOBALE EXPORTS */
 function executeCombatAction(type) { BattleEngine.executeAction(type); }
