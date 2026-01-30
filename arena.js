@@ -1,22 +1,18 @@
 /**
  * 🏟️ arena.js – The Nest: Overlord Edition 2026
  * Rolle: Arena-UI & Kampf-Auswahl
- * Verantwortlich NUR für UI + Trigger
+ * REGEL: Kein State, jedes Öffnen = kompletter Neu-Render
  */
 
-const Arena = (function () {
+const Arena = (() => {
     'use strict';
-
-    let isOpen = false;
 
     /* ==============================
        🔓 ÖFFNEN / SCHLIESSEN
     ============================== */
 
     function open() {
-        if (isOpen) return;
-        isOpen = true;
-
+        // Modal IMMER öffnen
         if (typeof toggleModal === 'function') {
             toggleModal('gameModal', true);
         }
@@ -25,11 +21,11 @@ const Arena = (function () {
     }
 
     function close() {
-        isOpen = false;
-
         if (typeof toggleModal === 'function') {
             toggleModal('gameModal', false);
         }
+
+        // bewusst nichts merken, nichts speichern
     }
 
     /* ==============================
@@ -38,10 +34,17 @@ const Arena = (function () {
 
     function renderMenu() {
         const left = document.getElementById('modalLeft');
+        const right = document.getElementById('modalRight');
         if (!left) return;
 
+        // RESET (extrem wichtig)
+        left.innerHTML = '';
+        if (right) right.innerHTML = '';
+
+        // Hintergrund IMMER neu setzen
         left.style.backgroundImage = "url('./arena_innen.png')";
         left.style.backgroundSize = "cover";
+        left.style.backgroundPosition = "center";
 
         left.innerHTML = `
             <div style="
@@ -73,21 +76,20 @@ const Arena = (function () {
 
                 <button class="btn-action"
                     onclick="Arena.startBossEvent()"
-                    style="min-width:260px; margin-top:10px;">
+                    style="min-width:260px;">
                     👑 Boss-Event
                 </button>
 
                 <button class="btn-action"
                     onclick="Arena.close()"
-                    style="margin-top:20px; background:#444;">
+                    style="background:#444;">
                     ❌ Verlassen
                 </button>
             </div>
         `;
 
-        const info = document.getElementById('modalRight');
-        if (info) {
-            info.innerHTML = `
+        if (right) {
+            right.innerHTML = `
                 <h3 style="color:gold;">ℹ️ Arena-Info</h3>
                 <p>Wähle eine Herausforderung.</p>
                 <p>Boss-Events sind seltener & gefährlicher.</p>
@@ -106,21 +108,21 @@ const Arena = (function () {
         }
 
         let monster;
+        const lvl = window.data?.stats?.currentLevel || 1;
 
         try {
-            const lvl = window.data?.stats?.currentLevel || 1;
             monster = MonsterLibrary?.generateArenaBoss
                 ? MonsterLibrary.generateArenaBoss(lvl)
                 : fallbackMonster(lvl);
         } catch {
-            monster = fallbackMonster(1);
+            monster = fallbackMonster(lvl);
         }
 
         EventHub.emitEncounter(monster);
     }
 
     function startBossEvent() {
-        alert("👑 Boss-Events sind noch versiegelt.\nBereite dich vor.");
+        alert("👑 Boss-Events sind noch versiegelt.");
     }
 
     function fallbackMonster(level) {
@@ -137,17 +139,12 @@ const Arena = (function () {
         };
     }
 
-    /* ==============================
-       🔁 API
-    ============================== */
-
     return {
         open,
         close,
         startMonsterFight,
         startBossEvent
     };
-
 })();
 
 window.Arena = Arena;
