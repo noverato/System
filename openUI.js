@@ -40,11 +40,20 @@ const OpenUI = (() => {
         return true;
     }
 
-    function _clear() {
+    function _clearContent() {
         const left = _getLeft();
         const right = _getRight();
         if (left) left.innerHTML = '';
         if (right) right.innerHTML = '';
+    }
+
+    /** ✅ EINZIGE Quelle der Wahrheit für Hintergründe */
+    function resetModalBackground() {
+        const left = _getLeft();
+        if (!left) return;
+        left.style.backgroundImage = '';
+        left.style.backgroundSize = '';
+        left.style.backgroundPosition = '';
     }
 
     // --- öffentliche API ---
@@ -60,8 +69,11 @@ const OpenUI = (() => {
         const left = _getLeft();
         const right = _getRight();
 
-        _clear();
+        // 🔥 ABSOLUTE RESET-PHASE
+        resetModalBackground();
+        _clearContent();
 
+        // 🔧 Rendern
         left.innerHTML = html;
         if (right && rightHtml !== null) {
             right.innerHTML = rightHtml;
@@ -74,23 +86,16 @@ const OpenUI = (() => {
      * Schließt das UI
      * = KOMPLETTES VERGESSEN
      */
-function close() {
-    const left = document.getElementById('modalLeft');
-    if (left) {
-        left.style.backgroundImage = '';
-        left.style.backgroundSize = '';
-        left.style.backgroundPosition = '';
-    }
+    function close() {
+        resetModalBackground();
+        _clearContent();
 
-    if (typeof toggleModal === 'function') {
-        toggleModal('gameModal', false);
+        const modal = _getModal();
+        if (modal) modal.style.display = 'none';
     }
-}
-
 
     /**
      * Alias für open()
-     * (für Lesbarkeit in Modulen)
      */
     function replace(html = '', rightHtml = null) {
         open(html, rightHtml);
@@ -99,7 +104,8 @@ function close() {
     return {
         open,
         close,
-        replace
+        replace,
+        resetModalBackground
     };
 })();
 
