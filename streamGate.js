@@ -1,13 +1,14 @@
 /**
- * THE NEST – STREAM GATE
- * Autorität: Streamer.bot WebSocket
- * Zustand: ONLINE nur wenn WebSocket verbunden
+ * THE NEST – STREAMGATE
+ * Sperrt das Spiel, wenn Streamer.bot offline ist
+ * Admin (Hüter) darf IMMER rein
  */
+
+window.NEST_OFFLINE = true;
 
 const StreamGate = {
     socket: null,
-    online: false,
-    wsUrl: "ws://127.0.0.1:8080", // ⚠️ ggf. Port anpassen
+    connected: false,
 
     init() {
         this.connect();
@@ -15,68 +16,48 @@ const StreamGate = {
 
     connect() {
         try {
-            console.log("🔌 StreamGate: versuche Verbindung zu Streamer.bot …");
-
-            this.socket = new WebSocket(this.wsUrl);
+            this.socket = new WebSocket("ws://127.0.0.1:8080");
 
             this.socket.onopen = () => {
-                console.log("🟢 StreamGate: Streamer.bot verbunden");
-                this.setOnline(true);
+                console.log("🟢 Streamer.bot verbunden");
+                this.connected = true;
+                this.unlockNest();
             };
 
             this.socket.onclose = () => {
-                console.warn("🔴 StreamGate: Verbindung getrennt");
-                this.setOnline(false);
-                this.retry();
+                console.log("🔴 Streamer.bot offline");
+                this.connected = false;
+                this.lockNest();
             };
 
             this.socket.onerror = () => {
-                console.error("❌ StreamGate: WebSocket Fehler");
-                this.setOnline(false);
-                this.retry();
+                console.log("⚠️ WebSocket Fehler");
+                this.connected = false;
+                this.lockNest();
             };
-
-            this.socket.onmessage = (event) => {
-                // Optional für spätere Erweiterungen
-                try {
-                    const msg = JSON.parse(event.data);
-                    if (msg.type === "STREAM_STATE") {
-                        this.setOnline(msg.live === true);
-                    }
-                } catch (e) {
-                    // stille Ignorierung
-                }
-            };
-
-        } catch (err) {
-            console.error("❌ StreamGate: Verbindung fehlgeschlagen", err);
-            this.setOnline(false);
-            this.retry();
-        }
-    },
-
-    retry() {
-        setTimeout(() => {
-            this.connect();
-        }, 5000); // alle 5 Sekunden neu versuchen
-    },
-
-    setOnline(state) {
-        this.online = state;
-
-        if (state) {
-            this.unlockNest();
-        } else {
+        } catch (e) {
+            console.log("❌ Keine Verbindung möglich");
             this.lockNest();
         }
     },
 
+    isAdmin() {
+        return (
+            window.NEST_USER &&
+            window.NEST_USER.loggedIn &&
+            window.NEST_USER.role === "admin"
+        );
+    },
+
     lockNest() {
-        console.log("🌙 THE NEST SCHLÄFT");
+        // 🛡️ ADMIN-BYPASS
+        if (this.isAdmin()) {
+            console.log("🛡️ Hüter anwesend – Nest bleibt offen");
+            window.NEST_OFFLINE = false;
+            this.removeOverlay();
+            return;
+        }
 
-        document.body.classList.add("nest-offline");
-
-        // harte Sperre aller Systeme
         window.NEST_OFFLINE = true;
 
         if (!document.getElementById("nestOfflineOverlay")) {
@@ -86,7 +67,7 @@ const StreamGate = {
                 <div style="
                     position:fixed;
                     inset:0;
-                    background:rgba(0,0,0,0.85);
+                    background:rgba(0,0,0,0.88);
                     z-index:99999;
                     display:flex;
                     align-items:center;
@@ -97,10 +78,8 @@ const StreamGate = {
                 ">
                     <div>
                         <h1 style="margin-bottom:10px;">🌙 Das Nest schläft</h1>
-                        <p style="opacity:0.8;">
-                            Der Hüter ist nicht anwesend.<br>
-                            Keiner darf handeln, ernten oder kämpfen.
-                        </p>
+                        <p>Der Hüter ist nicht anwesend.</p>
+                        <p style="opacity:0.6;">Komm wieder, wenn der Stream erwacht.</p>
                     </div>
                 </div>
             `;
@@ -109,17 +88,17 @@ const StreamGate = {
     },
 
     unlockNest() {
-        console.log("☀️ THE NEST ERWACHT");
-
-        document.body.classList.remove("nest-offline");
         window.NEST_OFFLINE = false;
+        this.removeOverlay();
+    },
 
+    removeOverlay() {
         const overlay = document.getElementById("nestOfflineOverlay");
         if (overlay) overlay.remove();
     }
 };
 
-// automatisch starten
+// Automatisch starten
 document.addEventListener("DOMContentLoaded", () => {
     StreamGate.init();
 });
