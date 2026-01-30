@@ -1,78 +1,70 @@
 /**
- * 🏟️ arena.js - The Nest: Overlord Edition 2026
- * * ZWECK: Entscheidet WELCHER Kampf stattfindet und initialisiert diesen.
- * ARCHITEKTUR: Lose Kopplung via EventHub. Keine UI, kein Firebase, keine Logik.
+ * 🏟️ arena.js – THE NEST
+ * Aufgabe:
+ * - entscheidet welchen Kampf es gibt
+ * - erzeugt Monster
+ * - feuert Event an BattleEngine
+ * KEINE UI, KEINE Battle-Logik
  */
 
-const Arena = (function() {
+(function () {
     'use strict';
 
-    /**
-     * Startet einen Kampf in der Arena.
-     * Prüft Voraussetzungen und sendet das Monster an den EventHub.
-     */
     function startMonsterFight() {
-        console.log("🏟️ Arena-Meister: Initialisiere Kampf-Check...");
+        console.log("🏟️ Arena: Kampfstart angefordert");
 
-        // 1. Identifikations-Check (Sicherheitsbarriere)
+        // 🔐 Sicherheitscheck
         if (!window.isIdentified) {
-            console.error("❌ Arena-Abbruch: Spieler ist nicht identifiziert.");
+            console.warn("❌ Arena: Spieler nicht identifiziert");
             return;
         }
 
-        // 2. Monster-Generierung
-        let monster;
-        
-        try {
-            // Versuche Boss aus der Library zu laden
-            if (typeof MonsterLibrary !== 'undefined' && MonsterLibrary.generateArenaBoss) {
-                monster = MonsterLibrary.generateArenaBoss();
-            } else {
-                // Fallback, falls Library nicht geladen oder Funktion fehlt
-                monster = _generateFallbackMonster();
-            }
-        } catch (error) {
-            console.warn("⚠️ Arena: Fehler bei Monster-Generierung, nutze Fallback.", error);
-            monster = _generateFallbackMonster();
+        if (typeof MonsterLibrary === 'undefined') {
+            console.error("❌ Arena: MonsterLibrary nicht geladen");
+            return;
         }
 
-        // 3. Event via EventHub feuern
-        // Die battle.js hört auf ENCOUNTER_START und übernimmt die Ausführung
-        if (typeof EventHub !== 'undefined' && EventHub.emitEncounter) {
-            console.log(`⚔️ Arena: Sende Encounter für "${monster.name}" an EventHub.`);
-            EventHub.emitEncounter(monster);
-        } else {
-            console.error("❌ Arena-Fehler: EventHub.emitEncounter nicht gefunden!");
+        if (typeof EventHub === 'undefined') {
+            console.error("❌ Arena: EventHub nicht geladen");
+            return;
         }
+
+        // 📊 Spieler-Level bestimmen
+        const level = window.data?.stats?.currentLevel || 1;
+
+        // 🐲 Monster erzeugen
+        let monster;
+        try {
+            monster = MonsterLibrary.generateArenaBoss(level);
+        } catch (err) {
+            console.error("❌ Arena: Fehler bei Monster-Erzeugung", err);
+            monster = generateFallbackMonster(level);
+        }
+
+        console.log("⚔️ Arena: Monster erzeugt →", monster.name);
+
+        // 🚨 Battle starten
+        EventHub.emitEncounter(monster);
     }
 
-    /**
-     * Erzeugt ein standardisiertes Monster-Objekt als Fallback.
-     * Entspricht dem Pflicht-Format für das Projekt.
-     * @private
-     */
-    function _generateFallbackMonster() {
-        const currentLvl = window.data?.stats?.currentLevel || 1;
-        
+    // 🧯 Notfall-Monster
+    function generateFallbackMonster(level) {
         return {
-            name: "Arena Schatten",
+            name: "Arena-Schatten",
+            lvl: level,
             hp: 120,
             maxHp: 120,
             atk: 12,
             def: 6,
             spd: 10,
-            lvl: currentLvl,
             img: "👹",
             lxpReward: 50
         };
     }
 
-    // Öffentliche API
-    return {
-        startMonsterFight: startMonsterFight
+    // 🌍 Öffentliche API
+    window.Arena = {
+        startMonsterFight
     };
 
 })();
-
-// Globaler Zugriff für UI-Trigger (ohne Inline-Events in HTML)
-window.Arena = Arena;
