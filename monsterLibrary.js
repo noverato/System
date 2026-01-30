@@ -1,106 +1,96 @@
 /**
- * 🐲 monsterLibrary.js
- * Zentrale Monster-Datenbank für THE NEST
- * Verantwortlich NUR für Monster-Erzeugung
- * Keine Battle-Logik, keine UI
+ * monsterLibrary.js
+ * Zentrale Monster-Generierung für THE NEST
+ * bewusst simpel, robust & browser-sicher
  */
 
-// 🔹 Prefixe (Modifikatoren)
-const MONSTER_PREFIXES = [
-    { name: "Riesiges", hpMod: 1.5, atkMod: 1.0, lxpMod: 1.0 },
-    { name: "Brennendes", hpMod: 1.0, atkMod: 1.2, lxpMod: 1.0 },
-    { name: "Gepanzertes", hpMod: 1.2, atkMod: 1.0, lxpMod: 1.0 },
-    { name: "Flinkes", hpMod: 0.8, atkMod: 1.3, lxpMod: 1.0 },
-    { name: "Uraltes", hpMod: 2.0, atkMod: 1.1, lxpMod: 1.5 },
-    { name: "Schattenhaftes", hpMod: 0.9, atkMod: 1.4, lxpMod: 1.2 }
-];
+(function () {
+    'use strict';
 
-// 🔹 Wildnis-Monster
-const WILDNIS_MONSTER = [
-    { name: "Slime", emoji: "💧" },
-    { name: "Goblin", emoji: "👺" },
-    { name: "Skelett", emoji: "💀" },
-    { name: "Waldspinne", emoji: "🕷️" },
-    { name: "Moos-Golem", emoji: "🗿" },
-    { name: "Schattenwolf", emoji: "🐺" },
-    { name: "Bandit", emoji: "🗡️" },
-    { name: "Waldgeist", emoji: "👻" }
-];
+    const prefixes = [
+        { name: "Riesiger", hp: 1.5, atk: 1.0, lxp: 1.0 },
+        { name: "Flinker", hp: 0.8, atk: 1.3, lxp: 1.0 },
+        { name: "Gepanzerter", hp: 1.2, atk: 0.9, lxp: 1.0 },
+        { name: "Schattenhafter", hp: 0.9, atk: 1.4, lxp: 1.2 },
+        { name: "Uralter", hp: 2.0, atk: 1.1, lxp: 1.5 }
+    ];
 
-// 🔹 Arena-Bosse
-const ARENA_BOSSE = [
-    { name: "Der Arena-Meister", emoji: "👑" },
-    { name: "Knochen-Gigant", emoji: "🦴" },
-    { name: "Minotaurus", emoji: "🐂" },
-    { name: "Vampir-Lord", emoji: "🧛" },
-    { name: "Der Schatten-Monarch", emoji: "🌑" }
-];
+    const wildMonsters = [
+        { name: "Slime", icon: "💧" },
+        { name: "Goblin", icon: "👺" },
+        { name: "Skelett", icon: "💀" },
+        { name: "Waldspinne", icon: "🕷️" },
+        { name: "Wildschwein", icon: "🐗" }
+    ];
 
-// 🔹 Suffixe
-const MONSTER_SUFFIXES = [
-    "des Schreckens",
-    "der Finsternis",
-    "der Wildnis",
-    "des alten Waldes",
-    "aus dem Nest"
-];
+    const arenaBosses = [
+        { name: "Arena-Meister", icon: "👑" },
+        { name: "Knochen-Gigant", icon: "🦴" },
+        { name: "Minotaurus", icon: "🐂" },
+        { name: "Schatten-Lord", icon: "🌑" }
+    ];
 
-// 🔹 Hilfsfunktionen
-function random(arr) {
-    return arr[Math.floor(Math.random() * arr.length)];
-}
-
-// 🔹 Monster-Erstellung
-function createMonster(name, level, emoji, isBoss, prefix) {
-    let baseHp = 80 + level * 20;
-    let baseAtk = 8 + level * 4;
-    let baseLxp = 50 + level * 15;
-
-    if (prefix) {
-        baseHp *= prefix.hpMod;
-        baseAtk *= prefix.atkMod;
-        baseLxp *= prefix.lxpMod;
+    function rand(arr) {
+        return arr[Math.floor(Math.random() * arr.length)];
     }
 
-    if (isBoss) {
-        baseHp *= 4;
-        baseAtk *= 1.5;
-        baseLxp *= 3;
+    function scale(level) {
+        return 1 + (level - 1) * 0.15;
     }
 
-    return {
-        name,
-        lvl: level,
-        hp: Math.round(baseHp),
-        maxHp: Math.round(baseHp),
-        atk: Math.round(baseAtk),
-        def: Math.round(baseAtk * 0.8),
-        spd: 10,
-        lxpReward: Math.round(baseLxp),
-        img: emoji
+    function createMonster(baseName, icon, level, mods, boss) {
+        const s = scale(level);
+
+        let hp = 80 * s * mods.hp;
+        let atk = 10 * s * mods.atk;
+        let def = atk * 0.7;
+        let lxp = 50 * s * mods.lxp;
+
+        if (boss) {
+            hp *= 4;
+            atk *= 1.5;
+            lxp *= 3;
+        }
+
+        return {
+            name: baseName,
+            lvl: level,
+            hp: Math.round(hp),
+            maxHp: Math.round(hp),
+            atk: Math.round(atk),
+            def: Math.round(def),
+            spd: 10,
+            img: icon,
+            lxpReward: Math.round(lxp)
+        };
+    }
+
+    window.MonsterLibrary = {
+        generateWildMonster(level) {
+            const p = rand(prefixes);
+            const m = rand(wildMonsters);
+            return createMonster(
+                `${p.name} ${m.name}`,
+                m.icon,
+                level,
+                p,
+                false
+            );
+        },
+
+        generateArenaBoss(level) {
+            const b = rand(arenaBosses);
+            const p = { hp: 1, atk: 1, lxp: 1 };
+            return createMonster(
+                `BOSS: ${b.name}`,
+                b.icon,
+                level,
+                p,
+                true
+            );
+        }
     };
-}
 
-// 🔹 Öffentliche API
-const MonsterLibrary = {
+    console.log("🐉 MonsterLibrary geladen");
 
-    generateWildnisMonster(level = 1) {
-        const prefix = random(MONSTER_PREFIXES);
-        const core = random(WILDNIS_MONSTER);
-        const suffix = random(MONSTER_SUFFIXES);
-
-        const name = `${prefix.name} ${core.name} ${suffix}`;
-        return createMonster(name, level, core.emoji, false, prefix);
-    },
-
-    generateArenaBoss(level = 1) {
-        const boss = random(ARENA_BOSSE);
-        const prefix = { name: "Ewiger", hpMod: 1, atkMod: 1, lxpMod: 1 };
-
-        const name = `BOSS: ${boss.name}`;
-        return createMonster(name, level, boss.emoji, true, prefix);
-    }
-};
-
-// 🌍 Global verfügbar machen
-window.MonsterLibrary = MonsterLibrary;
+})();
