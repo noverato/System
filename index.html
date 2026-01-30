@@ -342,11 +342,11 @@ function openBuilding(b) {
         left.appendChild(document.getElementById('evo-hall-template').content.cloneNode(true));
         if (typeof initEvoHallDisplay === 'function') initEvoHallDisplay();
     }
-345: else if (b === 'markt' && typeof renderMarketplace === 'function') renderMarketplace();
-346: else if (b === 'arena' && window.Arena) {
-347:    Arena.open();
-348: } // Schließt das 'else if' der Arena
-349: } // Schließt die gesamte Funktion 'openBuilding'
-350: </script>
+ else if (b === 'markt' && typeof renderMarketplace === 'function') renderMarketplace();
+ else if (b === 'arena' && window.Arena) {
+    Arena.open();
+ } // Schließt das 'else if' der Arena
+ } // Schließt die gesamte Funktion 'openBuilding'
+</script>
 </body>
 </html>
