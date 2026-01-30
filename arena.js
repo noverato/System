@@ -16,8 +16,9 @@
             return;
         }
 
-        const lvl = window.data?.stats?.currentLevel || 1;
-        const monster = MonsterLibrary.generateArenaBoss(lvl);
+        const level = window.data?.stats?.currentLevel || 1;
+        monster = MonsterLibrary.generateArenaBoss(level);
+
 
         console.log("⚔️ Arena startet Kampf gegen:", monster.name);
         EventHub.emitEncounter(monster);
