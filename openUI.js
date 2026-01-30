@@ -1,12 +1,21 @@
 /**
  * 🪟 OpenUI.js
  * Zentrale UI-Steuerung für The Nest
- * Rolle: Fenster öffnen / schließen / wechseln
- * KEINE Spiellogik, KEINE Rechteprüfung
+ * Rolle: Fenster öffnen / schließen
+ * KEINE Spiellogik
+ * KEINE Zustände
  */
 
+/**
+ * 🏗️ UI-GRUNDREGEL – GILT IMMER
+ *
+ * UI ist ein Einweg-Objekt.
+ * Öffnen  = Rendern
+ * Schließen = Vergessen
+ *
+ * Keine Ausnahmen.
+ */
 const OpenUI = (() => {
-    let currentView = null;
 
     // --- interne Helfer ---
     function _getModal() {
@@ -31,22 +40,27 @@ const OpenUI = (() => {
         return true;
     }
 
+    function _clear() {
+        const left = _getLeft();
+        const right = _getRight();
+        if (left) left.innerHTML = '';
+        if (right) right.innerHTML = '';
+    }
+
     // --- öffentliche API ---
 
     /**
-     * Öffnet eine UI-Ansicht
-     * @param {string} viewId - z.B. 'arena', 'market', 'auction', 'admin'
-     * @param {string} html - HTML-Inhalt für modalLeft
-     * @param {string|null} rightHtml - optionaler Inhalt für modalRight
+     * Öffnet ein UI-Fenster
+     * JEDER AUFRUF = NEUER RENDER
      */
-    function open(viewId, html = '', rightHtml = null) {
+    function open(html = '', rightHtml = null) {
         if (!_ensureModal()) return;
 
         const modal = _getModal();
         const left = _getLeft();
         const right = _getRight();
 
-        currentView = viewId;
+        _clear();
 
         left.innerHTML = html;
         if (right && rightHtml !== null) {
@@ -54,62 +68,34 @@ const OpenUI = (() => {
         }
 
         modal.style.display = 'flex';
-
-        console.log(`🪟 OpenUI: View "${viewId}" geöffnet`);
     }
 
     /**
-     * Schließt das aktuell offene UI
+     * Schließt das UI
+     * = KOMPLETTES VERGESSEN
      */
     function close() {
         const modal = _getModal();
-        if (modal) modal.style.display = 'none';
+        if (!modal) return;
 
-        currentView = null;
-        console.log("🪟 OpenUI: UI geschlossen");
+        _clear();
+        modal.style.display = 'none';
     }
 
     /**
-     * Tauscht nur den Inhalt, ohne das Fenster neu zu öffnen
+     * Alias für open()
+     * (für Lesbarkeit in Modulen)
      */
-    function replace(viewId, html = '', rightHtml = null) {
-        if (!_ensureModal()) return;
-
-        const left = _getLeft();
-        const right = _getRight();
-
-        currentView = viewId;
-
-        left.innerHTML = html;
-        if (right && rightHtml !== null) {
-            right.innerHTML = rightHtml;
-        }
-
-        console.log(`🪟 OpenUI: View gewechselt zu "${viewId}"`);
-    }
-
-    /**
-     * Liefert die aktuell offene View-ID
-     */
-    function getCurrentView() {
-        return currentView;
-    }
-
-    /**
-     * Prüft, ob eine bestimmte View aktiv ist
-     */
-    function isOpen(viewId) {
-        return currentView === viewId;
+    function replace(html = '', rightHtml = null) {
+        open(html, rightHtml);
     }
 
     return {
         open,
         close,
-        replace,
-        getCurrentView,
-        isOpen
+        replace
     };
 })();
 
-// global verfügbar machen
+// global verfügbar
 window.OpenUI = OpenUI;
