@@ -74,13 +74,19 @@ const OpenUI = (() => {
      * Schließt das UI
      * = KOMPLETTES VERGESSEN
      */
-    function close() {
-        const modal = _getModal();
-        if (!modal) return;
-
-        _clear();
-        modal.style.display = 'none';
+function close() {
+    const left = document.getElementById('modalLeft');
+    if (left) {
+        left.style.backgroundImage = '';
+        left.style.backgroundSize = '';
+        left.style.backgroundPosition = '';
     }
+
+    if (typeof toggleModal === 'function') {
+        toggleModal('gameModal', false);
+    }
+}
+
 
     /**
      * Alias für open()
