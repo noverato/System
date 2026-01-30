@@ -343,7 +343,12 @@ function openBuilding(b) {
         if (typeof initEvoHallDisplay === 'function') initEvoHallDisplay();
     }
     else if (b === 'markt' && typeof renderMarketplace === 'function') renderMarketplace();
-    else if (b === 'arena' && typeof renderArenaMatchmaking === 'function') renderArenaMatchmaking();
+    else if (b === 'arena' && window.Arena) {
+    Arena.open();
+}
+
+}
+
 }
 </script>
 </body>
