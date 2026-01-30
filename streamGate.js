@@ -59,5 +59,8 @@
         const overlay = document.getElementById('offlineOverlay');
         if (overlay) overlay.remove();
     }
+// 🔒 Sicherheit: Standardmäßig IMMER offline starten
+window.addEventListener('load', () => {
+    window.setStreamLiveState(false);
+});
 
-})();
