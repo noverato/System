@@ -10,8 +10,8 @@ const Encounter = (() => {
        ⚙️ KONFIGURATION
     ============================== */
     const MIN_STEPS = 12;
-    const BASE_CHANCE = 0.03;        // 3 %
-    const CHANCE_GROWTH = 0.015;     // +1.5 % pro Klick
+    const BASE_CHANCE = 0.05;        // 5 %
+    const CHANCE_GROWTH = 0.025;     // +2.5 % pro Klick
     const COOLDOWN_MS = 30 * 1000;
 
     /* ==============================
