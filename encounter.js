@@ -22,7 +22,7 @@ const Encounter = (() => {
        ⚙️ KONFIGURATION
     ============================== */
     const MIN_STEPS = 20;
-    const BASE_CHANCE = 0.005; // 0.5 %
+    const BASE_CHANCE = 0.008; // 0.8 %
     const CHANCE_GROWTH = 0.0025; // +0.25 % pro Klick
     const COOLDOWN_MS = 90 * 1000;
 
