@@ -58,7 +58,7 @@ const Encounter = (() => {
             `[Encounter] Monster erschienen: ${monster.name} (Lvl ${monster.lvl})`
         );
 
-        return monster; // ✅ WICHTIG
+        return monster;
     }
 
     /* ==============================
@@ -110,7 +110,7 @@ const Encounter = (() => {
         if (Math.random() < chance) {
             const monster = startEncounter();
             if (monster && window.EventHub) {
-                EventHub.emit(EventHub.EVENTS.ENCOUNTER_START,  monster );
+                EventHub.emit(EventHub.EVENTS.ENCOUNTER_START, monster);
             }
         }
     }
@@ -143,3 +143,51 @@ const Encounter = (() => {
 })();
 
 window.Encounter = Encounter;
+
+
+/* =========================================================
+   🔒 INTERCEPTOR FÜR FROZEN HTML
+   (NICHT Teil des Encounter-Moduls)
+========================================================= */
+
+document.addEventListener('click', function(event) {
+    const worldMap = document.getElementById('world');
+    if (!worldMap) return;
+
+    const rect = worldMap.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+
+    if (x >= 0 && y >= 0 && x <= rect.width && y <= rect.height) {
+
+        const isSafeZone = (x > 400 && x < 1500 && y > 150 && y < 700);
+
+        if (!isSafeZone) {
+            console.log("Wildnis betreten! Suche nach Monstern...");
+            if (typeof Encounter !== 'undefined' && Encounter.registerStep) {
+                Encounter.registerStep();
+            }
+        } else {
+            console.log("Sicheres Nest. Keine Monster hier.");
+        }
+    }
+});
+
+
+/* =========================================================
+   🔧 FIX FÜR EVENT-HUB (GLOBALER FALLBACK)
+========================================================= */
+
+function startEncounter() {
+    console.log("Kampf wird vorbereitet...");
+    const playerLevel = window.gameState?.playerLevel || 1;
+
+    const monster = window.MonsterLibrary.generateWildnisMonster(playerLevel + 2);
+
+    if (monster) {
+        console.log("Monster gefunden: " + monster.name);
+        EventHub.emit(EventHub.EVENTS.ENCOUNTER_START, monster);
+        return monster;
+    }
+    return null;
+}
