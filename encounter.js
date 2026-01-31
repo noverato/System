@@ -127,9 +127,17 @@ const Encounter = (() => {
     /* ==============================
        📡 EVENT-ANBINDUNG
     ============================== */
-    if (window.EventHub) {
-        EventHub.on("battle:victory", handleVictory);
-        EventHub.on("battle:escape", handleEscape);
+     if (window.EventHub) {
+         // Universal-Reset: Sobald die Arena schließt, wird der Wald frei!
+    if (window.Arena) {
+        EventHub.on("arena:close", () => {
+        console.log("Wald-Reset: Arena geschlossen.");
+        inEncounter = false;
+        startCooldown();
+    });
+}
+        //EventHub.on("battle:victory", handleVictory);
+        //EventHub.on("battle:escape", handleEscape);
 
         EventHub.on(
             EventHub.EVENTS.ENCOUNTER_STEP,
