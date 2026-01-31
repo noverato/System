@@ -101,7 +101,16 @@ const Encounter = (() => {
     ============================== */
     function registerStep() {
         stepCount++;
-
+        
+        if (inEncounter) {
+        console.log("System blockiert: Kampf läuft noch laut Logik.");
+        return;
+    }
+        if (isOnCooldown()) {
+        console.log("System blockiert: Cooldown aktiv.");
+        return;
+    }
+        
         if (isOnCooldown() || inEncounter) return;
 
         const chance = getEncounterChance();
