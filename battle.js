@@ -200,11 +200,17 @@ const BattleEngine = {
     },
 
     endCombat() {
-        if (this.enemy && typeof EventHub !== 'undefined') {
-            EventHub.emit("battle:escape", { monster: this.enemy });
+        // 🔥 HARTER RESET – OPTION A
+        this.active = false;
+        this.isPaused = false;
+        this.animationLock = false;
+        this.player = null;
+        this.enemy = null;
+
+        if (typeof EventHub !== 'undefined') {
+            EventHub.emit("battle:escape");
         }
 
-        this.active = false;
         const left = document.getElementById('modalLeft');
         if (left) left.style.backgroundImage = "none";
 
@@ -218,8 +224,8 @@ const BattleEngine = {
         }
     },
 
-    // --- UI ---
-    renderArena() { /* UNVERÄNDERT – von dir übernommen */ },
+    // --- UI (UNVERÄNDERT) ---
+    renderArena() { /* UNVERÄNDERT */ },
     updateBars() { /* UNVERÄNDERT */ },
     log(msg, color) { /* UNVERÄNDERT */ },
     toggleActionButtons(enabled) { /* UNVERÄNDERT */ }
