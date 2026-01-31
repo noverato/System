@@ -48,54 +48,30 @@ const Ticker = (() => {
         return window.data?.name || 'Spawn2909';
     }
 
-    /* ==============================
-       📡 EVENT-LISTENER
-    ============================== */
+/* ==============================
+    📡 EVENT-LISTENER
+============================== */
 
-    if (!window.EventHub) {
-        console.warn("📰 Ticker: EventHub nicht gefunden.");
-        return {};
-    }
+if (!window.EventHub) {
+    console.warn("📰 Ticker: EventHub nicht gefunden.");
+} else {
 
-    // 🌲 NEU: Wald-Erkundung (Wenn ein Monster erscheint)
+    // 🌲 Wald-Erkundung
     EventHub.on('encounter:start', (data) => {
         const monsterName = data?.monster?.name || 'etwas Unbekanntes';
-        pushMessage(`✨ <i>Ein wildes <b>${monsterName}</b> erscheint im Unterholz des Nests!</i>`);
+        Ticker.push(`✨ <i>Ein wildes <b>${monsterName}</b> erscheint im Unterholz!</i>`);
     });
 
-    // 🗡️ Kampf – Sieg
-    EventHub.on('battle:victory', ({ monster }) => {
-        if (!monster?.name) return;
-        pushMessage(`🏆 <b>${playerName()}</b> hat <b>${monster.name}</b> glorreich besiegt!`);
-    });
-
-    // 🏃 Kampf – Flucht / Niederlage
-    EventHub.on('battle:escape', ({ monster }) => {
-        if (!monster?.name) return;
-        pushMessage(`💨 <b>${playerName()}</b> konnte <b>${monster.name}</b> knapp entkommen.`);
-    });
-
-    // 🚪 NEU: Universal-Reset (Wenn die Arena schließt)
+    // 🏆 Sieg / Ende (Wir nutzen arena:close als Joker!)
     EventHub.on('arena:close', () => {
-        pushMessage(`🏠 <b>${playerName()}</b> kehrt von der Expedition zurück ins Nest.`);
+        // Da wir nicht wissen, ob Sieg oder Niederlage, schreiben wir es neutral & episch:
+        Ticker.push(`🏠 <b>${playerName()}</b> kehrt von der Expedition ins Nest zurück.`);
     });
 
-    // 🧬 Evolution
-    EventHub.on('evolution:stage', ({ from, to }) => {
-        if (!from || !to) return;
-        pushMessage(`🌟 <b>${playerName()}</b> entwickelt sich weiter: <b>${from}</b> → <b>${to}</b>!`);
-    });
-
-    // 👑 Boss-Herausforderung
-    EventHub.on('arena:start', ({ boss }) => {
-        if (!boss?.name) return;
-        pushMessage(`🔥 <b>${playerName()}</b> stellt sich der Prüfung gegen <b>${boss.name}</b>!`);
-    });
-
-    // ⚔️ PvP-Herausforderung
-    EventHub.on('pvp:challenge', ({ from, to }) => {
-        if (!from || !to) return;
-        pushMessage(`⚔️ <b>${from}</b> fordert <b>${to}</b> zu einem ehrenhaften Duell heraus!`);
+    // Behalte die anderen für den Fall, dass sie doch feuern:
+    EventHub.on('battle:victory', (data) => {
+        const name = data?.monster?.name || 'Gegner';
+        Ticker.push(`🏆 <b>${playerName()}</b> hat <b>${name}</b> glorreich besiegt!`);
     });
 
     /* ==============================
