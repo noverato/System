@@ -10,8 +10,8 @@ const Encounter = (() => {
        ⚙️ KONFIGURATION
     ============================== */
     const MIN_STEPS = 12;
-    const BASE_CHANCE = 0.05;        // 5 %
-    const CHANCE_GROWTH = 0.025;     // +2.5 % pro Klick
+    const BASE_CHANCE = 0.03;        // 3 %
+    const CHANCE_GROWTH = 0.015;     // +1.5 % pro Klick
     const COOLDOWN_MS = 30 * 1000;
 
     /* ==============================
@@ -101,25 +101,7 @@ const Encounter = (() => {
     ============================== */
     function registerStep() {
         stepCount++;
-        
-if (inEncounter) {
-    // Wir prüfen aktiv, ob das Arena-Fenster noch offen ist
-    const arenaVisible = document.querySelector('#arena-container') && document.querySelector('#arena-container').offsetParent !== null;
-    
-    if (!arenaVisible) {
-        console.log("WILDNIS-LOG: Arena nicht aktiv. Setze Status zurück...");
-        inEncounter = false;
-        // Jetzt darf der Klick weitergehen
-    } else {
-        console.log("System blockiert: Kampf läuft noch laut Logik.");
-        return;
-    }
-}
-        if (isOnCooldown()) {
-        console.log("System blockiert: Cooldown aktiv.");
-        return;
-    }
-        
+
         if (isOnCooldown() || inEncounter) return;
 
         const chance = getEncounterChance();
@@ -136,17 +118,9 @@ if (inEncounter) {
     /* ==============================
        📡 EVENT-ANBINDUNG
     ============================== */
-     if (window.EventHub) {
-         // Universal-Reset: Sobald die Arena schließt, wird der Wald frei!
-    if (window.Arena) {
-        EventHub.on("arena:close", () => {
-        console.log("Wald-Reset: Arena geschlossen.");
-        inEncounter = false;
-        startCooldown();
-    });
-}
-        //EventHub.on("battle:victory", handleVictory);
-        //EventHub.on("battle:escape", handleEscape);
+    if (window.EventHub) {
+        EventHub.on("battle:victory", handleVictory);
+        EventHub.on("battle:escape", handleEscape);
 
         EventHub.on(
             EventHub.EVENTS.ENCOUNTER_STEP,
