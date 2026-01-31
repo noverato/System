@@ -143,6 +143,7 @@ const Encounter = (() => {
 
         if (Math.random() < chance) {
             startEncounter();
+            EventHub.emit(EventHub.EVENTS.ENCOUNTER_START, monster);
         }
     }
 
@@ -154,6 +155,11 @@ const Encounter = (() => {
     if (window.EventHub) {
         EventHub.on("battle:victory", handleVictory);
         EventHub.on("battle:escape", handleEscape);
+        if (window.EventHub) {
+    // Registriere die Datei beim Hub für Schritte
+    EventHub.on(EventHub.EVENTS.ENCOUNTER_STEP, () => registerStep());
+    
+}
     }
 
     /* ==============================
