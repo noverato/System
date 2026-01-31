@@ -1,354 +1,154 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>The Nest: Overlord Edition 2026 - Master Build</title>
+/**
+ * THE NEST - Event Hub (v2.0.0)
+ * Zentrales Nervensystem für alle Gameplay-Module
+ *
+ * REGELN:
+ * - Keine Spiellogik
+ * - Keine UI-Logik
+ * - Keine direkten Modul-Imports
+ * - Reine Event-Orchestrierung
+ */
 
-    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:wght@400;700&display=swap" rel="stylesheet">
+const EventHub = (() => {
 
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-    
-<!-- 1️⃣ System & Verbindungen -->
-<script src="streamGate.js"></script>
-<script src="storage.js"></script>
+    /* ==============================
+       📌 EVENT-DEFINITIONEN
+    ============================== */
+    const EVENTS = {
 
-<!-- 2️⃣ Zentrale Daten -->
-<script src="items.js"></script>
+        /* 🌲 ENCOUNTER */
+        ENCOUNTER_STEP: 'encounter:step',
+        ENCOUNTER_START: 'encounter:start',
+        ENCOUNTER_END: 'encounter:end',
 
-<!-- 3️⃣ Event-System (SEHR WICHTIG FRÜH) -->
-<script src="eventhub.js"></script>
+        /* ⚔️ BATTLE / ARENA */
+        BATTLE_START: 'battle:start',
+        BATTLE_VICTORY: 'battle:victory',
+        BATTLE_ESCAPE: 'battle:escape',
 
-<!-- 4️⃣ UI-Grundlage -->
-<script src="openUI.js"></script>
+        ARENA_START: 'arena:start',
+        ARENA_VICTORY: 'arena:victory',
 
-<!-- 5️⃣ Spiel-Daten & Libraries -->
-<script src="monsterLibrary.js"></script>
-<script src="beute.js"></script>
-<script src="encounter.js"></script>
-<script src="market_catalog.js"></script>
-<script src="market_state.js"></script>
+        /* 🎁 LOOT / BEUTE */
+        LOOT_GENERATED: 'loot:generated',
+        BEUTE_READY: 'beute:ready',
 
-<!-- 6️⃣ Gameplay-Module -->
-<script src="arena.js"></script>
-<script src="battle.js"></script>
-<script src="mining.js"></script>
-<script src="inventar.js"></script>
-<script src="market.js"></script>
-<script src="evolution.js"></script>
+        /* 🎒 INVENTAR */
+        INVENTORY_ADD: 'inventory:add',
+        INVENTORY_OPEN: 'ui:inventory:open',
+        INVENTORY_CLOSE: 'ui:inventory:close',
 
-<!-- 7️⃣ UI & Extras -->
-<script src="avatar_anchors.js"></script>
+        /* ⛏️ WIRTSCHAFT */
+        RESOURCE_GAIN: 'resource:gain',
+        MARKET_TRANSACTION: 'market:transaction',
 
-<!-- 8️⃣ Admin IMMER ZUM SCHLUSS -->
-<script src="admin.js"></script>
+        /* 🌱 EVOLUTION */
+        EVOLUTION_XP: 'evolution:xp',
 
+        /* 🌍 WELT */
+        LOCATION_CHANGE: 'world:location:change',
 
+        /* 🖥️ UI */
+        NOTIFICATION: 'ui:notification',
 
+        /* 🛠️ ADMIN (OVERRIDE) */
+        ADMIN_FORCE: 'admin:force'
+    };
 
-    <style>
-        :root { 
-            --fantasy-bg: rgba(25, 15, 10, 0.98); 
-            --gold: #ffd700; --border: 2px solid #ffd700; 
-            --shadow: 0 0 25px rgba(255, 215, 0, 0.6); 
-            --btn-grad: linear-gradient(135deg, #b8860b, #8b4513); 
-            --hp-color: #ff4444; --mp-color: #3b82f6;
-            --warrior: #ef4444; --mage: #3b82f6; --ranger: #22c55e; --craft: #eab308; --shadow-path: #a855f7;
-            --ff-blue: rgba(0, 0, 150, 0.9);
-            --twitch-purple: #9146FF;
-        }
-        body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Crimson Text', serif; background: #000; color: #fdf5e6; }
-        #viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; }
-        #world { width: 1920px; height: 1080px; background: url('wald.png') no-repeat center; background-size: cover; position: absolute; transition: transform 0.1s ease-out; cursor: crosshair; }
-        #charLayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1000; }
-        
-        .creature { position: absolute; width: 80px; height: 100px; text-align: center; transform: translate(-50%, -50%); transition: all 0.6s ease-out; pointer-events: auto; }
-        .creature img { height: 80px; filter: drop-shadow(0 0 10px rgba(0,0,0,0.9)); }
-        .name-tag { font-size: 14px; font-weight: bold; background: rgba(0,0,0,0.8); padding: 2px 12px; border-radius: 6px; border: 1px solid var(--gold); margin-top: 5px; white-space: nowrap; }
-        .boss-aura { border: 2px solid #ff0000 !important; color: #ff0000 !important; box-shadow: 0 0 20px #ff0000; animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.05); opacity: 0.8; } 100% { transform: scale(1); opacity: 1; } }
-        
-        .building { position: absolute; background-size: contain; background-repeat: no-repeat; transform: translate(-50%, -50%); cursor: pointer; z-index: 10; }
-        .label { position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%); background: var(--fantasy-bg); color: var(--gold); padding: 4px 12px; border-radius: 8px; font-size: 14px; white-space: nowrap; border: 1px solid var(--gold); font-weight: bold; }
-        
-        /* --- UI COMPONENTS --- */
-        .inventory-container { display: flex; flex-direction: column; gap: 20px; color: #fff; }
-        .inv-upper { display: grid; grid-template-columns: 120px 1fr 200px; gap: 20px; min-height: 400px; }
-        .slot { width: 60px; height: 60px; border: 1px solid var(--gold); background: rgba(0,0,0,0.4); border-radius: 4px; position: relative; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; }
-        .slot:hover { box-shadow: var(--shadow); background: rgba(255,215,0,0.1); }
-        .slot img { width: 45px; height: 45px; object-fit: contain; }
-        .avatar-preview { position: relative; border: 1px solid rgba(255,215,0,0.2); background: radial-gradient(circle, rgba(255,215,0,0.05) 0%, rgba(0,0,0,0.5) 70%); border-radius: 15px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-        #avatar-base { height: 320px; z-index: 1; }
-        #weapon-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
-        .backpack-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 10px; max-height: 250px; overflow-y: auto; padding: 10px; border-top: 2px solid var(--gold); margin-top: 10px; }
-
-        .evo-container { padding: 20px; text-align: center; }
-        .class-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
-        .class-tile { background: rgba(20, 15, 10, 0.8); border: 1px solid var(--gold); padding: 20px 10px; border-radius: 10px; cursor: pointer; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100px; }
-        .class-tile h4 { margin: 0; color: var(--gold); font-size: 18px; text-align: center; }
-        .class-tile.locked { filter: grayscale(0.8); opacity: 0.6; cursor: not-allowed; }
-
-        #hud { position: fixed; top: 20px; left: 20px; background: var(--fantasy-bg); padding: 15px; border-radius: 12px; border: var(--border); z-index: 5000; min-width: 200px; box-shadow: var(--shadow); }
-        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); display: none; z-index: 20000; align-items: center; justify-content: center; backdrop-filter: blur(12px); }
-        .mmo-panel { width: 1250px; height: 850px; background: var(--fantasy-bg); border: var(--border); border-radius: 20px; display: flex; overflow: hidden; box-shadow: var(--shadow); }
-        .panel-main { flex: 3; padding: 25px; overflow-y: auto; position: relative; }
-        .panel-side { flex: 0.8; padding: 25px; background: rgba(20, 15, 10, 0.85); border-left: 2px solid var(--gold); display: flex; flex-direction: column; }
-        .btn-action { background: var(--btn-grad); color: white; border: 1px solid var(--gold); padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        .ff-tooltip { position: fixed; display: none; z-index: 30000; background: var(--ff-blue); border: 2px solid #fff; border-radius: 8px; padding: 15px; min-width: 220px; pointer-events: none; color: #fff; box-shadow: 0 0 20px #000; }
-    </style>
-</head>
-<body>
-
-<div id="viewport">
-    <div id="world" onclick="handleWorldClick(event)">
-        <div id="b-steinbruch" class="building" style="left:1500px; top:200px; width:220px; height:220px; background-image:url('steinbruch.png');" onclick="event.stopPropagation(); openBuilding('steinbruch')"><div class="label">Steinbruch</div></div>
-        <div id="b-schmiede" class="building" style="left:700px; top:500px; width:180px; height:180px; background-image:url('schmiede.png');" onclick="event.stopPropagation(); openBuilding('schmiede')"><div class="label">Wald-Schmiede</div></div>
-        <div id="b-heilige_schmiede" class="building" style="left:500px; top:250px; width:180px; height:180px; background-image:url('heilige_schmiede.png');" onclick="event.stopPropagation(); openBuilding('heilige_schmiede')"><div class="label">Heilige Schmiede</div></div>
-        <div id="b-arena" class="building" style="left:300px; top:700px; width:200px; height:200px; background-image:url('arena.png');" onclick="event.stopPropagation(); openBuilding('arena')"><div class="label">PvP Arena</div></div>
-        <div id="b-rathaus" class="building" style="left:1000px; top:600px; width:250px; height:250px; background-image:url('rathaus.png');" onclick="event.stopPropagation(); openBuilding('rathaus')"><div class="label">Halle der Evolution</div></div>
-        <div id="b-markt" class="building" style="left:1200px; top:800px; width:180px; height:180px; background-image:url('markt.png');" onclick="event.stopPropagation(); openBuilding('markt')"><div class="label">Marktplatz</div></div>
-        <div id="charLayer"></div>
-    </div>
-</div>
-
-<div id="item-tooltip" class="ff-tooltip"></div>
-
-<div id="hud">
-    <div style="color:gold; font-size: 20px; font-weight:bold;"><span id="playerName">Identifiziere...</span></div>
-    <div id="hudClass" style="font-size:13px; color: #3b82f6; font-weight: bold;">Klasse...</div>
-    <div style="font-size:12px; color:#4ade80; margin-top: 5px;">💎 LXP: <span id="lxpC">0</span> | ⭐ LVL: <span id="lvlTotal">0</span></div>
-    
-    <button id="loginBtn" class="btn-action" style="width:100%; margin-top:10px; background: var(--twitch-purple);" onclick="loginWithTwitch()">🔑 TWITCH LOGIN</button>
-    
-    <button class="btn-action" style="width:100%; margin-top:10px;" onclick="openInventory()">🎒 INVENTAR</button>
-    <div id="adminHud" style="display:none; margin-top:10px;">
-        <button class="btn-action" style="background:linear-gradient(135deg, #ff0000, #8b0000); width:100%;" onclick="openAdminPanel()">🛠 GÖTTER-MENÜ</button>
-    </div>
-</div>
-
-<div id="gameModal" class="modal">
-    <div class="mmo-panel">
-        <div class="panel-main" id="modalLeft"></div>
-        <div class="panel-side">
-            <h3 style="color:gold; margin-top:0;">🎒 INFO</h3>
-            <div id="sideContent" style="flex-grow: 1; overflow-y: auto;"></div>
-            <button class="btn-action" style="width:100%; margin-top:20px;" onclick="closeGeneralModal()">X SCHLIESSEN</button>
-        </div>
-    </div>
-</div>
-
-<template id="inventory-template">
-    <div class="inventory-container">
-        <h2 style="color:gold; margin:0;">Helden-Inventar</h2>
-        <div class="inv-upper">
-            <div class="equip-slots">
-                <div class="slot" data-label="Kopf" id="slot-head"></div>
-                <div class="slot" data-label="Brust" id="slot-chest"></div>
-                <div class="slot" data-label="Hose" id="slot-legs"></div>
-                <div class="slot" data-label="Füße" id="slot-feet"></div>
-                <div class="slot" data-label="Waffe" id="slot-weapon" style="margin-top:10px;"></div>
-                <div class="slot" data-label="Schild" id="slot-offhand"></div>
-            </div>
-            <div class="avatar-preview">
-                <img id="avatar-base" src="Ei.png">
-                <div id="weapon-layer"></div>
-            </div>
-            <div class="stats-display">
-                <h3 style="color:gold; margin:0 0 10px 0;">Attribute</h3>
-                <div class="stat-line"><span>HP:</span> <span id="stat-hp" style="color:var(--hp-color);">0</span></div>
-                <div class="stat-line"><span>ATK:</span> <span id="stat-atk" style="color:#ffcc00;">0</span></div>
-                <div class="stat-line"><span>DEF:</span> <span id="stat-def" style="color:#4ade80;">0</span></div>
-                <div class="stat-line" style="margin-top:15px; border-top:1px solid var(--gold); padding-top:10px;">
-                    <span>Vermögen:</span> <span id="inv-lxp-display" style="color:var(--gold); font-weight:bold;">0 LXP</span>
-                </div>
-            </div>
-        </div>
-        <div class="backpack-grid" id="backpack-slots"></div>
-    </div>
-</template>
-
-<template id="evo-hall-template">
-    <div class="evo-container">
-        <h2 style="color:gold; font-size: 32px; text-shadow: 0 0 15px rgba(255,215,0,0.5);">Halle der Evolution</h2>
-        <div class="class-grid" id="evo-class-list">
-            <div class="class-tile locked" id="evo-class-waldlaeufer"><h4>Waldläufer</h4></div>
-            <div class="class-tile locked" id="evo-class-krieger"><h4>Krieger</h4></div>
-            <div class="class-tile locked" id="evo-class-druide"><h4>Druide</h4></div>
-            <div class="class-tile locked" id="evo-class-hueter"><h4>Hüter</h4></div>
-            <div class="class-tile locked" id="evo-class-sucher"><h4>Sucher</h4></div>
-            <div class="class-tile locked" id="evo-class-einsiedler"><h4>Einsiedler</h4></div>
-            <div class="class-tile locked" id="evo-class-waechter"><h4>Wächter</h4></div>
-        </div>
-    </div>
-</template>
-
-<script>
-// --- SESSION REHYDRATION ---
-const savedID = sessionStorage.getItem("verifiedID");
-if (!window.isIdentified && savedID) {
-    window.verifiedID = savedID;
-    window.isIdentified = true;
-    window.isAdmin = sessionStorage.getItem("isAdmin") === "true";
-    console.log("Session rehydrated:", savedID);
-}
-
-// --- CORE CONFIG ---
-const TWITCH_CLIENT_ID = "futhxsgrshkh2h6cqywavg5cous3q0";
-const BROADCASTER_ID = "573773653";
-const REDIRECT_URI = "https://noverato.github.io/System";
-
-let isIdentified = window.isIdentified || false;
-let twitchToken = "", verifiedID = window.verifiedID || "", onlinePlayers = {}, isAdmin = window.isAdmin || false;
-let data = { name: "Held", x: 960, y: 540, lxp: 0, hp: 100, maxHp: 100, stats: { atk: 10, def: 10, currentLevel: 1, className: "Ei" }, inventar: {}, equipment: {}, lxpBuffer: 0 };
-
-// --- RENDERING ENGINE ---
-function renderPlayers(players) {
-    const layer = document.getElementById('charLayer');
-    if (!layer) return;
-    layer.innerHTML = '';
-    Object.keys(players).forEach(id => {
-        const p = players[id];
-        if (p.hidden || (Date.now() - (p.lastSeen || 0) > 60000)) return;
-        const div = document.createElement('div');
-        div.className = 'creature';
-        div.style.left = p.x + "px"; div.style.top = p.y + "px";
-        const imgSrc = (typeof getCreatureSprite === 'function') ? getCreatureSprite(p, id === BROADCASTER_ID) : 'Ei.png';
-        div.innerHTML = `<img src="${imgSrc}"><div class="name-tag ${id === BROADCASTER_ID ? 'boss-aura' : ''}">${p.name}</div>`;
-        layer.appendChild(div);
-    });
-}
-
-function updateUI() {
-    const nameEl = document.getElementById('playerName');
-    if (nameEl) nameEl.innerText = isAdmin ? "OVERLORD " + data.name : data.name;
-    document.getElementById('hudClass').innerText = data.stats.className;
-    document.getElementById('lxpC').innerText = data.lxp;
-    document.getElementById('lvlTotal').innerText = data.stats.currentLevel;
-    
-    const loginBtn = document.getElementById('loginBtn');
-    if (loginBtn) loginBtn.style.display = isIdentified ? 'none' : 'block';
-
-    const adminPanel = document.getElementById('adminHud');
-    if (adminPanel) adminPanel.style.display = isAdmin ? 'block' : 'none';
-}
-
-function clearPanels() {
-    document.getElementById('modalLeft').innerHTML = '';
-    document.getElementById('sideContent').innerHTML = '';
-}
-
-function renderInventoryUI() {
-    if (typeof items === 'undefined') return;
-    clearPanels(); 
-    const main = document.getElementById('modalLeft');
-    main.appendChild(document.getElementById('inventory-template').content.cloneNode(true));
-    document.getElementById('stat-hp').innerText = data.maxHp;
-    document.getElementById('stat-atk').innerText = data.stats.atk;
-    document.getElementById('stat-def').innerText = data.stats.def;
-    document.getElementById('inv-lxp-display').innerText = data.lxp + " LXP";
-    document.getElementById('avatar-base').src = (typeof getCreatureSprite === 'function') ? getCreatureSprite(data, isAdmin) : 'Ei.png';
-    const grid = document.getElementById('backpack-slots');
-    let itemCount = 0;
-    if (data.inventar) {
-        Object.keys(data.inventar).forEach(id => {
-            if (data.inventar[id] > 0) {
-                const item = items[id] || { name: id, icon: 'stone.png' }; 
-                const slot = document.createElement('div');
-                slot.className = 'slot';
-                slot.innerHTML = `<img src="${item.icon}"><span style="position:absolute;bottom:2px;right:4px;font-size:10px;">${data.inventar[id]}</span>`;
-                slot.onclick = () => { if(typeof equipItem === 'function') equipItem(id); renderInventoryUI(); save(); };
-                grid.appendChild(slot);
-                itemCount++;
-            }
+    /* ==============================
+       🔔 CORE DISPATCH
+    ============================== */
+    function emit(eventName, detail = {}, options = {}) {
+        const event = new CustomEvent(eventName, {
+            detail,
+            bubbles: true,
+            cancelable: !options.force
         });
+        window.dispatchEvent(event);
     }
-    for (let i = itemCount; i < 40; i++) grid.appendChild(document.createElement('div')).className = 'slot';
-}
 
-function openInventory() { toggleModal('gameModal', true); renderInventoryUI(); }
+    function on(eventName, callback) {
+        window.addEventListener(eventName, e => callback(e.detail));
+    }
 
-// --- LOGIC ---
-async function loadUserData() {
-    if (!verifiedID) return;
-    const snap = await db.ref('players/' + verifiedID).once('value');
-    if (snap.exists()) { Object.assign(data, snap.val()); }
-    updateUI();
-}
+    function off(eventName, callback) {
+        window.removeEventListener(eventName, callback);
+    }
 
-function save() { if (isIdentified) db.ref('players/' + verifiedID).update({ ...data, lastSeen: Date.now() }); }
-function cleanURL() { if (window.location.hash) window.history.replaceState({}, document.title, window.location.pathname); }
+    /* ==============================
+       🧠 ZENTRALE ROUTINGS
+    ============================== */
 
-function loginWithTwitch() {
-    window.location.href = `https://id.twitch.tv/oauth2/authorize?client_id=${TWITCH_CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=token&scope=user:read:email`;
-}
-
-window.onload = async () => {
-    if (typeof MARKT_WAREN === 'undefined') window.MARKT_WAREN = {};
-    const params = new URLSearchParams(window.location.hash.substring(1));
-    
-    if (params.has("access_token")) {
-        twitchToken = params.get("access_token");
-        cleanURL();
-        try {
-            const resp = await fetch(`https://api.twitch.tv/helix/users`, { headers: { 'Client-ID': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchToken}` } });
-            const result = await resp.json();
-            if (result.data && result.data.length > 0) {
-                verifiedID = result.data[0].id;
-                data.name = result.data[0].display_name;
-                isIdentified = true;
-                isAdmin = (verifiedID === BROADCASTER_ID);
-
-                // PERSIST SESSION
-                sessionStorage.setItem("verifiedID", verifiedID);
-                sessionStorage.setItem("isIdentified", "true");
-                sessionStorage.setItem("isAdmin", isAdmin ? "true" : "false");
-
-                await loadUserData();
-                db.ref('players').on('value', snap => {
-                    onlinePlayers = snap.val() || {};
-                    renderPlayers(onlinePlayers);
-                });
-            }
-        } catch (e) { console.error("Twitch Login Error:", e); }
-    } else {
-        // Handle rehydrated session
-        if (isIdentified) {
-            await loadUserData();
-            db.ref('players').on('value', snap => {
-                onlinePlayers = snap.val() || {};
-                renderPlayers(onlinePlayers);
-            });
+    // 👣 Schritt → Encounter
+    on(EVENTS.ENCOUNTER_STEP, () => {
+        if (window.Encounter?.registerStep) {
+            window.Encounter.registerStep();
         }
-        console.log("System bereit.");
-        updateUI();
+    });
+
+    // 🐲 Encounter → Battle
+    on(EVENTS.ENCOUNTER_START, ({ monster }) => {
+        emit(EVENTS.BATTLE_START, { monster });
+    });
+
+    // ⚔️ Sieg → Loot → Beute → Inventar
+    function handleVictory(payload) {
+        const { monster } = payload;
+
+        // Loot
+        if (window.LootManager?.getDrop) {
+            const baseItem = window.LootManager.getDrop(monster);
+            emit(EVENTS.LOOT_GENERATED, { baseItem, monster });
+        }
     }
-};
 
-function handleWorldClick(e) {
-    if (!isIdentified) return;
-    const rect = document.getElementById('world').getBoundingClientRect();
-    data.x = e.clientX - rect.left; data.y = e.clientY - rect.top;
-    save();
-}
+    on(EVENTS.BATTLE_VICTORY, handleVictory);
+    on(EVENTS.ARENA_VICTORY, handleVictory);
 
-function toggleModal(id, s) { document.getElementById(id).style.display = s ? 'flex' : 'none'; }
-function closeGeneralModal() { toggleModal('gameModal', false); }
+    // 🎁 Loot → Beute → Inventar
+    on(EVENTS.LOOT_GENERATED, ({ baseItem, monster }) => {
+        if (!baseItem) return;
 
-function openBuilding(b) {
-    toggleModal('gameModal', true);
-    clearPanels(); 
-    const left = document.getElementById('modalLeft');
-    if (b === 'steinbruch' && typeof renderMiningMenu === 'function') renderMiningMenu();
-    else if (b === 'rathaus') {
-        left.appendChild(document.getElementById('evo-hall-template').content.cloneNode(true));
-        if (typeof initEvoHallDisplay === 'function') initEvoHallDisplay();
-    }
- else if (b === 'markt' && typeof renderMarketplace === 'function') renderMarketplace();
- else if (b === 'arena' && window.Arena) {
-    Arena.open();
- } // Schließt das 'else if' der Arena
- } // Schließt die gesamte Funktion 'openBuilding'
-</script>
-</body>
-</html>
+        const item = window.Beute?.applyBeuteFlavor
+            ? window.Beute.applyBeuteFlavor(baseItem, monster)
+            : baseItem;
+
+        emit(EVENTS.BEUTE_READY, { item });
+    });
+
+    on(EVENTS.BEUTE_READY, ({ item }) => {
+        emit(EVENTS.INVENTORY_ADD, { item });
+    });
+
+    // ⛏️ Ressourcen → Inventar + Evolution
+    on(EVENTS.RESOURCE_GAIN, ({ resource, amount, xp }) => {
+        emit(EVENTS.INVENTORY_ADD, { item: resource, amount });
+        if (xp) emit(EVENTS.EVOLUTION_XP, { xp });
+    });
+
+    // 💰 Markt → Inventar
+    on(EVENTS.MARKET_TRANSACTION, ({ delta }) => {
+        emit(EVENTS.INVENTORY_ADD, { lxp: delta });
+    });
+
+    /* ==============================
+       🛠️ ADMIN OVERRIDE
+    ============================== */
+    on(EVENTS.ADMIN_FORCE, ({ event, payload }) => {
+        emit(event, payload, { force: true });
+    });
+
+    /* ==============================
+       📤 PUBLIC API
+    ============================== */
+    return {
+        EVENTS,
+        emit,
+        on,
+        off
+    };
+
+})();
+
+// 🌍 Global verfügbar
+window.EventHub = EventHub;
