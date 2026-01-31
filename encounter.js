@@ -104,7 +104,7 @@ const Encounter = (() => {
         
 if (inEncounter) {
     // Wir prüfen aktiv, ob das Arena-Fenster noch offen ist
-    const arenaVisible = document.querySelector('#arena-container')?.style.display !== 'none';
+    const arenaVisible = document.querySelector('#arena-container') && document.querySelector('#arena-container').offsetParent !== null;
     
     if (!arenaVisible) {
         console.log("WILDNIS-LOG: Arena nicht aktiv. Setze Status zurück...");
