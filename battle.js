@@ -104,106 +104,80 @@ const BattleEngine = {
         requestAnimationFrame(tick);
     },
 
-    // --- 3. KAMPF-LOGIK & MATHEMATIK ---
-    executeAction(type) {
-        if (this.playerATB < 100 || this.animationLock) return;
-        
-        this.animationLock = true;
-        this.toggleActionButtons(false);
+// --- 3. KAMPF-LOGIK & MATHEMATIK ---
+    
+    win() {
+        const reward = this.enemy.lxpReward || 50;
+        this.log(`🏆 SIEG! +${reward} LXP erhalten!`, "gold");
+        data.lxp += reward;
+        
+        // SIGNAL AN TICKER: Sieg
+        if (typeof EventHub !== 'undefined') {
+            EventHub.emit('battle:victory', { 
+                monster: this.enemy.name, 
+                lxp: reward 
+            });
+        }
+        
+        if (typeof processLootDrop === 'function') {
+            const drop = processLootDrop(); 
+            if (drop) {
+                const itemKey = drop.name;
+                data.inventar[itemKey] = (data.inventar[itemKey] || 0) + 1;
+                this.log(`🎒 Beute: ${drop.name}`, "#a855f7");
+                
+                // SIGNAL AN TICKER: Beute erhalten
+                if (typeof EventHub !== 'undefined') {
+                    EventHub.emit('battle:loot', { item: drop.name });
+                }
+            }
+        }
+        
+        if (typeof updateUI === 'function') updateUI();
+        if (typeof save === 'function') save();
+        setTimeout(() => this.endCombat(), 2500);
+    },
 
-        if (type === 'attack') {
-            this.calculateDamage(this.player, this.enemy, 'player');
-        } else if (type === 'heal') {
-            this.executeHeal();
-        }
+    lose() {
+        this.log("💀 Du wurdest bezwungen...", "#ff4444");
+        
+        // SIGNAL AN TICKER: Niederlage
+        if (typeof EventHub !== 'undefined') {
+            EventHub.emit('battle:defeat', { monster: this.enemy.name });
+        }
 
-        this.playerATB = 0;
-        this.checkVictoryCondition();
-        
-        if (this.active) {
-            setTimeout(() => { this.animationLock = false; }, 600);
-        }
-    },
+        data.hp = data.maxHp; 
+        if (typeof updateUI === 'function') updateUI();
+        if (typeof save === 'function') save();
+        setTimeout(() => this.endCombat(), 2500);
+    },
 
-    executeEnemyTurn() {
-        this.animationLock = true;
-        this.toggleActionButtons(false);
+    endCombat() {
+        // Falls der Kampf durch Flucht beendet wird (active ist noch true)
+        if (this.active) {
+            if (typeof EventHub !== 'undefined') {
+                EventHub.emit('battle:escape', { monster: this.enemy.name });
+            }
+        }
 
-        setTimeout(() => {
-            if (!this.active) return;
-            this.calculateDamage(this.enemy, this.player, 'enemy');
-            this.enemyATB = 0;
-            this.checkVictoryCondition();
-            
-            if (this.active) {
-                this.animationLock = false;
-            }
-        }, 900);
-    },
-
-    calculateDamage(attacker, defender, side) {
-        const variance = 0.85 + Math.random() * 0.3;
-        let dmg = Math.floor((attacker.atk * variance) - (defender.def * 0.7));
-        dmg = Math.max(1, dmg); 
-
-        defender.hp -= dmg;
-        
-        if (side === 'enemy') {
-            data.hp = Math.max(0, Math.ceil(this.player.hp));
-        }
-
-        this.log(`${attacker.name} trifft für ${dmg} Schaden!`, side === 'player' ? '#4ade80' : '#ff4444');
-        this.updateBars();
-    },
-
-    executeHeal() {
-        if (this.healsUsed >= this.maxHeals) return;
-        const healAmt = Math.floor(this.player.maxHp * 0.25);
-        this.player.hp = Math.min(this.player.maxHp, this.player.hp + healAmt);
-        data.hp = this.player.hp;
-        this.healsUsed++;
-        this.log(`✨ Heilung! +${healAmt} HP`, 'cyan');
-        this.updateBars();
-    },
-
-    checkVictoryCondition() {
-        if (this.enemy.hp <= 0) {
-            this.enemy.hp = 0;
-            this.active = false;
-            this.win();
-        } else if (this.player.hp <= 0) {
-            this.player.hp = 0;
-            this.active = false;
-            this.lose();
-        }
-    },
-
-    win() {
-        const reward = this.enemy.lxpReward || 50;
-        this.log(`🏆 SIEG! +${reward} LXP erhalten!`, "gold");
-        data.lxp += reward;
-        
-        if (typeof processLootDrop === 'function') {
-            const drop = processLootDrop(); 
-            if (drop) {
-                const itemKey = drop.name;
-                data.inventar[itemKey] = (data.inventar[itemKey] || 0) + 1;
-                this.log(`🎒 Beute: ${drop.name}`, "#a855f7");
-            }
-        }
-        
-        if (typeof updateUI === 'function') updateUI();
-        if (typeof save === 'function') save();
-        setTimeout(() => this.endCombat(), 2500);
-    },
-
-    lose() {
-        this.log("💀 Du wurdest bezwungen...", "#ff4444");
-        data.hp = data.maxHp; 
-        if (typeof updateUI === 'function') updateUI();
-        if (typeof save === 'function') save();
-        setTimeout(() => this.endCombat(), 2500);
-    },
+        this.active = false;
+        const left = document.getElementById('modalLeft');
+        if (left) left.style.backgroundImage = "none";
+        
+        // SIGNAL AN TICKER & WALD: Arena schließt (unser Universal-Reset!)
+        if (typeof EventHub !== 'undefined') {
+            EventHub.emit('arena:close');
+        }
+        
+        if (typeof closeGeneralModal === 'function') {
+            closeGeneralModal();
+        } else if (typeof toggleModal === 'function') {
+            toggleModal('gameModal', false);
+        } else {
+            const modal = document.getElementById('gameModal');
+            if (modal) modal.style.display = 'none';
+        }
+    }
 
     // --- 4. UI & RENDERING ---
     renderArena() {
