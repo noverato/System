@@ -102,10 +102,19 @@ const Encounter = (() => {
     function registerStep() {
         stepCount++;
         
-        if (inEncounter) {
+if (inEncounter) {
+    // Wir prüfen aktiv, ob das Arena-Fenster noch offen ist
+    const arenaVisible = document.querySelector('#arena-container')?.style.display !== 'none';
+    
+    if (!arenaVisible) {
+        console.log("WILDNIS-LOG: Arena nicht aktiv. Setze Status zurück...");
+        inEncounter = false;
+        // Jetzt darf der Klick weitergehen
+    } else {
         console.log("System blockiert: Kampf läuft noch laut Logik.");
         return;
     }
+}
         if (isOnCooldown()) {
         console.log("System blockiert: Cooldown aktiv.");
         return;
