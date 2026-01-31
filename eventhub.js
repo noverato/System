@@ -1,116 +1,154 @@
-
 /**
- * THE NEST - Event Hub (v1.0.0)
- * * Zentrale Event-Bridge für die Kommunikation zwischen Modulen.
- * Ermöglicht lose Kopplung durch das CustomEvent-API.
- * * REGLEN:
- * - Keine Firebase-Abhängigkeit
- * - Kein DOM-Zugriff (außer globaler Event-Dispatcher)
+ * THE NEST - Event Hub (v2.0.0)
+ * Zentrales Nervensystem für alle Gameplay-Module
+ *
+ * REGELN:
  * - Keine Spiellogik
+ * - Keine UI-Logik
+ * - Keine direkten Modul-Imports
+ * - Reine Event-Orchestrierung
  */
 
-const EventHub = {
-    /**
-     * Event-Konstanten zur Vermeidung von Tippfehlern
-     */
-    EVENTS: {
-        // Encounter & Kampf
+const EventHub = (() => {
+
+    /* ==============================
+       📌 EVENT-DEFINITIONEN
+    ============================== */
+    const EVENTS = {
+
+        /* 🌲 ENCOUNTER */
+        ENCOUNTER_STEP: 'encounter:step',
         ENCOUNTER_START: 'encounter:start',
         ENCOUNTER_END: 'encounter:end',
+
+        /* ⚔️ BATTLE / ARENA */
+        BATTLE_START: 'battle:start',
+        BATTLE_VICTORY: 'battle:victory',
+        BATTLE_ESCAPE: 'battle:escape',
+
         ARENA_START: 'arena:start',
-        
-        // UI & Menü
+        ARENA_VICTORY: 'arena:victory',
+
+        /* 🎁 LOOT / BEUTE */
+        LOOT_GENERATED: 'loot:generated',
+        BEUTE_READY: 'beute:ready',
+
+        /* 🎒 INVENTAR */
+        INVENTORY_ADD: 'inventory:add',
         INVENTORY_OPEN: 'ui:inventory:open',
         INVENTORY_CLOSE: 'ui:inventory:close',
-        MENU_TOGGLE: 'ui:menu:toggle',
-        
-        // Spielwelt
-        LOCATION_CHANGE: 'world:location:change',
-        NOTIFICATION_SHOW: 'ui:notification:push'
-    },
 
-    /**
-     * Interner Dispatcher (nutzt das globale window-Objekt als Bridge)
-     * @param {string} eventName 
-     * @param {object} detail 
-     */
-    emit(eventName, detail = {}) {
-        const event = new CustomEvent(eventName, { 
+        /* ⛏️ WIRTSCHAFT */
+        RESOURCE_GAIN: 'resource:gain',
+        MARKET_TRANSACTION: 'market:transaction',
+
+        /* 🌱 EVOLUTION */
+        EVOLUTION_XP: 'evolution:xp',
+
+        /* 🌍 WELT */
+        LOCATION_CHANGE: 'world:location:change',
+
+        /* 🖥️ UI */
+        NOTIFICATION: 'ui:notification',
+
+        /* 🛠️ ADMIN (OVERRIDE) */
+        ADMIN_FORCE: 'admin:force'
+    };
+
+    /* ==============================
+       🔔 CORE DISPATCH
+    ============================== */
+    function emit(eventName, detail = {}, options = {}) {
+        const event = new CustomEvent(eventName, {
             detail,
             bubbles: true,
-            cancelable: true 
+            cancelable: !options.force
         });
         window.dispatchEvent(event);
-    },
+    }
 
-    /**
-     * Hilfsfunktionen für standardisierte Events
-     */
+    function on(eventName, callback) {
+        window.addEventListener(eventName, e => callback(e.detail));
+    }
 
-    /**
-     * Startet eine Begegnung
-     * @param {Object} monsterData - Daten des Gegners
-     */
-    emitEncounter(monsterData) {
-        this.emit(this.EVENTS.ENCOUNTER_START, { monster: monsterData });
-    },
-
-    /**
-     * Startet die Arena-Sequenz
-     * @param {Object} config - Arena-Einstellungen
-     */
-    emitArenaStart(config) {
-        this.emit(this.EVENTS.ARENA_START, config);
-    },
-
-    /**
-     * Steuert das Inventar-Fenster
-     * @param {boolean} isOpen 
-     */
-    emitInventory(isOpen) {
-        const type = isOpen ? this.EVENTS.INVENTORY_OPEN : this.EVENTS.INVENTORY_CLOSE;
-        this.emit(type);
-    },
-
-    /**
-     * Informiert über einen Ortswechsel
-     * @param {string} locationId 
-     */
-    emitLocationChange(locationId) {
-        this.emit(this.EVENTS.LOCATION_CHANGE, { id: locationId });
-    },
-
-    /**
-     * Zeigt eine Nachricht im UI an
-     * @param {string} message 
-     * @param {string} type - e.g., 'info', 'warning', 'error'
-     */
-    emitNotification(message, type = 'info') {
-        this.emit(this.EVENTS.NOTIFICATION_SHOW, { message, type });
-    },
-
-    /**
-     * Wrapper zum Registrieren von Listenern (erleichtert die Integration)
-     * @param {string} eventName 
-     * @param {Function} callback 
-     */
-    on(eventName, callback) {
-        window.addEventListener(eventName, (e) => callback(e.detail));
-    },
-
-    /**
-     * Entfernt einen Listener
-     * @param {string} eventName 
-     * @param {Function} callback 
-     */
-    off(eventName, callback) {
+    function off(eventName, callback) {
         window.removeEventListener(eventName, callback);
     }
-};
 
-// Export für moderne Module oder globales Window-Objekt
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = EventHub;
-} else {
-    window.EventHub = EventHub;
-}
+    /* ==============================
+       🧠 ZENTRALE ROUTINGS
+    ============================== */
+
+    // 👣 Schritt → Encounter
+    on(EVENTS.ENCOUNTER_STEP, () => {
+        if (window.Encounter?.registerStep) {
+            window.Encounter.registerStep();
+        }
+    });
+
+    // 🐲 Encounter → Battle
+    on(EVENTS.ENCOUNTER_START, ({ monster }) => {
+        emit(EVENTS.BATTLE_START, { monster });
+    });
+
+    // ⚔️ Sieg → Loot → Beute → Inventar
+    function handleVictory(payload) {
+        const { monster } = payload;
+
+        // Loot
+        if (window.LootManager?.getDrop) {
+            const baseItem = window.LootManager.getDrop(monster);
+            emit(EVENTS.LOOT_GENERATED, { baseItem, monster });
+        }
+    }
+
+    on(EVENTS.BATTLE_VICTORY, handleVictory);
+    on(EVENTS.ARENA_VICTORY, handleVictory);
+
+    // 🎁 Loot → Beute → Inventar
+    on(EVENTS.LOOT_GENERATED, ({ baseItem, monster }) => {
+        if (!baseItem) return;
+
+        const item = window.Beute?.applyBeuteFlavor
+            ? window.Beute.applyBeuteFlavor(baseItem, monster)
+            : baseItem;
+
+        emit(EVENTS.BEUTE_READY, { item });
+    });
+
+    on(EVENTS.BEUTE_READY, ({ item }) => {
+        emit(EVENTS.INVENTORY_ADD, { item });
+    });
+
+    // ⛏️ Ressourcen → Inventar + Evolution
+    on(EVENTS.RESOURCE_GAIN, ({ resource, amount, xp }) => {
+        emit(EVENTS.INVENTORY_ADD, { item: resource, amount });
+        if (xp) emit(EVENTS.EVOLUTION_XP, { xp });
+    });
+
+    // 💰 Markt → Inventar
+    on(EVENTS.MARKET_TRANSACTION, ({ delta }) => {
+        emit(EVENTS.INVENTORY_ADD, { lxp: delta });
+    });
+
+    /* ==============================
+       🛠️ ADMIN OVERRIDE
+    ============================== */
+    on(EVENTS.ADMIN_FORCE, ({ event, payload }) => {
+        emit(event, payload, { force: true });
+    });
+
+    /* ==============================
+       📤 PUBLIC API
+    ============================== */
+    return {
+        EVENTS,
+        emit,
+        on,
+        off
+    };
+
+})();
+
+// 🌍 Global verfügbar
+window.EventHub = EventHub;
