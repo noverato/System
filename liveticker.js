@@ -12,7 +12,7 @@ const Ticker = (() => {
     const MAX_ENTRIES = 15;
 
     /* ==============================
-       🧩 HILFSFUNKTIONEN
+        🧩 HILFSFUNKTIONEN
     ============================== */
 
     function getContainer() {
@@ -48,34 +48,33 @@ const Ticker = (() => {
         return window.data?.name || 'Spawn2909';
     }
 
-/* ==============================
-    📡 EVENT-LISTENER
-============================== */
+    /* ==============================
+        📡 EVENT-LISTENER
+    ============================== */
 
-if (!window.EventHub) {
-    console.warn("📰 Ticker: EventHub nicht gefunden.");
-} else {
+    if (!window.EventHub) {
+        console.warn("📰 Ticker: EventHub nicht gefunden.");
+    } else {
+        // 🌲 Wald-Erkundung
+        EventHub.on('encounter:start', (data) => {
+            const monsterName = data?.monster?.name || 'etwas Unbekanntes';
+            pushMessage(`✨ <i>Ein wildes <b>${monsterName}</b> erscheint im Unterholz!</i>`);
+        });
 
-    // 🌲 Wald-Erkundung
-    EventHub.on('encounter:start', (data) => {
-        const monsterName = data?.monster?.name || 'etwas Unbekanntes';
-        Ticker.push(`✨ <i>Ein wildes <b>${monsterName}</b> erscheint im Unterholz!</i>`);
-    });
+        // 🏆 Sieg / Ende (Wir nutzen arena:close als Joker!)
+        EventHub.on('arena:close', () => {
+            pushMessage(`🏠 <b>${playerName()}</b> kehrt von der Expedition ins Nest zurück.`);
+        });
 
-    // 🏆 Sieg / Ende (Wir nutzen arena:close als Joker!)
-    EventHub.on('arena:close', () => {
-        // Da wir nicht wissen, ob Sieg oder Niederlage, schreiben wir es neutral & episch:
-        Ticker.push(`🏠 <b>${playerName()}</b> kehrt von der Expedition ins Nest zurück.`);
-    });
-
-    // Behalte die anderen für den Fall, dass sie doch feuern:
-    EventHub.on('battle:victory', (data) => {
-        const name = data?.monster?.name || 'Gegner';
-        Ticker.push(`🏆 <b>${playerName()}</b> hat <b>${name}</b> glorreich besiegt!`);
-    });
+        // Behalte die anderen für den Fall, dass sie doch feuern:
+        EventHub.on('battle:victory', (data) => {
+            const name = data?.monster?.name || 'Gegner';
+            pushMessage(`🏆 <b>${playerName()}</b> hat <b>${name}</b> glorreich besiegt!`);
+        });
+    } // <--- Hier wurde die schließende Klammer für das 'else' ergänzt
 
     /* ==============================
-       🔁 API
+        🔁 API
     ============================== */
     return {
         push: pushMessage
