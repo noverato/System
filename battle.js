@@ -18,16 +18,16 @@ const BattleEngine = {
         if (this.active || !monsterData) return;
         
         this.resetState();
-        const weaponPower = data.equipment?.weapon?.power || 0;
-        const armorValue = data.equipment?.armor?.value || 0;
+        const weaponPower = (typeof data !== 'undefined' && data.equipment?.weapon?.power) || 0;
+        const armorValue = (typeof data !== 'undefined' && data.equipment?.armor?.value) || 0;
 
         this.player = {
-            name: data.name || "Held",
-            hp: data.hp || 100,
-            maxHp: data.maxHp || 100,
-            atk: (isAdmin ? 999 : (data.stats?.atk || 10)) + weaponPower,
-            def: (data.stats?.def || 5) + armorValue,
-            spd: data.stats?.spd || 10
+            name: (typeof data !== 'undefined' && data.name) || "Held",
+            hp: (typeof data !== 'undefined' && data.hp) || 100,
+            maxHp: (typeof data !== 'undefined' && data.maxHp) || 100,
+            atk: ((typeof isAdmin !== 'undefined' && isAdmin) ? 999 : ((typeof data !== 'undefined' && data.stats?.atk) || 10)) + weaponPower,
+            def: ((typeof data !== 'undefined' && data.stats?.def) || 5) + armorValue,
+            spd: (typeof data !== 'undefined' && data.stats?.spd) || 10
         };
 
         this.enemy = { ...monsterData, hp: monsterData.hp, maxHp: monsterData.maxHp };
@@ -37,6 +37,10 @@ const BattleEngine = {
         this.renderArena();
         this.startLoop();
         this.log(`Ein wildes ${this.enemy.name} erscheint!`, "white");
+        
+        if (typeof EventHub !== 'undefined') {
+            EventHub.emit('battle:start', { monster: this.enemy.name });
+        }
     },
 
     resetState() {
@@ -117,17 +121,24 @@ const BattleEngine = {
     win() {
         const reward = this.enemy.lxpReward || 50;
         this.log(`🏆 SIEG! +${reward} LXP erhalten!`, "gold");
-        data.lxp += reward;
+        if (typeof data !== 'undefined') data.lxp += reward;
+        
         if (typeof EventHub !== 'undefined') {
-            EventHub.emit('battle:victory', { monster: this.enemy.name, lxp: reward });
+            EventHub.emit('battle:victory', { 
+                monster: this.enemy.name, 
+                lxp: reward,
+                text: `Sieg über ${this.enemy.name}! +${reward} LXP.` 
+            });
         }
         setTimeout(() => this.endCombat(), 2000);
     },
 
     lose() {
         this.log("💀 Du wurdest bezwungen...", "#ff4444");
-        if (typeof EventHub !== 'undefined') EventHub.emit('battle:defeat', { monster: this.enemy.name });
-        data.hp = data.maxHp;
+        if (typeof EventHub !== 'undefined') {
+            EventHub.emit('battle:defeat', { monster: this.enemy.name });
+        }
+        if (typeof data !== 'undefined') data.hp = data.maxHp;
         setTimeout(() => this.endCombat(), 2000);
     },
 
@@ -150,7 +161,7 @@ const BattleEngine = {
         if (!left) return;
         left.style.backgroundImage = "url('./arena_innen.png')";
         left.style.backgroundSize = "cover";
-        const myImg = isAdmin ? 'Overlord.png' : 'Ei.png';
+        const myImg = (typeof isAdmin !== 'undefined' && isAdmin) ? 'Overlord.png' : 'Ei.png';
 
         left.innerHTML = `
             <div id="arenaStage" style="height:100%; display:flex; flex-direction:column; justify-content:space-between; padding:20px; box-sizing:border-box;">
