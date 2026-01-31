@@ -110,7 +110,7 @@ const Encounter = (() => {
         if (Math.random() < chance) {
             const monster = startEncounter();
             if (monster && window.EventHub) {
-                EventHub.emit(EventHub.EVENTS.ENCOUNTER_START, { monster });
+                EventHub.emit(EventHub.EVENTS.ENCOUNTER_START,  monster );
             }
         }
     }
