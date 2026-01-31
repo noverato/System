@@ -118,7 +118,7 @@ const Arena = (() => {
             monster = fallbackMonster(lvl);
         }
 
-        EventHub.emitEncounter(monster);
+        EventHub.emit('battle:start', monster);
     }
 
     function startBossEvent() {
