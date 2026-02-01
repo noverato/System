@@ -1,10 +1,10 @@
 /**
- * 🧠 LiveTicker System
+ * 🧠 Rafael System
  * Globaler Story-Observer für THE NEST
  * (lebt unabhängig von Panels & Battle.js)
  */
 
-const LiveTicker = (() => {
+const RaphaelSystem = (() => {
     'use strict';
 
     const MAX_ENTRIES = 15;
@@ -15,7 +15,7 @@ const LiveTicker = (() => {
     ============================== */
 
     function getOrCreateContainer() {
-        let box = document.getElementById('live-ticker');
+        let box = document.getElementById('raphael-ticker');
 
         if (box) return box;
 
@@ -24,7 +24,7 @@ const LiveTicker = (() => {
             || document.body;
 
         box = document.createElement('div');
-        box.id = 'live-ticker';
+        box.id = 'raphael-ticker';
         box.style.marginTop = '10px';
         box.style.padding = '8px';
         box.style.fontSize = '13px';
@@ -112,9 +112,7 @@ const LiveTicker = (() => {
         }
 
         for (const id in data.inventar) {
-            const oldCount = lastInventory[id] || 0;
-            const newCount = data.inventar[id];
-            if (newCount > oldCount) {
+            if (!lastInventory[id]) {
                 push(`<b>${playerName()}</b> erhält einen neuen Gegenstand.`);
             }
         }
@@ -147,9 +145,10 @@ const LiveTicker = (() => {
         observeEvolution();
     }, CHECK_INTERVAL);
 
-    push(`<b>LiveTicker:</b> bereit 🚀`);
+    push(`<b>Rafael System:</b> bereit 🚀`);
 
     return { push };
 })();
 
-window.LiveTicker = LiveTicker;
+window.RaphaelSystem = RaphaelSystem;
+window.LiveTicker = RaphaelSystem; // 🔁 Kompatibilität
