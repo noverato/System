@@ -1,42 +1,50 @@
 /**
  * 🧠 Rafael System
- * Globaler Observer & Story-Ticker für THE NEST
- *
- * - Beobachtet Kämpfe, Inventar, Evolution
- * - KEINE Abhängigkeit von Events
- * - KEINE Spiellogik
- * - Battle.js bleibt FROZEN
+ * Globaler Story-Observer für THE NEST
+ * (lebt unabhängig von Panels & Battle.js)
  */
 
-(function () {
+const RaphaelSystem = (() => {
     'use strict';
 
     const MAX_ENTRIES = 15;
-    const CHECK_INTERVAL = 500;
+    const CHECK_INTERVAL = 600;
 
-    /* =========================
-       📄 DOM
-    ========================= */
+    /* ==============================
+       🧩 CONTAINER-MANAGEMENT
+    ============================== */
 
-    function getContainer() {
-        return document.getElementById('sideContent');
-    }
+    function getOrCreateContainer() {
+        let box = document.getElementById('raphael-ticker');
 
-    function playerName() {
-        return window.data?.name || 'Ein Wanderer';
+        if (box) return box;
+
+        const holder = document.getElementById('overlordPanel')
+            || document.getElementById('playerPanel')
+            || document.body;
+
+        box = document.createElement('div');
+        box.id = 'raphael-ticker';
+        box.style.marginTop = '10px';
+        box.style.padding = '8px';
+        box.style.fontSize = '13px';
+        box.style.lineHeight = '1.4';
+        box.style.maxHeight = '160px';
+        box.style.overflowY = 'auto';
+        box.style.background = 'rgba(0,0,0,0.6)';
+        box.style.border = '1px solid gold';
+        box.style.borderRadius = '6px';
+        box.style.color = '#f5f5f5';
+
+        holder.appendChild(box);
+        return box;
     }
 
     function push(html) {
-        const container = getContainer();
-        if (!container) return;
-
+        const container = getOrCreateContainer();
         const div = document.createElement('div');
-        div.className = 'ticker-entry';
         div.style.marginBottom = '6px';
-        div.style.fontSize = '14px';
-        div.style.lineHeight = '1.4';
         div.innerHTML = html;
-
         container.prepend(div);
 
         while (container.children.length > MAX_ENTRIES) {
@@ -44,117 +52,92 @@
         }
     }
 
-    /* =========================
-       🧠 SNAPSHOTS
-    ========================= */
-
-    let lastBattleState = 'idle'; // idle | active
-    let lastEnemyName = null;
-
-    let lastInventory = null;
-    let lastEvo = null;
-
-    /* =========================
-       ⚔️ KAMPF
-    ========================= */
-
-    function observeBattle() {
-        if (!window.BattleEngine) return;
-
-        const active = BattleEngine.active;
-        const enemy = BattleEngine.enemy;
-
-        // Kampfstart
-        if (lastBattleState === 'idle' && active && enemy?.name) {
-            lastBattleState = 'active';
-            lastEnemyName = enemy.name;
-
-            push(
-                `<b>${playerName()}</b> betritt den Kampf gegen <b>${enemy.name}</b>.`
-            );
-        }
-
-        // Kampfende
-        if (lastBattleState === 'active' && !active) {
-            if (enemy?.hp <= 0) {
-                push(
-                    `<b>${playerName()}</b> hat <b>${lastEnemyName}</b> besiegt.`
-                );
-            } else if (window.data?.hp <= 0) {
-                push(
-                    `<b>${playerName()}</b> wurde von <b>${lastEnemyName}</b> bezwungen.`
-                );
-            } else {
-                push(
-                    `<b>${playerName()}</b> zieht sich aus dem Kampf zurück.`
-                );
-            }
-
-            lastBattleState = 'idle';
-            lastEnemyName = null;
-        }
+    function playerName() {
+        return window.data?.name || 'Ein Wanderer';
     }
 
-    /* =========================
-       🎒 INVENTAR
-    ========================= */
+    /* ==============================
+       👁️ SNAPSHOTS
+    ============================== */
+
+    let lastBattleActive = false;
+    let lastEnemy = null;
+    let lastInventory = {};
+    let lastEvo = null;
 
     function clone(obj) {
         return JSON.parse(JSON.stringify(obj));
     }
 
+    /* ==============================
+       ⚔️ KAMPF-BEOBACHTUNG
+    ============================== */
+
+    function observeBattle() {
+        if (!window.BattleEngine) return;
+
+        const active = BattleEngine.active;
+
+        if (!lastBattleActive && active) {
+            lastEnemy = BattleEngine.enemy;
+            if (lastEnemy?.name) {
+                push(`<b>${playerName()}</b> stellt sich <b>${lastEnemy.name}</b>.`);
+            }
+        }
+
+        if (lastBattleActive && !active && lastEnemy) {
+            if (lastEnemy.hp <= 0) {
+                push(`<b>${playerName()}</b> hat <b>${lastEnemy.name}</b> besiegt.`);
+            } else if (window.data?.hp <= 0) {
+                push(`<b>${playerName()}</b> wurde von <b>${lastEnemy.name}</b> bezwungen.`);
+            } else {
+                push(`<b>${playerName()}</b> entkommt dem Kampf gegen <b>${lastEnemy.name}</b>.`);
+            }
+            lastEnemy = null;
+        }
+
+        lastBattleActive = active;
+    }
+
+    /* ==============================
+       🎒 INVENTAR
+    ============================== */
+
     function observeInventory() {
         if (!window.data?.inventar) return;
 
-        if (!lastInventory) {
+        if (!Object.keys(lastInventory).length) {
             lastInventory = clone(data.inventar);
             return;
         }
 
-        for (const key in data.inventar) {
-            if (!lastInventory[key]) {
-                push(
-                    `<b>${playerName()}</b> nimmt etwas Neues an sich.`
-                );
-            }
-        }
-
-        for (const key in lastInventory) {
-            if (!data.inventar[key]) {
-                push(
-                    `<b>${playerName()}</b> trennt sich von einem Besitz.`
-                );
+        for (const id in data.inventar) {
+            if (!lastInventory[id]) {
+                push(`<b>${playerName()}</b> erhält einen neuen Gegenstand.`);
             }
         }
 
         lastInventory = clone(data.inventar);
     }
 
-    /* =========================
+    /* ==============================
        🧬 EVOLUTION
-    ========================= */
+    ============================== */
 
     function observeEvolution() {
         const evo = window.data?.stats?.totalEvoLevel;
         if (evo == null) return;
 
-        if (lastEvo === null) {
-            lastEvo = evo;
-            return;
-        }
-
-        if (evo > lastEvo) {
-            push(
-                `<b>${playerName()}</b> durchläuft eine tiefgreifende Wandlung.`
-            );
+        if (lastEvo !== null && evo > lastEvo) {
+            push(`<b>${playerName()}</b> spürt eine neue Form entstehen.`);
         }
 
         lastEvo = evo;
     }
 
-    /* =========================
+    /* ==============================
        🔄 LOOP
-    ========================= */
+    ============================== */
 
     setInterval(() => {
         observeBattle();
@@ -162,12 +145,10 @@
         observeEvolution();
     }, CHECK_INTERVAL);
 
-    /* =========================
-       🌍 GLOBAL API
-    ========================= */
+    push(`<b>Rafael System:</b> bereit 🚀`);
 
-    window.LiveTicker = {
-        push
-    };
-
+    return { push };
 })();
+
+window.RaphaelSystem = RaphaelSystem;
+window.LiveTicker = RaphaelSystem; // 🔁 Kompatibilität
