@@ -1,31 +1,36 @@
 /**
- * 📰 ticker.js
- * Story-Ticker für THE NEST
+ * 📰 liveticker.js
+ * Globaler Story-Observer für THE NEST
  *
- * Rolle:
- * - Lauscht auf EventHub
- * - Schreibt Story-Meldungen ins Inventar-Infofeld
+ * - Beobachtet Spielzustände (Battle, Inventar, Evolution)
+ * - KEINE Abhängigkeit von Events
  * - KEINE Spiellogik
- * - KEINE Zahlen (XP / LXP)
+ * - KEINE Zahlenanzeige
+ * - Stabil auch bei "frozen" Battle.js
  */
 
-const Ticker = (() => {
+const LiveTicker = (() => {
     'use strict';
 
     const MAX_ENTRIES = 15;
+    const CHECK_INTERVAL = 600; // ms
 
     /* ==============================
-       🧩 HILFSFUNKTIONEN
+       🧩 DOM & BASIS
     ============================== */
 
     function getContainer() {
         return document.getElementById('sideContent');
     }
 
+    function playerName() {
+        return window.data?.name || 'Ein Wanderer';
+    }
+
     function createEntry(html) {
         const div = document.createElement('div');
         div.className = 'ticker-entry';
-        div.style.marginBottom = '8px';
+        div.style.marginBottom = '6px';
         div.style.fontSize = '14px';
         div.style.lineHeight = '1.4';
         div.innerHTML = html;
@@ -36,67 +41,153 @@ const Ticker = (() => {
         const container = getContainer();
         if (!container) return;
 
-        const entry = createEntry(html);
-        container.prepend(entry);
+        container.prepend(createEntry(html));
 
-        // Limitierung
         while (container.children.length > MAX_ENTRIES) {
             container.removeChild(container.lastChild);
         }
     }
 
-    function playerName() {
-        return window.data?.name || 'Ein Wanderer';
+    /* ==============================
+       👁️ INTERNE SNAPSHOTS
+    ============================== */
+
+    let lastBattleActive = false;
+    let lastEnemy = null;
+
+    let lastInventorySnapshot = {};
+    let lastEvoLevel = null;
+
+    /* ==============================
+       🧠 SNAPSHOT-HELPER
+    ============================== */
+
+    function cloneInventory(inv = {}) {
+        return JSON.parse(JSON.stringify(inv));
+    }
+
+    function inventoryDiff(oldInv, newInv) {
+        const changes = [];
+
+        for (const id in newInv) {
+            if (!oldInv[id]) {
+                changes.push({ id, type: 'gain' });
+            }
+        }
+
+        for (const id in oldInv) {
+            if (!newInv[id]) {
+                changes.push({ id, type: 'loss' });
+            }
+        }
+
+        return changes;
     }
 
     /* ==============================
-       📡 EVENT-LISTENER
+       ⚔️ KAMPF-BEOBACHTUNG
     ============================== */
 
-    if (!window.EventHub) {
-        console.warn("📰 Ticker: EventHub nicht gefunden.");
-        return {};
+    function observeBattle() {
+        if (!window.BattleEngine) return;
+
+        const isActive = BattleEngine.active;
+
+        // Kampf startet
+        if (!lastBattleActive && isActive) {
+            lastEnemy = BattleEngine.enemy || null;
+
+            if (lastEnemy?.name) {
+                pushMessage(
+                    `<b>${playerName()}</b> stellt sich <b>${lastEnemy.name}</b>.`
+                );
+            }
+        }
+
+        // Kampf endet
+        if (lastBattleActive && !isActive) {
+            if (lastEnemy) {
+                if (lastEnemy.hp <= 0) {
+                    pushMessage(
+                        `<b>${playerName()}</b> hat <b>${lastEnemy.name}</b> besiegt.`
+                    );
+                } else if (window.data?.hp <= 0) {
+                    pushMessage(
+                        `<b>${playerName()}</b> wurde von <b>${lastEnemy.name}</b> bezwungen.`
+                    );
+                } else {
+                    pushMessage(
+                        `<b>${playerName()}</b> entkommt dem Kampf gegen <b>${lastEnemy.name}</b>.`
+                    );
+                }
+            }
+            lastEnemy = null;
+        }
+
+        lastBattleActive = isActive;
     }
 
-    // 🗡️ Kampf – Sieg
-    EventHub.on('battle:victory', ({ monster }) => {
-        if (!monster?.name) return;
-        pushMessage(
-            `<b>${playerName()}</b> hat <b>${monster.name}</b> besiegt.`
-        );
-    });
+    /* ==============================
+       🎒 INVENTAR-BEOBACHTUNG
+    ============================== */
 
-    // 🏃 Kampf – Flucht / Niederlage
-    EventHub.on('battle:escape', ({ monster }) => {
-        if (!monster?.name) return;
-        pushMessage(
-            `<b>${playerName()}</b> wurde von <b>${monster.name}</b> zurückgedrängt.`
-        );
-    });
+    function observeInventory() {
+        if (!window.data?.inventar) return;
 
-    // 🧬 Evolution
-    EventHub.on('evolution:stage', ({ from, to }) => {
-        if (!from || !to) return;
-        pushMessage(
-            `<b>${playerName()}</b> hat sich entwickelt: <b>${from}</b> → <b>${to}</b>`
-        );
-    });
+        if (!lastInventorySnapshot || Object.keys(lastInventorySnapshot).length === 0) {
+            lastInventorySnapshot = cloneInventory(data.inventar);
+            return;
+        }
 
-    // 👑 Boss-Herausforderung
-    EventHub.on('arena:start', ({ boss }) => {
-        if (!boss?.name) return;
-        pushMessage(
-            `<b>${playerName()}</b> fordert den Boss <b>${boss.name}</b> heraus.`
-        );
-    });
+        const diff = inventoryDiff(lastInventorySnapshot, data.inventar);
 
-    // ⚔️ PvP-Herausforderung
-    EventHub.on('pvp:challenge', ({ from, to }) => {
-        if (!from || !to) return;
-        pushMessage(
-            `<b>${from}</b> fordert <b>${to}</b> zum Duell heraus.`
-        );
-    });
+        diff.forEach(change => {
+            if (change.type === 'gain') {
+                pushMessage(
+                    `<b>${playerName()}</b> entdeckt etwas Neues im Rucksack.`
+                );
+            }
+            if (change.type === 'loss') {
+                pushMessage(
+                    `<b>${playerName()}</b> trennt sich von einem Besitz.`
+                );
+            }
+        });
+
+        lastInventorySnapshot = cloneInventory(data.inventar);
+    }
+
+    /* ==============================
+       🧬 EVOLUTION-BEOBACHTUNG
+    ============================== */
+
+    function observeEvolution() {
+        const evo = window.data?.stats?.totalEvoLevel;
+        if (evo == null) return;
+
+        if (lastEvoLevel === null) {
+            lastEvoLevel = evo;
+            return;
+        }
+
+        if (evo > lastEvoLevel) {
+            pushMessage(
+                `<b>${playerName()}</b> spürt eine tiefgreifende Veränderung.`
+            );
+        }
+
+        lastEvoLevel = evo;
+    }
+
+    /* ==============================
+       🔄 HAUPT-LOOP
+    ============================== */
+
+    setInterval(() => {
+        observeBattle();
+        observeInventory();
+        observeEvolution();
+    }, CHECK_INTERVAL);
 
     /* ==============================
        🔁 API (optional)
@@ -109,4 +200,4 @@ const Ticker = (() => {
 })();
 
 // 🌍 Global verfügbar
-window.Ticker = Ticker;
+window.LiveTicker = LiveTicker;
