@@ -64,26 +64,8 @@ const Encounter = (() => {
     /* ==============================
        🎁 ENDE / BELOHNUNG
     ============================== */
-    function handleVictory(monster) {
-        try {
-            const baseItem = LootManager?.getDrop
-                ? LootManager.getDrop(monster)
-                : null;
-
-            if (!baseItem) return;
-
-            const flavoredItem = Beute.applyBeuteFlavor(baseItem, monster);
-
-            if (!window.data.inventar) window.data.inventar = {};
-            window.data.inventar[flavoredItem.id] =
-                (window.data.inventar[flavoredItem.id] || 0) + 1;
-
-            console.log(
-                `[Encounter] Beute erhalten: ${flavoredItem.display_name}`
-            );
-        } finally {
-            endEncounter();
-        }
+    function handleVictory() {
+        endEncounter();
     }
 
     function handleEscape() {
