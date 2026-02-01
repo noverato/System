@@ -4,6 +4,8 @@
  * Fokus: Event-gesteuerter Kampfstart (Decoupled), ATB-System & Equipment-Sync
  */
 
+const EVO_IMGS = ['Ei.png', 'Schleim.png', 'Skelett.png', 'Goblin.png', 'Oger.png', 'Lich.png', 'HoeheresWesen.png'];
+
 const BattleEngine = {
     active: false,
     isPaused: false,
@@ -183,11 +185,12 @@ const BattleEngine = {
         this.log(`🏆 SIEG! +${reward} LXP erhalten!`, "gold");
         data.lxp += reward;
         
-        if (typeof processLootDrop === 'function') {
-            const drop = processLootDrop(); 
+        // Loot-Generierung via LootManager
+        if (window.LootManager && typeof window.LootManager.getDrop === 'function') {
+            const drop = window.LootManager.getDrop(this.enemy);
             if (drop) {
-                const itemKey = drop.name;
-                data.inventar[itemKey] = (data.inventar[itemKey] || 0) + 1;
+                if (!data.inventar) data.inventar = {};
+                data.inventar[drop.id] = (data.inventar[drop.id] || 0) + 1;
                 this.log(`🎒 Beute: ${drop.name}`, "#a855f7");
             }
         }
@@ -268,8 +271,7 @@ const BattleEngine = {
  * Korrekte Anbindung an EventHub
  */
 if (typeof EventHub !== 'undefined') {
-    EventHub.on(EventHub.EVENTS.ENCOUNTER_START, (payload) => {
-        const monster = payload.monster || payload;
+    EventHub.on(EventHub.EVENTS.ENCOUNTER_START, ({ monster }) => {
         if (monster) {
             BattleEngine.startCombat(monster);
         }

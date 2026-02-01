@@ -111,6 +111,26 @@ const Arena = (() => {
         const lvl = window.data?.stats?.currentLevel || 1;
 
         try {
+            monster = MonsterLibrary?.generateWildnisMonster
+                ? MonsterLibrary.generateWildnisMonster(lvl)
+                : fallbackMonster(lvl);
+        } catch {
+            monster = fallbackMonster(lvl);
+        }
+
+        EventHub.emit(EventHub.EVENTS.ENCOUNTER_START, { monster });
+    }
+
+    function startBossEvent() {
+        if (!window.isIdentified) {
+            alert("❌ Der Hüter schläft. Stream ist offline.");
+            return;
+        }
+
+        let monster;
+        const lvl = window.data?.stats?.currentLevel || 1;
+
+        try {
             monster = MonsterLibrary?.generateArenaBoss
                 ? MonsterLibrary.generateArenaBoss(lvl)
                 : fallbackMonster(lvl);
@@ -118,11 +138,7 @@ const Arena = (() => {
             monster = fallbackMonster(lvl);
         }
 
-        EventHub.emit(EventHub.EVENTS.ENCOUNTER_START, monster);
-    }
-
-    function startBossEvent() {
-        alert("👑 Boss-Events sind noch versiegelt.");
+        EventHub.emit(EventHub.EVENTS.ENCOUNTER_START, { monster });
     }
 
     function fallbackMonster(level) {

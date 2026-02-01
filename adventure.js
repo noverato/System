@@ -28,9 +28,9 @@ const AdventureModule = {
         
         // Warte kurz, bis storage.js die Daten geladen hat
         setTimeout(() => {
-            if (typeof data !== 'undefined' && data.pos) {
-                this.state.lastX = data.pos.x || 0;
-                this.state.lastY = data.pos.y || 0;
+            if (typeof data !== 'undefined') {
+                this.state.lastX = data.x || 0;
+                this.state.lastY = data.y || 0;
             }
             this.startObservation();
         }, 1000);
@@ -52,10 +52,10 @@ const AdventureModule = {
      * Berechnet die Differenz zwischen der aktuellen und der letzten Position.
      */
     trackMovement() {
-        if (typeof data === 'undefined' || !data.pos) return;
+        if (typeof data === 'undefined') return;
 
-        const dx = data.pos.x - this.state.lastX;
-        const dy = data.pos.y - this.state.lastY;
+        const dx = data.x - this.state.lastX;
+        const dy = data.y - this.state.lastY;
         const distance = Math.sqrt(dx * dx + dy * dy);
 
         if (distance > 0) {
@@ -68,8 +68,8 @@ const AdventureModule = {
             }
 
             // Letzte Position aktualisieren
-            this.state.lastX = data.pos.x;
-            this.state.lastY = data.pos.y;
+            this.state.lastX = data.x;
+            this.state.lastY = data.y;
         }
     },
 
@@ -93,13 +93,17 @@ const AdventureModule = {
         console.log(`⚔️ Nest-Event: ${monster.name} nähert sich!`);
 
         // Kommunikation via Event (Entkoppelt von battle.js)
-        const event = new CustomEvent('ENCOUNTER_START', {
-            detail: { 
-                monster: monster,
-                location: { x: data.pos.x, y: data.pos.y }
-            }
-        });
-        window.dispatchEvent(event);
+        if (window.EventHub) {
+            EventHub.emit(EventHub.EVENTS.ENCOUNTER_START, { monster });
+        } else {
+            const event = new CustomEvent('ENCOUNTER_START', {
+                detail: { 
+                    monster: monster,
+                    location: { x: data.x, y: data.y }
+                }
+            });
+            window.dispatchEvent(event);
+        }
     }
 };
 

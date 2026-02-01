@@ -86,7 +86,7 @@ const EventHub = (() => {
         }
     });
 
-    // 🐲 Encounter → Battle
+    // 🐲 Encounter → Battle (Payload: { monster })
     on(EVENTS.ENCOUNTER_START, ({ monster }) => {
         emit(EVENTS.BATTLE_START, { monster });
     });

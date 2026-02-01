@@ -144,6 +144,76 @@ function createItemSlot(id, item, count) {
 
 // --- RESTLICHE FUNKTIONEN (UNBERÜHRT) ---
 
+window.equipItem = function(itemId) {
+    const itemData = (window.allItems && allItems[itemId]) || (window.items && items[itemId]);
+    if (!itemData || !itemData.slot) return;
+
+    const slot = itemData.slot;
+
+    // Wenn Slot bereits belegt: unequip
+    if (data.equipment[slot]) {
+        unequipItem(slot);
+    }
+
+    // Ausrüsten
+    data.equipment[slot] = itemId;
+
+    // Aus Inventar entfernen (Menge -1)
+    if (data.inventar[itemId] > 0) {
+        data.inventar[itemId]--;
+        if (data.inventar[itemId] === 0) delete data.inventar[itemId];
+    }
+
+    renderInventoryUI();
+    if (typeof save === "function") save();
+};
+
+window.getEquipmentStats = function() {
+    const totals = { atk: 0, def: 0, hp: 0, mp: 0, setBonusActive: false };
+
+    if (!data.equipment) return totals;
+
+    for (let slot in data.equipment) {
+        const itemId = data.equipment[slot];
+        if (!itemId) continue;
+
+        const itemData = (window.allItems && allItems[itemId]) || (window.items && items[itemId]);
+        if (itemData && itemData.stats) {
+            if (itemData.stats.atk) totals.atk += itemData.stats.atk;
+            if (itemData.stats.def) totals.def += itemData.stats.def;
+            if (itemData.stats.hp) totals.hp += itemData.stats.hp;
+            if (itemData.stats.mp) totals.mp += itemData.stats.mp;
+        }
+    }
+
+    return totals;
+};
+
+window.getWeaponOffsets = function(className, itemName) {
+    const fallback = { x: 0, y: 0, rotation: 0 };
+    if (!className) return fallback;
+
+    // Konvertiere className zu Key-Format (Leerzeichen -> Unterstrich, Umlaute ersetzen)
+    const key = className
+        .replace(/ /g, '_')
+        .replace(/ä/g, 'ae')
+        .replace(/ö/g, 'oe')
+        .replace(/ü/g, 'ue')
+        .replace(/Ä/g, 'Ae')
+        .replace(/Ö/g, 'Oe')
+        .replace(/Ü/g, 'Ue')
+        .replace(/ß/g, 'ss');
+
+    const anchorData = window.AvatarAnchors ? window.AvatarAnchors[key] : null;
+    if (!anchorData) return fallback;
+
+    // Prüfen ob es eine Waffe oder ein Schild ist
+    const itemData = (window.allItems && allItems[itemName]) || (window.items && items[itemName]);
+    const isShield = itemData && itemData.slot === 'offhand';
+
+    return isShield ? (anchorData.shield || fallback) : (anchorData.weapon || fallback);
+};
+
 window.unequipItem = function(slot) {
     if (data.equipment[slot]) {
         const itemName = data.equipment[slot];

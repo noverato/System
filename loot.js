@@ -7,6 +7,32 @@ const LootManager = {
     interpolate: (min, max, step) => Math.floor(min + (max - min) * (step / 5)),
 
     // Mapping-Konfiguration für die System-Anbindung
+    getDrop(monster) {
+        if (!monster || !monster.lvl) return null;
+
+        // Tier berechnen (Level 1-10 = Tier 1, 11-20 = Tier 2, etc.)
+        const tier = Math.max(1, Math.min(7, Math.ceil(monster.lvl / 10)));
+
+        // Zufällige Kategorie (BOWS oder SWORDS)
+        const categories = ["BOWS", "SWORDS"];
+        const category = categories[Math.floor(Math.random() * categories.length)];
+
+        // Zufälliger Pfad (light oder dark)
+        const paths = ["light", "dark"];
+        const path = paths[Math.floor(Math.random() * paths.length)];
+
+        const item = getRandomItem(category, tier, path);
+        
+        if (item) {
+            return {
+                id: item.id,
+                name: item.name,
+                display_name: item.name // Initialer Anzeigename
+            };
+        }
+        return null;
+    },
+
     config: {
         BOWS:    { slot: "weapon", statType: "atk", icon: "bow" },
         SWORDS:  { slot: "weapon", statType: "atk", icon: "sword" },
