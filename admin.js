@@ -154,19 +154,17 @@ const AdminConsole = {
     },
 
     exportCalibration: function() {
-        // Wir holen uns die aktuellen Werte aus den Slidern oder direkt aus FPGraphics (wenn wir Zugriff hätten)
-        // Einfachheitshalber lesen wir die Labels aus
-        const keys = ['overallScale', 'targetWidth', 'targetDepth', 'wallScaleW', 'wallScaleD', 'roofScaleY', 'gableScaleY', 'wallY', 'roofY'];
+        const keys = ['overallScale', 'targetWidth', 'targetDepth', 'wallScaleW', 'wallScaleD', 'roofScaleY', 'gableScaleY', 'wallY', 'roofY', 'offsetX', 'offsetY', 'offsetZ'];
         const results = {};
         keys.forEach(k => {
-            results[k] = parseFloat(document.getElementById(`val-${k}`).innerText);
+            const el = document.getElementById(`val-${k}`);
+            if (el) results[k] = parseFloat(el.innerText);
         });
 
         const json = JSON.stringify(results, null, 4);
         console.log("%c[GOTT] GOLDENE WERTE EXPORTIERT:", "color: #059669; font-weight: bold; font-size: 14px;");
         console.log(json);
         
-        // In Zwischenablage kopieren
         navigator.clipboard.writeText(json).then(() => {
             this.sync("Goldene Werte in Konsole & Zwischenablage kopiert!");
         });
@@ -257,6 +255,19 @@ function openAdminPanel() {
                     <div style="margin-bottom: 5px;">
                         <label>Dach Y-Offset (roofY): <span id="val-roofY">4.0</span></label>
                         <input type="range" min="0" max="10" step="0.1" value="4.0" oninput="AdminConsole.updateCalibration('roofY', this.value)" style="width:100%;">
+                    </div>
+
+                    <div style="border-top: 1px solid #555; margin-top: 10px; padding-top: 5px;">
+                        <label style="color: #60a5fa;">Position X-Offset: <span id="val-offsetX">0.0</span></label>
+                        <input type="range" min="-10" max="10" step="0.1" value="0.0" oninput="AdminConsole.updateCalibration('offsetX', this.value)" style="width:100%;">
+                    </div>
+                    <div style="margin-bottom: 5px;">
+                        <label style="color: #60a5fa;">Position Y-Offset: <span id="val-offsetY">0.0</span></label>
+                        <input type="range" min="-10" max="10" step="0.1" value="0.0" oninput="AdminConsole.updateCalibration('offsetY', this.value)" style="width:100%;">
+                    </div>
+                    <div style="margin-bottom: 5px;">
+                        <label style="color: #60a5fa;">Position Z-Offset: <span id="val-offsetZ">0.0</span></label>
+                        <input type="range" min="-10" max="10" step="0.1" value="0.0" oninput="AdminConsole.updateCalibration('offsetZ', this.value)" style="width:100%;">
                     </div>
                     
                     <button class="btn-action" onclick="AdminConsole.exportCalibration()" style="width:100%; margin-top:10px; background: #059669;">GOLDENE WERTE EXPORTIEREN</button>
