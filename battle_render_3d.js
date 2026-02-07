@@ -44,7 +44,7 @@
         if (window.THREE) return Promise.resolve(true);
         return new Promise(resolve => {
             const el = document.createElement('script');
-            el.src = 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js';
+            el.src = 'https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js';
             el.onload = () => resolve(true);
             el.onerror = () => resolve(false);
             document.head.appendChild(el);
