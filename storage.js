@@ -52,6 +52,8 @@ window.loadUserData = async function() {
             const dbData = snap.val();
             // Daten-Merge: Cloud-Werte überschreiben lokale Standardwerte
             Object.assign(window.data, dbData);
+            if (!window.data.stats) window.data.stats = {};
+            if (!window.data.stats.className || window.data.stats.className === "") window.data.stats.className = "Ei";
             console.log("📂 Storage: Profil geladen (" + window.verifiedID + ")");
         } else {
             console.log("📂 Storage: Neues Profil wird bei erstem Save erstellt.");
@@ -68,6 +70,8 @@ window.loadUserData = async function() {
  */
 window.save = function() {
     if (!window.isIdentified || !window.verifiedID) return;
+    if (!window.data.stats) window.data.stats = {};
+    window.data.stats.className = window.data.stats.className || "Ei";
     
     const savePacket = {
         ...window.data,
