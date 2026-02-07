@@ -110,47 +110,60 @@
 
     async function createModularHouse(type = 'small') {
         const group = new THREE.Group();
+        const SCALE = 4.0; // Vergrößerungsfaktor für das Haus
         
         try {
             if (type === 'small') {
-                // Ein einfaches 1x1 Haus (4x4 Meter in Spiel-Einheiten)
+                // Ein einfaches 1x1 Haus (zentriert)
+                
                 // Boden
                 const floor = await loadModel(MEGA_KIT_PATH + 'Floor_WoodDark.gltf');
                 group.add(floor);
 
-                // Wände
+                // Wände (Offset angepasst für Zentrierung bei 4x4 Einheiten)
+                const wallDist = 2; // halbe Breite
+
                 const wall1 = await loadModel(MEGA_KIT_PATH + 'Wall_Plaster_Door_Flat.gltf');
-                wall1.position.set(0, 0, 2);
+                wall1.position.set(0, 0, wallDist);
                 group.add(wall1);
 
                 const wall2 = await loadModel(MEGA_KIT_PATH + 'Wall_Plaster_Window_Wide_Flat.gltf');
-                wall2.position.set(2, 0, 0);
+                wall2.position.set(wallDist, 0, 0);
                 wall2.rotation.y = Math.PI / 2;
                 group.add(wall2);
 
                 const wall3 = await loadModel(MEGA_KIT_PATH + 'Wall_Plaster_Straight.gltf');
-                wall3.position.set(0, 0, -2);
+                wall3.position.set(0, 0, -wallDist);
                 wall3.rotation.y = Math.PI;
                 group.add(wall3);
 
                 const wall4 = await loadModel(MEGA_KIT_PATH + 'Wall_Plaster_Straight.gltf');
-                wall4.position.set(-2, 0, 0);
+                wall4.position.set(-wallDist, 0, 0);
                 wall4.rotation.y = -Math.PI / 2;
                 group.add(wall4);
 
-                // Ecken
+                // Ecken (für saubere Kanten)
                 for (let i = 0; i < 4; i++) {
                     const corner = await loadModel(MEGA_KIT_PATH + 'Corner_Exterior_Brick.gltf');
                     const angle = i * (Math.PI / 2);
-                    corner.position.set(Math.cos(angle + Math.PI/4) * 2.8, 0, Math.sin(angle + Math.PI/4) * 2.8);
-                    corner.rotation.y = -angle;
+                    // Korrigierte Eckposition für 4x4 Grid
+                    const cornerDist = 2.0;
+                    corner.position.set(
+                        (i === 0 || i === 3 ? 1 : -1) * cornerDist,
+                        0,
+                        (i === 0 || i === 1 ? 1 : -1) * cornerDist
+                    );
+                    corner.rotation.y = -angle + Math.PI/2;
                     group.add(corner);
                 }
 
                 // Dach
                 const roof = await loadModel(MEGA_KIT_PATH + 'Roof_RoundTiles_4x4.gltf');
-                roof.position.y = 4; // Wandhöhe ca. 4 Meter
+                roof.position.set(0, 4, 0); // Wandhöhe ca. 4 Einheiten
                 group.add(roof);
+
+                // Gesamtskalierung anwenden
+                group.scale.set(SCALE, SCALE, SCALE);
             }
         } catch (e) {
             console.error("Error building modular house:", e);
