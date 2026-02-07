@@ -12,10 +12,8 @@
     const CHUNK_SIZE = 128;
     
     // Basis-Pfad für Assets (Lokal vs. GitHub flexibel)
-    const BASE_ASSET_PATH = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-        ? './animation/' 
-        : './animation/'; // Hier kann später der GitHub-Pfad rein, falls er abweicht
-
+    // Dieser Pfad wird jetzt zentral in AssetsLibrary.js verwaltet.
+    
     let chunks = new Map();
     let villageBuildings = [];
     const VILLAGE_POS = { x: 0, z: 0 };
@@ -77,84 +75,72 @@
             throw new Error("Loader not initialized");
         }
         
+        // Die AssetsLibrary übernimmt jetzt die Pfad-Kodierung
+        // Falls der Pfad bereits ein voller URL/kodiert ist, lassen wir ihn
+        const encodedPath = (path.startsWith('http') || path.startsWith('animation/') || path.includes('%')) 
+            ? path 
+            : AssetsLibrary.encode(path);
+        
         const tryLoad = (fullPath) => {
-            // Spezialbehandlung für GitHub-Pfade: Leerzeichen müssen %20 sein, 
-            // aber eckige Klammern [ ] dürfen NICHT kodiert werden, wenn sie Teil des Ordnernamens sind.
-            const encodedPath = fullPath
-                .split('/')
-                .map(segment => encodeURIComponent(segment)
-                    .replace(/%5B/g, '[')
-                    .replace(/%5D/g, ']')
-                )
-                .join('/')
-                .replace(/%3A/g, ':');
-
             return new Promise((resolve, reject) => {
-                console.log("Versuche Modell zu laden:", encodedPath);
-                loader.load(encodedPath, (gltf) => {
+                console.log("Versuche Modell zu laden:", fullPath);
+                loader.load(fullPath, (gltf) => {
                     modelCache.set(path, gltf.scene);
                     resolve(gltf.scene.clone());
                 }, undefined, (err) => {
-                    console.error(`Fehler beim Laden von ${encodedPath}:`, err);
+                    console.error(`Fehler beim Laden von ${fullPath}:`, err);
                     reject(err);
                 });
             });
         };
 
         try {
-            return await tryLoad(BASE_ASSET_PATH + path);
+            return await tryLoad(encodedPath);
         } catch (e) {
-            // Fallback: Falls der glTF-Unterordner auf GitHub fehlt, versuche es direkt
+            // Fallback-Logik bleibt erhalten, falls der Pfad nicht aus der Library kam
             if (path.includes('/glTF/')) {
                 const fallbackPath = path.replace('/glTF/', '/');
                 console.log("Erster Ladeversuch fehlgeschlagen, versuche Fallback:", fallbackPath);
-                return await tryLoad(BASE_ASSET_PATH + fallbackPath);
+                return await tryLoad(fallbackPath);
             }
             throw e;
         }
     }
 
-    const MEGA_KIT_PATH = 'Medieval Village MegaKit[Standard]/glTF/';
-
     async function createModularHouse(type = 'small') {
         const group = new THREE.Group();
-        const SCALE = 4.0; // Vergrößerungsfaktor für das Haus
+        const SCALE = 4.0; 
         
         try {
             if (type === 'small') {
-                // Ein einfaches 1x1 Haus (zentriert)
-                
                 // Boden
-                const floor = await loadModel(MEGA_KIT_PATH + 'Floor_WoodDark.gltf');
+                const floor = await loadModel(AssetsLibrary.get('VILLAGE', 'FLOOR_WOOD'));
                 group.add(floor);
 
-                // Wände (Offset angepasst für Zentrierung bei 4x4 Einheiten)
-                const wallDist = 2; // halbe Breite
+                const wallDist = 2; 
 
-                const wall1 = await loadModel(MEGA_KIT_PATH + 'Wall_Plaster_Door_Flat.gltf');
+                const wall1 = await loadModel(AssetsLibrary.get('VILLAGE', 'WALL_DOOR'));
                 wall1.position.set(0, 0, wallDist);
                 group.add(wall1);
 
-                const wall2 = await loadModel(MEGA_KIT_PATH + 'Wall_Plaster_Window_Wide_Flat.gltf');
+                const wall2 = await loadModel(AssetsLibrary.get('VILLAGE', 'WALL_WINDOW'));
                 wall2.position.set(wallDist, 0, 0);
                 wall2.rotation.y = Math.PI / 2;
                 group.add(wall2);
 
-                const wall3 = await loadModel(MEGA_KIT_PATH + 'Wall_Plaster_Straight.gltf');
+                const wall3 = await loadModel(AssetsLibrary.get('VILLAGE', 'WALL_STRAIGHT'));
                 wall3.position.set(0, 0, -wallDist);
                 wall3.rotation.y = Math.PI;
                 group.add(wall3);
 
-                const wall4 = await loadModel(MEGA_KIT_PATH + 'Wall_Plaster_Straight.gltf');
+                const wall4 = await loadModel(AssetsLibrary.get('VILLAGE', 'WALL_STRAIGHT'));
                 wall4.position.set(-wallDist, 0, 0);
                 wall4.rotation.y = -Math.PI / 2;
                 group.add(wall4);
 
-                // Ecken (für saubere Kanten)
                 for (let i = 0; i < 4; i++) {
-                    const corner = await loadModel(MEGA_KIT_PATH + 'Corner_Exterior_Brick.gltf');
+                    const corner = await loadModel(AssetsLibrary.get('VILLAGE', 'CORNER'));
                     const angle = i * (Math.PI / 2);
-                    // Korrigierte Eckposition für 4x4 Grid
                     const cornerDist = 2.0;
                     corner.position.set(
                         (i === 0 || i === 3 ? 1 : -1) * cornerDist,
@@ -166,11 +152,10 @@
                 }
 
                 // Dach
-                const roof = await loadModel(MEGA_KIT_PATH + 'Roof_RoundTiles_4x4.gltf');
-                roof.position.set(0, 4, 0); // Wandhöhe ca. 4 Einheiten
+                const roof = await loadModel(AssetsLibrary.get('VILLAGE', 'ROOF_4X4'));
+                roof.position.set(0, 4, 0); 
                 group.add(roof);
 
-                // Gesamtskalierung anwenden
                 group.scale.set(SCALE, SCALE, SCALE);
             }
         } catch (e) {
@@ -195,18 +180,17 @@
         return group;
     }
 
-    const SKELETON_PATH = 'Skellet/characters/gltf/';
-    const SKELETON_ANIM_PATH = 'Skellet/Animation/Rig_Medium/';
-
-    async function createMonsterModel(type = 'Warrior') {
+    async function createMonsterModel(type = 'WARRIOR') {
         const group = new THREE.Group();
         try {
-            const modelName = `Skeleton_${type}.glb`;
-            const model = await loadModel(SKELETON_PATH + modelName);
+            // Hole Pfad aus AssetsLibrary
+            const modelPath = AssetsLibrary.get('SKELETONS', type.toUpperCase());
+            const model = await loadModel(modelPath);
             group.add(model);
 
-            // Animationen laden (optional, falls wir sie direkt abspielen wollen)
-            // Hier könnten wir später einen AnimationMixer hinzufügen
+            // Animationen vorbereiten (General Rig)
+            const animPath = AssetsLibrary.get('SKELETONS', 'GENERAL');
+            // Hier könnte man den AnimationMixer laden
         } catch (e) {
             console.error("Error creating monster model:", e);
             // Fallback: Rote Box
@@ -785,35 +769,26 @@
     }
 
     async function initVegetation(scene) {
-        console.log("[Vegetation] Initialisiere Bäume...");
-        const count = 300; // Etwas weniger, dafür glTF-Bäume
-        const TREE_MODELS = [
-            'Tree_Conifer_L_1.gltf',
-            'Tree_Conifer_L_2.gltf',
-            'Tree_Conifer_L_3.gltf',
-            'Tree_Leaf_L_1.gltf',
-            'Tree_Leaf_L_2.gltf',
-            'Tree_Leaf_L_3.gltf'
-        ];
+        console.log("[Vegetation] Initialisiere Bäume mit AssetsLibrary...");
+        const count = 300; 
+        const ALL_TREES = AssetsLibrary.getAllTrees();
 
         for (let i = 0; i < count; i++) {
             const x = (Math.random() - 0.5) * 3000;
             const z = (Math.random() - 0.5) * 3000;
             
-            // Sicherheitsabstand zu Dörfern (Zentrum und Außenposten)
             const distToCenter = Math.hypot(x, z);
-            if (distToCenter < 350) continue; // Viel Platz um das Hauptdorf
+            if (distToCenter < 350) continue; 
 
-            const modelName = TREE_MODELS[Math.floor(Math.random() * TREE_MODELS.length)];
+            const treePath = ALL_TREES[Math.floor(Math.random() * ALL_TREES.length)];
             try {
-                const tree = await loadModel(MEGA_KIT_PATH + modelName);
-                const s = 4.0 + Math.random() * 4.0;
+                const tree = await loadModel(treePath);
+                const s = 4.0 + Math.random() * 6.0;
                 tree.scale.set(s, s, s);
                 tree.position.set(x, getTerrainHeight(x, z), z);
                 tree.rotation.y = Math.random() * Math.PI * 2;
                 scene.add(tree);
             } catch (e) {
-                // Fallback: Einfacher Baum
                 const trunk = new THREE.Mesh(
                     new THREE.CylinderGeometry(2, 3, 20),
                     new THREE.MeshStandardMaterial({ color: 0x3d2a1a })
@@ -823,23 +798,25 @@
             }
         }
 
-        // Büsche und Gras als InstancedMesh lassen (Performance)
-        const bushGeo = new THREE.DodecahedronGeometry(5, 0);
-        const bushMat = new THREE.MeshStandardMaterial({ color: 0x2d4c1e, flatShading: true });
-        const bushInst = new THREE.InstancedMesh(bushGeo, bushMat, 500);
-        const m = new THREE.Matrix4();
-
-        for (let i = 0; i < 500; i++) {
+        // Büsche aus AssetsLibrary
+        const ALL_BUSHES = AssetsLibrary.getAllBushes();
+        for (let i = 0; i < 200; i++) {
             const x = (Math.random() - 0.5) * 3000;
             const z = (Math.random() - 0.5) * 3000;
             if (Math.hypot(x, z) < 150) continue;
-            const s = 0.8 + Math.random() * 2.5;
-            const rotY = Math.random() * Math.PI;
-            const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), rotY);
-            m.compose(new THREE.Vector3(x, getTerrainHeight(x, z) + 2, z), q, new THREE.Vector3(s, s * 0.8, s));
-            bushInst.setMatrixAt(i, m);
+
+            const bushPath = ALL_BUSHES[Math.floor(Math.random() * ALL_BUSHES.length)];
+            try {
+                const bush = await loadModel(bushPath);
+                const s = 1.5 + Math.random() * 2.5;
+                bush.scale.set(s, s, s);
+                bush.position.set(x, getTerrainHeight(x, z), z);
+                bush.rotation.y = Math.random() * Math.PI * 2;
+                scene.add(bush);
+            } catch (e) {
+                // Fallback für Büsche
+            }
         }
-        scene.add(bushInst);
     }
 
     function createPalisade(scene, centerX, centerZ, radius) {
