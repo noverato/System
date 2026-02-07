@@ -778,23 +778,36 @@
         const x0 = cx * CHUNK_SIZE;
         const z0 = cz * CHUNK_SIZE;
 
-        const segments = QUALITY >= 3 ? 16 : (QUALITY >= 2 ? 12 : 8); 
+        const segments = QUALITY >= 3 ? 16 : (QUALITY >= 2 ? 16 : 8); 
         const geo = new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE, segments, segments);
         const pos = geo.attributes.position.array;
         
         const colors = new Float32Array(pos.length);
 
-        for (let i = 0; i < pos.length; i += 3) {
-            let vx = x0 + pos[i] + CHUNK_SIZE/2;
-            let vz = z0 + pos[i + 1] + CHUNK_SIZE/2;
-            
-            const h = getTerrainHeight(vx, vz);
-            pos[i + 2] = h;
+        // Wir berechnen vx und vz basierend auf Indizes, um Gleitkomma-Fehler an Chunk-Grenzen zu vermeiden
+        const vertexCount = segments + 1;
+        for (let iz = 0; iz < vertexCount; iz++) {
+            for (let ix = 0; ix < vertexCount; ix++) {
+                const i = (iz * vertexCount + ix) * 3;
+                
+                // Exakte Welt-Koordinaten berechnen
+                // ix / segments ist an den Rändern exakt 0.0 oder 1.0
+                const vx = x0 + (ix / segments) * CHUNK_SIZE;
+                const vz = z0 + (iz / segments) * CHUNK_SIZE;
+                
+                const h = getTerrainHeight(vx, vz);
+                
+                // PlaneGeometry liegt in der XY-Ebene, wir nutzen Z für die Höhe (wird später rotiert)
+                // Wir setzen x, y und z manuell, um absolute Präzision zu garantieren
+                pos[i] = (ix / segments) * CHUNK_SIZE - CHUNK_SIZE / 2;
+                pos[i + 1] = (iz / segments) * CHUNK_SIZE - CHUNK_SIZE / 2;
+                pos[i + 2] = h;
 
-            const color = getBiomeColor(vx, vz);
-            colors[i] = color.r;
-            colors[i+1] = color.g;
-            colors[i+2] = color.b;
+                const color = getBiomeColor(vx, vz);
+                colors[i] = color.r;
+                colors[i+1] = color.g;
+                colors[i+2] = color.b;
+            }
         }
 
         geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
