@@ -193,9 +193,19 @@
                     modelCache.set(path, gltf.scene);
                     resolve(gltf.scene.clone());
                 }, undefined, (err) => {
+                    // NEU: Sofortige Analyse des Fehlers
                     if (err instanceof RangeError || (err.message && err.message.includes('out-of-bounds'))) {
-                        console.error(`!!! KRITISCHER FEHLER beim Laden von ${fullPath} !!!`);
-                        console.error("Die Datei scheint korrupt zu sein oder hat die falsche Endung (z.B. .gltf manuell in .glb umbenannt).");
+                        console.error("!!! GLB STRUKTUR-FEHLER !!!");
+                        console.log("Details zum Pfad:", fullPath);
+                        console.log("Wahrscheinliche Ursache: Die Datei ist binär beschädigt oder kein gültiges GLB-Format.");
+                        
+                        // Versuche herauszufinden, ob es HTML statt GLB ist
+                        fetch(fullPath).then(res => res.text()).then(text => {
+                            if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {
+                                console.error("PFAD-FEHLER: Der Server liefert eine HTML-Seite statt der .glb Datei!");
+                                console.log("Inhalt der Antwort (ersten 50 Zeichen):", text.substring(0, 50));
+                            }
+                        }).catch(() => {});
                     }
                     console.error(`Fehler beim Laden von ${fullPath}:`, err);
                     reject(err);
