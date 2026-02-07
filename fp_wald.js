@@ -1142,10 +1142,18 @@
         const isPC = !/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         if (isPC) {
             // Verstecke die untere Nav-Leiste im fpModal
-            const navBar = document.querySelector('#fpModal > div > div:nth-child(2)');
-            if (navBar && navBar.style) {
-                navBar.style.display = 'none';
-            }
+            const hideNav = () => {
+                const navBar = document.querySelector('#fpModal > div > div:nth-child(2)');
+                if (navBar && navBar.style) {
+                    navBar.style.display = 'none';
+                    navBar.style.pointerEvents = 'none';
+                    navBar.style.height = '0';
+                    navBar.style.opacity = '0';
+                }
+            };
+            hideNav();
+            setTimeout(hideNav, 500); // Sicherheits-Check nach halber Sekunde
+            setTimeout(hideNav, 1500); // Und nochmal nach 1.5s
         }
 
         spawnCollectibles(); // Sammelobjekte spawnen
