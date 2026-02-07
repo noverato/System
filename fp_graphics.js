@@ -1531,9 +1531,20 @@
 
     function cleanup(scene) {
         chunks.forEach(chunk => {
-            scene.remove(chunk.group);
-            chunk.mesh.geometry.dispose();
-            chunk.mesh.material.dispose();
+            if (chunk.group) {
+                scene.remove(chunk.group);
+                chunk.group.traverse(obj => {
+                    if (obj.geometry) obj.geometry.dispose();
+                    if (obj.material) {
+                        if (Array.isArray(obj.material)) {
+                            obj.material.forEach(m => m.dispose());
+                        } else {
+                            if (obj.material.map) obj.material.map.dispose();
+                            obj.material.dispose();
+                        }
+                    }
+                });
+            }
         });
         chunks.clear();
         villageBuildings = [];
@@ -1554,8 +1565,6 @@
         initWorld,
         initMountains,
         initRiver,
-        initVegetation,
-        initForestDetails,
         createPalisade,
         createWatchtower,
         createStreetLamp,
