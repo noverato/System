@@ -78,9 +78,14 @@
         }
         
         const tryLoad = (fullPath) => {
+            // Spezialbehandlung für GitHub-Pfade: Leerzeichen müssen %20 sein, 
+            // aber eckige Klammern [ ] dürfen NICHT kodiert werden, wenn sie Teil des Ordnernamens sind.
             const encodedPath = fullPath
                 .split('/')
-                .map(segment => encodeURIComponent(segment))
+                .map(segment => encodeURIComponent(segment)
+                    .replace(/%5B/g, '[')
+                    .replace(/%5D/g, ']')
+                )
                 .join('/')
                 .replace(/%3A/g, ':');
 
@@ -89,7 +94,10 @@
                 loader.load(encodedPath, (gltf) => {
                     modelCache.set(path, gltf.scene);
                     resolve(gltf.scene.clone());
-                }, undefined, reject);
+                }, undefined, (err) => {
+                    console.error(`Fehler beim Laden von ${encodedPath}:`, err);
+                    reject(err);
+                });
             });
         };
 
