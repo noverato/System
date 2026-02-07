@@ -34,7 +34,8 @@
         roofY: 4,
         offsetX: 0,
         offsetY: 0,
-        offsetZ: 0
+        offsetZ: 0,
+        houseModel: 'house1'
     };
 
     // Lade initiale Werte aus LocalStorage falls vorhanden
@@ -98,8 +99,14 @@
         // Altes Haus entfernen
         parent.remove(selectedHouse);
         
+        // Typ bestimmen (Kalibrierung oder House1)
+        let type = 'calibration';
+        if (calibrationParams.houseModel === 'house1') {
+            type = 'house1';
+        }
+
         // Neues Haus mit Kalibrierungswerten erstellen
-        const newHouse = await createModularHouse('calibration', x, z);
+        const newHouse = await createModularHouse(type, x, z);
         newHouse.userData.name = name;
         newHouse.isBuildingGroup = true;
         parent.add(newHouse);
@@ -200,6 +207,37 @@
     async function createModularHouse(type = 'small', seedX = 0, seedZ = 0) {
         const group = new THREE.Group();
         
+        // Spezialfall: Neues House_1.glb Modell
+        if (type === 'house1' || (type === 'calibration' && calibrationParams.houseModel === 'house1')) {
+            try {
+                const model = await loadModel(AssetsLibrary.get('HOUSE', 'HOUSE_1'));
+                
+                let s = 10;
+                if (type === 'calibration') {
+                    s = calibrationParams.overallScale;
+                    group.position.x += calibrationParams.offsetX;
+                    group.position.y += calibrationParams.offsetY;
+                    group.position.z += calibrationParams.offsetZ;
+                } else {
+                    // Deterministische Variation für normale Häuser
+                    const houseRng = () => {
+                        const s = Math.sin(seedX * 12.9898 + seedZ * 78.233) * 43758.5453;
+                        return s - Math.floor(s);
+                    };
+                    const rand = houseRng();
+                    s = 8 + rand * 4; // Skalierung 8-12
+                    group.rotation.y = Math.floor(rand * 4) * (Math.PI / 2); // 0, 90, 180, 270 Grad
+                }
+                
+                model.scale.set(s, s, s);
+                group.add(model);
+                return group;
+            } catch (e) {
+                console.warn("Konnte House_1.glb nicht laden, wechsle zu modular:", e);
+                // Fallback zu modular
+            }
+        }
+
         // Grundwerte initialisieren
         let currentScale = 6.0;
         let targetWidth, targetDepth, wallScaleW, wallScaleD;
@@ -1526,7 +1564,13 @@
 
         // Versuche modulares Haus zu laden
         try {
-            const modularHouse = await createModularHouse('small', x, z);
+            let modularHouse;
+            if (name === "Schmiede") {
+                modularHouse = await createModularHouse('calibration', x, z);
+            } else {
+                // Alle Häuser nutzen jetzt standardmäßig das neue House_1.glb
+                modularHouse = await createModularHouse('house1', x, z);
+            }
             modularHouse.isBuildingGroup = true; // Markierung für Kalibrierung
             modularHouse.userData.name = name;
             group.add(modularHouse);
