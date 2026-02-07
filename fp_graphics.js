@@ -49,11 +49,25 @@
 
     const QUALITY = getQuality();
 
-    const loader = new THREE.GLTFLoader();
+    let loader;
+    try {
+        if (typeof THREE.GLTFLoader !== 'undefined') {
+            loader = new THREE.GLTFLoader();
+        } else {
+            console.error("THREE.GLTFLoader ist nicht definiert. Stelle sicher, dass der Loader in index.html korrekt geladen wird.");
+        }
+    } catch (e) {
+        console.error("Fehler beim Initialisieren des GLTFLoaders:", e);
+    }
+
     const modelCache = new Map();
 
     async function loadModel(path) {
         if (modelCache.has(path)) return modelCache.get(path).clone();
+        if (!loader) {
+            console.warn("Loader nicht verfügbar für:", path);
+            throw new Error("Loader not initialized");
+        }
         return new Promise((resolve, reject) => {
             loader.load(BASE_ASSET_PATH + path, (gltf) => {
                 modelCache.set(path, gltf.scene);
