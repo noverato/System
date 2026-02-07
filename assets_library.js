@@ -108,6 +108,14 @@ const AssetsLibrary = (() => {
             }
         },
 
+        // NEU: House Ordner
+        HOUSE: {
+            PATH: 'House/',
+            MODELS: {
+                HOUSE_1: 'House_1.glb'
+            }
+        },
+
         // Dunge - "Dunge" (Dungeon Assets)
         DUNGEON: {
             PATH: 'Dunge/Assets/gltf/',
