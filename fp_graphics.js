@@ -156,6 +156,14 @@
     try {
         if (typeof THREE.GLTFLoader !== 'undefined') {
             loader = new THREE.GLTFLoader();
+            
+            // DracoLoader hinzufügen für komprimierte .glb Dateien
+            if (typeof THREE.DRACOLoader !== 'undefined') {
+                const dracoLoader = new THREE.DRACOLoader();
+                // Nutze das Google-CDN für die Draco-Decoder-Dateien
+                dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
+                loader.setDRACOLoader(dracoLoader);
+            }
         } else {
             console.error("THREE.GLTFLoader ist nicht definiert. Stelle sicher, dass der Loader in index.html korrekt geladen wird.");
         }
@@ -185,6 +193,10 @@
                     modelCache.set(path, gltf.scene);
                     resolve(gltf.scene.clone());
                 }, undefined, (err) => {
+                    if (err instanceof RangeError || (err.message && err.message.includes('out-of-bounds'))) {
+                        console.error(`!!! KRITISCHER FEHLER beim Laden von ${fullPath} !!!`);
+                        console.error("Die Datei scheint korrupt zu sein oder hat die falsche Endung (z.B. .gltf manuell in .glb umbenannt).");
+                    }
                     console.error(`Fehler beim Laden von ${fullPath}:`, err);
                     reject(err);
                 });
