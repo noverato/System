@@ -109,52 +109,65 @@
 
     async function createModularHouse(type = 'small') {
         const group = new THREE.Group();
-        const SCALE = 4.0; 
+        const SCALE = 6.0; // Deutlich größer für bessere Sichtbarkeit
         
         try {
             if (type === 'small') {
+                const BASE_SIZE = 4.0; // Die Modelle sind meist 4x4 Einheiten
+                const TARGET_SIZE = 5.0; // Wir wollen 5x5 Einheiten (Skalierung 1.25)
+                const wallScale = TARGET_SIZE / BASE_SIZE;
+                const wallDist = TARGET_SIZE / 2;
+
                 // Boden
                 const floor = await loadModel(AssetsLibrary.get('VILLAGE', 'FLOOR_WOOD'));
+                floor.scale.set(wallScale, 1, wallScale);
                 group.add(floor);
 
-                const wallDist = 2; 
+                // Wände
+                const wallConfigs = [
+                    { path: 'WALL_DOOR', pos: [0, 0, wallDist], rot: 0 },
+                    { path: 'WALL_WINDOW', pos: [wallDist, 0, 0], rot: Math.PI / 2 },
+                    { path: 'WALL_STRAIGHT', pos: [0, 0, -wallDist], rot: Math.PI },
+                    { path: 'WALL_STRAIGHT', pos: [-wallDist, 0, 0], rot: -Math.PI / 2 }
+                ];
 
-                const wall1 = await loadModel(AssetsLibrary.get('VILLAGE', 'WALL_DOOR'));
-                wall1.position.set(0, 0, wallDist);
-                group.add(wall1);
+                for (const config of wallConfigs) {
+                    const wall = await loadModel(AssetsLibrary.get('VILLAGE', config.path));
+                    wall.position.set(...config.pos);
+                    wall.rotation.y = config.rot;
+                    wall.scale.x = wallScale; // In der Breite strecken auf 5m
+                    group.add(wall);
+                }
 
-                const wall2 = await loadModel(AssetsLibrary.get('VILLAGE', 'WALL_WINDOW'));
-                wall2.position.set(wallDist, 0, 0);
-                wall2.rotation.y = Math.PI / 2;
-                group.add(wall2);
-
-                const wall3 = await loadModel(AssetsLibrary.get('VILLAGE', 'WALL_STRAIGHT'));
-                wall3.position.set(0, 0, -wallDist);
-                wall3.rotation.y = Math.PI;
-                group.add(wall3);
-
-                const wall4 = await loadModel(AssetsLibrary.get('VILLAGE', 'WALL_STRAIGHT'));
-                wall4.position.set(-wallDist, 0, 0);
-                wall4.rotation.y = -Math.PI / 2;
-                group.add(wall4);
-
+                // Ecken (Pfeiler)
                 for (let i = 0; i < 4; i++) {
                     const corner = await loadModel(AssetsLibrary.get('VILLAGE', 'CORNER'));
                     const angle = i * (Math.PI / 2);
-                    const cornerDist = 2.0;
-                    corner.position.set(
-                        (i === 0 || i === 3 ? 1 : -1) * cornerDist,
-                        0,
-                        (i === 0 || i === 1 ? 1 : -1) * cornerDist
-                    );
+                    const x = (i === 0 || i === 3 ? 1 : -1) * wallDist;
+                    const z = (i === 0 || i === 1 ? 1 : -1) * wallDist;
+                    corner.position.set(x, 0, z);
                     corner.rotation.y = -angle + Math.PI/2;
                     group.add(corner);
                 }
 
-                // Dach
+                // Dach (4x4 Modell auf 5x5 skalieren)
                 const roof = await loadModel(AssetsLibrary.get('VILLAGE', 'ROOF_4X4'));
-                roof.position.set(0, 4, 0); 
+                roof.scale.set(wallScale, 1.3, wallScale); 
+                roof.position.set(0, 4, 0); // Die Wände sind 4 Einheiten hoch
                 group.add(roof);
+
+                // Giebel (Dreiecke im Dach) - Vorne und Hinten schließen das Dach ab
+                // Roof_Front_Brick4 ist ein fertiges Giebel-Dreieck
+                const gableFront = await loadModel(AssetsLibrary.get('VILLAGE', 'ROOF_GABLE'));
+                gableFront.position.set(0, 4, wallDist);
+                gableFront.scale.set(wallScale, 1.3, 1);
+                group.add(gableFront);
+
+                const gableBack = await loadModel(AssetsLibrary.get('VILLAGE', 'ROOF_GABLE'));
+                gableBack.position.set(0, 4, -wallDist);
+                gableBack.rotation.y = Math.PI;
+                gableBack.scale.set(wallScale, 1.3, 1);
+                group.add(gableBack);
 
                 group.scale.set(SCALE, SCALE, SCALE);
             }
@@ -314,12 +327,26 @@
 
     function getBiomeColor(x, z) {
         const data = getBiomeData(x, z);
+        
+        // 1. Village / Path Detection
+        let isVillage = false;
+        let distToVillage = 9999;
+        for (const loc of VILLAGE_LOCATIONS) {
+            const d = Math.hypot(x - loc.x, z - loc.z);
+            if (d < loc.radius) {
+                isVillage = true;
+                distToVillage = Math.min(distToVillage, d);
+            }
+        }
+
         const biomeColors = {
             desert: new THREE.Color(0xedc9af),
             snow: new THREE.Color(0xffffff),
             jungle: new THREE.Color(0x1a472a),
             swamp: new THREE.Color(0x2f351e),
-            plains: new THREE.Color(0x567d46)
+            plains: new THREE.Color(0x567d46),
+            stone: new THREE.Color(0x808080),
+            path: new THREE.Color(0x9b7653) // Braun für Wege
         };
         
         // Blending der Farben basierend auf Gewichten
@@ -336,6 +363,27 @@
         blend(biomeColors.jungle, data.weights.jungle);
         blend(biomeColors.swamp, data.weights.swamp);
         blend(biomeColors.plains, data.weights.plains);
+
+        // 2. Village Ground logic
+        if (isVillage) {
+            const villageEffect = 1.0 - Math.min(1.0, distToVillage / 300);
+            const pathNoise = getOctaveNoise(x * 0.05, z * 0.05, 2);
+            
+            // In Dorfnähe mischen wir Stein und Weg-Farben ein
+            if (pathNoise > 0.3) {
+                finalColor.lerp(biomeColors.stone, villageEffect * 0.8);
+            } else if (pathNoise > -0.2) {
+                finalColor.lerp(biomeColors.path, villageEffect * 0.7);
+            }
+        }
+        
+        // 3. Laub/Erde Variation (nur in Plains/Jungle)
+        if (data.weights.plains > 0.5 || data.weights.jungle > 0.5) {
+            const leafNoise = getOctaveNoise(x * 0.1, z * 0.1, 2);
+            if (leafNoise > 0.4) {
+                finalColor.lerp(new THREE.Color(0x3d2b1f), 0.3); // Dunkle Erde/Laub
+            }
+        }
         
         // Kleine Rausch-Variation für "Textur"-Effekt
         const noise = simpleNoise(x * 0.5, z * 0.5) * 0.05;
