@@ -1417,7 +1417,7 @@
         const world = document.getElementById('world');
         if (world) world.style.display = 'block';
 
-        window.removeEventListener('keydown', handleKeys);
+        // window.removeEventListener('keydown', handleKeys); // Veraltet, wird in unmount() über keyHandler erledigt
         if (presenceTimer) { clearInterval(presenceTimer); presenceTimer = null; }
     }
     function bindUI() {
