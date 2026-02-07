@@ -132,13 +132,21 @@
             }
         } catch (e) {
             console.error("Error building modular house:", e);
-            // Fallback: Einfache Box
-            const fallback = new THREE.Mesh(
-                new THREE.BoxGeometry(8, 8, 8),
-                new THREE.MeshStandardMaterial({ color: 0x8b4513 })
+            // Fallback: Einfaches Low-Poly Haus
+            const houseBody = new THREE.Mesh(
+                new THREE.BoxGeometry(7, 7, 7),
+                new THREE.MeshStandardMaterial({ color: 0x8b4513, flatShading: true })
             );
-            fallback.position.y = 4;
-            group.add(fallback);
+            houseBody.position.y = 3.5;
+            group.add(houseBody);
+
+            const roof = new THREE.Mesh(
+                new THREE.ConeGeometry(6, 4, 4),
+                new THREE.MeshStandardMaterial({ color: 0x4a3728, flatShading: true })
+            );
+            roof.position.y = 9;
+            roof.rotation.y = Math.PI / 4;
+            group.add(roof);
         }
 
         return group;
@@ -279,14 +287,29 @@
 
     function getBiomeColor(x, z) {
         const data = getBiomeData(x, z);
-        const colors = {
-            desert: new THREE.Color(0xedc9af), // Wüstensand
-            snow: new THREE.Color(0xffffff),   // Schnee
-            jungle: new THREE.Color(0x1a472a), // Dunkles Dschungelgrün
-            swamp: new THREE.Color(0x2f351e),  // Morastiges Grün
-            plains: new THREE.Color(0x567d46)  // Grasland
+        const biomeColors = {
+            desert: new THREE.Color(0xedc9af),
+            snow: new THREE.Color(0xffffff),
+            jungle: new THREE.Color(0x1a472a),
+            swamp: new THREE.Color(0x2f351e),
+            plains: new THREE.Color(0x567d46)
         };
-        return colors[data.primary];
+        
+        // Blending der Farben basierend auf Gewichten
+        let finalColor = new THREE.Color(0, 0, 0);
+        finalColor.addScaledVector(biomeColors.desert, data.weights.desert);
+        finalColor.addScaledVector(biomeColors.snow, data.weights.snow);
+        finalColor.addScaledVector(biomeColors.jungle, data.weights.jungle);
+        finalColor.addScaledVector(biomeColors.swamp, data.weights.swamp);
+        finalColor.addScaledVector(biomeColors.plains, data.weights.plains);
+        
+        // Kleine Rausch-Variation für "Textur"-Effekt
+        const noise = simpleNoise(x * 0.5, z * 0.5) * 0.05;
+        finalColor.r += noise;
+        finalColor.g += noise;
+        finalColor.b += noise;
+        
+        return finalColor;
     }
 
     function createDetailedTree(rng, leafColor = 0x567d46) {
@@ -395,13 +418,11 @@
         const x0 = cx * CHUNK_SIZE;
         const z0 = cz * CHUNK_SIZE;
 
-        const segments = QUALITY > 1 ? 24 : 16; // Etwas höhere Auflösung für weichere Übergänge
+        const segments = QUALITY >= 3 ? 32 : (QUALITY >= 2 ? 24 : 16); 
         const geo = new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE, segments, segments);
         const pos = geo.attributes.position.array;
         
-        // Farben-Attribute für Biome-Blending
         const colors = new Float32Array(pos.length);
-        
         const centerX = x0 + CHUNK_SIZE / 2;
         const centerZ = z0 + CHUNK_SIZE / 2;
 
@@ -409,11 +430,9 @@
             let vx = centerX + pos[i];
             let vz = centerZ + pos[i + 1];
             
-            // Präzise Höhenberechnung ohne Snapping (vermeidet Risse)
             const h = getTerrainHeight(vx, vz);
             pos[i + 2] = h;
 
-            // Farbe basierend auf Biome am jeweiligen Vertex
             const color = getBiomeColor(vx, vz);
             colors[i] = color.r;
             colors[i+1] = color.g;
@@ -425,15 +444,31 @@
 
         const mat = new THREE.MeshStandardMaterial({ 
             vertexColors: true,
-            flatShading: QUALITY < 3, // Flat Shading nur bei niedriger Qualität
-            roughness: 0.8,
-            metalness: 0.1
+            flatShading: true, // Behalten für Low-Poly Look, aber mit besseren Farben
+            roughness: 0.9,
+            metalness: 0.0,
+            envMapIntensity: 0.5
         });
 
         const mesh = new THREE.Mesh(geo, mat);
         mesh.rotation.x = -Math.PI / 2;
         mesh.receiveShadow = true;
+        mesh.castShadow = true; // Terrain kann Schatten werfen (z.B. Berge)
         group.add(mesh);
+
+        // Wasser-Ebene für diesen Chunk, falls unter 0
+        const waterGeo = new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE, 1, 1);
+        const waterMat = new THREE.MeshStandardMaterial({
+            color: 0x4fa3e1,
+            transparent: true,
+            opacity: 0.6,
+            roughness: 0.1,
+            metalness: 0.3
+        });
+        const water = new THREE.Mesh(waterGeo, waterMat);
+        water.rotation.x = -Math.PI / 2;
+        water.position.y = -2; // Leicht unter Null
+        group.add(water);
 
         scene.add(group);
         chunks.set(key, { group, mesh });
@@ -441,6 +476,18 @@
 
     function initWorld(scene, env, enterHouseCallback) {
         if (!env) return;
+
+        // Große Basis-Ebene für den Hintergrund (verhindert das "blaue Nichts")
+        const baseGeo = new THREE.PlaneGeometry(5000, 5000);
+        const baseMat = new THREE.MeshStandardMaterial({ 
+            color: 0x3d4f35, // Dunkles Grün/Erde
+            roughness: 1.0,
+            metalness: 0.0
+        });
+        const basePlane = new THREE.Mesh(baseGeo, baseMat);
+        basePlane.rotation.x = -Math.PI / 2;
+        basePlane.position.y = -5; // Tief genug unter dem eigentlichen Terrain
+        scene.add(basePlane);
 
         // initMountains(scene); // Entfernt, da Berge jetzt Teil des Terrains sind
         initRiver(scene);
