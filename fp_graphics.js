@@ -297,11 +297,18 @@
         
         // Blending der Farben basierend auf Gewichten
         let finalColor = new THREE.Color(0, 0, 0);
-        finalColor.addScaledVector(biomeColors.desert, data.weights.desert);
-        finalColor.addScaledVector(biomeColors.snow, data.weights.snow);
-        finalColor.addScaledVector(biomeColors.jungle, data.weights.jungle);
-        finalColor.addScaledVector(biomeColors.swamp, data.weights.swamp);
-        finalColor.addScaledVector(biomeColors.plains, data.weights.plains);
+        
+        const blend = (color, weight) => {
+            finalColor.r += color.r * weight;
+            finalColor.g += color.g * weight;
+            finalColor.b += color.b * weight;
+        };
+
+        blend(biomeColors.desert, data.weights.desert);
+        blend(biomeColors.snow, data.weights.snow);
+        blend(biomeColors.jungle, data.weights.jungle);
+        blend(biomeColors.swamp, data.weights.swamp);
+        blend(biomeColors.plains, data.weights.plains);
         
         // Kleine Rausch-Variation für "Textur"-Effekt
         const noise = simpleNoise(x * 0.5, z * 0.5) * 0.05;
