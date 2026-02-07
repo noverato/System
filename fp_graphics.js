@@ -539,7 +539,7 @@
 
         // initMountains(scene); // Entfernt, da Berge jetzt Teil des Terrains sind
         initRiver(scene);
-        initVegetation(scene);
+        await initVegetation(scene);
         initForestDetails(scene);
 
         const biomeKeys = Object.keys(env.biomes);
@@ -776,46 +776,62 @@
         });
     }
 
-    function initVegetation(scene) {
-        const bushGeo = new THREE.DodecahedronGeometry(5, 0);
-        const bushMat = new THREE.MeshStandardMaterial({ color: 0x2d4c1e, flatShading: true });
-        const count = 500;
-        const bushInst = new THREE.InstancedMesh(bushGeo, bushMat, count);
-        const m = new THREE.Matrix4();
-        
-        const grassGeo = new THREE.PlaneGeometry(2, 5);
-        const grassMat = new THREE.MeshStandardMaterial({ 
-            color: 0x5a7d3a, 
-            side: THREE.DoubleSide,
-            flatShading: true
-        });
-        const grassCount = 2000;
-        const grassInst = new THREE.InstancedMesh(grassGeo, grassMat, grassCount);
+    async function initVegetation(scene) {
+        console.log("[Vegetation] Initialisiere Bäume...");
+        const count = 300; // Etwas weniger, dafür glTF-Bäume
+        const TREE_MODELS = [
+            'Tree_Conifer_L_1.gltf',
+            'Tree_Conifer_L_2.gltf',
+            'Tree_Conifer_L_3.gltf',
+            'Tree_Leaf_L_1.gltf',
+            'Tree_Leaf_L_2.gltf',
+            'Tree_Leaf_L_3.gltf'
+        ];
 
         for (let i = 0; i < count; i++) {
-            const x = (Math.random() - 0.5) * 2500;
-            const z = (Math.random() - 0.5) * 2500;
-            if (Math.hypot(x, z) < 120) continue; 
+            const x = (Math.random() - 0.5) * 3000;
+            const z = (Math.random() - 0.5) * 3000;
+            
+            // Sicherheitsabstand zu Dörfern (Zentrum und Außenposten)
+            const distToCenter = Math.hypot(x, z);
+            if (distToCenter < 350) continue; // Viel Platz um das Hauptdorf
+
+            const modelName = TREE_MODELS[Math.floor(Math.random() * TREE_MODELS.length)];
+            try {
+                const tree = await loadModel(MEGA_KIT_PATH + modelName);
+                const s = 4.0 + Math.random() * 4.0;
+                tree.scale.set(s, s, s);
+                tree.position.set(x, getTerrainHeight(x, z), z);
+                tree.rotation.y = Math.random() * Math.PI * 2;
+                scene.add(tree);
+            } catch (e) {
+                // Fallback: Einfacher Baum
+                const trunk = new THREE.Mesh(
+                    new THREE.CylinderGeometry(2, 3, 20),
+                    new THREE.MeshStandardMaterial({ color: 0x3d2a1a })
+                );
+                trunk.position.set(x, 10, z);
+                scene.add(trunk);
+            }
+        }
+
+        // Büsche und Gras als InstancedMesh lassen (Performance)
+        const bushGeo = new THREE.DodecahedronGeometry(5, 0);
+        const bushMat = new THREE.MeshStandardMaterial({ color: 0x2d4c1e, flatShading: true });
+        const bushInst = new THREE.InstancedMesh(bushGeo, bushMat, 500);
+        const m = new THREE.Matrix4();
+
+        for (let i = 0; i < 500; i++) {
+            const x = (Math.random() - 0.5) * 3000;
+            const z = (Math.random() - 0.5) * 3000;
+            if (Math.hypot(x, z) < 150) continue;
             const s = 0.8 + Math.random() * 2.5;
             const rotY = Math.random() * Math.PI;
             const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), rotY);
-            m.compose(new THREE.Vector3(x, 2, z), q, new THREE.Vector3(s, s * 0.8, s));
+            m.compose(new THREE.Vector3(x, getTerrainHeight(x, z) + 2, z), q, new THREE.Vector3(s, s * 0.8, s));
             bushInst.setMatrixAt(i, m);
         }
-
-        for (let i = 0; i < grassCount; i++) {
-            const x = (Math.random() - 0.5) * 2500;
-            const z = (Math.random() - 0.5) * 2500;
-            if (Math.hypot(x, z) < 100) continue;
-            const s = 1.0 + Math.random() * 2.0;
-            const rotY = Math.random() * Math.PI;
-            const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), rotY);
-            m.compose(new THREE.Vector3(x, 2, z), q, new THREE.Vector3(s, s, s));
-            grassInst.setMatrixAt(i, m);
-        }
-
         scene.add(bushInst);
-        scene.add(grassInst);
     }
 
     function createPalisade(scene, centerX, centerZ, radius) {
