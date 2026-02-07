@@ -108,75 +108,85 @@
         }
     }
 
-    async function createModularHouse(type = 'small') {
+    async function createModularHouse(type = 'small', seedX = 0, seedZ = 0) {
         const group = new THREE.Group();
-        const SCALE = 6.0; // Deutlich größer für bessere Sichtbarkeit
+        const SCALE = 6.0; 
         
+        // Deterministischer Zufall basierend auf Position für konsistente Größe
+        const houseRng = () => {
+            const s = Math.sin(seedX * 12.9898 + seedZ * 78.233) * 43758.5453;
+            return s - Math.floor(s);
+        };
+
         try {
             if (type === 'small') {
-                const BASE_SIZE = 4.0; // Die Modelle sind meist 4x4 Einheiten
-                const TARGET_SIZE = 5.0; // Wir wollen 5x5 Einheiten (Skalierung 1.25)
-                const wallScale = TARGET_SIZE / BASE_SIZE;
-                const wallDist = TARGET_SIZE / 2;
+                const BASE_SIZE = 4.0; 
+                // Zufällige Fundamentgröße zwischen 4.5 und 8.5 Einheiten
+                const targetWidth = 4.5 + houseRng() * 4.0;
+                const targetDepth = 4.5 + houseRng() * 4.0;
+                
+                const wallScaleW = targetWidth / BASE_SIZE;
+                const wallScaleD = targetDepth / BASE_SIZE;
+                const halfW = targetWidth / 2;
+                const halfD = targetDepth / 2;
 
-                // Boden
+                // Boden (skaliert auf exakte Fundamentgröße)
                 const floor = await loadModel(AssetsLibrary.get('VILLAGE', 'FLOOR_WOOD'));
-                floor.scale.set(wallScale, 1, wallScale);
+                floor.scale.set(wallScaleW, 1, wallScaleD);
                 group.add(floor);
 
-                // Wände
+                // Wände (Skalierung füllt Raum zwischen Eckpfeilern zu 100%)
                 const wallConfigs = [
-                    { path: 'WALL_DOOR', pos: [0, 0, wallDist], rot: 0 },
-                    { path: 'WALL_WINDOW', pos: [wallDist, 0, 0], rot: Math.PI / 2 },
-                    { path: 'WALL_STRAIGHT', pos: [0, 0, -wallDist], rot: Math.PI },
-                    { path: 'WALL_STRAIGHT', pos: [-wallDist, 0, 0], rot: -Math.PI / 2 }
+                    { path: 'WALL_DOOR', pos: [0, 0, halfD], rot: 0, scale: wallScaleW },
+                    { path: 'WALL_WINDOW', pos: [halfW, 0, 0], rot: Math.PI / 2, scale: wallScaleD },
+                    { path: 'WALL_STRAIGHT', pos: [0, 0, -halfD], rot: Math.PI, scale: wallScaleW },
+                    { path: 'WALL_STRAIGHT', pos: [-halfW, 0, 0], rot: -Math.PI / 2, scale: wallScaleD }
                 ];
 
                 for (const config of wallConfigs) {
                     const wall = await loadModel(AssetsLibrary.get('VILLAGE', config.path));
                     wall.position.set(...config.pos);
                     wall.rotation.y = config.rot;
-                    wall.scale.x = wallScale; // In der Breite strecken auf 5m
+                    wall.scale.x = config.scale; 
                     group.add(wall);
                 }
 
-                // Ecken (Pfeiler)
+                // Ecken (Pfeiler) - An die Ecken des Fundaments gepinnt
+                const cornerPos = [
+                    [halfW, 0, halfD],   // VR
+                    [-halfW, 0, halfD],  // VL
+                    [-halfW, 0, -halfD], // HL
+                    [halfW, 0, -halfD]   // HR
+                ];
+
                 for (let i = 0; i < 4; i++) {
                     const corner = await loadModel(AssetsLibrary.get('VILLAGE', 'CORNER'));
-                    const angle = i * (Math.PI / 2);
-                    const x = (i === 0 || i === 3 ? 1 : -1) * wallDist;
-                    const z = (i === 0 || i === 1 ? 1 : -1) * wallDist;
-                    corner.position.set(x, 0, z);
-                    corner.rotation.y = -angle + Math.PI/2;
+                    corner.position.set(...cornerPos[i]);
+                    corner.rotation.y = i * (-Math.PI / 2) + Math.PI/2;
                     group.add(corner);
                 }
 
-                // Dach (4x4 Modell auf 5x5 skalieren)
+                // Dach (Skalierung folgt Fundament)
                 const roof = await loadModel(AssetsLibrary.get('VILLAGE', 'ROOF_4X4'));
-                roof.scale.set(wallScale, 1.3, wallScale); 
-                roof.position.set(0, 4, 0); // Die Wände sind 4 Einheiten hoch
+                roof.scale.set(wallScaleW, 1.3, wallScaleD); 
+                roof.position.set(0, 4, 0); 
                 group.add(roof);
 
-                // Giebel (Dreiecke im Dach) - Vorne und Hinten schließen das Dach ab
-                // Wir nutzen Overhang_RoofIncline_Plaster.gltf aus der AssetsLibrary
+                // Giebel (Dachabschluss)
                 let gablePath = AssetsLibrary.get('VILLAGE', 'ROOF_GABLE');
-                
-                // Sicherheitscheck: Falls AssetsLibrary den Key nicht kennt (z.B. Cache-Problem),
-                // nutzen wir einen Fallback-Dateinamen direkt.
                 if (gablePath.endsWith('ROOF_GABLE')) {
-                     console.warn("[FPGraphics] ROOF_GABLE nicht in AssetsLibrary gefunden, nutze Fallback-Pfad.");
                      gablePath = AssetsLibrary.encode('animation/Medieval Village MegaKit[Standard]/glTF/Roof_Front_Brick4.gltf');
-                 }
+                }
 
                 const gableFront = await loadModel(gablePath);
-                gableFront.position.set(0, 4, wallDist);
-                gableFront.scale.set(wallScale, 1.3, 1);
+                gableFront.position.set(0, 4, halfD);
+                gableFront.scale.set(wallScaleW, 1.3, 1);
                 group.add(gableFront);
 
                 const gableBack = await loadModel(gablePath);
-                gableBack.position.set(0, 4, -wallDist);
+                gableBack.position.set(0, 4, -halfD);
                 gableBack.rotation.y = Math.PI;
-                gableBack.scale.set(wallScale, 1.3, 1);
+                gableBack.scale.set(wallScaleW, 1.3, 1);
                 group.add(gableBack);
 
                 group.scale.set(SCALE, SCALE, SCALE);
@@ -1409,7 +1419,7 @@
 
         // Versuche modulares Haus zu laden
         try {
-            const modularHouse = await createModularHouse('small');
+            const modularHouse = await createModularHouse('small', x, z);
             group.add(modularHouse);
             console.log(`[Dorf] GLTF-Haus für ${name} erfolgreich geladen.`);
         } catch (e) {
