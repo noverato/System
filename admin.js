@@ -126,6 +126,52 @@ const AdminConsole = {
         });
     },
 
+    startHouseCalibration: function() {
+        if (typeof FPGraphics === 'undefined' || !window.avatar) {
+            this.sync("FPGraphics oder Avatar nicht gefunden.");
+            return;
+        }
+
+        const success = FPGraphics.selectNearestHouse(window.avatar.position.x, window.avatar.position.z);
+        if (success) {
+            document.getElementById('calibration-controls').style.display = 'block';
+            this.sync("Haus zur Kalibrierung ausgewählt. Nutze die Regler!");
+        } else {
+            this.sync("Kein Haus in der Nähe gefunden.");
+        }
+    },
+
+    updateCalibration: function(key, value) {
+        const val = parseFloat(value);
+        document.getElementById(`val-${key}`).innerText = val.toFixed(2);
+        
+        const params = {};
+        params[key] = val;
+        
+        if (typeof FPGraphics !== 'undefined') {
+            FPGraphics.updateCalibration(params);
+        }
+    },
+
+    exportCalibration: function() {
+        // Wir holen uns die aktuellen Werte aus den Slidern oder direkt aus FPGraphics (wenn wir Zugriff hätten)
+        // Einfachheitshalber lesen wir die Labels aus
+        const keys = ['overallScale', 'targetWidth', 'targetDepth', 'wallScaleW', 'wallScaleD', 'roofScaleY', 'gableScaleY', 'wallY', 'roofY'];
+        const results = {};
+        keys.forEach(k => {
+            results[k] = parseFloat(document.getElementById(`val-${k}`).innerText);
+        });
+
+        const json = JSON.stringify(results, null, 4);
+        console.log("%c[GOTT] GOLDENE WERTE EXPORTIERT:", "color: #059669; font-weight: bold; font-size: 14px;");
+        console.log(json);
+        
+        // In Zwischenablage kopieren
+        navigator.clipboard.writeText(json).then(() => {
+            this.sync("Goldene Werte in Konsole & Zwischenablage kopiert!");
+        });
+    },
+
     // 4. SYNCHRONISATION
     sync: function(msg) {
         console.log(`%c[GOTT]: ${msg}`, "color: gold; font-weight: bold; background: #000; padding: 2px 5px;");
@@ -167,6 +213,54 @@ function openAdminPanel() {
                 <button class="btn-action" onclick="AdminConsole.setLevel(30)">+30 LEVEL</button>
                 <button class="btn-action" id="btnEditToggle" onclick="AdminConsole.toggleEditMode()">EDIT-MODUS: AUS</button>
                 <button class="btn-action" style="background: #444;" onclick="AdminConsole.sync('Manueller Cloud-Sync')">☁ CLOUD SAVE</button>
+            </div>
+
+            <hr style="border: 1px solid #444; margin: 15px 0;">
+
+            <h3 style="margin-bottom: 10px;">🏠 HAUS-KALIBRIERUNG (GOLDENE WERTE)</h3>
+            <div style="background: rgba(0,0,0,0.5); padding: 10px; border: 1px solid gold; font-size: 11px;">
+                <button class="btn-action" onclick="AdminConsole.startHouseCalibration()" style="width:100%; margin-bottom:10px; background: #b45309;">NÄCHSTES HAUS AUSWÄHLEN</button>
+                
+                <div id="calibration-controls" style="display: none;">
+                    <div style="margin-bottom: 5px;">
+                        <label>Gesamt-Skalierung (overallScale): <span id="val-overallScale">6.0</span></label>
+                        <input type="range" min="1" max="15" step="0.1" value="6.0" oninput="AdminConsole.updateCalibration('overallScale', this.value)" style="width:100%;">
+                    </div>
+                    <div style="margin-bottom: 5px;">
+                        <label>Fundament Breite (targetWidth): <span id="val-targetWidth">6.5</span></label>
+                        <input type="range" min="2" max="15" step="0.1" value="6.5" oninput="AdminConsole.updateCalibration('targetWidth', this.value)" style="width:100%;">
+                    </div>
+                    <div style="margin-bottom: 5px;">
+                        <label>Fundament Tiefe (targetDepth): <span id="val-targetDepth">6.5</span></label>
+                        <input type="range" min="2" max="15" step="0.1" value="6.5" oninput="AdminConsole.updateCalibration('targetDepth', this.value)" style="width:100%;">
+                    </div>
+                    <div style="margin-bottom: 5px;">
+                        <label>Wand-Streckung B (wallScaleW): <span id="val-wallScaleW">1.6</span></label>
+                        <input type="range" min="0.5" max="4" step="0.05" value="1.6" oninput="AdminConsole.updateCalibration('wallScaleW', this.value)" style="width:100%;">
+                    </div>
+                    <div style="margin-bottom: 5px;">
+                        <label>Wand-Streckung T (wallScaleD): <span id="val-wallScaleD">1.6</span></label>
+                        <input type="range" min="0.5" max="4" step="0.05" value="1.6" oninput="AdminConsole.updateCalibration('wallScaleD', this.value)" style="width:100%;">
+                    </div>
+                    <div style="margin-bottom: 5px;">
+                        <label>Dach Höhe (roofScaleY): <span id="val-roofScaleY">1.3</span></label>
+                        <input type="range" min="0.1" max="5" step="0.1" value="1.3" oninput="AdminConsole.updateCalibration('roofScaleY', this.value)" style="width:100%;">
+                    </div>
+                    <div style="margin-bottom: 5px;">
+                        <label>Giebel Höhe (gableScaleY): <span id="val-gableScaleY">1.3</span></label>
+                        <input type="range" min="0.1" max="5" step="0.1" value="1.3" oninput="AdminConsole.updateCalibration('gableScaleY', this.value)" style="width:100%;">
+                    </div>
+                    <div style="margin-bottom: 5px;">
+                        <label>Wand Y-Offset (wallY): <span id="val-wallY">0.0</span></label>
+                        <input type="range" min="-5" max="5" step="0.1" value="0.0" oninput="AdminConsole.updateCalibration('wallY', this.value)" style="width:100%;">
+                    </div>
+                    <div style="margin-bottom: 5px;">
+                        <label>Dach Y-Offset (roofY): <span id="val-roofY">4.0</span></label>
+                        <input type="range" min="0" max="10" step="0.1" value="4.0" oninput="AdminConsole.updateCalibration('roofY', this.value)" style="width:100%;">
+                    </div>
+                    
+                    <button class="btn-action" onclick="AdminConsole.exportCalibration()" style="width:100%; margin-top:10px; background: #059669;">GOLDENE WERTE EXPORTIEREN</button>
+                </div>
             </div>
 
             <hr style="border: 1px solid #444; margin: 15px 0;">
