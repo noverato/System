@@ -49,6 +49,14 @@
 
     const QUALITY = getQuality();
 
+    // Fallback für globale noise-Variable, falls eine Bibliothek fehlt
+    if (typeof window.noise === 'undefined') {
+        window.noise = {
+            perlin2: (x, y) => simpleNoise(x, y),
+            seed: (s) => {}
+        };
+    }
+
     let loader;
     try {
         if (typeof THREE.GLTFLoader !== 'undefined') {
