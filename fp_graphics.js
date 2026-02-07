@@ -9,7 +9,8 @@
         trunk: 0x3d2b1f
     };
 
-    const CHUNK_SIZE = 128;
+    const CHUNK_SIZE = 32;
+    const RENDER_DISTANCE = 12; // Radius in Chunks (12 * 32 = 384m Sichtweite)
     
     // Basis-Pfad für Assets (Lokal vs. GitHub flexibel)
     // Dieser Pfad wird jetzt zentral in AssetsLibrary.js verwaltet.
@@ -494,23 +495,112 @@
         return g;
     }
 
-    function createChunk(cx, cz, scene) {
-        const key = `${cx},${cz}`;
-        const group = new THREE.Group();
+   // Deterministischer Zufall für Chunks
+    function mulberry32(a) {
+        return function() {
+            let t = a += 0x6D2B79F5;
+            t = Math.imul(t ^ t >>> 15, t | 1);
+            t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+            return ((t ^ t >>> 14) >>> 0) / 4294967296;
+        }
+    }
+
+    async function spawnDecorationsForChunk(cx, cz, group) {
+        // Seed basierend auf Koordinaten
+        const seed = (cx * 73856093) ^ (cz * 19349663);
+        const rng = mulberry32(seed);
+        
         const x0 = cx * CHUNK_SIZE;
         const z0 = cz * CHUNK_SIZE;
 
-        const segments = QUALITY >= 3 ? 32 : (QUALITY >= 2 ? 24 : 16); 
+        // Bäume & Büsche nur außerhalb der Dörfer
+        let inVillage = false;
+        for (const loc of VILLAGE_LOCATIONS) {
+            const d = Math.hypot(x0 + CHUNK_SIZE/2 - loc.x, z0 + CHUNK_SIZE/2 - loc.z);
+            if (d < loc.radius + 20) {
+                inVillage = true;
+                break;
+            }
+        }
+
+        if (!inVillage) {
+             // Steine
+             if (rng() > 0.8) {
+                 const lx = x0 + rng() * CHUNK_SIZE;
+                 const lz = z0 + rng() * CHUNK_SIZE;
+                 const h = getTerrainHeight(lx, lz);
+                 const s = 0.5 + rng() * 2.0;
+                 
+                 const rockGeo = new THREE.DodecahedronGeometry(s, 0);
+                 const rockMat = new THREE.MeshStandardMaterial({ color: 0x777777, flatShading: true });
+                 const rock = new THREE.Mesh(rockGeo, rockMat);
+                 rock.position.set(lx - x0, h, lz - z0);
+                 rock.rotation.set(rng(), rng(), rng());
+                 group.add(rock);
+             }
+
+             // Bäume
+             if (rng() > 0.75) { // Leicht reduzierte Dichte für Performance
+                const lx = x0 + rng() * CHUNK_SIZE;
+                const lz = z0 + rng() * CHUNK_SIZE;
+                const h = getTerrainHeight(lx, lz);
+                
+                const ALL_TREES = AssetsLibrary.getAllTrees();
+                const treePath = ALL_TREES[Math.floor(rng() * ALL_TREES.length)];
+                
+                try {
+                    const tree = await loadModel(treePath);
+                    const s = 4.0 + rng() * 6.0;
+                    tree.scale.set(s, s, s);
+                    tree.position.set(lx - x0, h, lz - z0); // Relativ zur Group
+                    tree.rotation.y = rng() * Math.PI * 2;
+                    group.add(tree);
+                } catch(e) {}
+            }
+
+            // Büsche
+            if (rng() > 0.6) {
+                const lx = x0 + rng() * CHUNK_SIZE;
+                const lz = z0 + rng() * CHUNK_SIZE;
+                const h = getTerrainHeight(lx, lz);
+                
+                const ALL_BUSHES = AssetsLibrary.getAllBushes();
+                const bushPath = ALL_BUSHES[Math.floor(rng() * ALL_BUSHES.length)];
+                
+                try {
+                    const bush = await loadModel(bushPath);
+                    const s = 1.5 + rng() * 2.5;
+                    bush.scale.set(s, s, s);
+                    bush.position.set(lx - x0, h, lz - z0);
+                    bush.rotation.y = rng() * Math.PI * 2;
+                    group.add(bush);
+                } catch(e) {}
+            }
+        }
+    }
+
+    async function createChunk(cx, cz, scene) {
+        const key = `${cx},${cz}`;
+        if (chunks.has(key)) return; // Doppeltes Laden verhindern
+        
+        // Platzhalter setzen, um parallele Ladevorgänge für denselben Chunk zu vermeiden
+        chunks.set(key, { loading: true });
+
+        const group = new THREE.Group();
+        group.position.set(cx * CHUNK_SIZE, 0, cz * CHUNK_SIZE);
+        
+        const x0 = cx * CHUNK_SIZE;
+        const z0 = cz * CHUNK_SIZE;
+
+        const segments = QUALITY >= 3 ? 16 : (QUALITY >= 2 ? 12 : 8); 
         const geo = new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE, segments, segments);
         const pos = geo.attributes.position.array;
         
         const colors = new Float32Array(pos.length);
-        const centerX = x0 + CHUNK_SIZE / 2;
-        const centerZ = z0 + CHUNK_SIZE / 2;
 
         for (let i = 0; i < pos.length; i += 3) {
-            let vx = centerX + pos[i];
-            let vz = centerZ + pos[i + 1];
+            let vx = x0 + pos[i] + CHUNK_SIZE/2;
+            let vz = z0 + pos[i + 1] + CHUNK_SIZE/2;
             
             const h = getTerrainHeight(vx, vz);
             pos[i + 2] = h;
@@ -526,19 +616,19 @@
 
         const mat = new THREE.MeshStandardMaterial({ 
             vertexColors: true,
-            flatShading: true, // Behalten für Low-Poly Look, aber mit besseren Farben
+            flatShading: true,
             roughness: 0.9,
-            metalness: 0.0,
-            envMapIntensity: 0.5
+            metalness: 0.0
         });
 
         const mesh = new THREE.Mesh(geo, mat);
         mesh.rotation.x = -Math.PI / 2;
+        mesh.position.set(CHUNK_SIZE/2, 0, CHUNK_SIZE/2); // Zentrieren in der Group
         mesh.receiveShadow = true;
-        mesh.castShadow = true; // Terrain kann Schatten werfen (z.B. Berge)
+        mesh.castShadow = true;
         group.add(mesh);
 
-        // Wasser-Ebene für diesen Chunk, falls unter 0
+        // Wasser-Ebene
         const waterGeo = new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE, 1, 1);
         const waterMat = new THREE.MeshStandardMaterial({
             color: 0x4fa3e1,
@@ -549,8 +639,11 @@
         });
         const water = new THREE.Mesh(waterGeo, waterMat);
         water.rotation.x = -Math.PI / 2;
-        water.position.y = -2; // Leicht unter Null
+        water.position.set(CHUNK_SIZE/2, -2, CHUNK_SIZE/2);
         group.add(water);
+
+        // Dekorationen laden
+        await spawnDecorationsForChunk(cx, cz, group);
 
         scene.add(group);
         chunks.set(key, { group, mesh });
@@ -579,8 +672,8 @@
 
         // initMountains(scene); // Entfernt, da Berge jetzt Teil des Terrains sind
         initRiver(scene);
-        await initVegetation(scene);
-        initForestDetails(scene);
+        // await initVegetation(scene); // Jetzt in Chunks
+        // initForestDetails(scene); // Jetzt in Chunks
 
         const biomeKeys = Object.keys(env.biomes);
         for (let index = 0; index < biomeKeys.length; index++) {
@@ -651,44 +744,6 @@
             mount.scale.y = 1.2 + Math.random() * 2;
             mount.rotation.set(Math.random(), Math.random(), Math.random());
             scene.add(mount);
-        }
-    }
-
-    function initForestDetails(scene) {
-        const rockGeo = new THREE.DodecahedronGeometry(2, 0);
-        const rockMat = new THREE.MeshStandardMaterial({ color: 0x777777, flatShading: true });
-        const rockCount = 200;
-        const rockInst = new THREE.InstancedMesh(rockGeo, rockMat, rockCount);
-        const m = new THREE.Matrix4();
-
-        for (let i = 0; i < rockCount; i++) {
-            const x = (Math.random() - 0.5) * 2000;
-            const z = (Math.random() - 0.5) * 2000;
-            if (Math.hypot(x, z) < 150) continue;
-            const s = 0.5 + Math.random() * 2.0;
-            const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.random(), Math.random(), Math.random()));
-            m.compose(new THREE.Vector3(x, s, z), q, new THREE.Vector3(s, s, s));
-            rockInst.setMatrixAt(i, m);
-        }
-        scene.add(rockInst);
-
-        const rayGeo = new THREE.CylinderGeometry(2, 15, 400, 8, 1, true);
-        const rayMat = new THREE.MeshBasicMaterial({ 
-            color: 0xfff5e1, 
-            transparent: true, 
-            opacity: 0.05, 
-            side: THREE.DoubleSide,
-            depthWrite: false
-        });
-        
-        for (let i = 0; i < 30; i++) {
-            const ray = new THREE.Mesh(rayGeo, rayMat);
-            const rx = (Math.random() - 0.5) * 2000;
-            const rz = (Math.random() - 0.5) * 2000;
-            ray.position.set(rx, 200, rz);
-            ray.rotation.x = 0.2;
-            ray.rotation.z = (Math.random() - 0.5) * 0.5;
-            scene.add(ray);
         }
     }
 
@@ -814,57 +869,6 @@
                 p.position.z = -20 + (Math.random() - 0.5) * 5;
             }
         });
-    }
-
-    async function initVegetation(scene) {
-        console.log("[Vegetation] Initialisiere Bäume mit AssetsLibrary...");
-        const count = 300; 
-        const ALL_TREES = AssetsLibrary.getAllTrees();
-
-        for (let i = 0; i < count; i++) {
-            const x = (Math.random() - 0.5) * 3000;
-            const z = (Math.random() - 0.5) * 3000;
-            
-            const distToCenter = Math.hypot(x, z);
-            if (distToCenter < 350) continue; 
-
-            const treePath = ALL_TREES[Math.floor(Math.random() * ALL_TREES.length)];
-            try {
-                const tree = await loadModel(treePath);
-                const s = 4.0 + Math.random() * 6.0;
-                tree.scale.set(s, s, s);
-                tree.position.set(x, getTerrainHeight(x, z), z);
-                tree.rotation.y = Math.random() * Math.PI * 2;
-                scene.add(tree);
-            } catch (e) {
-                const trunk = new THREE.Mesh(
-                    new THREE.CylinderGeometry(2, 3, 20),
-                    new THREE.MeshStandardMaterial({ color: 0x3d2a1a })
-                );
-                trunk.position.set(x, 10, z);
-                scene.add(trunk);
-            }
-        }
-
-        // Büsche aus AssetsLibrary
-        const ALL_BUSHES = AssetsLibrary.getAllBushes();
-        for (let i = 0; i < 200; i++) {
-            const x = (Math.random() - 0.5) * 3000;
-            const z = (Math.random() - 0.5) * 3000;
-            if (Math.hypot(x, z) < 150) continue;
-
-            const bushPath = ALL_BUSHES[Math.floor(Math.random() * ALL_BUSHES.length)];
-            try {
-                const bush = await loadModel(bushPath);
-                const s = 1.5 + Math.random() * 2.5;
-                bush.scale.set(s, s, s);
-                bush.position.set(x, getTerrainHeight(x, z), z);
-                bush.rotation.y = Math.random() * Math.PI * 2;
-                scene.add(bush);
-            } catch (e) {
-                // Fallback für Büsche
-            }
-        }
     }
 
     function createPalisade(scene, centerX, centerZ, radius) {
@@ -1209,10 +1213,13 @@
         const currentCZ = Math.floor(pz / CHUNK_SIZE);
 
         const activeKeys = new Set();
-        const STRICT_RADIUS = 2;
+        
+        // Render-Radius verwenden
+        for (let dx = -RENDER_DISTANCE; dx <= RENDER_DISTANCE; dx++) {
+            for (let dz = -RENDER_DISTANCE; dz <= RENDER_DISTANCE; dz++) {
+                // Nur kreisförmig laden für bessere Performance
+                if (dx*dx + dz*dz > RENDER_DISTANCE*RENDER_DISTANCE) continue;
 
-        for (let dx = -STRICT_RADIUS; dx <= STRICT_RADIUS; dx++) {
-            for (let dz = -STRICT_RADIUS; dz <= STRICT_RADIUS; dz++) {
                 const cx = currentCX + dx;
                 const cz = currentCZ + dz;
                 const key = `${cx},${cz}`;
@@ -1226,18 +1233,20 @@
 
         for (const [key, chunk] of chunks) {
             if (!activeKeys.has(key)) {
-                scene.remove(chunk.group);
-                chunk.group.traverse(obj => {
-                    if (obj.geometry) obj.geometry.dispose();
-                    if (obj.material) {
-                        if (Array.isArray(obj.material)) {
-                            obj.material.forEach(m => m.dispose());
-                        } else {
-                            if (obj.material.map) obj.material.map.dispose();
-                            obj.material.dispose();
+                if (chunk.group) {
+                    scene.remove(chunk.group);
+                    chunk.group.traverse(obj => {
+                        if (obj.geometry) obj.geometry.dispose();
+                        if (obj.material) {
+                            if (Array.isArray(obj.material)) {
+                                obj.material.forEach(m => m.dispose());
+                            } else {
+                                if (obj.material.map) obj.material.map.dispose();
+                                obj.material.dispose();
+                            }
                         }
-                    }
-                });
+                    });
+                }
                 chunks.delete(key);
             }
         }
