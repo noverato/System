@@ -5,6 +5,28 @@
  */
 
 const MarketCatalog = {
+    // Ressourcen (Basis-Waren)
+    resources: [
+        { id: "res_stein", price: 20, category: 1 },
+        { id: "res_eisen", price: 45, category: 1 },
+        { id: "res_stock", price: 10, category: 1 },
+        { id: "res_gras", price: 5, category: 1 },
+        { id: "res_kraeuter", price: 25, category: 1 },
+        { id: "res_schleimkern", price: 60, category: 1 },
+        { id: "res_gold", price: 150, category: 2, reqLevel: 10 },
+        { id: "lxp_shard", price: 500, category: 2, reqLevel: 20 }
+    ],
+
+    // Starter-Waffen (Holz)
+    starter_weapons: [
+        { id: "w_holzschwert", price: 50, category: 1 },
+        { id: "w_holzdolch", price: 30, category: 1 },
+        { id: "w_holzstab", price: 40, category: 1 },
+        { id: "w_holzbogen", price: 60, category: 1 },
+        { id: "w_pfeile", price: 5, category: 1 },
+        { id: "w_holzschild", price: 45, category: 1 }
+    ],
+
     // Rüstungen (Nur Einzelteile für Follower)
     armors: [
         // Stufe 1: Immer kaufbar
@@ -21,10 +43,15 @@ const MarketCatalog = {
 
     // Waffen Evolution (Basierend auf Level/Evo)
     weapons: [
-        { id: "wpn_esche_5", name: "Esche-Kurzbogen", atk: 8, stufe: 1, reqLevel: 5, price: 150, category: 1 },
-        { id: "wpn_rost_5", name: "Rostiger Dolch", atk: 10, stufe: 1, reqLevel: 5, price: 150, category: 1 },
-        // Höhere Stufen benötigen entsprechendes Level
-        { id: "wpn_falke_20", name: "Falken-Bogen", atk: 35, stufe: 1, reqLevel: 20, price: 1200, category: 2 }
+        { id: "w_f_bogen_1_5", stufe: 1, reqLevel: 5, price: 150, category: 1 },
+        { id: "w_f_schwert_1_5", stufe: 1, reqLevel: 5, price: 150, category: 1 },
+        { id: "w_f_stab_1_5", stufe: 1, reqLevel: 5, price: 150, category: 1 },
+        { id: "w_f_armbrust_1_5", stufe: 1, reqLevel: 5, price: 150, category: 1 },
+        { id: "w_f_dolch_1_5", stufe: 1, reqLevel: 5, price: 150, category: 1 },
+        
+        // Höhere Stufen (Kategorie 2)
+        { id: "w_f_bogen_2_8", stufe: 2, reqLevel: 8, reqEvo: 2, price: 450, category: 2 },
+        { id: "w_f_schwert_2_8", stufe: 2, reqLevel: 8, reqEvo: 2, price: 450, category: 2 }
     ],
 
     // Sub-Exklusive Sets (Nur komplette Sets, niemals handelbar)
@@ -58,9 +85,11 @@ function getVisibleMarketItems(player) {
     let availableItems = [];
 
     // Gehe alle Kategorien durch
-    for (const category in MarketCatalog) {
-        MarketCatalog[category].forEach(item => {
-            
+    for (const key in MarketCatalog) {
+        const group = MarketCatalog[key];
+        if (!Array.isArray(group)) continue; // Nur Arrays verarbeiten
+
+        group.forEach(item => {
             // Regel 1: Drop-only Items niemals im LXP-Markt zeigen
             if (item.category === 3 || item.market_visible === false) return;
 
