@@ -76,12 +76,34 @@
             console.warn("Loader nicht verfügbar für:", path);
             throw new Error("Loader not initialized");
         }
-        return new Promise((resolve, reject) => {
-            loader.load(BASE_ASSET_PATH + path, (gltf) => {
-                modelCache.set(path, gltf.scene);
-                resolve(gltf.scene.clone());
-            }, undefined, reject);
-        });
+        
+        const tryLoad = (fullPath) => {
+            const encodedPath = fullPath
+                .split('/')
+                .map(segment => encodeURIComponent(segment))
+                .join('/')
+                .replace(/%3A/g, ':');
+
+            return new Promise((resolve, reject) => {
+                console.log("Versuche Modell zu laden:", encodedPath);
+                loader.load(encodedPath, (gltf) => {
+                    modelCache.set(path, gltf.scene);
+                    resolve(gltf.scene.clone());
+                }, undefined, reject);
+            });
+        };
+
+        try {
+            return await tryLoad(BASE_ASSET_PATH + path);
+        } catch (e) {
+            // Fallback: Falls der glTF-Unterordner auf GitHub fehlt, versuche es direkt
+            if (path.includes('/glTF/')) {
+                const fallbackPath = path.replace('/glTF/', '/');
+                console.log("Erster Ladeversuch fehlgeschlagen, versuche Fallback:", fallbackPath);
+                return await tryLoad(BASE_ASSET_PATH + fallbackPath);
+            }
+            throw e;
+        }
     }
 
     const MEGA_KIT_PATH = 'Medieval Village MegaKit[Standard]/glTF/';
