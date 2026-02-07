@@ -21,6 +21,78 @@
     
     let isInterior = false;
     let currentInterior = null;
+    let selectedHouse = null;
+    let calibrationParams = {
+        targetWidth: 6.5,
+        targetDepth: 6.5,
+        wallScaleW: 1.625,
+        wallScaleD: 1.625,
+        overallScale: 6.0,
+        roofScaleY: 1.3,
+        gableScaleY: 1.3,
+        wallY: 0,
+        roofY: 4
+    };
+
+    function selectNearestHouse(px, pz) {
+        let minDist = Infinity;
+        let nearest = null;
+        
+        // Suche in allen geladenen Chunks nach Häusern
+        chunks.forEach(chunk => {
+            if (chunk.group) {
+                chunk.group.children.forEach(obj => {
+                    if (obj.isBuildingGroup) { // Wir müssen diese Flag beim Erstellen setzen
+                        const dist = Math.hypot(obj.position.x - px, obj.position.z - pz);
+                        if (dist < minDist) {
+                            minDist = dist;
+                            nearest = obj;
+                        }
+                    }
+                });
+            }
+        });
+
+        if (nearest) {
+            if (selectedHouse) {
+                // Vorheriges Haus entmarkieren (z.B. BoxHelper entfernen)
+                selectedHouse.remove(selectedHouse.getObjectByName("CalibrationHelper"));
+            }
+            selectedHouse = nearest;
+            const helper = new THREE.BoxHelper(selectedHouse, 0x00ff00);
+            helper.name = "CalibrationHelper";
+            selectedHouse.add(helper);
+            console.log("[Kalibrierung] Haus ausgewählt:", selectedHouse.userData.name);
+            return true;
+        }
+        return false;
+    }
+
+    async function updateCalibration(params) {
+        if (!selectedHouse) return;
+        Object.assign(calibrationParams, params);
+        
+        // Haus neu aufbauen
+        const x = selectedHouse.position.x;
+        const z = selectedHouse.position.z;
+        const name = selectedHouse.userData.name;
+        const parent = selectedHouse.parent;
+        
+        // Altes Haus entfernen
+        parent.remove(selectedHouse);
+        
+        // Neues Haus mit Kalibrierungswerten erstellen
+        const newHouse = await createModularHouse('calibration', x, z);
+        newHouse.userData.name = name;
+        newHouse.isBuildingGroup = true;
+        parent.add(newHouse);
+        
+        selectedHouse = newHouse;
+        const helper = new THREE.BoxHelper(selectedHouse, 0x00ff00);
+        helper.name = "CalibrationHelper";
+        selectedHouse.add(helper);
+    }
+
     let lastExteriorPos = null;
 
     const INTERIOR_POS_SMITHY = { x: 5000, y: 0, z: 5000 };
@@ -110,87 +182,100 @@
 
     async function createModularHouse(type = 'small', seedX = 0, seedZ = 0) {
         const group = new THREE.Group();
-        const SCALE = 6.0; 
         
-        // Deterministischer Zufall basierend auf Position für konsistente Größe
-        const houseRng = () => {
-            const s = Math.sin(seedX * 12.9898 + seedZ * 78.233) * 43758.5453;
-            return s - Math.floor(s);
-        };
+        // Grundwerte initialisieren
+        let currentScale = 6.0;
+        let targetWidth, targetDepth, wallScaleW, wallScaleD;
+        let roofScaleY = 1.3, gableScaleY = 1.3;
+        let wallY = 0, roofY = 4;
+
+        if (type === 'calibration') {
+            currentScale = calibrationParams.overallScale;
+            targetWidth = calibrationParams.targetWidth;
+            targetDepth = calibrationParams.targetDepth;
+            wallScaleW = calibrationParams.wallScaleW;
+            wallScaleD = calibrationParams.wallScaleD;
+            roofScaleY = calibrationParams.roofScaleY;
+            gableScaleY = calibrationParams.gableScaleY;
+            wallY = calibrationParams.wallY;
+            roofY = calibrationParams.roofY;
+        } else {
+            // Deterministischer Zufall basierend auf Position für konsistente Größe
+            const houseRng = () => {
+                const s = Math.sin(seedX * 12.9898 + seedZ * 78.233) * 43758.5453;
+                return s - Math.floor(s);
+            };
+            const BASE_SIZE = 4.0; 
+            targetWidth = 4.5 + houseRng() * 4.0;
+            targetDepth = 4.5 + houseRng() * 4.0;
+            wallScaleW = targetWidth / BASE_SIZE;
+            wallScaleD = targetDepth / BASE_SIZE;
+        }
+
+        const halfW = targetWidth / 2;
+        const halfD = targetDepth / 2;
 
         try {
-            if (type === 'small') {
-                const BASE_SIZE = 4.0; 
-                // Zufällige Fundamentgröße zwischen 4.5 und 8.5 Einheiten
-                const targetWidth = 4.5 + houseRng() * 4.0;
-                const targetDepth = 4.5 + houseRng() * 4.0;
-                
-                const wallScaleW = targetWidth / BASE_SIZE;
-                const wallScaleD = targetDepth / BASE_SIZE;
-                const halfW = targetWidth / 2;
-                const halfD = targetDepth / 2;
+            // Boden (skaliert auf exakte Fundamentgröße)
+            const floor = await loadModel(AssetsLibrary.get('VILLAGE', 'FLOOR_WOOD'));
+            floor.scale.set(wallScaleW, 1, wallScaleD);
+            group.add(floor);
 
-                // Boden (skaliert auf exakte Fundamentgröße)
-                const floor = await loadModel(AssetsLibrary.get('VILLAGE', 'FLOOR_WOOD'));
-                floor.scale.set(wallScaleW, 1, wallScaleD);
-                group.add(floor);
+            // Wände (Skalierung füllt Raum zwischen Eckpfeilern zu 100%)
+            const wallConfigs = [
+                { path: 'WALL_DOOR', pos: [0, wallY, halfD], rot: 0, scale: wallScaleW },
+                { path: 'WALL_WINDOW', pos: [halfW, wallY, 0], rot: Math.PI / 2, scale: wallScaleD },
+                { path: 'WALL_STRAIGHT', pos: [0, wallY, -halfD], rot: Math.PI, scale: wallScaleW },
+                { path: 'WALL_STRAIGHT', pos: [-halfW, wallY, 0], rot: -Math.PI / 2, scale: wallScaleD }
+            ];
 
-                // Wände (Skalierung füllt Raum zwischen Eckpfeilern zu 100%)
-                const wallConfigs = [
-                    { path: 'WALL_DOOR', pos: [0, 0, halfD], rot: 0, scale: wallScaleW },
-                    { path: 'WALL_WINDOW', pos: [halfW, 0, 0], rot: Math.PI / 2, scale: wallScaleD },
-                    { path: 'WALL_STRAIGHT', pos: [0, 0, -halfD], rot: Math.PI, scale: wallScaleW },
-                    { path: 'WALL_STRAIGHT', pos: [-halfW, 0, 0], rot: -Math.PI / 2, scale: wallScaleD }
-                ];
-
-                for (const config of wallConfigs) {
-                    const wall = await loadModel(AssetsLibrary.get('VILLAGE', config.path));
-                    wall.position.set(...config.pos);
-                    wall.rotation.y = config.rot;
-                    wall.scale.x = config.scale; 
-                    group.add(wall);
-                }
-
-                // Ecken (Pfeiler) - An die Ecken des Fundaments gepinnt
-                const cornerPos = [
-                    [halfW, 0, halfD],   // VR
-                    [-halfW, 0, halfD],  // VL
-                    [-halfW, 0, -halfD], // HL
-                    [halfW, 0, -halfD]   // HR
-                ];
-
-                for (let i = 0; i < 4; i++) {
-                    const corner = await loadModel(AssetsLibrary.get('VILLAGE', 'CORNER'));
-                    corner.position.set(...cornerPos[i]);
-                    corner.rotation.y = i * (-Math.PI / 2) + Math.PI/2;
-                    group.add(corner);
-                }
-
-                // Dach (Skalierung folgt Fundament)
-                const roof = await loadModel(AssetsLibrary.get('VILLAGE', 'ROOF_4X4'));
-                roof.scale.set(wallScaleW, 1.3, wallScaleD); 
-                roof.position.set(0, 4, 0); 
-                group.add(roof);
-
-                // Giebel (Dachabschluss)
-                let gablePath = AssetsLibrary.get('VILLAGE', 'ROOF_GABLE');
-                if (gablePath.endsWith('ROOF_GABLE')) {
-                     gablePath = AssetsLibrary.encode('animation/Medieval Village MegaKit[Standard]/glTF/Roof_Front_Brick4.gltf');
-                }
-
-                const gableFront = await loadModel(gablePath);
-                gableFront.position.set(0, 4, halfD);
-                gableFront.scale.set(wallScaleW, 1.3, 1);
-                group.add(gableFront);
-
-                const gableBack = await loadModel(gablePath);
-                gableBack.position.set(0, 4, -halfD);
-                gableBack.rotation.y = Math.PI;
-                gableBack.scale.set(wallScaleW, 1.3, 1);
-                group.add(gableBack);
-
-                group.scale.set(SCALE, SCALE, SCALE);
+            for (const config of wallConfigs) {
+                const wall = await loadModel(AssetsLibrary.get('VILLAGE', config.path));
+                wall.position.set(...config.pos);
+                wall.rotation.y = config.rot;
+                wall.scale.x = config.scale; 
+                group.add(wall);
             }
+
+            // Ecken (Pfeiler) - An die Ecken des Fundaments gepinnt
+            const cornerPos = [
+                [halfW, 0, halfD],   // VR
+                [-halfW, 0, halfD],  // VL
+                [-halfW, 0, -halfD], // HL
+                [halfW, 0, -halfD]   // HR
+            ];
+
+            for (let i = 0; i < 4; i++) {
+                const corner = await loadModel(AssetsLibrary.get('VILLAGE', 'CORNER'));
+                corner.position.set(...cornerPos[i]);
+                corner.rotation.y = i * (-Math.PI / 2) + Math.PI/2;
+                group.add(corner);
+            }
+
+            // Dach (Skalierung folgt Fundament)
+            const roof = await loadModel(AssetsLibrary.get('VILLAGE', 'ROOF_4X4'));
+            roof.scale.set(wallScaleW, roofScaleY, wallScaleD); 
+            roof.position.set(0, roofY, 0); 
+            group.add(roof);
+
+            // Giebel (Dachabschluss)
+            let gablePath = AssetsLibrary.get('VILLAGE', 'ROOF_GABLE');
+            if (gablePath.endsWith('ROOF_GABLE')) {
+                 gablePath = AssetsLibrary.encode('animation/Medieval Village MegaKit[Standard]/glTF/Roof_Front_Brick4.gltf');
+            }
+
+            const gableFront = await loadModel(gablePath);
+            gableFront.position.set(0, roofY, halfD);
+            gableFront.scale.set(wallScaleW, gableScaleY, 1);
+            group.add(gableFront);
+
+            const gableBack = await loadModel(gablePath);
+            gableBack.position.set(0, roofY, -halfD);
+            gableBack.rotation.y = Math.PI;
+            gableBack.scale.set(wallScaleW, gableScaleY, 1);
+            group.add(gableBack);
+
+            group.scale.set(currentScale, currentScale, currentScale);
         } catch (e) {
             console.error("Error building modular house:", e);
             // Fallback: Einfaches Low-Poly Haus
@@ -1420,6 +1505,8 @@
         // Versuche modulares Haus zu laden
         try {
             const modularHouse = await createModularHouse('small', x, z);
+            modularHouse.isBuildingGroup = true; // Markierung für Kalibrierung
+            modularHouse.userData.name = name;
             group.add(modularHouse);
             console.log(`[Dorf] GLTF-Haus für ${name} erfolgreich geladen.`);
         } catch (e) {
@@ -1613,6 +1700,8 @@
         addOverlayCloseButton,
         createModularHouse,
         createMonsterModel,
+        selectNearestHouse,
+        updateCalibration,
         cleanup,
         PALETTE
     };
