@@ -23,16 +23,30 @@
     let currentInterior = null;
     let selectedHouse = null;
     let calibrationParams = {
+        overallScale: 6.0,
         targetWidth: 6.5,
         targetDepth: 6.5,
         wallScaleW: 1.625,
         wallScaleD: 1.625,
-        overallScale: 6.0,
         roofScaleY: 1.3,
         gableScaleY: 1.3,
         wallY: 0,
-        roofY: 4
+        roofY: 4,
+        offsetX: 0,
+        offsetY: 0,
+        offsetZ: 0
     };
+
+    // Lade initiale Werte aus LocalStorage falls vorhanden
+    const savedParams = localStorage.getItem('houseCalibrationParams');
+    if (savedParams) {
+        try {
+            const parsed = JSON.parse(savedParams);
+            calibrationParams = { ...calibrationParams, ...parsed };
+        } catch (e) {
+            console.warn("Fehler beim Laden der Kalibrierung aus LocalStorage:", e);
+        }
+    }
 
     function selectNearestHouse(px, pz) {
         let minDist = Infinity;
@@ -71,6 +85,9 @@
     async function updateCalibration(params) {
         if (!selectedHouse) return;
         Object.assign(calibrationParams, params);
+        
+        // Speichere in LocalStorage
+        localStorage.setItem('houseCalibrationParams', JSON.stringify(calibrationParams));
         
         // Haus neu aufbauen
         const x = selectedHouse.position.x;
@@ -199,6 +216,11 @@
             gableScaleY = calibrationParams.gableScaleY;
             wallY = calibrationParams.wallY;
             roofY = calibrationParams.roofY;
+            
+            // Positions-Offsets anwenden
+            group.position.x += calibrationParams.offsetX;
+            group.position.y += calibrationParams.offsetY;
+            group.position.z += calibrationParams.offsetZ;
         } else {
             // Deterministischer Zufall basierend auf Position für konsistente Größe
             const houseRng = () => {
