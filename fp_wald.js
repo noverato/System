@@ -727,7 +727,7 @@
         }
     }
 
-    function mount() {
+    async function mount() {
         const host = document.getElementById('fpCanvas');
         if (!host) return false;
         if (!window.THREE) { host.innerHTML = '<div style="color:gold; padding:10px;">Lade 3D-Engine...</div>'; return false; }
@@ -781,7 +781,7 @@
         scene.fog = new THREE.Fog(0x1a3c1a, 50, RANGE);
         
         if (window.FPGraphics) {
-            FPGraphics.initWorld(scene, window.EnvironmentManager, (buildingName) => {
+            await FPGraphics.initWorld(scene, window.EnvironmentManager, (buildingName) => {
                 if (buildingName === "Schmiede") enterHouse('smithy');
                 else if (buildingName === "Wirtshaus") enterHouse('inn');
                 else if (buildingName === "Marktplatz" || buildingName === "Markt") {
