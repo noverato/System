@@ -158,13 +158,22 @@
                 group.add(roof);
 
                 // Giebel (Dreiecke im Dach) - Vorne und Hinten schließen das Dach ab
-                // Roof_Front_Brick4 ist ein fertiges Giebel-Dreieck
-                const gableFront = await loadModel(AssetsLibrary.get('VILLAGE', 'ROOF_GABLE'));
+                // Wir nutzen Overhang_RoofIncline_Plaster.gltf aus der AssetsLibrary
+                let gablePath = AssetsLibrary.get('VILLAGE', 'ROOF_GABLE');
+                
+                // Sicherheitscheck: Falls AssetsLibrary den Key nicht kennt (z.B. Cache-Problem),
+                // nutzen wir einen Fallback-Dateinamen direkt.
+                if (gablePath.endsWith('ROOF_GABLE')) {
+                     console.warn("[FPGraphics] ROOF_GABLE nicht in AssetsLibrary gefunden, nutze Fallback-Pfad.");
+                     gablePath = AssetsLibrary.encode('animation/Medieval Village MegaKit[Standard]/glTF/Roof_Front_Brick4.gltf');
+                 }
+
+                const gableFront = await loadModel(gablePath);
                 gableFront.position.set(0, 4, wallDist);
                 gableFront.scale.set(wallScale, 1.3, 1);
                 group.add(gableFront);
 
-                const gableBack = await loadModel(AssetsLibrary.get('VILLAGE', 'ROOF_GABLE'));
+                const gableBack = await loadModel(gablePath);
                 gableBack.position.set(0, 4, -wallDist);
                 gableBack.rotation.y = Math.PI;
                 gableBack.scale.set(wallScale, 1.3, 1);
