@@ -65,25 +65,9 @@ const Encounter = (() => {
        🎁 ENDE / BELOHNUNG
     ============================== */
     function handleVictory(monster) {
-        try {
-            const baseItem = LootManager?.getDrop
-                ? LootManager.getDrop(monster)
-                : null;
-
-            if (!baseItem) return;
-
-            const flavoredItem = Beute.applyBeuteFlavor(baseItem, monster);
-
-            if (!window.data.inventar) window.data.inventar = {};
-            window.data.inventar[flavoredItem.id] =
-                (window.data.inventar[flavoredItem.id] || 0) + 1;
-
-            console.log(
-                `[Encounter] Beute erhalten: ${flavoredItem.display_name}`
-            );
-        } finally {
-            endEncounter();
-        }
+        // Loot wird jetzt von battle.js direkt verwaltet (um UI-Feedback zu garantieren)
+        // Encounter-Modul muss nur den Status zurücksetzen.
+        endEncounter();
     }
 
     function handleEscape() {
@@ -121,6 +105,7 @@ const Encounter = (() => {
     if (window.EventHub) {
         EventHub.on("battle:victory", handleVictory);
         EventHub.on("battle:escape", handleEscape);
+        EventHub.on("battle:lose", handleVictory);
 
         EventHub.on(
             EventHub.EVENTS.ENCOUNTER_STEP,
@@ -144,33 +129,8 @@ const Encounter = (() => {
 
 window.Encounter = Encounter;
 
-
-/* =========================================================
-   🔒 INTERCEPTOR FÜR FROZEN HTML
-   (NICHT Teil des Encounter-Moduls)
-========================================================= */
-
-document.addEventListener('click', function(event) {
-    const worldMap = document.getElementById('world');
-    if (!worldMap) return;
-
-    const rect = worldMap.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-
-    if (x >= 0 && y >= 0 && x <= rect.width && y <= rect.height) {
-
-        const isSafeZone = (x > 400 && x < 1500 && y > 150 && y < 700);
-
-        if (!isSafeZone) {
-            console.log("Wildnis betreten! Suche nach Monstern...");
-            if (typeof Encounter !== 'undefined' && Encounter.registerStep) {
-                Encounter.registerStep();
-            }
-        } else {
-            console.log("Sicheres Nest. Keine Monster hier.");
-        }
-    }
-});
+function _getGatherArea(x, y, rect) {
+    return (x < rect.width * 0.5) ? 'wald' : 'steinbruch';
+}
 
 
