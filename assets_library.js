@@ -108,9 +108,9 @@ const AssetsLibrary = (() => {
             }
         },
 
-        // NEU: House Ordner
+        // NEU: house Ordner
         HOUSE: {
-            PATH: 'House/',
+            PATH: 'house/',
             MODELS: {
                 HOUSE_1: 'House_1.glb'
             }
