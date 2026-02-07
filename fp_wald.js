@@ -1105,7 +1105,7 @@
             const cz = Math.floor(nextZ / cs);
             const chunkKey = `${cx},${cz}`;
             
-            const chunkExists = (window.FPGraphics && (FPGraphics.chunks.has(chunkKey) || FPGraphics.isInterior));
+            const chunkExists = (!window.FPGraphics || FPGraphics.chunks.has(chunkKey) || FPGraphics.isInterior);
             const isSafe = !checkCollision(nextX, nextZ);
             
             if (isSafe && chunkExists) { 
