@@ -732,14 +732,14 @@
         if (!host) return false;
         if (!window.THREE) { host.innerHTML = '<div style="color:gold; padding:10px;">Lade 3D-Engine...</div>'; return false; }
         scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x87ceeb); // Himmelblau
+        scene.background = new THREE.Color(0x91abbd); // Sanfteres Graublau
         const quality = getQuality();
-        const fogD = quality === 1 ? 0.005 : (quality === 2 ? 0.003 : 0.0015);
-        scene.fog = new THREE.FogExp2(0x87ceeb, fogD); // Nebel an Himmelsfarbe anpassen
+        const fogD = quality === 1 ? 0.005 : (quality === 2 ? 0.003 : 0.001);
+        scene.fog = new THREE.FogExp2(0x91abbd, fogD); 
         fogEnabled = true;
         const w = host.clientWidth || window.innerWidth || 900;
         const h = host.clientHeight || window.innerHeight || 600;
-        camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 1000);
+        camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 1500); // Sichtweite erhöht
         renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -752,10 +752,10 @@
         window.addEventListener('resize', onResize);
         
         // Beleuchtung (Sonne)
-        ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        ambientLight = new THREE.AmbientLight(0xffffff, 0.5); // Etwas heller
         scene.add(ambientLight);
-        sunLight = new THREE.DirectionalLight(0xfff5e1, 1.2);
-        sunLight.position.set(200, 300, 150);
+        sunLight = new THREE.DirectionalLight(0xfff5e1, 1.0);
+        sunLight.position.set(150, 250, 100);
         sunLight.castShadow = true;
         sunLight.shadow.mapSize.width = 2048;
         sunLight.shadow.mapSize.height = 2048;
