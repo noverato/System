@@ -820,6 +820,7 @@
             sprite.scale.set(8, 8, 1);
             
             avatar = new THREE.Group();
+            window.avatar = avatar;
             avatar.add(sprite);
             avatar.position.y = 4;
             scene.add(avatar);
@@ -835,6 +836,7 @@
             const avatarGeo = new THREE.BoxGeometry(6, 10, 6);
             const avatarMat = new THREE.MeshLambertMaterial({ color: 0xbfd5ff });
             avatar = new THREE.Mesh(avatarGeo, avatarMat);
+            window.avatar = avatar;
             avatar.position.y = 5;
             scene.add(avatar);
 
@@ -1474,5 +1476,5 @@
         };
 
     }
-    window.FPWald = { open, close, bindUI, teleport: teleportToVillage };
+    window.FPWald = { open, close, bindUI, teleport: teleportToVillage, get avatar() { return avatar; } };
 })();
