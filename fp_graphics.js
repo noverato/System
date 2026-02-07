@@ -503,8 +503,14 @@
         chunks.set(key, { group, mesh });
     }
 
-    function initWorld(scene, env, enterHouseCallback) {
-        if (!env) return;
+    async function initWorld(scene, env, enterHouseCallback) {
+        console.log("[FPGraphics] Initialisiere Welt...");
+        if (!env) {
+            console.warn("[FPGraphics] Keine Umgebung (env) übergeben!");
+            return;
+        }
+
+        console.log("[FPGraphics] Biome gefunden:", Object.keys(env.biomes));
 
         // Große Basis-Ebene für den Hintergrund (verhindert das "blaue Nichts")
         const baseGeo = new THREE.PlaneGeometry(5000, 5000);
@@ -524,10 +530,11 @@
         initForestDetails(scene);
 
         const biomeKeys = Object.keys(env.biomes);
-        biomeKeys.forEach((key, index) => {
+        for (let index = 0; index < biomeKeys.length; index++) {
+            const key = biomeKeys[index];
             const biome = env.biomes[key];
             if (key === 'CENTRAL') {
-                spawnVillage(scene, biome, 0, 0, enterHouseCallback);
+                await spawnVillage(scene, biome, 0, 0, enterHouseCallback);
                 
                 const fountainGeo = new THREE.CylinderGeometry(15, 18, 5, 16);
                 const fountainMat = new THREE.MeshStandardMaterial({ color: 0x888888, flatShading: true });
@@ -567,9 +574,9 @@
                 bFloor.position.set(vx, 0.2, vz);
                 scene.add(bFloor);
 
-                spawnVillage(scene, biome, vx, vz, enterHouseCallback);
+                await spawnVillage(scene, biome, vx, vz, enterHouseCallback);
             }
-        });
+        }
     }
 
     function initMountains(scene) {
@@ -946,7 +953,7 @@
         });
     }
 
-    function spawnVillage(scene, biome, x, z, enterHouseCallback) {
+    async function spawnVillage(scene, biome, x, z, enterHouseCallback) {
         const centerGeo = new THREE.CylinderGeometry(5, 5, 0.5, 16);
         const centerMat = new THREE.MeshStandardMaterial({ color: 0x555555, flatShading: true });
         const center = new THREE.Mesh(centerGeo, centerMat);
@@ -987,16 +994,17 @@
                 { name: "Wohnhaus 2", x: 160, z: 60, color: 0x8b4513, icon: "🏠" }
             ];
 
-            buildings.forEach(b => {
+            for (const b of buildings) {
                 const h = getTerrainHeight(x + b.x, z + b.z);
-                createBuilding(b.name, x + b.x, z + b.z, b.color, b.icon, () => {
+                const bObj = await createBuilding(b.name, x + b.x, z + b.z, b.color, b.icon, () => {
                     if (enterHouseCallback) enterHouseCallback(b.name);
-                }, scene).position.y = h;
+                }, scene);
+                bObj.position.y = h;
 
                 if (b.name === "Marktplatz") {
                     addMarketNPC(scene, x + b.x + 15, z + b.z + 10, h);
                 }
-            });
+            }
         } else {
             const houseCount = 3;
             const icons = ["🏠", "🏪", "⚔️", "🧪", "🛡️"];
@@ -1012,9 +1020,11 @@
                 if (i === 1) icon = "✨";
                 if (i === 2) icon = "💀";
 
-                createBuilding(`${biome.name} Haus ${i}`, bx, bz, biome.color || 0x8b4513, icon, () => {
+                const bName = `${biome.name} Haus ${i}`;
+                const bObj = await createBuilding(bName, bx, bz, biome.color || 0x8b4513, icon, () => {
                     if (enterHouseCallback) enterHouseCallback(biome, i);
-                }, scene).position.y = h;
+                }, scene);
+                bObj.position.y = h;
             }
         }
 
@@ -1310,16 +1320,29 @@
         currentInterior = target;
     }
 
-    function createBuilding(name, x, z, color, icon, callback, scene) {
+    async function createBuilding(name, x, z, color, icon, callback, scene) {
         const group = new THREE.Group();
         group.position.set(x, 0, z);
-        const bodyGeo = new THREE.BoxGeometry(25, 22, 25);
-        const bodyMat = new THREE.MeshStandardMaterial({ color: PALETTE.walls, flatShading: true, roughness: 0.8 });
-        const body = new THREE.Mesh(bodyGeo, bodyMat);
-        body.position.y = 11;
-        body.castShadow = true;
-        body.receiveShadow = true;
-        group.add(body);
+
+        // Debug-Log für Dorf-Erstellung
+        console.log(`[Dorf] Erstelle Gebäude: ${name} an (${x}, ${z})`);
+
+        // Versuche modulares Haus zu laden
+        try {
+            const modularHouse = await createModularHouse('small');
+            group.add(modularHouse);
+            console.log(`[Dorf] GLTF-Haus für ${name} erfolgreich geladen.`);
+        } catch (e) {
+            console.warn(`[Dorf] GLTF-Haus für ${name} fehlgeschlagen, nutze Fallback:`, e);
+            const bodyGeo = new THREE.BoxGeometry(25, 22, 25);
+            const bodyMat = new THREE.MeshStandardMaterial({ color: PALETTE.walls, flatShading: true, roughness: 0.8 });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 11;
+            body.castShadow = true;
+            body.receiveShadow = true;
+            group.add(body);
+        }
+
         const canvas = document.createElement('canvas');
         canvas.width = 128; canvas.height = 128;
         const ctx = canvas.getContext('2d');
