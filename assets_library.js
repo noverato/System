@@ -15,7 +15,7 @@ const AssetsLibrary = (() => {
                 WALL_BRICK: 'Wall_Brick.gltf',
                 WALL_PLASTER: 'Wall_Plaster.gltf',
                 WALL_WINDOW_BRICK: 'Wall_Window_Brick.gltf',
-                WALL_WINDOW_PLASTER: 'Wall_Window_Plaster.gltf',
+                WALL_WINDOW_PLASTER: 'Wall_Window_PLaster.gltf',
                 ROOF_CENTER: 'Roof_Center.gltf',
                 ROOF_SIDE: 'Roof_Side.gltf',
                 ROOF_CORNER: 'Roof_Corner.gltf',
@@ -30,7 +30,11 @@ const AssetsLibrary = (() => {
                 ROOF_4X4: 'Roof_RoundTiles_4x4.gltf',
                 CHIMNEY: 'Prop_Chimney.gltf',
                 BALCONY: 'Balcony_Simple_Straight.gltf',
-                STAIRS: 'Stairs_Wood.gltf'
+                STAIRS: 'Stairs_Wood.gltf',
+                BALCONY_CROSS: 'Balcony_Cross_Straight.gltf',
+                DOOR_2: 'Door_2_Flat.gltf',
+                DOOR_ROUND_LARGE: 'Door_8_Round.gltf',
+                FLOOR_RED_BRICK: 'Floor_RedBrick.gltf'
             }
         },
 
@@ -70,7 +74,8 @@ const AssetsLibrary = (() => {
             ],
             ROCKS: [
                 'Rock_Medium_1.gltf', 'Rock_Medium_2.gltf', 'Rock_Medium_3.gltf',
-                'Pebble_Round_1.gltf', 'Pebble_Square_1.gltf'
+                'Pebble_Round_1.gltf', 'Pebble_Square_1.gltf', 'Pebble_Square_2.gltf',
+                'Pebble_Square_3.gltf', 'Pebble_Square_4.gltf'
             ],
             GRASS: ['Grass_Common_Short.gltf', 'Grass_Common_Tall.gltf']
         },
@@ -81,6 +86,7 @@ const AssetsLibrary = (() => {
             LIST: {
                 ANVIL: 'Anvil.gltf',
                 BARREL: 'Barrel.gltf',
+                BARREL_APPLES: 'Barrel_Apples.gltf',
                 BENCH: 'Bench.gltf',
                 CHEST: 'Chest_Wood.gltf',
                 CRATE: 'Crate_Wooden.gltf',
@@ -90,7 +96,14 @@ const AssetsLibrary = (() => {
                 BOOKCASE: 'Bookcase_2.gltf',
                 LANTERN: 'Lantern_Wall.gltf',
                 SWORD: 'Sword_Bronze.gltf',
-                AXE: 'Axe_Bronze.gltf'
+                AXE: 'Axe_Bronze.gltf',
+                CAULDRON: 'Cauldron.gltf',
+                COIN: 'Coin.gltf',
+                COIN_PILE: 'Coin_Pile.gltf',
+                BUCKET: 'Bucket_Wooden_1.gltf',
+                BOTTLE: 'Bottle_1.gltf',
+                MUG: 'Mug.gltf',
+                POTION: 'Potion_1.gltf'
             }
         },
 
@@ -104,7 +117,12 @@ const AssetsLibrary = (() => {
                 TORCH: 'torch_mounted.gltf',
                 STAIRS: 'stairs.gltf',
                 TABLE: 'table_long.gltf',
-                CHAIR: 'chair.gltf'
+                CHAIR: 'chair.gltf',
+                BANNER: 'banner_blue.gltf',
+                BED: 'bed_decorated.gltf',
+                COIN: 'coin.gltf',
+                COIN_STACK: 'coin_stack_large.gltf',
+                FLOOR: 'floor_tile_large.gltf'
             }
         },
 
@@ -118,7 +136,13 @@ const AssetsLibrary = (() => {
                 SILVER_BAR: 'Silver_Bar.gltf',
                 WOOD_LOG: 'Wood_Log_A.gltf',
                 STONE_BRICK: 'Stone_Brick.gltf',
-                GOLD_NUGGET: 'Gold_Nugget_Medium.gltf'
+                GOLD_NUGGET: 'Gold_Nugget_Medium.gltf',
+                COPPER_NUGGET: 'Copper_Nugget_Medium.gltf',
+                IRON_NUGGET: 'Iron_Nugget_Medium.gltf',
+                SILVER_NUGGET: 'Silver_Nugget_Medium.gltf',
+                WOOD_PLANK: 'Wood_Plank_A.gltf',
+                COAL: 'Stone_Chunks_Small.gltf', // Ersatz für Kohle
+                PALLET: 'Pallet_Wood.gltf'
             }
         },
 
@@ -130,7 +154,8 @@ const AssetsLibrary = (() => {
                 BARBARIAN: 'Barbarian.glb',
                 MAGE: 'Mage.glb',
                 RANGER: 'Ranger.glb',
-                ROGUE: 'Rogue.glb'
+                ROGUE: 'Rogue.glb',
+                ROGUE_HOODED: 'Rogue_Hooded.glb'
             }
         },
 
@@ -141,7 +166,11 @@ const AssetsLibrary = (() => {
                 SWORD: 'sword_1handed.gltf',
                 SHIELD: 'shield_round.gltf',
                 BOW: 'bow.gltf',
-                MUG: 'mug_full.gltf'
+                MUG: 'mug_full.gltf',
+                DAGGER: 'dagger.gltf',
+                STAFF: 'staff.gltf',
+                WAND: 'wand.gltf',
+                SMOKEBOMB: 'smokebomb.gltf'
             }
         },
 
@@ -166,7 +195,40 @@ const AssetsLibrary = (() => {
                 CROSSBOW: 'Skeleton_Crossbow.gltf',
                 STAFF: 'Skeleton_Staff.gltf',
                 SHIELD_A: 'Skeleton_Shield_Large_A.gltf',
-                SHIELD_B: 'Skeleton_Shield_Large_B.gltf'
+                SHIELD_B: 'Skeleton_Shield_Large_B.gltf',
+                ARROW: 'Skeleton_Arrow.gltf'
+            }
+        },
+
+        // Universal Base Characters
+        BASE_CHARACTERS: {
+            PATH: 'Universal Base Characters[Standard]/Base Characters/Godot - UE/',
+            MODELS: {
+                FEMALE: 'Superhero_Female_FullBody.gltf',
+                MALE: 'Superhero_Male_FullBody.gltf'
+            }
+        },
+
+        // Hairstyles
+        HAIRSTYLES: {
+            PATH: 'Universal Base Characters[Standard]/Hairstyles/Origin at 0/glTF (Godot)/',
+            LIST: {
+                BEARD: 'Hair_Beard.gltf',
+                BUNS: 'Hair_Buns.gltf',
+                BUZZED: 'Hair_Buzzed.gltf',
+                LONG: 'Hair_Long.gltf',
+                SIMPLE_PARTED: 'Hair_SimpleParted.gltf'
+            }
+        },
+
+        // Outfits
+        OUTFITS: {
+            PATH: 'Modular Character Outfits - Fantasy[Standard]/Exports/glTF (Godot-Unreal)/Outfits/',
+            MODELS: {
+                PEASANT_FEMALE: 'Female_Peasant.gltf',
+                PEASANT_MALE: 'Male_Peasant.gltf',
+                RANGER_FEMALE: 'Female_Ranger.gltf',
+                RANGER_MALE: 'Male_Ranger.gltf'
             }
         }
     };
