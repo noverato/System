@@ -127,12 +127,15 @@ const AdminConsole = {
     },
 
     startHouseCalibration: function() {
-        if (typeof FPGraphics === 'undefined' || !window.avatar) {
-            this.sync("FPGraphics oder Avatar nicht gefunden.");
+        const graphics = window.FPGraphics;
+        const player = window.avatar;
+
+        if (!graphics || !player) {
+            this.sync(`FPGraphics (${!!graphics}) oder Avatar (${!!player}) nicht gefunden.`);
             return;
         }
 
-        const success = FPGraphics.selectNearestHouse(window.avatar.position.x, window.avatar.position.z);
+        const success = graphics.selectNearestHouse(player.position.x, player.position.z);
         if (success) {
             document.getElementById('calibration-controls').style.display = 'block';
             this.sync("Haus zur Kalibrierung ausgewählt. Nutze die Regler!");
@@ -143,13 +146,14 @@ const AdminConsole = {
 
     updateCalibration: function(key, value) {
         const val = parseFloat(value);
-        document.getElementById(`val-${key}`).innerText = val.toFixed(2);
+        const el = document.getElementById(`val-${key}`);
+        if (el) el.innerText = val.toFixed(2);
         
         const params = {};
         params[key] = val;
         
-        if (typeof FPGraphics !== 'undefined') {
-            FPGraphics.updateCalibration(params);
+        if (window.FPGraphics) {
+            window.FPGraphics.updateCalibration(params);
         }
     },
 
@@ -288,6 +292,12 @@ function openAdminPanel() {
     `;
 
     modal.style.display = 'flex';
+    
+    console.log("[GOTT] Status Check:", {
+        FPGraphics: !!window.FPGraphics,
+        Avatar: !!window.avatar,
+        isEditMode: window.isEditMode
+    });
     
     // Initialen Power-Level State setzen
     const currentLevel = localStorage.getItem('adminPowerLevel') || 'god';
