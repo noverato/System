@@ -28,6 +28,7 @@ const AssetsLibrary = (() => {
                 WALL_STRAIGHT: 'Wall_Plaster_Straight.gltf',
                 CORNER: 'Corner_Exterior_Brick.gltf',
                 ROOF_4X4: 'Roof_RoundTiles_4x4.gltf',
+                ROOF_GABLE: 'Roof_Front_Brick4.gltf',
                 CHIMNEY: 'Prop_Chimney.gltf',
                 BALCONY: 'Balcony_Simple_Straight.gltf',
                 STAIRS: 'Stairs_Wood.gltf',
