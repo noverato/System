@@ -112,7 +112,7 @@ const AssetsLibrary = (() => {
         HOUSE: {
             PATH: 'house/',
             MODELS: {
-                HOUSE_1: 'House_1.glb'
+                HOUSE_1: 'house_1.glb'
             }
         },
 
