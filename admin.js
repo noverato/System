@@ -46,6 +46,28 @@ const AdminConsole = {
         }
     },
 
+    setPowerLevel: function(level) {
+        localStorage.setItem('adminPowerLevel', level);
+        window.adminPowerLevel = level;
+        
+        // UI Feedback für Buttons
+        ['easy', 'normal', 'hard', 'god'].forEach(l => {
+            const btn = document.getElementById(`btn-power-${l}`);
+            if (btn) {
+                btn.style.border = (l === level) ? '2px solid #4ade80' : '1px solid gold';
+                btn.style.boxShadow = (l === level) ? '0 0 10px #4ade80' : 'none';
+            }
+        });
+
+        const labels = {
+            'easy': 'Einfach (Fair)',
+            'normal': 'Normal (+50%)',
+            'hard': 'Schwer (Raid-Boss)',
+            'god': 'Gott-Modus (One-Hit)'
+        };
+        this.sync(`Macht-Stufe: ${labels[level]}`);
+    },
+
     spawnItem: function(itemID) {
         if (!itemID) return;
         if (!data.inventar) data.inventar = {};
@@ -130,6 +152,16 @@ function openAdminPanel() {
             <h1 style="text-shadow: 0 0 10px red; border-bottom: 2px solid gold; margin-bottom: 5px;">🛠 GÖTTER-KONSOLE</h1>
             <div id="admin-feedback" style="height: 20px; color: #4ade80; font-size: 12px; font-weight: bold; text-align: center;"></div>
             
+            <div style="margin-bottom: 15px;">
+                <h3 style="margin-bottom: 8px; font-size: 14px;">⚔️ ADMIN-POWER-LEVEL</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
+                    <button class="btn-action" id="btn-power-easy" onclick="AdminConsole.setPowerLevel('easy')" style="font-size: 10px;">EINFACH</button>
+                    <button class="btn-action" id="btn-power-normal" onclick="AdminConsole.setPowerLevel('normal')" style="font-size: 10px;">NORMAL</button>
+                    <button class="btn-action" id="btn-power-hard" onclick="AdminConsole.setPowerLevel('hard')" style="font-size: 10px;">SCHWER</button>
+                    <button class="btn-action" id="btn-power-god" onclick="AdminConsole.setPowerLevel('god')" style="font-size: 10px;">GOTT</button>
+                </div>
+            </div>
+
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px;">
                 <button class="btn-action" onclick="AdminConsole.giveLXP(5000)">+5000 LXP</button>
                 <button class="btn-action" onclick="AdminConsole.setLevel(30)">+30 LEVEL</button>
@@ -151,6 +183,11 @@ function openAdminPanel() {
     `;
 
     modal.style.display = 'flex';
+    
+    // Initialen Power-Level State setzen
+    const currentLevel = localStorage.getItem('adminPowerLevel') || 'god';
+    AdminConsole.setPowerLevel(currentLevel);
+
     AdminConsole.updateAdminItemSpawner();
 }
 
@@ -221,3 +258,6 @@ document.addEventListener('wheel', (e) => {
         target.style.transform = `scale(${currentScale})`;
     }
 }, { passive: false });
+
+window.AdminConsole = AdminConsole;
+window.openAdminPanel = openAdminPanel;
