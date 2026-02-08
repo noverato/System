@@ -14,6 +14,14 @@
     
     // --- GPGPU TERRAIN SETTINGS ---
     const GPU_TERRAIN_SIZE = 512; // Größe der Heightmap-Textur
+    
+    // --- LOD SETTINGS ---
+    const LOD_DISTANCES = [
+        { dist: 3, segments: 32 }, // Nah: Hohe Auflösung
+        { dist: 6, segments: 16 }, // Mittel
+        { dist: 12, segments: 8 }  // Fern: Niedrige Auflösung
+    ];
+    
     let gpuCompute;
     let heightVariable;
     let smoothVariable;
@@ -41,7 +49,7 @@
             vec3 x = 2.0 * fract(p * C.www) - 1.0;
             vec3 h = abs(x) - 0.5;
             vec3 a0 = x - floor(x + 0.5);
-            float m7 = 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h ).x; // simplified for single channel
+            float m7 = 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h ).x;
             vec3 g;
             g.x  = a0.x  * x0.x  + h.x  * x0.y;
             g.yz = a0.yz * x12.xz + h.yz * x12.yw;
@@ -53,7 +61,7 @@
             float a = 0.5;
             vec2 shift = vec2(100);
             mat2 rot = mat2(cos(0.5), sin(0.5), -sin(0.5), cos(0.50));
-            for (int i = 0; i < 5; ++i) {
+            for (int i = 0; i < 6; ++i) { // Mehr Oktaven für mehr Detail
                 v += a * snoise(p);
                 p = rot * p * 2.0 + shift;
                 a *= 0.5;
@@ -63,13 +71,23 @@
 
         void main() {
             vec2 uv = gl_FragCoord.xy / resolution.xy;
-            vec2 worldPos = (uv + offset) * 10.0;
+            // Skalierung anpassen für weitere Landschaften
+            vec2 worldPos = (uv + offset) * 15.0; 
             
-            float h = fbm(worldPos * 0.05) * 50.0;
+            // Basis-Hügel
+            float h = fbm(worldPos * 0.03) * 40.0;
             
-            // Gebirgs-Erosion-Look
-            float mountains = pow(abs(fbm(worldPos * 0.02)), 2.0) * 150.0;
+            // Gebirgs-Strukturen (Ridged Noise Effekt)
+            float mountainNoise = abs(fbm(worldPos * 0.015));
+            float mountains = pow(1.0 - mountainNoise, 3.0) * 180.0;
+            
+            // Täler glätten
+            if (h < 0.0) h *= 0.5;
+            
             h += mountains;
+
+            // Meeresspiegel-Offset
+            h -= 10.0;
 
             gl_FragColor = vec4(h, 0.0, 0.0, 1.0);
         }
@@ -78,15 +96,22 @@
     const SMOOTH_SHADER = `
         void main() {
             vec2 uv = gl_FragCoord.xy / resolution.xy;
-            vec2 texelSize = 1.0 / resolution.xy;
+            vec2 texelSize = 1.5 / resolution.xy; // Etwas größerer Radius für weicheres Blending
             
             float h = 0.0;
+            float weightSum = 0.0;
+            
+            // Gauß-ähnlicher Blur (3x3 gewichtet)
             for(int y = -1; y <= 1; y++) {
                 for(int x = -1; x <= 1; x++) {
-                    h += texture2D(textureHeight, uv + vec2(float(x), float(y)) * texelSize).r;
+                    float weight = 1.0;
+                    if (x == 0 && y == 0) weight = 2.0;
+                    
+                    h += texture2D(textureHeight, uv + vec2(float(x), float(y)) * texelSize).r * weight;
+                    weightSum += weight;
                 }
             }
-            gl_FragColor = vec4(h / 9.0, 0.0, 0.0, 1.0);
+            gl_FragColor = vec4(h / weightSum, 0.0, 0.0, 1.0);
         }
     `;
 
@@ -960,12 +985,28 @@
         }
     }
 
-    async function createChunk(cx, cz, scene) {
+    async function createChunk(cx, cz, scene, segments = 16) {
         const key = `${cx},${cz}`;
-        if (chunks.has(key)) return; // Doppeltes Laden verhindern
+        if (chunks.has(key)) {
+            // Falls der Chunk existiert, aber eine andere Auflösung hat -> Ersetzen
+            const existing = chunks.get(key);
+            if (!existing.loading && existing.segments !== segments) {
+                // Hier könnte man ein Refinement einbauen, aber für jetzt: Löschen und neu bauen
+                scene.remove(existing.group);
+                existing.group.traverse(obj => {
+                    if (obj.geometry) obj.geometry.dispose();
+                    if (obj.material) {
+                        if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+                        else obj.material.dispose();
+                    }
+                });
+            } else {
+                return;
+            }
+        }
         
         // Platzhalter setzen, um parallele Ladevorgänge für denselben Chunk zu vermeiden
-        chunks.set(key, { loading: true });
+        chunks.set(key, { loading: true, segments });
 
         const group = new THREE.Group();
         group.position.set(cx * CHUNK_SIZE, 0, cz * CHUNK_SIZE);
@@ -973,7 +1014,6 @@
         const x0 = cx * CHUNK_SIZE;
         const z0 = cz * CHUNK_SIZE;
 
-        const segments = 16; 
         const geo = new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE, segments, segments);
         const pos = geo.attributes.position.array;
         
@@ -1036,11 +1076,11 @@
         water.position.set(CHUNK_SIZE/2, -2, CHUNK_SIZE/2);
         group.add(water);
 
-        // Dekorationen laden
-        await spawnDecorationsForChunk(cx, cz, group);
+        // Dekorationen laden (vorübergehend deaktiviert für Terrain-Fokus)
+        // await spawnDecorationsForChunk(cx, cz, group);
 
         scene.add(group);
-        chunks.set(key, { group, mesh });
+        chunks.set(key, { group, mesh, segments });
     }
 
     async function initWorld(scene, env, enterHouseCallback, renderer) {
@@ -1624,9 +1664,17 @@
                 const key = `${cx},${cz}`;
                 activeKeys.add(key);
 
-                if (!chunks.has(key)) {
-                    createChunk(cx, cz, scene);
+                // LOD Bestimmung
+                const distSq = dx*dx + dz*dz;
+                let segments = LOD_DISTANCES[LOD_DISTANCES.length - 1].segments;
+                for (const lod of LOD_DISTANCES) {
+                    if (distSq <= lod.dist * lod.dist) {
+                        segments = lod.segments;
+                        break;
+                    }
                 }
+
+                createChunk(cx, cz, scene, segments);
             }
         }
 
