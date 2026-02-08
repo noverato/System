@@ -10,7 +10,144 @@
     };
 
     const CHUNK_SIZE = 32;
-    const RENDER_DISTANCE = 12; // Radius in Chunks (12 * 32 = 384m Sichtweite)
+    const RENDER_DISTANCE = 12; 
+    
+    // --- GPGPU TERRAIN SETTINGS ---
+    const GPU_TERRAIN_SIZE = 512; // Größe der Heightmap-Textur
+    let gpuCompute;
+    let heightVariable;
+    let smoothVariable;
+    let gpuHeightData = new Float32Array(GPU_TERRAIN_SIZE * GPU_TERRAIN_SIZE * 4);
+    
+    const NOISE_SHADER = `
+        uniform float time;
+        uniform vec2 offset;
+        
+        // Simplex 2D noise
+        vec3 permute(vec3 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
+        float snoise(vec2 v) {
+            const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
+            vec2 i  = floor(v + dot(v, C.yy) );
+            vec2 x0 = v -   i + dot(i, C.xx);
+            vec2 i1;
+            i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+            vec4 x12 = x0.xyxy + C.xxzz;
+            x12.xy -= i1;
+            i = mod(i, 289.0);
+            vec3 p = permute( permute( i.y + vec3(0.0, i1.y, 1.0 )) + i.x + vec3(0.0, i1.x, 1.0 ));
+            vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
+            m = m*m ;
+            m = m*m ;
+            vec3 x = 2.0 * fract(p * C.www) - 1.0;
+            vec3 h = abs(x) - 0.5;
+            vec3 a0 = x - floor(x + 0.5);
+            float m7 = 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h ).x; // simplified for single channel
+            vec3 g;
+            g.x  = a0.x  * x0.x  + h.x  * x0.y;
+            g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+            return 130.0 * dot(m, g);
+        }
+
+        float fbm(vec2 p) {
+            float v = 0.0;
+            float a = 0.5;
+            vec2 shift = vec2(100);
+            mat2 rot = mat2(cos(0.5), sin(0.5), -sin(0.5), cos(0.50));
+            for (int i = 0; i < 5; ++i) {
+                v += a * snoise(p);
+                p = rot * p * 2.0 + shift;
+                a *= 0.5;
+            }
+            return v;
+        }
+
+        void main() {
+            vec2 uv = gl_FragCoord.xy / resolution.xy;
+            vec2 worldPos = (uv + offset) * 10.0;
+            
+            float h = fbm(worldPos * 0.05) * 50.0;
+            
+            // Gebirgs-Erosion-Look
+            float mountains = pow(abs(fbm(worldPos * 0.02)), 2.0) * 150.0;
+            h += mountains;
+
+            gl_FragColor = vec4(h, 0.0, 0.0, 1.0);
+        }
+    `;
+
+    const SMOOTH_SHADER = `
+        void main() {
+            vec2 uv = gl_FragCoord.xy / resolution.xy;
+            vec2 texelSize = 1.0 / resolution.xy;
+            
+            float h = 0.0;
+            for(int y = -1; y <= 1; y++) {
+                for(int x = -1; x <= 1; x++) {
+                    h += texture2D(textureHeight, uv + vec2(float(x), float(y)) * texelSize).r;
+                }
+            }
+            gl_FragColor = vec4(h / 9.0, 0.0, 0.0, 1.0);
+        }
+    `;
+
+    function initGPGPU(renderer) {
+        gpuCompute = new GPUComputationRenderer(GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, renderer);
+        
+        const heightData = gpuCompute.createTexture();
+        heightVariable = gpuCompute.addVariable("textureHeight", NOISE_SHADER, heightData);
+        
+        const smoothData = gpuCompute.createTexture();
+        smoothVariable = gpuCompute.addVariable("textureSmooth", SMOOTH_SHADER, smoothData);
+        
+        gpuCompute.setVariableDependencies(smoothVariable, [heightVariable]);
+        
+        heightVariable.material.uniforms = {
+            time: { value: 0 },
+            offset: { value: new THREE.Vector2(0, 0) }
+        };
+
+        const error = gpuCompute.init();
+        if (error !== null) {
+            console.error("GPGPU Init Error:", error);
+        }
+    }
+
+    function updateGPGPU(px, pz, renderer) {
+        if (!gpuCompute) return;
+        
+        heightVariable.material.uniforms.offset.value.set(px / (CHUNK_SIZE * 10), pz / (CHUNK_SIZE * 10));
+        gpuCompute.compute();
+        
+        // Ergebnis auslesen (optional für CPU-Kollision)
+        const renderTarget = gpuCompute.getCurrentRenderTarget(smoothVariable);
+        renderer.readRenderTargetPixels(renderTarget, 0, 0, GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, gpuHeightData);
+    }
+    
+    function getGPUHeight(x, z) {
+        if (!gpuCompute) return getTerrainHeight(x, z);
+        
+        // Umrechnung von Weltkoordinaten in Texture-UVs
+        // Da die Textur um den Spieler zentriert ist (über offset), 
+        // müssen wir wissen, wie viel Weltraum ein Pixel abdeckt.
+        const worldSize = GPU_TERRAIN_SIZE * (CHUNK_SIZE / 16); // Annahme: 1 Pixel pro Segment
+        
+        // Relative Position zum Offset berechnen
+        const ox = heightVariable.material.uniforms.offset.value.x * (CHUNK_SIZE * 10);
+        const oz = heightVariable.material.uniforms.offset.value.y * (CHUNK_SIZE * 10);
+        
+        const tx = ((x - ox) / worldSize + 0.5) * GPU_TERRAIN_SIZE;
+        const tz = ((z - oz) / worldSize + 0.5) * GPU_TERRAIN_SIZE;
+        
+        const ix = Math.floor(tx);
+        const iz = Math.floor(tz);
+        
+        if (ix >= 0 && ix < GPU_TERRAIN_SIZE && iz >= 0 && iz < GPU_TERRAIN_SIZE) {
+            const idx = (iz * GPU_TERRAIN_SIZE + ix) * 4;
+            return gpuHeightData[idx];
+        }
+        
+        return getTerrainHeight(x, z);
+    }
     
     // Basis-Pfad für Assets (Lokal vs. GitHub flexibel)
     // Dieser Pfad wird jetzt zentral in AssetsLibrary.js verwaltet.
@@ -849,7 +986,7 @@
                 const vx = x0 + (ix / segments) * CHUNK_SIZE;
                 const vz = z0 + (iz / segments) * CHUNK_SIZE;
                 
-                const h = getTerrainHeight(vx, vz);
+                const h = getGPUHeight(vx, vz);
                 
                 // PlaneGeometry liegt in der XY-Ebene, wir nutzen Z für die Höhe (wird später rotiert)
                 // Wir setzen x, y und z manuell, um absolute Präzision zu garantieren
@@ -902,11 +1039,16 @@
         chunks.set(key, { group, mesh });
     }
 
-    async function initWorld(scene, env, enterHouseCallback) {
+    async function initWorld(scene, env, enterHouseCallback, renderer) {
         console.log("[FPGraphics] Initialisiere Welt...");
         if (!env) {
             console.warn("[FPGraphics] Keine Umgebung (env) übergeben!");
             return;
+        }
+
+        // GPGPU Initialisierung
+        if (renderer) {
+            initGPGPU(renderer);
         }
 
         console.log("[FPGraphics] Biome gefunden:", Object.keys(env.biomes));
