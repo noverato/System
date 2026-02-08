@@ -1031,28 +1031,27 @@
         const x0 = cx * CHUNK_SIZE;
         const z0 = cz * CHUNK_SIZE;
 
-        const geo = new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE, segments, segments);
+        // Überlappung hinzufügen, um Spalten zwischen Chunks zu vermeiden
+        const OVERLAP = 2.0; 
+        const geo = new THREE.PlaneGeometry(CHUNK_SIZE + OVERLAP, CHUNK_SIZE + OVERLAP, segments, segments);
         const pos = geo.attributes.position.array;
         
         const colors = new Float32Array(pos.length);
 
-        // Wir berechnen vx und vz basierend auf Indizes, um Gleitkomma-Fehler an Chunk-Grenzen zu vermeiden
         const vertexCount = segments + 1;
         for (let iz = 0; iz < vertexCount; iz++) {
             for (let ix = 0; ix < vertexCount; ix++) {
                 const i = (iz * vertexCount + ix) * 3;
                 
-                // Exakte Welt-Koordinaten berechnen
-                // ix / segments ist an den Rändern exakt 0.0 oder 1.0
-                const vx = x0 + (ix / segments) * CHUNK_SIZE;
-                const vz = z0 + (iz / segments) * CHUNK_SIZE;
+                // Welt-Koordinaten mit leichter Überlappung berechnen
+                const vx = x0 + (ix / segments) * (CHUNK_SIZE + OVERLAP) - OVERLAP / 2;
+                const vz = z0 + (iz / segments) * (CHUNK_SIZE + OVERLAP) - OVERLAP / 2;
                 
                 const h = getGPUHeight(vx, vz);
                 
-                // PlaneGeometry liegt in der XY-Ebene, wir nutzen Z für die Höhe (wird später rotiert)
-                // Wir setzen x, y und z manuell, um absolute Präzision zu garantieren
-                pos[i] = (ix / segments) * CHUNK_SIZE - CHUNK_SIZE / 2;
-                pos[i + 1] = (iz / segments) * CHUNK_SIZE - CHUNK_SIZE / 2;
+                // Lokale Positionen im Mesh anpassen
+                pos[i] = (ix / segments) * (CHUNK_SIZE + OVERLAP) - (CHUNK_SIZE + OVERLAP) / 2;
+                pos[i + 1] = (iz / segments) * (CHUNK_SIZE + OVERLAP) - (CHUNK_SIZE + OVERLAP) / 2;
                 pos[i + 2] = h;
 
                 const color = getBiomeColor(vx, vz);
@@ -1083,7 +1082,7 @@
         group.add(mesh);
 
         // Einen tieferen Boden als Backup hinzufügen (der "Alpha-Boden" Backup)
-        const backGeo = new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE, 1, 1);
+        const backGeo = new THREE.PlaneGeometry(CHUNK_SIZE + 2.0, CHUNK_SIZE + 2.0, 1, 1);
         const backMat = new THREE.MeshStandardMaterial({ 
             color: 0x1a2a1a, 
             transparent: true, 
