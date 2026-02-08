@@ -78,17 +78,84 @@
         void main() {
             vec2 uv = gl_FragCoord.xy / resolution.xy;
             // Absolute Welt-Position berechnen
-            vec2 worldPos = uv * worldSize + offset;
+            vec2 pos = uv * worldSize + offset;
             
-            // Flachland-Noise (sehr sanfte Wellen)
-            float h = fbm(worldPos * 0.005) * 5.0; 
+            // --- TERRAIN GENERATION (MATCHING CPU getTerrainHeight) ---
             
-            // Gebirgs-Strukturen vorerst deaktiviert
-            // float mNoise = abs(fbm(worldPos * 0.002));
-            // float mountains = pow(1.0 - mNoise, 4.0) * 250.0; 
-            // h += mountains;
+            // 1. Village Factor (Dörfer flach halten)
+            float villageFactor = 1.0;
+            vec2 villageLocs[5];
+            villageLocs[0] = vec2(0.0, 0.0);
+            villageLocs[1] = vec2(1200.0, 0.0);
+            villageLocs[2] = vec2(-1200.0, 0.0);
+            villageLocs[3] = vec2(0.0, 1200.0);
+            villageLocs[4] = vec2(0.0, -1200.0);
+            float radiuses[5];
+            radiuses[0] = 400.0;
+            radiuses[1] = 300.0;
+            radiuses[2] = 300.0;
+            radiuses[3] = 300.0;
+            radiuses[4] = 300.0;
+
+            for(int i=0; i<5; i++) {
+                float d = length(pos - villageLocs[i]);
+                if (d < radiuses[i]) {
+                    float f = clamp((d - radiuses[i] * 0.4) / (radiuses[i] * 0.6), 0.0, 1.0);
+                    villageFactor = min(villageFactor, f * f);
+                }
+            }
+
+            // 2. Biome Weights (Matching CPU getBiomeData)
+            float scale = 0.00015;
+            // Wir nutzen hier snoise für GPGPU da es performanter ist als Value Noise
+            float temp = snoise(pos * scale * 1.5) * 1.5; 
+            float humidity = snoise(pos * scale * 1.5 + vec2(100.0)) * 1.5;
+
+            float wDesert = 0.0, wSnow = 0.0, wJungle = 0.0, wSwamp = 0.0, wPlains = 1.0;
+
+            if (temp > 0.4) {
+                float tFactor = smoothstep(0.4, 0.6, temp);
+                if (humidity < -0.2) {
+                    float hFactor = 1.0 - smoothstep(-0.2, 0.0, humidity);
+                    wDesert = tFactor * hFactor;
+                    wPlains = 1.0 - wDesert;
+                } else if (humidity > 0.3) {
+                    float hFactor = smoothstep(0.3, 0.5, humidity);
+                    wJungle = tFactor * hFactor;
+                    wPlains = 1.0 - wJungle;
+                }
+            } else if (temp < -0.3) {
+                wSnow = 1.0 - smoothstep(-0.3, -0.1, temp);
+                wPlains = 1.0 - wSnow;
+            } else {
+                if (humidity > 0.5) {
+                    wSwamp = smoothstep(0.5, 0.7, humidity);
+                    wPlains = 1.0 - wSwamp;
+                } else if (humidity < -0.4) {
+                    wDesert = 1.0 - smoothstep(-0.4, -0.2, humidity);
+                    wPlains = 1.0 - wDesert;
+                }
+            }
+
+            // 3. Octave Noise (CPU Äquivalent)
+            float h_plains = fbm(pos * 0.005) * 10.0;
+            float h_desert = fbm(pos * 0.002) * 5.0;
+            float h_snow = fbm(pos * 0.008) * 40.0;
+            float h_jungle = fbm(pos * 0.015) * 25.0;
+            float h_swamp = -5.0 + fbm(pos * 0.01) * 8.0;
+
+            float h = h_plains * wPlains + h_desert * wDesert + h_snow * wSnow + h_jungle * wJungle + h_swamp * wSwamp;
+            h += 10.0; // Basis-Höhe
+
+            // 4. Berge
+            float distToCenter = length(pos);
+            if (distToCenter > 1500.0) {
+                float mountainEdge = (distToCenter - 1500.0) / 1000.0;
+                float h_mountains = abs(fbm(pos * 0.002)) * 150.0;
+                h += h_mountains * min(2.5, mountainEdge);
+            }
             
-            h += 10.0; // Basis-Höhe für bessere Sichtbarkeit und gegen Clipping
+            h *= villageFactor;
 
             gl_FragColor = vec4(h, 0.0, 0.0, 1.0);
         }
@@ -1383,10 +1450,10 @@
                 }
                 
                 if (plant) {
-                    plant.position.set(tx, th, tz);
-                    plant.rotation.y = rng() * Math.PI * 2;
-                    group.add(plant);
-                }
+                        plant.position.set(tx, th - 1.0, tz); // Leicht einsinken lassen gegen Schweben
+                        plant.rotation.y = rng() * Math.PI * 2;
+                        group.add(plant);
+                    }
             }
         }
 
