@@ -196,9 +196,13 @@
         
         const heightData = gpuCompute.createTexture();
         heightVariable = gpuCompute.addVariable("textureHeight", NOISE_SHADER, heightData);
+        heightVariable.texture.magFilter = THREE.LinearFilter;
+        heightVariable.texture.minFilter = THREE.LinearFilter;
         
         const smoothData = gpuCompute.createTexture();
         smoothVariable = gpuCompute.addVariable("textureSmooth", SMOOTH_SHADER, smoothData);
+        smoothVariable.texture.magFilter = THREE.LinearFilter;
+        smoothVariable.texture.minFilter = THREE.LinearFilter;
         
         gpuCompute.setVariableDependencies(smoothVariable, [heightVariable]);
         
@@ -225,12 +229,13 @@
         // Wir verwenden einen Standard-Shader und passen ihn an
         clipmapMaterial = new THREE.MeshStandardMaterial({
             vertexColors: false,
-            flatShading: true,
-            roughness: 0.8,
-            metalness: 0.1,
-            transparent: true,
-            opacity: 0.98,
-            side: THREE.DoubleSide
+            flatShading: false, // Smooth Shading für weniger Artefakte
+            roughness: 0.9,
+            metalness: 0.0,
+            transparent: false, // Transparenz aus gegen Depth-Probleme
+            side: THREE.FrontSide, // Nur Vorderseite rendern
+            depthWrite: true,
+            depthTest: true
         });
 
         // Custom Shader Injection für Displacement und Biome-Farben
@@ -259,18 +264,23 @@
             shader.vertexShader = shader.vertexShader.replace(
                 '#include <begin_vertex>',
                 `
-                // UV für Heightmap berechnen (wPos ist hier noch flach)
+                // Welt-Position vor Verschiebung
                 vec4 wPos = modelMatrix * vec4(position, 1.0);
+                
+                // UV für Heightmap (0-1 Bereich)
+                // Wir nutzen hier eine präzisere Berechnung
                 vec2 hUv = (wPos.xz - worldOffset) / gpuWorldSize + 0.5;
+                
+                // Höhe sampeln (Linear Filtered)
                 float h = texture2D(heightMap, hUv).r;
                 vHeight = h;
                 
-                // Displacement anwenden (Z-Achse der Geometrie ist Welt-Y nach Rotation)
+                // Displacement anwenden (Local Z wird zu World Y)
                 vec3 transformed = vec3(position.x, position.y, h);
                 
-                // Weltposition NACH Displacement für Fragment-Shader
+                // Final Weltposition für Fragment Shader
                 vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
-                vDist = length(position.xy); 
+                vDist = length(position.xy);
                 `
             );
 
@@ -283,7 +293,6 @@
                 uniform vec3 stoneColor;
                 uniform vec3 pathColor;
                 uniform float clipRadius;
-                uniform vec2 worldOffset;
                 varying vec3 vWorldPos;
                 varying float vHeight;
                 varying float vDist;
@@ -404,15 +413,16 @@
             );
 
             // Alpha-Ausblendung am Rand (Alpha-Boden) mit Noise-Kante
-                shader.fragmentShader = shader.fragmentShader.replace(
-                    '#include <alphamap_fragment>',
-                    `
-                    #include <alphamap_fragment>
-                    float edgeNoise = noise(vWorldPos.xz * 0.02) * 40.0;
-                    float edgeFade = smoothstep(clipRadius, clipRadius - 100.0 + edgeNoise, vDist);
-                    diffuseColor.a *= edgeFade;
-                    `
-                );
+            // Wir nutzen hier opacity direkt da wir transparent=false haben
+            shader.fragmentShader = shader.fragmentShader.replace(
+                '#include <alphamap_fragment>',
+                `
+                #include <alphamap_fragment>
+                float edgeNoise = noise(vWorldPos.xz * 0.02) * 40.0;
+                float edgeFade = smoothstep(clipRadius, clipRadius - 100.0 + edgeNoise, vDist);
+                if (vDist > clipRadius) discard;
+                `
+            );
 
             clipmapMaterial.userData.shader = shader;
         };
@@ -422,6 +432,7 @@
         clipmapMesh.rotation.x = -Math.PI / 2;
         clipmapMesh.receiveShadow = true;
         clipmapMesh.castShadow = true;
+        clipmapMesh.frustumCulled = false; // Gegen Verschwinden bei hohen Bergen
         clipmapGroup.add(clipmapMesh);
 
         // Backup Plane
