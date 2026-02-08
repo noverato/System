@@ -157,6 +157,17 @@ const AdminConsole = {
         }
     },
 
+    setHouseModel: function(modelType) {
+        if (!window.FPGraphics) return;
+        
+        // Wir setzen einen speziellen Kalibrierungsparameter
+        window.FPGraphics.updateCalibration({ houseModel: modelType });
+        this.sync(`Haus-Modell auf ${modelType.toUpperCase()} gesetzt.`);
+        
+        // UI Feedback
+        console.log(`[GOTT] Modell-Wechsel angefordert: ${modelType}`);
+    },
+
     exportCalibration: function() {
         const keys = ['overallScale', 'targetWidth', 'targetDepth', 'wallScaleW', 'wallScaleD', 'roofScaleY', 'gableScaleY', 'wallY', 'roofY', 'offsetX', 'offsetY', 'offsetZ'];
         const results = {};
@@ -223,6 +234,14 @@ function openAdminPanel() {
             <div style="background: rgba(0,0,0,0.5); padding: 10px; border: 1px solid gold; font-size: 11px;">
                 <button class="btn-action" onclick="AdminConsole.startHouseCalibration()" style="width:100%; margin-bottom:10px; background: #b45309;">NÄCHSTES HAUS AUSWÄHLEN</button>
                 
+                <div style="margin-bottom: 15px; padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid #555;">
+                    <label style="color: gold; display: block; margin-bottom: 5px;">Haus-Modell wechseln:</label>
+                    <div style="display: flex; gap: 5px;">
+                        <button class="btn-action" onclick="AdminConsole.setHouseModel('modular')" style="flex:1; font-size: 11px;">MODULAR</button>
+                        <button class="btn-action" onclick="AdminConsole.setHouseModel('house1')" style="flex:1; font-size: 11px; background: #4338ca;">HOUSE_1</button>
+                    </div>
+                </div>
+
                 <div id="calibration-controls" style="display: none;">
                     <div style="margin-bottom: 5px;">
                         <label>Gesamt-Skalierung (overallScale): <span id="val-overallScale">6.0</span></label>
@@ -296,7 +315,8 @@ function openAdminPanel() {
     console.log("[GOTT] Status Check:", {
         FPGraphics: !!window.FPGraphics,
         Avatar: !!window.avatar,
-        isEditMode: window.isEditMode
+        isEditMode: window.isEditMode,
+        clipmapActive: !!window.FPGraphics?.clipmapMesh
     });
     
     // Initialen Power-Level State setzen
