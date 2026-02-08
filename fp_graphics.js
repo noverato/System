@@ -9,24 +9,28 @@
         trunk: 0x3d2b1f
     };
 
-    const CHUNK_SIZE = 128;
-    const RENDER_DISTANCE = 4; 
+    const CLIPMAP_RADIUS = 1024; // Radius des sichtbaren Terrains
+    const CLIPMAP_SEGMENTS = 256; // Auflösung des Gitters (höher = schöner)
+    
+    const DECORATION_CELL_SIZE = 256; // Größe einer Dekorations-Zelle
+    const DECORATION_RANGE = 4; // Wie viele Zellen um den Spieler herum geladen werden (Radius)
     
     // --- GPGPU TERRAIN SETTINGS ---
     const GPU_TERRAIN_SIZE = 512; // Auflösung der Heightmap
-    const GPU_WORLD_SIZE = 2048;  // Bereich in Welteinheiten, den die GPGPU abdeckt
+    const GPU_WORLD_SIZE = 1024;  // Bereich reduziert für bessere Schärfe im Nahbereich
     
-    // --- LOD SETTINGS ---
-    const LOD_DISTANCES = [
-        { dist: 1, segments: 64 }, // Nah: Sehr hohe Auflösung
-        { dist: 2, segments: 32 }, // Mittel
-        { dist: 4, segments: 16 }  // Fern
-    ];
+    // --- LOD SETTINGS entfernt für Clipmap ---
     
     let gpuCompute;
     let heightVariable;
     let smoothVariable;
     let gpuHeightData = new Float32Array(GPU_TERRAIN_SIZE * GPU_TERRAIN_SIZE * 4);
+    
+    let clipmapMesh;
+    let clipmapMaterial;
+    let clipmapBackupMesh;
+    let clipmapGroup;
+    let mainScene; // Referenz für Dekorationen
     
     const NOISE_SHADER = `
         uniform float time;
@@ -136,6 +140,257 @@
         if (error !== null) console.error("GPGPU Init Error:", error);
     }
 
+    function initClipmap(scene) {
+        if (!scene) return;
+        mainScene = scene;
+        
+        clipmapGroup = new THREE.Group();
+        scene.add(clipmapGroup);
+
+        // Circular Geometry for Radial Clipmap
+        const geo = new THREE.CircleGeometry(CLIPMAP_RADIUS, CLIPMAP_SEGMENTS);
+        
+        // Wir verwenden einen Standard-Shader und passen ihn an
+        clipmapMaterial = new THREE.MeshStandardMaterial({
+            vertexColors: false,
+            flatShading: true,
+            roughness: 0.8,
+            metalness: 0.1,
+            transparent: true,
+            opacity: 0.98,
+            side: THREE.DoubleSide
+        });
+
+        // Custom Shader Injection für Displacement und Biome-Farben
+        clipmapMaterial.onBeforeCompile = (shader) => {
+            shader.uniforms.heightMap = { value: null };
+            shader.uniforms.worldOffset = { value: new THREE.Vector2(0, 0) };
+            shader.uniforms.gpuWorldSize = { value: GPU_WORLD_SIZE };
+            shader.uniforms.clipRadius = { value: CLIPMAP_RADIUS };
+            shader.uniforms.plainsColor = { value: new THREE.Color(0x557d45) };
+            shader.uniforms.desertColor = { value: new THREE.Color(0xedcaaf) };
+            shader.uniforms.snowColor = { value: new THREE.Color(0xffffff) };
+            shader.uniforms.jungleColor = { value: new THREE.Color(0x2d4c1e) };
+            shader.uniforms.swampColor = { value: new THREE.Color(0x2f351a) };
+            shader.uniforms.stoneColor = { value: new THREE.Color(0x808080) };
+            shader.uniforms.pathColor = { value: new THREE.Color(0x9b7653) };
+
+            shader.vertexShader = `
+                uniform sampler2D heightMap;
+                uniform vec2 worldOffset;
+                uniform float gpuWorldSize;
+                varying vec3 vWorldPos;
+                varying float vHeight;
+                varying float vDist;
+            ` + shader.vertexShader;
+
+            shader.vertexShader = shader.vertexShader.replace(
+                '#include <begin_vertex>',
+                `
+                vec4 wPos = modelMatrix * vec4(position, 1.0);
+                vWorldPos = wPos.xyz;
+                vDist = length(position.xy); // Abstand vom Spieler-Zentrum
+                
+                // UV für Heightmap berechnen (Zentrum-basiert)
+                vec2 hUv = (wPos.xz - worldOffset) / gpuWorldSize + 0.5;
+                float h = texture2D(heightMap, hUv).r;
+                vHeight = h;
+                
+                // Displacement anwenden (Z-Achse der Geometrie ist nach Rotation die Y-Achse der Welt)
+                vec3 transformed = vec3(position.x, position.y, h);
+                #include <project_vertex>
+                `
+            );
+
+            shader.fragmentShader = `
+                uniform vec3 plainsColor;
+                uniform vec3 desertColor;
+                uniform vec3 snowColor;
+                uniform vec3 jungleColor;
+                uniform vec3 swampColor;
+                uniform vec3 stoneColor;
+                uniform vec3 pathColor;
+                uniform float clipRadius;
+                uniform vec2 worldOffset;
+                varying vec3 vWorldPos;
+                varying float vHeight;
+                varying float vDist;
+
+                // Simple hash for noise
+                float hash(vec2 p) {
+                    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+                }
+
+                float noise(vec2 p) {
+                    vec2 i = floor(p);
+                    vec2 f = fract(p);
+                    vec2 u = f * f * (3.0 - 2.0 * f);
+                    return mix(mix(hash(i + vec2(0.0, 0.0)), hash(i + vec2(1.0, 0.0)), u.x),
+                               mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+                }
+
+                float fbm(vec2 p) {
+                    float f = 0.0;
+                    f += 0.5000 * noise(p); p *= 2.02;
+                    f += 0.2500 * noise(p); p *= 2.03;
+                    return f * 1.3333 - 0.3333; // Normalisieren
+                }
+
+                vec3 getBiomeColor(vec3 pos, float h) {
+                    float x = pos.x;
+                    float z = pos.z;
+                    
+                    // Biome-Noise (Skalierung muss mit CPU übereinstimmen)
+                    float scale = 0.00015;
+                    float temp = noise(pos.xz * 1000.0 * scale) * 2.0 - 1.0;
+                    float humidity = noise(pos.xz * 1000.0 * scale + vec2(100.0)) * 2.0 - 1.0;
+
+                    vec3 col = plainsColor;
+                    
+                    // Biome Weights (Matching CPU Logic)
+                    float wDesert = 0.0, wSnow = 0.0, wJungle = 0.0, wSwamp = 0.0, wPlains = 1.0;
+
+                    if (temp > 0.4) {
+                        float tFactor = smoothstep(0.4, 0.6, temp);
+                        if (humidity < -0.2) {
+                            float hFactor = 1.0 - smoothstep(-0.2, 0.0, humidity);
+                            wDesert = tFactor * hFactor;
+                            wPlains = 1.0 - wDesert;
+                        } else if (humidity > 0.3) {
+                            float hFactor = smoothstep(0.3, 0.5, humidity);
+                            wJungle = tFactor * hFactor;
+                            wPlains = 1.0 - wJungle;
+                        }
+                    } else if (temp < -0.3) {
+                        wSnow = 1.0 - smoothstep(-0.3, -0.1, temp);
+                        wPlains = 1.0 - wSnow;
+                    } else {
+                        if (humidity > 0.5) {
+                            wSwamp = smoothstep(0.5, 0.7, humidity);
+                            wPlains = 1.0 - wSwamp;
+                        } else if (humidity < -0.4) {
+                            wDesert = 1.0 - smoothstep(-0.4, -0.2, humidity);
+                            wPlains = 1.0 - wDesert;
+                        }
+                    }
+
+                    col = plainsColor * wPlains + desertColor * wDesert + snowColor * wSnow + jungleColor * wJungle + swampColor * wSwamp;
+
+                    // Dorf-Einfluss (Terrain-Abflachung Regionen)
+                    float distToVillage = 9999.0;
+                    distToVillage = min(distToVillage, length(pos.xz - vec2(0.0, 0.0)));
+                    distToVillage = min(distToVillage, length(pos.xz - vec2(1200.0, 0.0)));
+                    distToVillage = min(distToVillage, length(pos.xz - vec2(-1200.0, 0.0)));
+                    distToVillage = min(distToVillage, length(pos.xz - vec2(0.0, 1200.0)));
+                    distToVillage = min(distToVillage, length(pos.xz - vec2(0.0, -1200.0)));
+
+                    // 1. Village / Path Detection (Matching CPU Logic)
+                    if (distToVillage < 400.0) {
+                        float villageEffect = 1.0 - smoothstep(0.0, 300.0, distToVillage); // Radius-Anpassung
+                        float pathNoise = noise(pos.xz * 0.05); // simpleNoise-Äquivalent
+                        
+                        if (pathNoise > 0.3) {
+                            col = mix(col, stoneColor, villageEffect * 0.8);
+                        } else if (pathNoise > -0.2) {
+                            col = mix(col, pathColor, villageEffect * 0.7);
+                        }
+                    }
+
+                    // Laub/Erde Variation (nur in Plains/Jungle)
+                    if (wPlains > 0.5 || wJungle > 0.5) {
+                        float leafNoise = noise(pos.xz * 0.1);
+                        if (leafNoise > 0.4) {
+                            col = mix(col, vec3(0.239, 0.169, 0.122), 0.3); // 0x3d2b1f
+                        }
+                    }
+
+                    // Stein bei steilen Hängen und hohen Bergen
+                    float slopeNoise = noise(pos.xz * 0.5);
+                    float slopeThreshold = 28.0 + slopeNoise * 12.0;
+                    
+                    if (h > slopeThreshold) {
+                        float blend = smoothstep(slopeThreshold, slopeThreshold + 15.0, h);
+                        col = mix(col, stoneColor, blend);
+                    }
+
+                    // Mikro-Rauschen für Details
+                    float n = hash(pos.xz * 0.1);
+                    col *= 0.92 + 0.12 * n;
+                    
+                    // Höhen-Schattierung (Tiefland dunkler, Gipfel heller)
+                    col *= smoothstep(-10.0, 50.0, h) * 0.5 + 0.6;
+                    
+                    return col;
+                }
+            ` + shader.fragmentShader;
+
+            shader.fragmentShader = shader.fragmentShader.replace(
+                '#include <color_fragment>',
+                `
+                diffuseColor.rgb = getBiomeColor(vWorldPos, vHeight);
+                `
+            );
+
+            // Alpha-Ausblendung am Rand (Alpha-Boden) mit Noise-Kante
+                shader.fragmentShader = shader.fragmentShader.replace(
+                    '#include <alphamap_fragment>',
+                    `
+                    #include <alphamap_fragment>
+                    float edgeNoise = noise(vWorldPos.xz * 0.02) * 40.0;
+                    float edgeFade = smoothstep(clipRadius, clipRadius - 100.0 + edgeNoise, vDist);
+                    diffuseColor.a *= edgeFade;
+                    `
+                );
+
+            clipmapMaterial.userData.shader = shader;
+        };
+
+
+        clipmapMesh = new THREE.Mesh(geo, clipmapMaterial);
+        clipmapMesh.rotation.x = -Math.PI / 2;
+        clipmapMesh.receiveShadow = true;
+        clipmapMesh.castShadow = true;
+        clipmapGroup.add(clipmapMesh);
+
+        // Backup Plane
+        const backGeo = new THREE.CircleGeometry(CLIPMAP_RADIUS + 10, 32);
+        const backMat = new THREE.MeshStandardMaterial({ 
+            color: 0x1a2a1a, 
+            transparent: true, 
+            opacity: 0.3 
+        });
+        clipmapBackupMesh = new THREE.Mesh(backGeo, backMat);
+        clipmapBackupMesh.rotation.x = -Math.PI / 2;
+        clipmapBackupMesh.position.y = -5;
+        clipmapGroup.add(clipmapBackupMesh);
+    }
+
+    function updateClipmap(px, pz, renderer) {
+        if (!clipmapMesh || !gpuCompute) return;
+
+        // Clipmap folgt dem Spieler (gesnappt an ein kleines Gitter gegen Zittern)
+        const snap = 1.0;
+        const sx = Math.floor(px / snap) * snap;
+        const sz = Math.floor(pz / snap) * snap;
+        
+        clipmapGroup.position.set(sx, 0, sz);
+
+        // GPGPU Update (Textur folgt Spieler)
+        updateGPGPU(px, pz, renderer);
+
+        // Uniforms im Shader aktualisieren
+        if (clipmapMaterial.userData.shader) {
+            const shader = clipmapMaterial.userData.shader;
+            shader.uniforms.heightMap.value = gpuCompute.getCurrentRenderTarget(smoothVariable).texture;
+            
+            // Der worldOffset ist das Zentrum der GPGPU Textur
+            shader.uniforms.worldOffset.value.set(px, pz);
+        }
+
+        // Dekorationen aktualisieren
+        updateClipmapDecorations(px, pz, mainScene);
+    }
+
     function updateGPGPU(px, pz, renderer) {
         if (!gpuCompute) return;
         
@@ -196,7 +451,7 @@
     // Basis-Pfad für Assets (Lokal vs. GitHub flexibel)
     // Dieser Pfad wird jetzt zentral in AssetsLibrary.js verwaltet.
     
-    let chunks = new Map();
+    let chunks = new Map(); // Nur noch für Kollision/Vegetation im Hintergrund (Veraltet)
     let villageBuildings = [];
     const VILLAGE_POS = { x: 0, z: 0 };
     
@@ -659,11 +914,35 @@
     }
 
     function getBiomeData(x, z) {
-        const scale = 0.0002;
-        // Zwei Noise-Werte für Temperatur und Feuchtigkeit
-        const temp = getOctaveNoise(x * scale, z * scale, 3);
-        const humidity = getOctaveNoise(x * scale + 1000, z * scale + 1000, 3);
+        // Diese Logik MUSS mit dem Clipmap-Shader in initClipmap übereinstimmen!
+        const scale = 0.00015;
+        
+        // Einfacher 2D Value-Noise Nachbau für CPU (wie im Shader)
+        const noise2D = (nx, nz) => {
+            const hash = (p) => {
+                const s = Math.sin(p[0] * 127.1 + p[1] * 311.7) * 43758.5453123;
+                return s - Math.floor(s);
+            };
+            const ix = Math.floor(nx);
+            const iz = Math.floor(nz);
+            const fx = nx - ix;
+            const fz = nz - iz;
+            const ux = fx * fx * (3.0 - 2.0 * fx);
+            const uz = fz * fz * (3.0 - 2.0 * fz);
+            
+            const v00 = hash([ix, iz]);
+            const v10 = hash([ix + 1, iz]);
+            const v01 = hash([ix, iz + 1]);
+            const v11 = hash([ix + 1, iz + 1]);
+            
+            return (v00 * (1 - ux) + v10 * ux) * (1 - uz) +
+                   (v01 * (1 - ux) + v11 * ux) * uz;
+        };
 
+        const temp = noise2D(x * 1000.0 * scale, z * 1000.0 * scale) * 2.0 - 1.0;
+        const humidity = noise2D(x * 1000.0 * scale + 100.0, z * 1000.0 * scale + 100.0) * 2.0 - 1.0;
+
+        // Gewichte berechnen für sanfte Übergänge
         const weights = {
             desert: 0,
             snow: 0,
@@ -672,29 +951,51 @@
             plains: 0
         };
 
-        // Sehr vereinfachtes Biome-Mapping (Whittaker-Diagramm Prinzip)
+        // Einfaches Weighting basierend auf Schwellenwerten mit Smoothing
+        const smoothStep = (edge0, edge1, x) => {
+            const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+            return t * t * (3 - 2 * t);
+        };
+
         if (temp > 0.4) {
-            if (humidity < -0.2) weights.desert = 1;
-            else weights.jungle = 1;
-        } else if (temp < -0.4) {
-            weights.snow = 1;
+            const tFactor = smoothStep(0.4, 0.6, temp);
+            if (humidity < -0.2) {
+                const hFactor = 1.0 - smoothStep(-0.2, 0.0, humidity);
+                weights.desert = tFactor * hFactor;
+                weights.plains = 1.0 - weights.desert;
+            } else if (humidity > 0.3) {
+                const hFactor = smoothStep(0.3, 0.5, humidity);
+                weights.jungle = tFactor * hFactor;
+                weights.plains = 1.0 - weights.jungle;
+            } else {
+                weights.plains = 1.0;
+            }
+        } else if (temp < -0.3) {
+            weights.snow = 1.0 - smoothStep(-0.3, -0.1, temp);
+            weights.plains = 1.0 - weights.snow;
         } else {
-            if (humidity < -0.3) weights.plains = 1;
-            else if (humidity > 0.4) weights.swamp = 1;
-            else weights.plains = 1;
+            if (humidity > 0.5) {
+                weights.swamp = smoothStep(0.5, 0.7, humidity);
+                weights.plains = 1.0 - weights.swamp;
+            } else if (humidity < -0.4) {
+                weights.desert = 1.0 - smoothStep(-0.4, -0.2, humidity);
+                weights.plains = 1.0 - weights.desert;
+            } else {
+                weights.plains = 1.0;
+            }
         }
 
-        // TODO: Hier könnte man noch echtes Blending (Interpolation) einbauen
-        // Für den Moment nehmen wir das dominanteste Biome für die Farbe, 
-        // aber die Höhe wird bereits geblendet.
-        
-        let primary = 'plains';
-        if (weights.desert > 0.5) primary = 'desert';
-        if (weights.snow > 0.5) primary = 'snow';
-        if (weights.jungle > 0.5) primary = 'jungle';
-        if (weights.swamp > 0.5) primary = 'swamp';
+        // Haupt-Biom bestimmen (für Kompatibilität)
+        let maxWeight = -1;
+        let mainBiome = 'plains';
+        for (const [name, w] of Object.entries(weights)) {
+            if (w > maxWeight) {
+                maxWeight = w;
+                mainBiome = name;
+            }
+        }
 
-        return { primary, weights };
+        return { name: mainBiome, temp, humidity, weights };
     }
 
     function getBiomeColor(x, z) {
@@ -766,10 +1067,10 @@
         return finalColor;
     }
 
-    function createDetailedTree(x, z, h, rng, leafColor = 0x567d46) {
+    function createDetailedTree(x, z, h, rng, leafColor = 0x567d46, customScale = 1.0) {
         const g = new THREE.Group();
         g.position.set(x, h, z);
-        const s = 0.8 + rng() * 1.2;
+        const s = (0.8 + rng() * 1.2) * customScale;
         
         const trunkMat = new THREE.MeshStandardMaterial({ color: PALETTE.trunk, flatShading: true });
         const trunk = new THREE.Mesh(
@@ -806,6 +1107,73 @@
         g.add(crown);
 
         g.scale.set(s, s, s);
+        return g;
+    }
+
+    function createCactus(rng) {
+        const g = new THREE.Group();
+        const mat = new THREE.MeshStandardMaterial({ color: 0x556b2f, flatShading: true });
+        
+        // Hauptstamm
+        const body = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 12, 6), mat);
+        body.position.y = 6;
+        g.add(body);
+        
+        // Arme
+        for(let i=0; i<2; i++) {
+            const arm = new THREE.Group();
+            arm.position.y = 5 + rng() * 4;
+            arm.rotation.y = rng() * Math.PI * 2;
+            
+            const part1 = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 4, 6), mat);
+            part1.rotation.z = Math.PI / 2;
+            part1.position.x = 2;
+            arm.add(part1);
+            
+            const part2 = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 6, 6), mat);
+            part2.position.set(4, 2, 0);
+            arm.add(part2);
+            
+            g.add(arm);
+        }
+        return g;
+    }
+
+    function createPalm(rng) {
+        const g = new THREE.Group();
+        const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8b4513, flatShading: true });
+        
+        // Gebogener Stamm
+        const trunk = new THREE.Group();
+        let currY = 0;
+        let currX = 0;
+        for(let i=0; i<8; i++) {
+            const seg = new THREE.Mesh(new THREE.CylinderGeometry(1.5 - i*0.1, 1.6 - i*0.1, 4, 6), trunkMat);
+            seg.position.y = 2;
+            const node = new THREE.Group();
+            node.position.y = currY;
+            node.position.x = currX;
+            node.rotation.z = Math.sin(i * 0.5) * 0.1;
+            node.add(seg);
+            trunk.add(node);
+            currY += 3.5;
+            currX += Math.sin(i * 0.5) * 0.5;
+        }
+        g.add(trunk);
+        
+        // Blätter
+        const leafMat = new THREE.MeshStandardMaterial({ color: 0x228b22, flatShading: true, side: THREE.DoubleSide });
+        const leafGeo = new THREE.BoxGeometry(1, 15, 0.2);
+        for(let i=0; i<10; i++) {
+            const leaf = new THREE.Mesh(leafGeo, leafMat);
+            leaf.position.y = currY;
+            leaf.position.x = currX;
+            leaf.rotation.y = (i / 10) * Math.PI * 2;
+            leaf.rotation.z = 1.2;
+            leaf.geometry.translate(0, 7.5, 0);
+            g.add(leaf);
+        }
+        
         return g;
     }
 
@@ -896,225 +1264,215 @@
         return null;
     }
 
-    async function spawnDecorationsForChunk(cx, cz, group) {
-        const seed = (cx * 73856093) ^ (cz * 19349663);
-        const rng = mulberry32(seed);
-        
-        const x0 = cx * CHUNK_SIZE;
-        const z0 = cz * CHUNK_SIZE;
+    // --- CLIPMAP DECORATIONS ---
+    let decorationGroups = new Map(); // Speichert InstancedMeshes pro Zelle
 
-        // 1. Village Check
-        let inVillage = false;
-        const VILLAGE_LOCATIONS = [{x:0, z:0, radius: 150}]; // Erweiteter Radius für Village
+    function updateClipmapDecorations(px, pz, scene) {
+        if (!scene) return;
         
-        for (const v of VILLAGE_LOCATIONS) {
-            const dx = x0 + CHUNK_SIZE/2 - v.x;
-            const dz = z0 + CHUNK_SIZE/2 - v.z;
-            const dist = Math.sqrt(dx*dx + dz*dz);
-            if (dist < v.radius) inVillage = true;
-        }
-
-        // 2. Bäume (nur außerhalb von Dörfern)
-        if (!inVillage) {
-            const treeCount = Math.floor(rng() * 3);
-            for (let i = 0; i < treeCount; i++) {
-                const tx = x0 + rng() * CHUNK_SIZE;
-                const tz = z0 + rng() * CHUNK_SIZE;
-                const th = getTerrainHeight(tx, tz);
-                if (th > 2) { // Nicht im Wasser
-                    const tree = createDetailedTree(tx - x0, tz - z0, th, rng);
-                    group.add(tree);
+        const currentCellX = Math.floor(px / DECORATION_CELL_SIZE);
+        const currentCellZ = Math.floor(pz / DECORATION_CELL_SIZE);
+        
+        // 1. Neue Zellen spawnen
+        for (let x = currentCellX - DECORATION_RANGE; x <= currentCellX + DECORATION_RANGE; x++) {
+            for (let z = currentCellZ - DECORATION_RANGE; z <= currentCellZ + DECORATION_RANGE; z++) {
+                const key = `${x},${z}`;
+                if (!decorationGroups.has(key)) {
+                    const group = new THREE.Group();
+                    scene.add(group);
+                    decorationGroups.set(key, group);
+                    spawnDecorationsInCell(x, z, group);
                 }
             }
         }
-
-        // 3. Clutter (Gras, Steine, Blumen) - Instanced für Performance
-        const clutterCount = 15 + Math.floor(rng() * 20);
-        const clutterTypes = {
-            stone: { count: 0, positions: [], scales: [], rotations: [] },
-            bush: { count: 0, positions: [], scales: [], rotations: [] }
-        };
-
-        for (let i = 0; i < clutterCount; i++) {
-            const cx_pos = x0 + rng() * CHUNK_SIZE;
-            const cz_pos = z0 + rng() * CHUNK_SIZE;
-            const ch = getTerrainHeight(cx_pos, cz_pos);
+        
+        // 2. Weit entfernte Zellen aufräumen
+        decorationGroups.forEach((group, key) => {
+            const [x, z] = key.split(',').map(Number);
+            const dx = Math.abs(x - currentCellX);
+            const dz = Math.abs(z - currentCellZ);
             
-            if (ch > 1) {
-                const type = rng();
-                if (type > 0.85) { // Stein
-                    clutterTypes.stone.count++;
-                    clutterTypes.stone.positions.push(cx_pos, ch + 0.5, cz_pos);
-                    clutterTypes.stone.scales.push(1 + rng() * 1.5);
-                    clutterTypes.stone.rotations.push(rng() * Math.PI * 2);
-                } else if (type > 0.6) { // Busch
-                    clutterTypes.bush.count++;
-                    clutterTypes.bush.positions.push(cx_pos, ch + 0.8, cz_pos);
-                    clutterTypes.bush.scales.push(0.8 + rng() * 0.5);
-                    clutterTypes.bush.rotations.push(rng() * Math.PI * 2);
-                }
-            }
-        }
-
-        // Instanzen erstellen
-        if (clutterTypes.stone.count > 0) {
-            const geo = new THREE.DodecahedronGeometry(1, 0);
-            const mat = new THREE.MeshStandardMaterial({ color: 0x888888, flatShading: true });
-            const imesh = new THREE.InstancedMesh(geo, mat, clutterTypes.stone.count);
-            const dummy = new THREE.Object3D();
-            for (let i = 0; i < clutterTypes.stone.count; i++) {
-                dummy.position.set(
-                    clutterTypes.stone.positions[i*3] - x0, 
-                    clutterTypes.stone.positions[i*3+1], 
-                    clutterTypes.stone.positions[i*3+2] - z0
-                );
-                dummy.rotation.set(Math.random(), Math.random(), Math.random());
-                const s = clutterTypes.stone.scales[i];
-                dummy.scale.set(s, s, s);
-                dummy.updateMatrix();
-                imesh.setMatrixAt(i, dummy.matrix);
-            }
-            imesh.castShadow = true;
-            imesh.receiveShadow = true;
-            group.add(imesh);
-        }
-
-        if (clutterTypes.bush.count > 0) {
-            const geo = new THREE.IcosahedronGeometry(1.5, 0);
-            const mat = new THREE.MeshStandardMaterial({ color: 0x3a5a2a, flatShading: true });
-            const imesh = new THREE.InstancedMesh(geo, mat, clutterTypes.bush.count);
-            const dummy = new THREE.Object3D();
-            for (let i = 0; i < clutterTypes.bush.count; i++) {
-                dummy.position.set(
-                    clutterTypes.bush.positions[i*3] - x0, 
-                    clutterTypes.bush.positions[i*3+1], 
-                    clutterTypes.bush.positions[i*3+2] - z0
-                );
-                dummy.rotation.y = clutterTypes.bush.rotations[i];
-                const s = clutterTypes.bush.scales[i];
-                dummy.scale.set(s, s, s);
-                dummy.updateMatrix();
-                imesh.setMatrixAt(i, dummy.matrix);
-            }
-            imesh.castShadow = true;
-            imesh.receiveShadow = true;
-            group.add(imesh);
-        }
-    }
-
-    async function createChunk(cx, cz, scene, segments = 16) {
-        const key = `${cx},${cz}`;
-        if (chunks.has(key)) {
-            // Falls der Chunk existiert, aber eine andere Auflösung hat -> Ersetzen
-            const existing = chunks.get(key);
-            if (!existing.loading && existing.segments !== segments) {
-                // Hier könnte man ein Refinement einbauen, aber für jetzt: Löschen und neu bauen
-                scene.remove(existing.group);
-                existing.group.traverse(obj => {
+            if (dx > DECORATION_RANGE + 1 || dz > DECORATION_RANGE + 1) {
+                scene.remove(group);
+                group.traverse(obj => {
                     if (obj.geometry) obj.geometry.dispose();
                     if (obj.material) {
                         if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
                         else obj.material.dispose();
                     }
                 });
-            } else {
-                return;
+                decorationGroups.delete(key);
             }
-        }
-        
-        // Platzhalter setzen, um parallele Ladevorgänge für denselben Chunk zu vermeiden
-        chunks.set(key, { loading: true, segments });
-
-        const group = new THREE.Group();
-        group.position.set(cx * CHUNK_SIZE, 0, cz * CHUNK_SIZE);
-        
-        const x0 = cx * CHUNK_SIZE;
-        const z0 = cz * CHUNK_SIZE;
-
-        // Überlappung hinzufügen, um Spalten zwischen Chunks zu vermeiden
-        const OVERLAP = 2.0; 
-        const geo = new THREE.PlaneGeometry(CHUNK_SIZE + OVERLAP, CHUNK_SIZE + OVERLAP, segments, segments);
-        const pos = geo.attributes.position.array;
-        
-        const colors = new Float32Array(pos.length);
-
-        const vertexCount = segments + 1;
-        for (let iz = 0; iz < vertexCount; iz++) {
-            for (let ix = 0; ix < vertexCount; ix++) {
-                const i = (iz * vertexCount + ix) * 3;
-                
-                // Welt-Koordinaten mit leichter Überlappung berechnen
-                const vx = x0 + (ix / segments) * (CHUNK_SIZE + OVERLAP) - OVERLAP / 2;
-                const vz = z0 + (iz / segments) * (CHUNK_SIZE + OVERLAP) - OVERLAP / 2;
-                
-                const h = getGPUHeight(vx, vz);
-                
-                // Lokale Positionen im Mesh anpassen
-                pos[i] = (ix / segments) * (CHUNK_SIZE + OVERLAP) - (CHUNK_SIZE + OVERLAP) / 2;
-                pos[i + 1] = (iz / segments) * (CHUNK_SIZE + OVERLAP) - (CHUNK_SIZE + OVERLAP) / 2;
-                pos[i + 2] = h;
-
-                const color = getBiomeColor(vx, vz);
-                colors[i] = color.r;
-                colors[i+1] = color.g;
-                colors[i+2] = color.b;
-            }
-        }
-
-        geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-        geo.computeVertexNormals();
-
-        const mat = new THREE.MeshStandardMaterial({ 
-            vertexColors: true,
-            flatShading: true,
-            roughness: 0.8,
-            metalness: 0.1,
-            transparent: true,
-            opacity: 0.98, // "Alpha-Boden" Effekt
-            side: THREE.DoubleSide // Sicherstellen, dass er von beiden Seiten sichtbar ist
         });
-
-        const mesh = new THREE.Mesh(geo, mat);
-        mesh.rotation.x = -Math.PI / 2;
-        mesh.position.set(CHUNK_SIZE/2, 0, CHUNK_SIZE/2);
-        mesh.receiveShadow = true;
-        mesh.castShadow = true;
-        group.add(mesh);
-
-        // Einen tieferen Boden als Backup hinzufügen (der "Alpha-Boden" Backup)
-        const backGeo = new THREE.PlaneGeometry(CHUNK_SIZE + 2.0, CHUNK_SIZE + 2.0, 1, 1);
-        const backMat = new THREE.MeshStandardMaterial({ 
-            color: 0x1a2a1a, 
-            transparent: true, 
-            opacity: 0.3 
-        });
-        const backMesh = new THREE.Mesh(backGeo, backMat);
-        backMesh.rotation.x = -Math.PI / 2;
-        backMesh.position.set(CHUNK_SIZE/2, -5, CHUNK_SIZE/2);
-        group.add(backMesh);
-
-        // Wasser-Ebene (deaktiviert für Terrain-Fokus)
-        /*
-        const waterGeo = new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE, 1, 1);
-        const waterMat = new THREE.MeshStandardMaterial({
-            color: 0x4fa3e1,
-            transparent: true,
-            opacity: 0.6,
-            roughness: 0.1,
-            metalness: 0.3
-        });
-        const water = new THREE.Mesh(waterGeo, waterMat);
-        water.rotation.x = -Math.PI / 2;
-        water.position.set(CHUNK_SIZE/2, -2, CHUNK_SIZE/2);
-        group.add(water);
-        */
-
-        // Dekorationen laden (vorübergehend deaktiviert für Terrain-Fokus)
-        // await spawnDecorationsForChunk(cx, cz, group);
-
-        scene.add(group);
-        chunks.set(key, { group, mesh, segments });
     }
+
+    function createCactus(rng) {
+        const group = new THREE.Group();
+        const mat = new THREE.MeshStandardMaterial({ color: 0x2d5a27, flatShading: true });
+        
+        // Hauptstamm
+        const body = new THREE.Mesh(new THREE.BoxGeometry(2, 8 + rng() * 6, 2), mat);
+        body.position.y = 4;
+        group.add(body);
+        
+        // Arme
+        if (rng() > 0.3) {
+            const arm1 = new THREE.Mesh(new THREE.BoxGeometry(1.5, 4, 1.5), mat);
+            arm1.position.set(2, 6, 0);
+            group.add(arm1);
+            const elbow1 = new THREE.Mesh(new THREE.BoxGeometry(3, 1.5, 1.5), mat);
+            elbow1.position.set(1, 4, 0);
+            group.add(elbow1);
+        }
+        return group;
+    }
+
+    function createSnowMound(rng) {
+        const geo = new THREE.IcosahedronGeometry(2 + rng() * 3, 1);
+        const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, flatShading: false });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.scale.y = 0.5;
+        mesh.rotation.y = rng() * Math.PI;
+        return mesh;
+    }
+
+    function createDeadTree(rng) {
+        const group = new THREE.Group();
+        const mat = new THREE.MeshStandardMaterial({ color: 0x4a3728, flatShading: true });
+        const trunk = new THREE.Mesh(new THREE.BoxGeometry(1.5, 15 + rng() * 10, 1.5), mat);
+        trunk.position.y = 7;
+        trunk.rotation.z = (rng() - 0.5) * 0.3;
+        group.add(trunk);
+        return group;
+    }
+
+    async function spawnDecorationsInCell(cx, cz, group) {
+        const seed = (cx * 73856093) ^ (cz * 19349663);
+        const rng = mulberry32(seed);
+        
+        const x0 = cx * DECORATION_CELL_SIZE;
+        const z0 = cz * DECORATION_CELL_SIZE;
+
+        // Biome für die Zelle bestimmen (Mitte der Zelle als Referenz)
+        const biome = getBiomeData(x0 + DECORATION_CELL_SIZE / 2, z0 + DECORATION_CELL_SIZE / 2);
+        
+        // 1. Große Vegetation (Individuelle Meshes für Komplexität)
+        let treeCount = 0;
+        if (biome.name === 'jungle') treeCount = 8 + Math.floor(rng() * 8);
+        else if (biome.name === 'plains') treeCount = 2 + Math.floor(rng() * 3);
+        else if (biome.name === 'swamp') treeCount = 5 + Math.floor(rng() * 5);
+        else if (biome.name === 'snow') treeCount = 1 + Math.floor(rng() * 2);
+        else if (biome.name === 'desert') treeCount = 1 + Math.floor(rng() * 2);
+
+        for (let i = 0; i < treeCount; i++) {
+            const tx = x0 + rng() * DECORATION_CELL_SIZE;
+            const tz = z0 + rng() * DECORATION_CELL_SIZE;
+            const th = getTerrainHeight(tx, tz);
+            
+            if (th > 12) { 
+                let plant;
+                if (biome.name === 'jungle') {
+                    plant = rng() > 0.4 ? createPalm(rng) : createDetailedTree(tx, tz, th, rng, 0x1a472a, 1.5);
+                } else if (biome.name === 'desert') {
+                    plant = rng() > 0.5 ? createCactus(rng) : createDesertRock(rng);
+                } else if (biome.name === 'snow') {
+                    plant = rng() > 0.3 ? createDetailedTree(tx, tz, th, rng, 0xffffff, 0.8) : createDeadTree(rng);
+                } else if (biome.name === 'swamp') {
+                    plant = rng() > 0.3 ? createDetailedTree(tx, tz, th, rng, 0x2f351e, 1.2) : createDeadTree(rng);
+                } else {
+                    plant = createDetailedTree(tx, tz, th, rng);
+                }
+                
+                if (plant) {
+                    plant.position.set(tx, th, tz);
+                    plant.rotation.y = rng() * Math.PI * 2;
+                    group.add(plant);
+                }
+            }
+        }
+
+        // 2. Clutter (Instanced) - Biome-abhängig
+        const clutterCount = 40 + Math.floor(rng() * 40);
+        const stoneInstances = { positions: [], scales: [] };
+        const plantInstances = { positions: [], scales: [] };
+        
+        for (let i = 0; i < clutterCount; i++) {
+            const sx = x0 + rng() * DECORATION_CELL_SIZE;
+            const sz = z0 + rng() * DECORATION_CELL_SIZE;
+            const sh = getTerrainHeight(sx, sz);
+            
+            if (sh > 11) {
+                if (rng() > 0.8) { // Steine seltener als Pflanzen
+                    stoneInstances.positions.push(sx, sh, sz);
+                    stoneInstances.scales.push(0.5 + rng() * 2.5);
+                } else {
+                    plantInstances.positions.push(sx, sh, sz);
+                    plantInstances.scales.push(0.5 + rng() * 1.5);
+                }
+            }
+        }
+
+        // Steine rendern
+        if (stoneInstances.positions.length > 0) {
+            const stoneColor = biome.name === 'desert' ? 0xbc8f8f : 0x888888;
+            const geo = new THREE.DodecahedronGeometry(1, 0);
+            const mat = new THREE.MeshStandardMaterial({ color: stoneColor, flatShading: true });
+            const imesh = new THREE.InstancedMesh(geo, mat, stoneInstances.positions.length / 3);
+            const dummy = new THREE.Object3D();
+            for (let i = 0; i < stoneInstances.positions.length / 3; i++) {
+                dummy.position.set(stoneInstances.positions[i*3], stoneInstances.positions[i*3+1], stoneInstances.positions[i*3+2]);
+                const s = stoneInstances.scales[i];
+                dummy.scale.set(s, s, s);
+                dummy.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
+                dummy.updateMatrix();
+                imesh.setMatrixAt(i, dummy.matrix);
+            }
+            imesh.receiveShadow = true;
+            imesh.castShadow = true;
+            group.add(imesh);
+        }
+
+        // Kleine Pflanzen / Clutter rendern
+        if (plantInstances.positions.length > 0) {
+            let plantColor = 0x3a5a2a;
+            let geo;
+            
+            if (biome.name === 'desert') {
+                plantColor = 0x8b4513; // Vertrocknetes Gestrüpp
+                geo = new THREE.IcosahedronGeometry(0.8, 0);
+            } else if (biome.name === 'snow') {
+                plantColor = 0xffffff; // Schneehaufen
+                geo = new THREE.IcosahedronGeometry(1.2, 1);
+            } else if (biome.name === 'jungle') {
+                plantColor = 0x006400;
+                geo = new THREE.CylinderGeometry(0.1, 1.5, 2, 4);
+            } else if (biome.name === 'swamp') {
+                plantColor = 0x1a2410;
+                geo = new THREE.IcosahedronGeometry(1, 0);
+            } else {
+                geo = new THREE.IcosahedronGeometry(0.8, 0);
+            }
+
+            const mat = new THREE.MeshStandardMaterial({ 
+                color: plantColor, 
+                flatShading: biome.name !== 'snow' 
+            });
+            const imesh = new THREE.InstancedMesh(geo, mat, plantInstances.positions.length / 3);
+            const dummy = new THREE.Object3D();
+            for (let i = 0; i < plantInstances.positions.length / 3; i++) {
+                dummy.position.set(plantInstances.positions[i*3], plantInstances.positions[i*3+1], plantInstances.positions[i*3+2]);
+                const s = plantInstances.scales[i];
+                dummy.scale.set(s, s, s);
+                if (biome.name === 'snow') dummy.scale.y *= 0.3; // Flachere Schneehaufen
+                dummy.rotation.y = rng() * Math.PI * 2;
+                dummy.updateMatrix();
+                imesh.setMatrixAt(i, dummy.matrix);
+            }
+            imesh.receiveShadow = true;
+            group.add(imesh);
+        }
+    }
+
 
     async function initWorld(scene, env, enterHouseCallback, renderer) {
         console.log("[FPGraphics] Initialisiere Welt...");
@@ -1126,8 +1484,9 @@
         // GPGPU Initialisierung
         if (renderer) {
             initGPGPU(renderer);
-            // Erste Berechnung erzwingen, damit Daten für Chunks bereitstehen
-            updateGPGPU(0, 0, renderer);
+            initClipmap(scene);
+            // Erste Berechnung erzwingen
+            updateClipmap(0, 0, renderer);
         }
 
         console.log("[FPGraphics] Biome gefunden:", Object.keys(env.biomes));
@@ -1680,67 +2039,6 @@
         scene.add(tag);
     }
 
-    function updateChunks(scene, targetPos) {
-        if (!scene || isInterior) return;
-
-        const px = targetPos.x;
-        const pz = targetPos.z;
-        const currentCX = Math.floor(px / CHUNK_SIZE);
-        const currentCZ = Math.floor(pz / CHUNK_SIZE);
-
-        const activeKeys = new Set();
-        
-        // Render-Radius verwenden
-        for (let dx = -RENDER_DISTANCE; dx <= RENDER_DISTANCE; dx++) {
-            for (let dz = -RENDER_DISTANCE; dz <= RENDER_DISTANCE; dz++) {
-                // Nur kreisförmig laden für bessere Performance
-                if (dx*dx + dz*dz > RENDER_DISTANCE*RENDER_DISTANCE) continue;
-
-                const cx = currentCX + dx;
-                const cz = currentCZ + dz;
-                const key = `${cx},${cz}`;
-                activeKeys.add(key);
-
-                // LOD Bestimmung
-                const distSq = dx*dx + dz*dz;
-                let segments = LOD_DISTANCES[LOD_DISTANCES.length - 1].segments;
-                for (const lod of LOD_DISTANCES) {
-                    if (distSq <= lod.dist * lod.dist) {
-                        segments = lod.segments;
-                        break;
-                    }
-                }
-
-                createChunk(cx, cz, scene, segments);
-            }
-        }
-
-        for (const [key, chunk] of chunks) {
-            if (!activeKeys.has(key)) {
-                if (chunk.group) {
-                    scene.remove(chunk.group);
-                    chunk.group.traverse(obj => {
-                        if (obj.isMesh) {
-                            if (obj.geometry) obj.geometry.dispose();
-                            if (obj.material) {
-                                if (Array.isArray(obj.material)) {
-                                    obj.material.forEach(m => {
-                                        if (m.map) m.map.dispose();
-                                        m.dispose();
-                                    });
-                                } else {
-                                    if (obj.material.map) obj.material.map.dispose();
-                                    obj.material.dispose();
-                                }
-                            }
-                        }
-                    });
-                }
-                chunks.delete(key);
-            }
-        }
-    }
-
     function createNameTag(name) {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
@@ -2027,22 +2325,31 @@
     }
 
     function cleanup(scene) {
-        chunks.forEach(chunk => {
-            if (chunk.group) {
-                scene.remove(chunk.group);
-                chunk.group.traverse(obj => {
-                    if (obj.geometry) obj.geometry.dispose();
-                    if (obj.material) {
-                        if (Array.isArray(obj.material)) {
-                            obj.material.forEach(m => m.dispose());
-                        } else {
-                            if (obj.material.map) obj.material.map.dispose();
-                            obj.material.dispose();
-                        }
-                    }
-                });
-            }
+        if (clipmapGroup) {
+            scene.remove(clipmapGroup);
+            clipmapGroup.traverse(obj => {
+                if (obj.geometry) obj.geometry.dispose();
+                if (obj.material) {
+                    if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+                    else obj.material.dispose();
+                }
+            });
+            clipmapGroup = null;
+        }
+
+        // Dekorationen aufräumen
+        decorationGroups.forEach(group => {
+            scene.remove(group);
+            group.traverse(obj => {
+                if (obj.geometry) obj.geometry.dispose();
+                if (obj.material) {
+                    if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+                    else obj.material.dispose();
+                }
+            });
         });
+        decorationGroups.clear();
+        
         chunks.clear();
         villageBuildings = [];
         if (rainParticles) {
@@ -2054,11 +2361,12 @@
     }
 
     window.FPGraphics = {
-        get CHUNK_SIZE() { return CHUNK_SIZE; },
+        get CLIPMAP_RADIUS() { return CLIPMAP_RADIUS; },
         get chunks() { return chunks; },
         get isInterior() { return isInterior; },
         get currentInterior() { return currentInterior; },
         get villageBuildings() { return villageBuildings; },
+        get clipmapMesh() { return clipmapMesh; },
         initWorld,
         initMountains,
         initRiver,
@@ -2079,8 +2387,8 @@
         getBiomeData,
         updateGPGPU,
         getGPUHeight,
-        updateChunks,
-        createChunk,
+        updateClipmap,
+        initClipmap,
         initInteriors,
         enterHouse,
         createBuilding,
