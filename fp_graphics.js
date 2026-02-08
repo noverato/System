@@ -91,7 +91,11 @@
     `;
 
     function initGPGPU(renderer) {
-        gpuCompute = new GPUComputationRenderer(GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, renderer);
+        if (typeof THREE.GPUComputationRenderer === 'undefined') {
+            console.error("GPUComputationRenderer not found! Make sure the script is loaded.");
+            return;
+        }
+        gpuCompute = new THREE.GPUComputationRenderer(GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, renderer);
         
         const heightData = gpuCompute.createTexture();
         heightVariable = gpuCompute.addVariable("textureHeight", NOISE_SHADER, heightData);
