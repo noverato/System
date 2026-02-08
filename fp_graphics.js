@@ -583,8 +583,9 @@
         return finalColor;
     }
 
-    function createDetailedTree(rng, leafColor = 0x567d46) {
+    function createDetailedTree(x, z, h, rng, leafColor = 0x567d46) {
         const g = new THREE.Group();
+        g.position.set(x, h, z);
         const s = 0.8 + rng() * 1.2;
         
         const trunkMat = new THREE.MeshStandardMaterial({ color: PALETTE.trunk, flatShading: true });
@@ -738,7 +739,7 @@
                 const tz = z0 + rng() * CHUNK_SIZE;
                 const th = getTerrainHeight(tx, tz);
                 if (th > 2) { // Nicht im Wasser
-                    const tree = createDetailedTree(tx, tz, th, rng);
+                    const tree = createDetailedTree(tx - x0, tz - z0, th, rng);
                     group.add(tree);
                 }
             }
@@ -831,7 +832,7 @@
         const x0 = cx * CHUNK_SIZE;
         const z0 = cz * CHUNK_SIZE;
 
-        const segments = QUALITY >= 3 ? 16 : (QUALITY >= 2 ? 16 : 8); 
+        const segments = 16; 
         const geo = new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE, segments, segments);
         const pos = geo.attributes.position.array;
         
