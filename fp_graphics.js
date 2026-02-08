@@ -91,7 +91,6 @@
     `;
 
     const SMOOTH_SHADER = `
-        uniform sampler2D textureHeight;
         void main() {
             vec2 uv = gl_FragCoord.xy / resolution.xy;
             vec2 texelSize = 1.0 / resolution.xy;
