@@ -76,15 +76,15 @@
             // Absolute Welt-Position berechnen
             vec2 worldPos = uv * worldSize + offset;
             
-            // Noise-Skalierung für Berge
-            float h = fbm(worldPos * 0.005) * 60.0; // Sanfte Hügel
+            // Flachland-Noise (sehr sanfte Wellen)
+            float h = fbm(worldPos * 0.005) * 5.0; 
             
-            // Gebirgs-Strukturen (Ridged Noise)
-            float mNoise = abs(fbm(worldPos * 0.002));
-            float mountains = pow(1.0 - mNoise, 4.0) * 250.0; // Starke Berge
+            // Gebirgs-Strukturen vorerst deaktiviert
+            // float mNoise = abs(fbm(worldPos * 0.002));
+            // float mountains = pow(1.0 - mNoise, 4.0) * 250.0; 
+            // h += mountains;
             
-            h += mountains;
-            h -= 20.0; // Meeresspiegel
+            h += 5.0; // Leicht über dem Nullpunkt für Sichtbarkeit
 
             gl_FragColor = vec4(h, 0.0, 0.0, 1.0);
         }
