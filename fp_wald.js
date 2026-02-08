@@ -1497,9 +1497,9 @@
         const modal = document.getElementById('fpModal');
         if (modal) modal.style.display = 'none';
         
-        // Zurück zur 2D-Welt, falls vorhanden
-        const world = document.getElementById('world');
-        if (world) world.style.display = 'block';
+        // Zurück zur 2D-Welt deaktiviert
+        // const world = document.getElementById('world');
+        // if (world) world.style.display = 'block';
 
         // window.removeEventListener('keydown', handleKeys); // Veraltet, wird in unmount() über keyHandler erledigt
         if (presenceTimer) { clearInterval(presenceTimer); presenceTimer = null; }
