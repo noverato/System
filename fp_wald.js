@@ -268,7 +268,7 @@
             const tex = new THREE.CanvasTexture(canvas);
             const sm = new THREE.SpriteMaterial({ map: tex });
             const sprite = new THREE.Sprite(sm);
-            const h = (window.FPGraphics ? FPGraphics.getTerrainHeight(x, z) : 0);
+            const h = (window.FPGraphics ? FPGraphics.getGPUHeight(x, z) : 0);
             sprite.position.set(x, h + 4, z);
             sprite.scale.set(10, 10, 1);
             
@@ -323,7 +323,7 @@
             }
 
             // Höhe anpassen (An das Terrain binden)
-            const groundH = (window.FPGraphics ? FPGraphics.getTerrainHeight(m.position.x, m.position.z) : 0);
+            const groundH = (window.FPGraphics ? FPGraphics.getGPUHeight(m.position.x, m.position.z) : 0);
             m.position.y = groundH + 4;
 
             // Kampf-Trigger bei Berührung
@@ -379,7 +379,7 @@
             const tex = new THREE.CanvasTexture(canvas);
             const sm = new THREE.SpriteMaterial({ map: tex });
             const sprite = new THREE.Sprite(sm);
-            const h = (window.FPGraphics ? FPGraphics.getTerrainHeight(x, z) : 0);
+            const h = (window.FPGraphics ? FPGraphics.getGPUHeight(x, z) : 0);
             sprite.position.set(x, h + 2, z);
             sprite.scale.set(8, 8, 1);
             
