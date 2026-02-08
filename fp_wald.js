@@ -844,12 +844,11 @@
         
         // Gelände & Innenräume
         if (window.FPGraphics) {
-            FPGraphics.updateChunks(scene, currentPos);
             FPGraphics.initInteriors(scene);
         }
 
         // Nebel für Atmosphäre
-        const RANGE = (window.FPGraphics ? FPGraphics.CHUNK_SIZE * 5 : 640);
+        const RANGE = (window.FPGraphics ? FPGraphics.CLIPMAP_RADIUS * 0.8 : 640);
         scene.fog = new THREE.Fog(0x1a3c1a, 50, RANGE);
         
         if (window.FPGraphics) {
@@ -1087,16 +1086,18 @@
             const dx = nx - pos.x;
             const dz = nz - pos.z;
             
-            // Wenn außerhalb der Box -> Kollision (True zurückgeben)
-            // Wir lassen einen kleinen Puffer von 2 Einheiten zur Wand
             if (Math.abs(dx) > size - 2 || Math.abs(dz) > size - 2) {
-                // Sonderfall: Tür/Ausgangsbereich (wir erlauben Bewegung nach "hinten" zum Ausgang)
-                // In unserem Fall ist der Ausgang bei dist > 40 vom Zentrum.
-                // Da wir keine explizite Tür-Geometrie für die Kollision haben, 
-                // begrenzen wir einfach den Raum strikt.
                 return true; 
             }
             return false;
+        }
+
+        // --- CLIPMAP KOLLISION (Wasser/Berge) ---
+        if (window.FPGraphics) {
+            const h = FPGraphics.getGPUHeight(nx, nz);
+            // Blockiere Bewegung in tiefes Wasser (h < 5) oder extrem steile/hohe Berge (h > 150)
+            if (h < 5.0) return true; 
+            if (h > 150.0) return true;
         }
 
         // Kollision mit Gebäuden (Exterior)
@@ -1125,7 +1126,8 @@
 
         updateEnvironment();
         if (window.FPGraphics) {
-            FPGraphics.updateGPGPU(targetPos.x, targetPos.z, renderer);
+            // updateClipmap aktualisiert GPGPU, Shader und Dekorationen
+            FPGraphics.updateClipmap(targetPos.x, targetPos.z, renderer);
             FPGraphics.updateRain(avatar);
             FPGraphics.updateRiver();
             FPGraphics.updateFire(delta, now);
@@ -1179,18 +1181,11 @@
 
         if (moved) {
             // --- KOLLISIONSPRÜFUNG ---
-            const cs = window.FPGraphics ? FPGraphics.CHUNK_SIZE : 128;
-            const cx = Math.floor(nextX / cs);
-            const cz = Math.floor(nextZ / cs);
-            const chunkKey = `${cx},${cz}`;
-            
-            const chunkExists = (!window.FPGraphics || FPGraphics.chunks.has(chunkKey) || FPGraphics.isInterior);
             const isSafe = !checkCollision(nextX, nextZ);
             
-            if (isSafe && chunkExists) { 
+            if (isSafe) { 
                 targetPos.x = nextX;
                 targetPos.z = nextZ;
-                if (window.FPGraphics) FPGraphics.updateChunks(scene, targetPos);
 
                 if (Date.now() - lastStepAt > STEP_MS) {
                     gridX = Math.round(targetPos.x / GRID);
@@ -1198,8 +1193,6 @@
                     saveStep();
                     lastStepAt = Date.now();
                 }
-            } else if (!chunkExists && !(window.FPGraphics && FPGraphics.isInterior)) {
-                if (window.FPGraphics) FPGraphics.updateChunks(scene, targetPos);
             }
         }
 
