@@ -692,75 +692,134 @@
     }
 
     async function spawnDecorationsForChunk(cx, cz, group) {
-        // Seed basierend auf Koordinaten
         const seed = (cx * 73856093) ^ (cz * 19349663);
         const rng = mulberry32(seed);
         
         const x0 = cx * CHUNK_SIZE;
         const z0 = cz * CHUNK_SIZE;
 
-        // Bäume & Büsche nur außerhalb der Dörfer
+        // 1. Village Check
         let inVillage = false;
+        let distToVillage = 999;
         for (const loc of VILLAGE_LOCATIONS) {
             const d = Math.hypot(x0 + CHUNK_SIZE/2 - loc.x, z0 + CHUNK_SIZE/2 - loc.z);
-            if (d < loc.radius + 20) {
+            if (d < loc.radius + 10) {
                 inVillage = true;
+                distToVillage = d;
                 break;
             }
         }
 
-        if (!inVillage) {
-             // Steine
-             if (rng() > 0.8) {
-                 const lx = x0 + rng() * CHUNK_SIZE;
-                 const lz = z0 + rng() * CHUNK_SIZE;
-                 const h = getTerrainHeight(lx, lz);
-                 const s = 0.5 + rng() * 2.0;
-                 
-                 const rockGeo = new THREE.DodecahedronGeometry(s, 0);
-                 const rockMat = new THREE.MeshStandardMaterial({ color: 0x777777, flatShading: true });
-                 const rock = new THREE.Mesh(rockGeo, rockMat);
-                 rock.position.set(lx - x0, h, lz - z0);
-                 rock.rotation.set(rng(), rng(), rng());
-                 group.add(rock);
-             }
+        // 2. Biome-Daten für den Chunk-Mittelpunkt holen (für grobe Orientierung)
+        const centerBiome = getBiomeData(x0 + CHUNK_SIZE/2, z0 + CHUNK_SIZE/2);
 
-             // Bäume
-             if (rng() > 0.75) { // Leicht reduzierte Dichte für Performance
+        // 3. Bäume (Größere Objekte zuerst)
+        const treeCount = inVillage ? 1 : (centerBiome.primary === 'jungle' ? 4 : (centerBiome.primary === 'swamp' ? 2 : 3));
+        for (let i = 0; i < treeCount; i++) {
+            if (rng() > 0.4) {
                 const lx = x0 + rng() * CHUNK_SIZE;
                 const lz = z0 + rng() * CHUNK_SIZE;
-                const h = getTerrainHeight(lx, lz);
+                const bData = getBiomeData(lx, lz);
                 
-                const ALL_TREES = AssetsLibrary.getAllTrees();
-                const treePath = ALL_TREES[Math.floor(rng() * ALL_TREES.length)];
-                
+                let treePath;
+                if (bData.primary === 'snow') {
+                    const pines = AssetsLibrary.ASSETS.NATURE.TREES.filter(t => t.includes('Pine'));
+                    treePath = AssetsLibrary.encode('animation/Nature/glTF/' + pines[Math.floor(rng() * pines.length)]);
+                } else if (bData.primary === 'swamp') {
+                    const deadTrees = AssetsLibrary.ASSETS.TREES.LIST.filter(t => t.includes('Dead'));
+                    treePath = AssetsLibrary.encode('animation/bäume/glTF/' + deadTrees[Math.floor(rng() * deadTrees.length)]);
+                } else {
+                    const allTrees = AssetsLibrary.getAllTrees();
+                    treePath = allTrees[Math.floor(rng() * allTrees.length)];
+                }
+
                 try {
                     const tree = await loadModel(treePath);
-                    const s = 4.0 + rng() * 6.0;
+                    const s = 6.0 + rng() * 8.0;
                     tree.scale.set(s, s, s);
-                    tree.position.set(lx - x0, h, lz - z0); // Relativ zur Group
+                    tree.position.set(lx - x0, getTerrainHeight(lx, lz), lz - z0);
                     tree.rotation.y = rng() * Math.PI * 2;
                     group.add(tree);
                 } catch(e) {}
             }
+        }
 
-            // Büsche
-            if (rng() > 0.6) {
-                const lx = x0 + rng() * CHUNK_SIZE;
-                const lz = z0 + rng() * CHUNK_SIZE;
+        // 4. Kleinteile (Clutter) - Grid-basiert für dichten Look
+        const cellSize = 8; // Alle 8 Meter ein Check
+        for (let gx = 0; gx < CHUNK_SIZE; gx += cellSize) {
+            for (let gz = 0; gz < CHUNK_SIZE; gz += cellSize) {
+                const lx = x0 + gx + rng() * cellSize;
+                const lz = z0 + gz + rng() * cellSize;
+                const bData = getBiomeData(lx, lz);
                 const h = getTerrainHeight(lx, lz);
-                
-                const ALL_BUSHES = AssetsLibrary.getAllBushes();
-                const bushPath = ALL_BUSHES[Math.floor(rng() * ALL_BUSHES.length)];
-                
-                try {
-                    const bush = await loadModel(bushPath);
-                    const s = 1.5 + rng() * 2.5;
-                    bush.scale.set(s, s, s);
-                    bush.position.set(lx - x0, h, lz - z0);
-                    bush.rotation.y = rng() * Math.PI * 2;
-                    group.add(bush);
-                } catch(e) {}
+                const rand = rng();
+
+                // Keine Deko im Wasser
+                if (h < -1.5) continue;
+
+                // Biome-spezifischer Clutter
+                if (bData.primary === 'plains') {
+                    if (rand > 0.2) { // Sehr viel Gras/Blumen
+                        const allFlowers = AssetsLibrary.getAllFlowers();
+                        const flower = await loadModel(allFlowers[Math.floor(rng() * allFlowers.length)]);
+                        flower.scale.set(1.5 + rng(), 1.5 + rng(), 1.5 + rng());
+                        flower.position.set(lx - x0, h, lz - z0);
+                        flower.rotation.y = rng() * Math.PI * 2;
+                        group.add(flower);
+                    }
+                    if (rand > 0.8) { // Gelegentlich Steine/Kiesel
+                        const pebbles = AssetsLibrary.ASSETS.NATURE.ROCKS;
+                        const pebblePath = AssetsLibrary.encode('animation/Nature/glTF/' + pebbles[3 + Math.floor(rng() * (pebbles.length - 3))]);
+                        const pebble = await loadModel(pebblePath);
+                        pebble.scale.set(0.8 + rng(), 0.8 + rng(), 0.8 + rng());
+                        pebble.position.set(lx - x0, h, lz - z0);
+                        group.add(pebble);
+                    }
+                } else if (bData.primary === 'desert') {
+                    if (rand > 0.4) { // Fokus auf Steine und Kiesel
+                        const rocks = AssetsLibrary.ASSETS.NATURE.ROCKS;
+                        const rockPath = AssetsLibrary.encode('animation/Nature/glTF/' + rocks[Math.floor(rng() * rocks.length)]);
+                        const rock = await loadModel(rockPath);
+                        const s = 1.0 + rng() * 2.0;
+                        rock.scale.set(s, s, s);
+                        rock.position.set(lx - x0, h, lz - z0);
+                        rock.rotation.set(rng() * 0.5, rng() * Math.PI, rng() * 0.5);
+                        group.add(rock);
+                    }
+                } else if (bData.primary === 'jungle') {
+                    if (rand > 0.15) { // Extrem dichte Vegetation
+                        const allBushes = AssetsLibrary.getAllBushes();
+                        const bush = await loadModel(allBushes[Math.floor(rng() * allBushes.length)]);
+                        const s = 2.0 + rng() * 3.0;
+                        bush.scale.set(s, s, s);
+                        bush.position.set(lx - x0, h, lz - z0);
+                        bush.rotation.y = rng() * Math.PI * 2;
+                        group.add(bush);
+                    }
+                    if (rand > 0.85) { // Moosige Baumstämme / Ressourcen
+                        const log = await loadModel(AssetsLibrary.get('RESOURCES', 'WOOD_LOG'));
+                        log.scale.set(2.5, 2.5, 2.5);
+                        log.position.set(lx - x0, h + 0.2, lz - z0);
+                        log.rotation.set(Math.PI / 2, rng() * Math.PI, 0);
+                        group.add(log);
+                    }
+                } else if (bData.primary === 'swamp') {
+                    if (rand > 0.5) { // Dreck, Totholz, Steine
+                        const deadChance = rng();
+                        if (deadChance > 0.5) {
+                            const log = await loadModel(AssetsLibrary.get('RESOURCES', 'WOOD_LOG'));
+                            log.scale.set(2, 2, 2);
+                            log.position.set(lx - x0, h, lz - z0);
+                            log.rotation.y = rng() * Math.PI;
+                            group.add(log);
+                        } else {
+                            const rock = await loadModel(AssetsLibrary.encode('animation/Nature/glTF/' + AssetsLibrary.ASSETS.NATURE.ROCKS[Math.floor(rng() * 3)]));
+                            rock.scale.set(1.5, 1.5, 1.5);
+                            rock.position.set(lx - x0, h - 0.2, lz - z0); // Halb versunken
+                            group.add(rock);
+                        }
+                    }
+                }
             }
         }
     }
