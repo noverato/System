@@ -198,7 +198,6 @@
                 
                 // Displacement anwenden (Z-Achse der Geometrie ist nach Rotation die Y-Achse der Welt)
                 vec3 transformed = vec3(position.x, position.y, h);
-                #include <project_vertex>
                 `
             );
 
