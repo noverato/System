@@ -119,6 +119,78 @@
     const ROT_SPEED = 0.003; // Maus-Sensitivität
     const LERP_FACTOR = 0.1; // Für Smoothening (Snapback-Fix)
 
+    // --- ANIMATION FSM (Finite State Machine) ---
+    const ANIM_STATES = {
+        IDLE: 'idle',
+        WALK: 'walk',
+        RUN: 'run',
+        JUMP: 'jump',
+        ATTACK: 'attack'
+    };
+
+    class AnimationFSM {
+        constructor() {
+            this.state = ANIM_STATES.IDLE;
+            this.lastState = null;
+        }
+
+        update(moved, isGrounded, isAttacking) {
+            this.lastState = this.state;
+
+            if (!isGrounded) {
+                this.state = ANIM_STATES.JUMP;
+            } else if (isAttacking) {
+                this.state = ANIM_STATES.ATTACK;
+            } else if (moved) {
+                this.state = keys['shift'] ? ANIM_STATES.RUN : ANIM_STATES.WALK;
+            } else {
+                this.state = ANIM_STATES.IDLE;
+            }
+
+            if (this.state !== this.lastState) {
+                this.onStateChange(this.state, this.lastState);
+            }
+            
+            // Kontinuierliche Animationseffekte
+            this.animate();
+        }
+
+        animate() {
+            if (!avatar || !avatar.children[0]) return;
+            const sprite = avatar.children[0];
+            const time = Date.now() * 0.005;
+
+            if (this.state === ANIM_STATES.WALK || this.state === ANIM_STATES.RUN) {
+                const bounce = Math.sin(time * (this.state === ANIM_STATES.RUN ? 2 : 1)) * 0.5;
+                sprite.position.y = bounce;
+            } else {
+                sprite.position.y = 0;
+            }
+        }
+
+        onStateChange(newState, oldState) {
+            if (avatar && avatar.children[0]) {
+                const sprite = avatar.children[0];
+                switch(newState) {
+                    case ANIM_STATES.IDLE:
+                        sprite.scale.set(8, 8, 1);
+                        break;
+                    case ANIM_STATES.WALK:
+                        sprite.scale.set(8.2, 8, 1);
+                        break;
+                    case ANIM_STATES.RUN:
+                        sprite.scale.set(8.5, 8, 1);
+                        break;
+                    case ANIM_STATES.JUMP:
+                        sprite.scale.set(7, 10, 1);
+                        break;
+                }
+            }
+        }
+    }
+
+    const animFSM = new AnimationFSM();
+
     function ensureThree() {
         if (window.THREE) return Promise.resolve(true);
         return new Promise(resolve => {
@@ -803,7 +875,7 @@
                 } else if (buildingName === "Arena") {
                     if (window.PvPEvents) window.PvPEvents.openMenu();
                 }
-            });
+            }, renderer);
             FPGraphics.initRain(scene);
         }
 
@@ -918,6 +990,10 @@
                         collectItem(obj);
                     }
                 }
+
+                // --- ANGRIFFS-LOGIK FÜR FSM ---
+                window.isAttacking = true;
+                setTimeout(() => { window.isAttacking = false; }, 300);
             }
         });
 
@@ -1049,6 +1125,7 @@
 
         updateEnvironment();
         if (window.FPGraphics) {
+            FPGraphics.updateGPGPU(targetPos.x, targetPos.z, renderer);
             FPGraphics.updateRain(avatar);
             FPGraphics.updateRiver();
             FPGraphics.updateFire(delta, now);
@@ -1059,7 +1136,7 @@
             velocityY += GRAVITY * delta;
             targetPos.y += velocityY * delta;
             
-            const groundH = (window.FPGraphics ? FPGraphics.getTerrainHeight(targetPos.x, targetPos.z) : 0);
+            const groundH = (window.FPGraphics ? FPGraphics.getGPUHeight(targetPos.x, targetPos.z) : 0);
             if (targetPos.y < groundH) {
                 targetPos.y = groundH;
                 velocityY = 0;
@@ -1130,6 +1207,11 @@
         applyCamera(delta);
         updateOtherPlayers();
         checkInteractions();
+        
+        // --- ANIMATION FSM UPDATE ---
+        if (animFSM) {
+            animFSM.update(moved, isGrounded, window.isAttacking);
+        }
         
         if (renderer && scene && camera) {
             renderer.render(scene, camera);
