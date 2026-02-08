@@ -13,7 +13,8 @@
     const RENDER_DISTANCE = 12; 
     
     // --- GPGPU TERRAIN SETTINGS ---
-    const GPU_TERRAIN_SIZE = 512; // Größe der Heightmap-Textur
+    const GPU_TERRAIN_SIZE = 512; // Auflösung der Heightmap
+    const GPU_WORLD_SIZE = 1024;  // Bereich in Welteinheiten, den die GPGPU abdeckt
     
     // --- LOD SETTINGS ---
     const LOD_DISTANCES = [
@@ -29,7 +30,8 @@
     
     const NOISE_SHADER = `
         uniform float time;
-        uniform vec2 offset;
+        uniform vec2 offset; // Welt-Position der Textur-Ecke (unten-links)
+        uniform float worldSize;
         
         // Simplex 2D noise
         vec3 permute(vec3 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
@@ -61,7 +63,7 @@
             float a = 0.5;
             vec2 shift = vec2(100);
             mat2 rot = mat2(cos(0.5), sin(0.5), -sin(0.5), cos(0.50));
-            for (int i = 0; i < 6; ++i) { // Mehr Oktaven für mehr Detail
+            for (int i = 0; i < 6; ++i) {
                 v += a * snoise(p);
                 p = rot * p * 2.0 + shift;
                 a *= 0.5;
@@ -71,41 +73,36 @@
 
         void main() {
             vec2 uv = gl_FragCoord.xy / resolution.xy;
-            // Skalierung anpassen für weitere Landschaften
-            vec2 worldPos = (uv + offset) * 15.0; 
+            // Absolute Welt-Position berechnen
+            vec2 worldPos = uv * worldSize + offset;
             
-            // Basis-Hügel
-            float h = fbm(worldPos * 0.03) * 40.0;
+            // Noise-Skalierung für Berge
+            float h = fbm(worldPos * 0.005) * 60.0; // Sanfte Hügel
             
-            // Gebirgs-Strukturen (Ridged Noise Effekt)
-            float mountainNoise = abs(fbm(worldPos * 0.015));
-            float mountains = pow(1.0 - mountainNoise, 3.0) * 180.0;
-            
-            // Täler glätten
-            if (h < 0.0) h *= 0.5;
+            // Gebirgs-Strukturen (Ridged Noise)
+            float mNoise = abs(fbm(worldPos * 0.002));
+            float mountains = pow(1.0 - mNoise, 4.0) * 250.0; // Starke Berge
             
             h += mountains;
-
-            // Meeresspiegel-Offset
-            h -= 10.0;
+            h -= 20.0; // Meeresspiegel
 
             gl_FragColor = vec4(h, 0.0, 0.0, 1.0);
         }
     `;
 
     const SMOOTH_SHADER = `
+        uniform sampler2D textureHeight;
         void main() {
             vec2 uv = gl_FragCoord.xy / resolution.xy;
-            vec2 texelSize = 1.5 / resolution.xy; // Etwas größerer Radius für weicheres Blending
+            vec2 texelSize = 1.0 / resolution.xy;
             
             float h = 0.0;
             float weightSum = 0.0;
             
-            // Gauß-ähnlicher Blur (3x3 gewichtet)
-            for(int y = -1; y <= 1; y++) {
-                for(int x = -1; x <= 1; x++) {
-                    float weight = 1.0;
-                    if (x == 0 && y == 0) weight = 2.0;
+            for(int y = -2; y <= 2; y++) {
+                for(int x = -2; x <= 2; x++) {
+                    float dist = length(vec2(float(x), float(y)));
+                    float weight = exp(-dist * dist * 0.5); // Gauß-Blur
                     
                     h += texture2D(textureHeight, uv + vec2(float(x), float(y)) * texelSize).r * weight;
                     weightSum += weight;
@@ -117,7 +114,7 @@
 
     function initGPGPU(renderer) {
         if (typeof THREE.GPUComputationRenderer === 'undefined') {
-            console.error("GPUComputationRenderer not found! Make sure the script is loaded.");
+            console.error("GPUComputationRenderer not found!");
             return;
         }
         gpuCompute = new THREE.GPUComputationRenderer(GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, renderer);
@@ -132,22 +129,24 @@
         
         heightVariable.material.uniforms = {
             time: { value: 0 },
-            offset: { value: new THREE.Vector2(0, 0) }
+            offset: { value: new THREE.Vector2(0, 0) },
+            worldSize: { value: GPU_WORLD_SIZE }
         };
 
         const error = gpuCompute.init();
-        if (error !== null) {
-            console.error("GPGPU Init Error:", error);
-        }
+        if (error !== null) console.error("GPGPU Init Error:", error);
     }
 
     function updateGPGPU(px, pz, renderer) {
         if (!gpuCompute) return;
         
-        heightVariable.material.uniforms.offset.value.set(px / (CHUNK_SIZE * 10), pz / (CHUNK_SIZE * 10));
+        // Offset so setzen, dass der Spieler in der Mitte der Textur ist
+        const ox = px - GPU_WORLD_SIZE / 2;
+        const oz = pz - GPU_WORLD_SIZE / 2;
+        
+        heightVariable.material.uniforms.offset.value.set(ox, oz);
         gpuCompute.compute();
         
-        // Ergebnis auslesen (optional für CPU-Kollision)
         const renderTarget = gpuCompute.getCurrentRenderTarget(smoothVariable);
         renderer.readRenderTargetPixels(renderTarget, 0, 0, GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, gpuHeightData);
     }
@@ -155,20 +154,15 @@
     function getGPUHeight(x, z) {
         if (!gpuCompute) return getTerrainHeight(x, z);
         
-        // Umrechnung von Weltkoordinaten in Texture-UVs
-        // Da die Textur um den Spieler zentriert ist (über offset), 
-        // müssen wir wissen, wie viel Weltraum ein Pixel abdeckt.
-        const worldSize = GPU_TERRAIN_SIZE * (CHUNK_SIZE / 16); // Annahme: 1 Pixel pro Segment
+        const ox = heightVariable.material.uniforms.offset.value.x;
+        const oz = heightVariable.material.uniforms.offset.value.y;
         
-        // Relative Position zum Offset berechnen
-        const ox = heightVariable.material.uniforms.offset.value.x * (CHUNK_SIZE * 10);
-        const oz = heightVariable.material.uniforms.offset.value.y * (CHUNK_SIZE * 10);
+        // Relative Position in UV umrechnen (0 bis 1)
+        const u = (x - ox) / GPU_WORLD_SIZE;
+        const v = (z - oz) / GPU_WORLD_SIZE;
         
-        const tx = ((x - ox) / worldSize + 0.5) * GPU_TERRAIN_SIZE;
-        const tz = ((z - oz) / worldSize + 0.5) * GPU_TERRAIN_SIZE;
-        
-        const ix = Math.floor(tx);
-        const iz = Math.floor(tz);
+        const ix = Math.floor(u * GPU_TERRAIN_SIZE);
+        const iz = Math.floor(v * GPU_TERRAIN_SIZE);
         
         if (ix >= 0 && ix < GPU_TERRAIN_SIZE && iz >= 0 && iz < GPU_TERRAIN_SIZE) {
             const idx = (iz * GPU_TERRAIN_SIZE + ix) * 4;
@@ -1062,7 +1056,8 @@
         mesh.castShadow = true;
         group.add(mesh);
 
-        // Wasser-Ebene
+        // Wasser-Ebene (deaktiviert für Terrain-Fokus)
+        /*
         const waterGeo = new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE, 1, 1);
         const waterMat = new THREE.MeshStandardMaterial({
             color: 0x4fa3e1,
@@ -1075,6 +1070,7 @@
         water.rotation.x = -Math.PI / 2;
         water.position.set(CHUNK_SIZE/2, -2, CHUNK_SIZE/2);
         group.add(water);
+        */
 
         // Dekorationen laden (vorübergehend deaktiviert für Terrain-Fokus)
         // await spawnDecorationsForChunk(cx, cz, group);
@@ -1093,27 +1089,30 @@
         // GPGPU Initialisierung
         if (renderer) {
             initGPGPU(renderer);
+            // Erste Berechnung erzwingen, damit Daten für Chunks bereitstehen
+            updateGPGPU(0, 0, renderer);
         }
 
         console.log("[FPGraphics] Biome gefunden:", Object.keys(env.biomes));
 
         // Große Basis-Ebene für den Hintergrund (verhindert das "blaue Nichts")
-        const baseGeo = new THREE.PlaneGeometry(5000, 5000);
-        const baseMat = new THREE.MeshStandardMaterial({ 
-            color: 0x3d4f35, // Dunkles Grün/Erde
-            roughness: 1.0,
-            metalness: 0.0
-        });
-        const basePlane = new THREE.Mesh(baseGeo, baseMat);
-        basePlane.rotation.x = -Math.PI / 2;
-        basePlane.position.y = -5; // Tief genug unter dem eigentlichen Terrain
-        scene.add(basePlane);
+        // const baseGeo = new THREE.PlaneGeometry(5000, 5000);
+        // const baseMat = new THREE.MeshStandardMaterial({ 
+        //     color: 0x3d4f35, // Dunkles Grün/Erde
+        //     roughness: 1.0,
+        //     metalness: 0.0
+        // });
+        // const basePlane = new THREE.Mesh(baseGeo, baseMat);
+        // basePlane.rotation.x = -Math.PI / 2;
+        // basePlane.position.y = -5; // Tief genug unter dem eigentlichen Terrain
+        // scene.add(basePlane);
 
         // initMountains(scene); // Entfernt, da Berge jetzt Teil des Terrains sind
-        initRiver(scene);
+        // initRiver(scene);
         // await initVegetation(scene); // Jetzt in Chunks
         // initForestDetails(scene); // Jetzt in Chunks
 
+        /*
         const biomeKeys = Object.keys(env.biomes);
         for (let index = 0; index < biomeKeys.length; index++) {
             const key = biomeKeys[index];
@@ -1162,6 +1161,7 @@
                 await spawnVillage(scene, biome, vx, vz, enterHouseCallback);
             }
         }
+        */
     }
 
     function initMountains(scene) {
