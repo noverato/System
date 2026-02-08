@@ -1992,6 +1992,8 @@
         simpleNoise,
         getTerrainHeight,
         getBiomeData,
+        updateGPGPU,
+        getGPUHeight,
         updateChunks,
         createChunk,
         initInteriors,
