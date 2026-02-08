@@ -9,15 +9,15 @@
         trunk: 0x3d2b1f
     };
 
-    const CLIPMAP_RADIUS = 1024; // Radius des sichtbaren Terrains
-    const CLIPMAP_SEGMENTS = 256; // Auflösung des Gitters (höher = schöner)
+    const CLIPMAP_RADIUS = 1000; // Etwas kleiner als GPU_WORLD_SIZE / 2
+    const CLIPMAP_SEGMENTS = 128; // Reduziert für Stabilität
     
-    const DECORATION_CELL_SIZE = 256; // Größe einer Dekorations-Zelle
-    const DECORATION_RANGE = 4; // Wie viele Zellen um den Spieler herum geladen werden (Radius)
+    const DECORATION_CELL_SIZE = 256; 
+    const DECORATION_RANGE = 4; 
     
     // --- GPGPU TERRAIN SETTINGS ---
-    const GPU_TERRAIN_SIZE = 512; // Auflösung der Heightmap
-    const GPU_WORLD_SIZE = 1024;  // Bereich reduziert für bessere Schärfe im Nahbereich
+    const GPU_TERRAIN_SIZE = 512; 
+    const GPU_WORLD_SIZE = 2400;  // Deutlich größer als CLIPMAP_RADIUS * 2 für Puffer
     
     // --- LOD SETTINGS entfernt für Clipmap ---
     
@@ -106,10 +106,12 @@
             }
 
             // 2. Biome Weights (Matching CPU getBiomeData)
-            float scale = 0.00015;
-            // Wir nutzen hier snoise für GPGPU da es performanter ist als Value Noise
-            float temp = snoise(pos * scale * 1.5) * 1.5; 
-            float humidity = snoise(pos * scale * 1.5 + vec2(100.0)) * 1.5;
+            float biomeScale = 0.15; // 1000.0 * 0.00015
+            float temp = snoise(pos * biomeScale) * 0.5 + 0.5; // In Bereich [0,1] bringen für Logik
+            temp = temp * 2.0 - 1.0; // Zurück auf [-1, 1]
+            
+            float humidity = snoise(pos * biomeScale + vec2(100.0)) * 0.5 + 0.5;
+            humidity = humidity * 2.0 - 1.0;
 
             float wDesert = 0.0, wSnow = 0.0, wJungle = 0.0, wSwamp = 0.0, wPlains = 1.0;
 
@@ -156,6 +158,9 @@
             }
             
             h *= villageFactor;
+            
+            // Schutz gegen extreme Werte
+            h = clamp(h, -50.0, 500.0);
 
             gl_FragColor = vec4(h, 0.0, 0.0, 1.0);
         }
@@ -254,17 +259,18 @@
             shader.vertexShader = shader.vertexShader.replace(
                 '#include <begin_vertex>',
                 `
+                // UV für Heightmap berechnen (wPos ist hier noch flach)
                 vec4 wPos = modelMatrix * vec4(position, 1.0);
-                vWorldPos = wPos.xyz;
-                vDist = length(position.xy); // Abstand vom Spieler-Zentrum
-                
-                // UV für Heightmap berechnen (Zentrum-basiert)
                 vec2 hUv = (wPos.xz - worldOffset) / gpuWorldSize + 0.5;
                 float h = texture2D(heightMap, hUv).r;
                 vHeight = h;
                 
-                // Displacement anwenden (Z-Achse der Geometrie ist nach Rotation die Y-Achse der Welt)
+                // Displacement anwenden (Z-Achse der Geometrie ist Welt-Y nach Rotation)
                 vec3 transformed = vec3(position.x, position.y, h);
+                
+                // Weltposition NACH Displacement für Fragment-Shader
+                vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+                vDist = length(position.xy); 
                 `
             );
 
