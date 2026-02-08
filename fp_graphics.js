@@ -9,18 +9,18 @@
         trunk: 0x3d2b1f
     };
 
-    const CHUNK_SIZE = 32;
-    const RENDER_DISTANCE = 12; 
+    const CHUNK_SIZE = 128;
+    const RENDER_DISTANCE = 4; 
     
     // --- GPGPU TERRAIN SETTINGS ---
     const GPU_TERRAIN_SIZE = 512; // Auflösung der Heightmap
-    const GPU_WORLD_SIZE = 1024;  // Bereich in Welteinheiten, den die GPGPU abdeckt
+    const GPU_WORLD_SIZE = 2048;  // Bereich in Welteinheiten, den die GPGPU abdeckt
     
     // --- LOD SETTINGS ---
     const LOD_DISTANCES = [
-        { dist: 3, segments: 32 }, // Nah: Hohe Auflösung
-        { dist: 6, segments: 16 }, // Mittel
-        { dist: 12, segments: 8 }  // Fern: Niedrige Auflösung
+        { dist: 1, segments: 64 }, // Nah: Sehr hohe Auflösung
+        { dist: 2, segments: 32 }, // Mittel
+        { dist: 4, segments: 16 }  // Fern
     ];
     
     let gpuCompute;
@@ -84,7 +84,7 @@
             // float mountains = pow(1.0 - mNoise, 4.0) * 250.0; 
             // h += mountains;
             
-            h += 5.0; // Leicht über dem Nullpunkt für Sichtbarkeit
+            h += 10.0; // Basis-Höhe für bessere Sichtbarkeit und gegen Clipping
 
             gl_FragColor = vec4(h, 0.0, 0.0, 1.0);
         }
@@ -160,15 +160,37 @@
         const u = (x - ox) / GPU_WORLD_SIZE;
         const v = (z - oz) / GPU_WORLD_SIZE;
         
-        const ix = Math.floor(u * GPU_TERRAIN_SIZE);
-        const iz = Math.floor(v * GPU_TERRAIN_SIZE);
-        
-        if (ix >= 0 && ix < GPU_TERRAIN_SIZE && iz >= 0 && iz < GPU_TERRAIN_SIZE) {
-            const idx = (iz * GPU_TERRAIN_SIZE + ix) * 4;
+        if (u < 0 || u > 1 || v < 0 || v > 1) {
+            return getTerrainHeight(x, z);
+        }
+
+        // Bilineare Interpolation für glatteres Terrain
+        const fx = u * (GPU_TERRAIN_SIZE - 1);
+        const fz = v * (GPU_TERRAIN_SIZE - 1);
+        const ix = Math.floor(fx);
+        const iz = Math.floor(fz);
+        const tx = fx - ix;
+        const tz = fz - iz;
+
+        const getH = (x, z) => {
+            const idx = (z * GPU_TERRAIN_SIZE + x) * 4;
             return gpuHeightData[idx];
+        };
+
+        const h00 = getH(ix, iz);
+        const h10 = getH(Math.min(ix + 1, GPU_TERRAIN_SIZE - 1), iz);
+        const h01 = getH(ix, Math.min(iz + 1, GPU_TERRAIN_SIZE - 1));
+        const h11 = getH(Math.min(ix + 1, GPU_TERRAIN_SIZE - 1), Math.min(iz + 1, GPU_TERRAIN_SIZE - 1));
+
+        const h = (h00 * (1 - tx) + h10 * tx) * (1 - tz) +
+                  (h01 * (1 - tx) + h11 * tx) * tz;
+        
+        // Fallback wenn GPGPU noch keine Daten hat
+        if (h === 0 && Math.abs(x) > 10 && Math.abs(z) > 10) {
+            return getTerrainHeight(x, z);
         }
         
-        return getTerrainHeight(x, z);
+        return h;
     }
     
     // Basis-Pfad für Assets (Lokal vs. GitHub flexibel)
@@ -625,6 +647,8 @@
         h += h_jungle * biome.weights.jungle;
         h += h_swamp * biome.weights.swamp;
 
+        h += 10.0; // Basis-Höhe (muss mit GPGPU-Shader übereinstimmen)
+
         // 3. Große Berge im Hintergrund (nur weit weg vom Zentrum und Dörfern)
         if (distToCenter > 1500) {
             const mountainEdge = (distToCenter - 1500) / 1000;
@@ -1044,16 +1068,31 @@
         const mat = new THREE.MeshStandardMaterial({ 
             vertexColors: true,
             flatShading: true,
-            roughness: 0.9,
-            metalness: 0.0
+            roughness: 0.8,
+            metalness: 0.1,
+            transparent: true,
+            opacity: 0.98, // "Alpha-Boden" Effekt
+            side: THREE.DoubleSide // Sicherstellen, dass er von beiden Seiten sichtbar ist
         });
 
         const mesh = new THREE.Mesh(geo, mat);
         mesh.rotation.x = -Math.PI / 2;
-        mesh.position.set(CHUNK_SIZE/2, 0, CHUNK_SIZE/2); // Zentrieren in der Group
+        mesh.position.set(CHUNK_SIZE/2, 0, CHUNK_SIZE/2);
         mesh.receiveShadow = true;
         mesh.castShadow = true;
         group.add(mesh);
+
+        // Einen tieferen Boden als Backup hinzufügen (der "Alpha-Boden" Backup)
+        const backGeo = new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE, 1, 1);
+        const backMat = new THREE.MeshStandardMaterial({ 
+            color: 0x1a2a1a, 
+            transparent: true, 
+            opacity: 0.3 
+        });
+        const backMesh = new THREE.Mesh(backGeo, backMat);
+        backMesh.rotation.x = -Math.PI / 2;
+        backMesh.position.set(CHUNK_SIZE/2, -5, CHUNK_SIZE/2);
+        group.add(backMesh);
 
         // Wasser-Ebene (deaktiviert für Terrain-Fokus)
         /*
