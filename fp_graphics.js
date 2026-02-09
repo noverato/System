@@ -990,6 +990,7 @@
         const h_snow = getOctaveNoise(x * 0.008, z * 0.008, 4) * 40;
         const h_jungle = getOctaveNoise(x * 0.015, z * 0.015, 4) * 25;
         const h_swamp = -5 + getOctaveNoise(x * 0.01, z * 0.01, 2) * 8;
+        const h_forest = getOctaveNoise(x * 0.012, z * 0.012, 3) * 15;
 
         // Blending der Höhen basierend auf Biome-Gewichten
         h += h_plains * biome.weights.plains;
@@ -997,6 +998,7 @@
         h += h_snow * biome.weights.snow;
         h += h_jungle * biome.weights.jungle;
         h += h_swamp * biome.weights.swamp;
+        h += h_forest * biome.weights.forest;
 
         h += 10.0; // Basis-Höhe (muss mit GPGPU-Shader übereinstimmen)
 
@@ -1009,7 +1011,7 @@
         return h * villageFactor;
     }
 
-    function getBiomeData(x, z) {
+    function getBiomeData(x, z, h) {
         // Diese Logik MUSS mit dem Clipmap-Shader in initClipmap übereinstimmen!
         const scale = 0.0002;
         
@@ -1037,7 +1039,6 @@
 
         const temp = noise2D(x * scale, z * scale) * 2.0 - 1.0;
         const humidity = noise2D(x * scale + 100.0, z * scale + 100.0) * 2.0 - 1.0;
-        const h = getGPUHeight(x, z);
 
         const weights = {
             ocean: 0, desert: 0, snow: 0, jungle: 0, swamp: 0, forest: 0, plains: 0
@@ -1048,9 +1049,11 @@
             return t * t * (3 - 2 * t);
         };
 
-        // 1. Ocean
-        if (h < 2.0) {
-            weights.ocean = smoothStep(2.0, -5.0, h);
+        // 1. Ocean (nur wenn h übergeben wurde, um Rekursion zu vermeiden)
+        if (h !== undefined) {
+            if (h < 2.0) {
+                weights.ocean = smoothStep(2.0, -5.0, h);
+            }
         }
 
         // 2. Biome logic
@@ -1094,7 +1097,8 @@
     }
 
     function getBiomeColor(x, z) {
-        const data = getBiomeData(x, z);
+        const h = getGPUHeight(x, z);
+        const data = getBiomeData(x, z, h);
         
         const biomeColors = {
             ocean: new THREE.Color(0x1a4a8a),
@@ -1126,7 +1130,6 @@
         blend(biomeColors.plains, data.weights.plains || 0);
 
         // Helligkeits-Boost für Sichtbarkeit (wie im Shader)
-        const h = getGPUHeight(x, z);
         const brightness = (Math.max(0, Math.min(1, (h + 20) / 120)) * 0.4 + 0.9);
         finalColor.multiplyScalar(brightness * 1.2);
         
@@ -1386,7 +1389,10 @@
         const z0 = cz * DECORATION_CELL_SIZE;
 
         // Biome für die Zelle bestimmen (Mitte der Zelle als Referenz)
-        const biome = getBiomeData(x0 + DECORATION_CELL_SIZE / 2, z0 + DECORATION_CELL_SIZE / 2);
+        const midX = x0 + DECORATION_CELL_SIZE / 2;
+        const midZ = z0 + DECORATION_CELL_SIZE / 2;
+        const midH = getTerrainHeight(midX, midZ);
+        const biome = getBiomeData(midX, midZ, midH);
         
         // 1. Große Vegetation (Individuelle Meshes für Komplexität)
         let treeCount = 0;
