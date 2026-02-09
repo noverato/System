@@ -1574,21 +1574,22 @@
             const th = getTerrainHeight(tx, tz);
             
             if (th > 12) { 
-                let plant;
+                let assetPath = null;
+                let plant = null;
+                let plantScale = 1.0;
+
                 if (biome.name === 'jungle') {
                     try {
                         const palm = AssetsLibrary.get('NATURE', 'PALM_TREE') || 'PalmTree_1.gltf';
-                        plant = await loadModel(AssetsLibrary.encode('animation/Nature/glTF/' + palm));
-                        const s = 6 + rng() * 6;
-                        plant.scale.set(s, s, s);
+                        assetPath = AssetsLibrary.encode('Nature/glTF/' + palm);
+                        plantScale = 6 + rng() * 6;
                     } catch(e) { plant = createPalm(rng); }
                 } else if (biome.name === 'desert') {
                     if (rng() > 0.6) {
                         try {
                             const cactus = AssetsLibrary.get('NATURE', 'CACTUS') || 'Cactus_1.gltf';
-                            plant = await loadModel(AssetsLibrary.encode('animation/Nature/glTF/' + cactus));
-                            const s = 4 + rng() * 4;
-                            plant.scale.set(s, s, s);
+                            assetPath = AssetsLibrary.encode('Nature/glTF/' + cactus);
+                            plantScale = 4 + rng() * 4;
                         } catch(e) { plant = createCactus(rng); }
                     } else {
                         plant = createDesertRock(rng);
@@ -1598,9 +1599,8 @@
                         try {
                             const pineList = AssetsLibrary.get('NATURE', 'TREES').filter(t => t.includes('Pine'));
                             const pine = pineList[Math.floor(rng() * pineList.length)];
-                            plant = await loadModel(AssetsLibrary.encode('animation/Nature/glTF/' + pine));
-                            const s = 5 + rng() * 7;
-                            plant.scale.set(s, s, s);
+                            assetPath = AssetsLibrary.encode('Nature/glTF/' + pine);
+                            plantScale = 5 + rng() * 7;
                         } catch(e) { plant = createDetailedTree(tx, tz, th, rng, 0xffffff, 0.8); }
                     } else {
                         plant = createDeadTree(rng);
@@ -1610,9 +1610,8 @@
                         try {
                             const twistedList = AssetsLibrary.get('NATURE', 'TREES').filter(t => t.includes('Twisted'));
                             const tree = twistedList[Math.floor(rng() * twistedList.length)];
-                            plant = await loadModel(AssetsLibrary.encode('animation/Nature/glTF/' + tree));
-                            const s = 6 + rng() * 6;
-                            plant.scale.set(s, s, s);
+                            assetPath = AssetsLibrary.encode('Nature/glTF/' + tree);
+                            plantScale = 6 + rng() * 6;
                         } catch(e) { plant = createDetailedTree(tx, tz, th, rng, 0x2f351e, 1.2); }
                     } else {
                         plant = createDeadTree(rng);
@@ -1626,13 +1625,20 @@
                             AssetsLibrary.get('TREES', 'LIST').filter(t => t.includes('Maple'));
                         
                         const tree = list[Math.floor(rng() * list.length)];
-                        plant = await loadModel(AssetsLibrary.encode('animation/bäume/glTF/' + tree));
-                        const s = 7 + rng() * 8;
-                        plant.scale.set(s, s, s);
+                        assetPath = AssetsLibrary.encode('bäume/glTF/' + tree);
+                        plantScale = 7 + rng() * 8;
                     } catch(e) { plant = createDetailedTree(tx, tz, th, rng); }
                 }
                 
-                if (plant) {
+                if (assetPath) {
+                    const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
+                    loadModel(finalPath).then(model => {
+                        model.position.set(tx, th - 0.5, tz); 
+                        model.scale.set(plantScale, plantScale, plantScale);
+                        model.rotation.y = rng() * Math.PI * 2;
+                        group.add(model);
+                    }).catch(e => console.warn("Tree asset load failed:", finalPath));
+                } else if (plant) {
                     plant.position.set(tx, th - 0.5, tz); 
                     plant.rotation.y = rng() * Math.PI * 2;
                     group.add(plant);
@@ -1654,34 +1660,48 @@
 
                 if (rng() > 0.8) { // Steine
                     const rockList = AssetsLibrary.get('NATURE', 'ROCKS');
-                    const rock = rockList[Math.floor(rng() * rockList.length)];
-                    assetPath = AssetsLibrary.encode('animation/Nature/glTF/' + rock);
-                    scale = 0.5 + rng() * 2.5;
+                    if (Array.isArray(rockList) && rockList.length > 0) {
+                        const rock = rockList[Math.floor(rng() * rockList.length)];
+                        assetPath = AssetsLibrary.encode('Nature/glTF/' + rock);
+                        scale = 0.5 + rng() * 2.5;
+                    }
                 } else { // Pflanzen / Gras / Blumen
                     if (biome.name === 'desert') {
-                        assetPath = AssetsLibrary.encode('animation/Nature/glTF/' + AssetsLibrary.get('NATURE', 'GRASS')[0]);
-                        scale = 0.5 + rng() * 1.0;
+                        const grass = AssetsLibrary.get('NATURE', 'GRASS');
+                        if (Array.isArray(grass) && grass.length > 0) {
+                            assetPath = AssetsLibrary.encode('Nature/glTF/' + grass[0]);
+                            scale = 0.5 + rng() * 1.0;
+                        }
                     } else if (biome.name === 'snow') {
                         const pineList = AssetsLibrary.get('NATURE', 'TREES').filter(t => t.includes('Pine'));
-                        assetPath = AssetsLibrary.encode('animation/Nature/glTF/' + pineList[0]);
-                        scale = 0.2 + rng() * 0.4; // Winzige Tannen im Schnee
+                        if (pineList.length > 0) {
+                            assetPath = AssetsLibrary.encode('Nature/glTF/' + pineList[0]);
+                            scale = 0.2 + rng() * 0.4; // Winzige Tannen im Schnee
+                        }
                     } else {
                         // Mix aus Gras und Blumen
                         if (rng() > 0.4) {
                             const grassList = AssetsLibrary.get('TREES', 'GRASS');
-                            const grass = grassList[Math.floor(rng() * grassList.length)];
-                            assetPath = AssetsLibrary.encode('animation/bäume/glTF/' + grass);
+                            if (Array.isArray(grassList) && grassList.length > 0) {
+                                const grass = grassList[Math.floor(rng() * grassList.length)];
+                                assetPath = AssetsLibrary.encode('bäume/glTF/' + grass);
+                            }
                         } else {
                             const flowerList = AssetsLibrary.get('TREES', 'FLOWERS');
-                            const flower = flowerList[Math.floor(rng() * flowerList.length)];
-                            assetPath = AssetsLibrary.encode('animation/bäume/glTF/' + flower);
+                            if (Array.isArray(flowerList) && flowerList.length > 0) {
+                                const flower = flowerList[Math.floor(rng() * flowerList.length)];
+                                assetPath = AssetsLibrary.encode('bäume/glTF/' + flower);
+                            }
                         }
                         scale = 1.0 + rng() * 2.0;
                     }
                 }
 
                 if (assetPath) {
-                    loadModel(assetPath).then(model => {
+                    // WICHTIG: AssetsLibrary.encode fügt BASE_URL bereits hinzu oder wir müssen sicherstellen,
+                    // dass der Pfad absolut zum animation/ Ordner ist.
+                    const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
+                    loadModel(finalPath).then(model => {
                         model.position.set(sx, sh - 0.1, sz);
                         model.scale.set(scale, scale, scale);
                         model.rotation.y = rng() * Math.PI * 2;
