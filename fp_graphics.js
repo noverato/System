@@ -9,7 +9,7 @@
         trunk: 0x3d2b1f
     };
 
-    const CLIPMAP_RADIUS = 1000; // Etwas kleiner als GPU_WORLD_SIZE / 2
+    const CLIPMAP_RADIUS = 2000; // Größere Sichtweite für 8000x8000 Map
     const CLIPMAP_SEGMENTS = 128; // Reduziert für Stabilität
     
     const DECORATION_CELL_SIZE = 256; 
@@ -17,7 +17,7 @@
     
     // --- GPGPU TERRAIN SETTINGS ---
     const GPU_TERRAIN_SIZE = 512; 
-    const GPU_WORLD_SIZE = 2400;  // Deutlich größer als CLIPMAP_RADIUS * 2 für Puffer
+    const GPU_WORLD_SIZE = 8000;  // Auf 8000x8000 erweitert wie gewünscht
     
     // --- LOD SETTINGS entfernt für Clipmap ---
     
@@ -80,87 +80,43 @@
             // Absolute Welt-Position berechnen
             vec2 pos = uv * worldSize + offset;
             
-            // --- TERRAIN GENERATION (MATCHING CPU getTerrainHeight) ---
+            // --- TERRAIN GENERATION 8000x8000 ---
             
-            // 1. Village Factor (Dörfer flach halten)
-            float villageFactor = 1.0;
-            vec2 villageLocs[5];
-            villageLocs[0] = vec2(0.0, 0.0);
-            villageLocs[1] = vec2(1200.0, 0.0);
-            villageLocs[2] = vec2(-1200.0, 0.0);
-            villageLocs[3] = vec2(0.0, 1200.0);
-            villageLocs[4] = vec2(0.0, -1200.0);
-            float radiuses[5];
-            radiuses[0] = 400.0;
-            radiuses[1] = 300.0;
-            radiuses[2] = 300.0;
-            radiuses[3] = 300.0;
-            radiuses[4] = 300.0;
-
-            for(int i=0; i<5; i++) {
-                float d = length(pos - villageLocs[i]);
-                if (d < radiuses[i]) {
-                    float f = clamp((d - radiuses[i] * 0.4) / max(radiuses[i] * 0.6, 0.0001), 0.0, 1.0);
-                    villageFactor = min(villageFactor, f * f);
-                }
-            }
-
-            // 2. Biome Weights (Matching CPU getBiomeData)
-            float biomeScale = 0.15; // 1000.0 * 0.00015
-            float temp = snoise(pos * biomeScale) * 0.5 + 0.5; // In Bereich [0,1] bringen für Logik
-            temp = temp * 2.0 - 1.0; // Zurück auf [-1, 1]
+            // 1. Basis-Rauschen (Große Täler und Hügel)
+            float h = fbm(pos * 0.0005) * 60.0;
             
-            float humidity = snoise(pos * biomeScale + vec2(100.0)) * 0.5 + 0.5;
-            humidity = humidity * 2.0 - 1.0;
-
-            float wDesert = 0.0, wSnow = 0.0, wJungle = 0.0, wSwamp = 0.0, wPlains = 1.0;
-
-            if (temp > 0.4) {
-                float tFactor = smoothstep(0.4, 0.6, temp);
-                if (humidity < -0.2) {
-                    float hFactor = 1.0 - smoothstep(-0.2, 0.0, humidity);
-                    wDesert = tFactor * hFactor;
-                    wPlains = 1.0 - wDesert;
-                } else if (humidity > 0.3) {
-                    float hFactor = smoothstep(0.3, 0.5, humidity);
-                    wJungle = tFactor * hFactor;
-                    wPlains = 1.0 - wJungle;
-                }
-            } else if (temp < -0.3) {
-                wSnow = 1.0 - smoothstep(-0.3, -0.1, temp);
-                wPlains = 1.0 - wSnow;
-            } else {
-                if (humidity > 0.5) {
-                    wSwamp = smoothstep(0.5, 0.7, humidity);
-                    wPlains = 1.0 - wSwamp;
-                } else if (humidity < -0.4) {
-                    wDesert = 1.0 - smoothstep(-0.4, -0.2, humidity);
-                    wPlains = 1.0 - wDesert;
-                }
-            }
-
-            // 3. Octave Noise (CPU Äquivalent)
-            float h_plains = fbm(pos * 0.005) * 10.0;
-            float h_desert = fbm(pos * 0.002) * 5.0;
-            float h_snow = fbm(pos * 0.008) * 40.0;
-            float h_jungle = fbm(pos * 0.015) * 25.0;
-            float h_swamp = -5.0 + fbm(pos * 0.01) * 8.0;
-
-            float h = h_plains * wPlains + h_desert * wDesert + h_snow * wSnow + h_jungle * wJungle + h_swamp * wSwamp;
-            h += 10.0; // Basis-Höhe
-
-            // 4. Berge
-            float distToCenter = length(pos);
-            if (distToCenter > 1500.0) {
-                float mountainEdge = (distToCenter - 1500.0) / 1000.0;
-                float h_mountains = abs(fbm(pos * 0.002)) * 150.0;
-                h += h_mountains * min(2.5, mountainEdge);
+            // 2. Biome-Einfluss auf die Höhe
+            float scale = 0.0002;
+            float temp = snoise(pos * scale);
+            float humidity = snoise(pos * scale + vec2(100.0));
+            
+            // Berge (wenn temp niedrig oder spezielle Regionen)
+            float mountNoise = abs(snoise(pos * 0.001));
+            if (temp < -0.2 || mountNoise > 0.6) {
+                float h_mount = fbm(pos * 0.002) * 200.0;
+                h += h_mount * smoothstep(0.0, 0.4, mountNoise);
             }
             
-            h *= villageFactor;
+            // Täler / Ocean
+            if (h < 0.0) {
+                h *= 1.5; // Tiefere Täler
+            }
+            
+            // 3. WASSERFALL-STRUKTUR (Scharfe Kante bei x=600)
+            if (pos.x > 580.0 && pos.x < 620.0 && abs(pos.y) < 500.0) {
+                float edge = smoothstep(580.0, 620.0, pos.x);
+                h -= edge * 80.0; // 80 Einheiten tiefer Fall
+            }
+
+            // 4. STARTPUNKT (0,0) - Flache grüne Ebene
+            float distToStart = length(pos);
+            if (distToStart < 400.0) {
+                float startFactor = smoothstep(200.0, 400.0, distToStart);
+                h = mix(0.0, h, startFactor);
+            }
             
             // Schutz gegen extreme Werte
-            h = clamp(h, -50.0, 500.0);
+            h = clamp(h, -100.0, 800.0);
 
             gl_FragColor = vec4(h, 0.0, 0.0, 1.0);
         }
@@ -269,6 +225,8 @@
             shader.uniforms.swampColor = { value: new THREE.Color(0x3e4521) };
             shader.uniforms.stoneColor = { value: new THREE.Color(0x999999) };
             shader.uniforms.pathColor = { value: new THREE.Color(0xb08d6a) };
+            shader.uniforms.oceanColor = { value: new THREE.Color(0x1a4a8a) }; // Tiefblau
+            shader.uniforms.forestColor = { value: new THREE.Color(0x2d5a27) }; // Waldgrün
 
             shader.vertexShader = `
                 uniform sampler2D heightMap;
@@ -315,20 +273,21 @@
                 // UV für Heightmap (0-1 Bereich) basierend auf dem GPGPU Zentrum (worldOffset)
                 vec2 hUv = (worldXZ - worldOffset) / max(gpuWorldSize, 1.0) + 0.5;
                 
-                // FLATMAP MODUS: Höhe wird auf 0 gesetzt für Jitter-Analyse
-                float h = 0.0; // getSmoothHeight(hUv);
+                // HÖHEN-ABTASTUNG REAKTIVIERT
+                float h = getSmoothHeight(hUv);
                 vHeight = h;
 
-                // Normalen im Flatmap-Modus sind einfach nach oben gerichtet
+                // Normalen-Berechnung (vereinfacht für Performance, kann später verfeinert werden)
+                // Für echte Normalen müssten wir hUv-Nachbarn abtasten
                 vObjectNormal = vec3(0.0, 1.0, 0.0);
                 
-                // Displacement anwenden (PlaneGeometry ist XY, h ist die neue Z-Höhe)
+                // Displacement anwenden
                 vec3 transformed = vec3(position.x, position.y, h);
                 
                 // Final Weltposition für Fragment Shader
                 vWorldPos = vec3(worldXZ.x, h, worldXZ.y);
                 
-                // vDist für radiale Effekte
+                // vDist für radiale Effekte - WICHTIG: Erhöhter Radius für Sichtbarkeit
                 vDist = length(worldXZ - playerPos);
                 `
             );
@@ -336,10 +295,16 @@
             shader.vertexShader = shader.vertexShader.replace(
                 '#include <project_vertex>',
                 `
-                // Wir berechnen gl_Position manuell unter Umgehung von modelMatrix.
-                // Das eliminiert jeglichen Jitter durch verzögerte Matrix-Updates.
+                // Frustum Culling / Clipping Logik
+                // Wir werfen Vertices außerhalb des Radius schon hier weg, falls nötig
                 vec4 mvPosition = viewMatrix * vec4(vWorldPos, 1.0);
                 gl_Position = projectionMatrix * mvPosition;
+
+                // PERFORMANCE-OPTIMIERUNG: Distanz-Culling im Vertex Shader
+                // Wenn der Vertex zu weit weg ist, schieben wir ihn hinter die Far-Plane
+                if (vDist > clipRadius + 100.0) {
+                    gl_Position.z = gl_Position.w * 2.0; // Sicher außerhalb
+                }
                 `
             );
 
@@ -351,6 +316,11 @@
                 uniform vec3 swampColor;
                 uniform vec3 stoneColor;
                 uniform vec3 pathColor;
+                
+                // Neue Biome-Farben
+                uniform vec3 oceanColor;
+                uniform vec3 forestColor;
+
                 uniform float clipRadius;
                 varying vec3 vWorldPos;
                 varying float vHeight;
@@ -369,96 +339,61 @@
                                mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
                 }
 
-                float fbm(vec2 p) {
-                    float f = 0.0;
-                    f += 0.5000 * noise(p); p *= 2.02;
-                    f += 0.2500 * noise(p); p *= 2.03;
-                    return f * 1.3333 - 0.3333; // Normalisieren
-                }
-
                 vec3 getBiomeColor(vec3 pos, float h) {
-                    float x = pos.x;
-                    float z = pos.z;
-                    
-                    // Biome-Noise (Skalierung muss mit CPU übereinstimmen)
-                    float scale = 0.00015;
-                    float temp = noise(pos.xz * 1000.0 * scale) * 2.0 - 1.0;
-                    float humidity = noise(pos.xz * 1000.0 * scale + vec2(100.0)) * 2.0 - 1.0;
+                    // Biome-Noise
+                    float scale = 0.0002; // Etwas gröber für 8000er Map
+                    float temp = noise(pos.xz * scale) * 2.0 - 1.0;
+                    float humidity = noise(pos.xz * scale + vec2(100.0)) * 2.0 - 1.0;
 
-                    vec3 col = plainsColor;
-                    
-                    // Biome Weights (Matching CPU Logic)
-                    float wDesert = 0.0, wSnow = 0.0, wJungle = 0.0, wSwamp = 0.0, wPlains = 1.0;
+                    // 7 Biome Gewichte
+                    float wOcean = 0.0, wDesert = 0.0, wSnow = 0.0, wJungle = 0.0, wSwamp = 0.0, wForest = 0.0, wPlains = 0.0;
 
-                    if (temp > 0.4) {
-                        float tFactor = smoothstep(0.4, 0.6, temp);
-                        if (humidity < -0.2) {
-                            float hFactor = 1.0 - smoothstep(-0.2, 0.0, humidity);
-                            wDesert = tFactor * hFactor;
-                            wPlains = 1.0 - wDesert;
-                        } else if (humidity > 0.3) {
-                            float hFactor = smoothstep(0.3, 0.5, humidity);
-                            wJungle = tFactor * hFactor;
-                            wPlains = 1.0 - wJungle;
-                        }
-                    } else if (temp < -0.3) {
-                        wSnow = 1.0 - smoothstep(-0.3, -0.1, temp);
-                        wPlains = 1.0 - wSnow;
+                    // Ocean (Tiefland)
+                    if (h < 2.0) {
+                        wOcean = smoothstep(2.0, -5.0, h);
+                    }
+
+                    // Biome Logik basierend auf Temp/Humid
+                    if (temp > 0.5) {
+                        if (humidity < -0.3) wDesert = 1.0;
+                        else if (humidity > 0.3) wJungle = 1.0;
+                        else wForest = 1.0;
+                    } else if (temp < -0.4) {
+                        wSnow = 1.0;
                     } else {
-                        if (humidity > 0.5) {
-                            wSwamp = smoothstep(0.5, 0.7, humidity);
-                            wPlains = 1.0 - wSwamp;
-                        } else if (humidity < -0.4) {
-                            wDesert = 1.0 - smoothstep(-0.4, -0.2, humidity);
-                            wPlains = 1.0 - wDesert;
-                        }
+                        if (humidity > 0.6) wSwamp = 1.0;
+                        else if (humidity < -0.5) wDesert = 0.5; // Halbwüste
+                        else if (temp > 0.0) wForest = 1.0;
+                        else wPlains = 1.0;
                     }
 
-                    col = plainsColor * wPlains + desertColor * wDesert + snowColor * wSnow + jungleColor * wJungle + swampColor * wSwamp;
+                    // Startpunkt (0,0) erzwingt Plains
+                    float distToStart = length(pos.xz);
+                    float startEffect = 1.0 - smoothstep(100.0, 300.0, distToStart);
+                    wPlains = mix(wPlains, 1.0, startEffect);
+                    wOcean = mix(wOcean, 0.0, startEffect);
+                    wSnow = mix(wSnow, 0.0, startEffect);
 
-                    // Dorf-Einfluss (Terrain-Abflachung Regionen)
-                    float distToVillage = 9999.0;
-                    distToVillage = min(distToVillage, length(pos.xz - vec2(0.0, 0.0)));
-                    distToVillage = min(distToVillage, length(pos.xz - vec2(1200.0, 0.0)));
-                    distToVillage = min(distToVillage, length(pos.xz - vec2(-1200.0, 0.0)));
-                    distToVillage = min(distToVillage, length(pos.xz - vec2(0.0, 1200.0)));
-                    distToVillage = min(distToVillage, length(pos.xz - vec2(0.0, -1200.0)));
-
-                    // 1. Village / Path Detection (Matching CPU Logic)
-                    if (distToVillage < 400.0) {
-                        float villageEffect = 1.0 - smoothstep(0.0, 300.0, distToVillage); // Radius-Anpassung
-                        float pathNoise = noise(pos.xz * 0.05); // simpleNoise-Äquivalent
-                        
-                        if (pathNoise > 0.3) {
-                            col = mix(col, stoneColor, villageEffect * 0.8);
-                        } else if (pathNoise > -0.2) {
-                            col = mix(col, pathColor, villageEffect * 0.7);
-                        }
+                    // Normalisieren der Gewichte (vereinfacht)
+                    float total = wOcean + wDesert + wSnow + wJungle + wSwamp + wForest + wPlains;
+                    if (total > 0.0) {
+                        wOcean /= total; wDesert /= total; wSnow /= total; wJungle /= total; wSwamp /= total; wForest /= total; wPlains /= total;
                     }
 
-                    // Laub/Erde Variation (nur in Plains/Jungle)
-                    if (wPlains > 0.5 || wJungle > 0.5) {
-                        float leafNoise = noise(pos.xz * 0.1);
-                        if (leafNoise > 0.4) {
-                            col = mix(col, vec3(0.239, 0.169, 0.122), 0.3); // 0x3d2b1f
-                        }
-                    }
-
-                    // Stein bei steilen Hängen und hohen Bergen
-                    float slopeNoise = noise(pos.xz * 0.5);
-                    float slopeThreshold = 28.0 + slopeNoise * 12.0;
-                    
-                    if (h > slopeThreshold && h > 0.0) {
-                        float blend = smoothstep(slopeThreshold, slopeThreshold + 15.0, h);
-                        col = mix(col, stoneColor, blend);
-                    }
+                    vec3 col = oceanColor * wOcean + 
+                               desertColor * wDesert + 
+                               snowColor * wSnow + 
+                               jungleColor * wJungle + 
+                               swampColor * wSwamp + 
+                               forestColor * wForest + 
+                               plainsColor * wPlains;
 
                     // Mikro-Rauschen für Details
                     float n = hash(pos.xz * 0.1);
-                    col *= 0.92 + 0.12 * n;
+                    col *= 0.9 + 0.2 * n;
                     
-                    // h kann negativ sein, smoothstep Bereich prüfen
-                    col *= (smoothstep(-10.0, 50.0, h) * 0.5 + 0.8); // Basis-Helligkeit erhöht (0.6 -> 0.8)
+                    // Helligkeits-Boost für Sichtbarkeit
+                    col *= (smoothstep(-20.0, 100.0, h) * 0.4 + 0.9); 
                     
                     return col;
                 }
@@ -469,13 +404,13 @@
                 `
                 diffuseColor.rgb = getBiomeColor(vWorldPos, vHeight);
                 
-                // FLATMAP-BOOST: Etwas mehr Helligkeit für die Analyse
-                diffuseColor.rgb += vec3(0.05); 
+                // HELLIGKEITS-ANPASSUNG FÜR SICHTBARKEIT
+                diffuseColor.rgb *= 1.4; // Noch etwas heller
                 
-                // Sanftes Ausblenden am Rand (Blending in die Dunkelheit)
-                float edgeNoise = noise(vWorldPos.xz * 0.02) * 30.0;
-                float edgeFade = smoothstep(clipRadius, clipRadius - 80.0 + edgeNoise, vDist);
-                diffuseColor.rgb *= edgeFade;
+                // Sanftes Ausblenden am Rand - ERWEITERT
+                // Wir nutzen einen größeren Bereich für das Ausblenden, damit es nicht so abrupt ist
+                float edgeFade = smoothstep(clipRadius, clipRadius * 0.8, vDist);
+                diffuseColor.rgb = mix(diffuseColor.rgb * 0.5, diffuseColor.rgb, edgeFade);
                 
                 if (vDist > clipRadius) discard;
                 `
@@ -1076,7 +1011,7 @@
 
     function getBiomeData(x, z) {
         // Diese Logik MUSS mit dem Clipmap-Shader in initClipmap übereinstimmen!
-        const scale = 0.00015;
+        const scale = 0.0002;
         
         // Einfacher 2D Value-Noise Nachbau für CPU (wie im Shader)
         const noise2D = (nx, nz) => {
@@ -1100,53 +1035,52 @@
                    (v01 * (1 - ux) + v11 * ux) * uz;
         };
 
-        const temp = noise2D(x * 1000.0 * scale, z * 1000.0 * scale) * 2.0 - 1.0;
-        const humidity = noise2D(x * 1000.0 * scale + 100.0, z * 1000.0 * scale + 100.0) * 2.0 - 1.0;
+        const temp = noise2D(x * scale, z * scale) * 2.0 - 1.0;
+        const humidity = noise2D(x * scale + 100.0, z * scale + 100.0) * 2.0 - 1.0;
+        const h = getGPUHeight(x, z);
 
-        // Gewichte berechnen für sanfte Übergänge
         const weights = {
-            desert: 0,
-            snow: 0,
-            jungle: 0,
-            swamp: 0,
-            plains: 0
+            ocean: 0, desert: 0, snow: 0, jungle: 0, swamp: 0, forest: 0, plains: 0
         };
 
-        // Einfaches Weighting basierend auf Schwellenwerten mit Smoothing
         const smoothStep = (edge0, edge1, x) => {
             const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
             return t * t * (3 - 2 * t);
         };
 
-        if (temp > 0.4) {
-            const tFactor = smoothStep(0.4, 0.6, temp);
-            if (humidity < -0.2) {
-                const hFactor = 1.0 - smoothStep(-0.2, 0.0, humidity);
-                weights.desert = tFactor * hFactor;
-                weights.plains = 1.0 - weights.desert;
-            } else if (humidity > 0.3) {
-                const hFactor = smoothStep(0.3, 0.5, humidity);
-                weights.jungle = tFactor * hFactor;
-                weights.plains = 1.0 - weights.jungle;
-            } else {
-                weights.plains = 1.0;
-            }
-        } else if (temp < -0.3) {
-            weights.snow = 1.0 - smoothStep(-0.3, -0.1, temp);
-            weights.plains = 1.0 - weights.snow;
-        } else {
-            if (humidity > 0.5) {
-                weights.swamp = smoothStep(0.5, 0.7, humidity);
-                weights.plains = 1.0 - weights.swamp;
-            } else if (humidity < -0.4) {
-                weights.desert = 1.0 - smoothStep(-0.4, -0.2, humidity);
-                weights.plains = 1.0 - weights.desert;
-            } else {
-                weights.plains = 1.0;
-            }
+        // 1. Ocean
+        if (h < 2.0) {
+            weights.ocean = smoothStep(2.0, -5.0, h);
         }
 
-        // Haupt-Biom bestimmen (für Kompatibilität)
+        // 2. Biome logic
+        if (temp > 0.5) {
+            if (humidity < -0.3) weights.desert = 1.0;
+            else if (humidity > 0.3) weights.jungle = 1.0;
+            else weights.forest = 1.0;
+        } else if (temp < -0.4) {
+            weights.snow = 1.0;
+        } else {
+            if (humidity > 0.6) weights.swamp = 1.0;
+            else if (humidity < -0.5) weights.desert = 0.5;
+            else if (temp > 0.0) weights.forest = 1.0;
+            else weights.plains = 1.0;
+        }
+
+        // 3. Start point (0,0) override
+        const distToStart = Math.hypot(x, z);
+        const startEffect = 1.0 - smoothStep(100.0, 300.0, distToStart);
+        weights.plains = weights.plains * (1 - startEffect) + startEffect;
+        weights.ocean *= (1 - startEffect);
+        weights.snow *= (1 - startEffect);
+
+        // Normalize
+        let total = 0;
+        for (const w in weights) total += weights[w];
+        if (total > 0) {
+            for (const w in weights) weights[w] /= total;
+        }
+
         let maxWeight = -1;
         let mainBiome = 'plains';
         for (const [name, w] of Object.entries(weights)) {
@@ -1162,68 +1096,39 @@
     function getBiomeColor(x, z) {
         const data = getBiomeData(x, z);
         
-        // 1. Village / Path Detection
-        let isVillage = false;
-        let distToVillage = 9999;
-        for (const loc of VILLAGE_LOCATIONS) {
-            const d = Math.hypot(x - loc.x, z - loc.z);
-            if (d < loc.radius) {
-                isVillage = true;
-                distToVillage = Math.min(distToVillage, d);
-            }
-        }
-
         const biomeColors = {
+            ocean: new THREE.Color(0x1a4a8a),
             desert: new THREE.Color(0xedc9af),
             snow: new THREE.Color(0xffffff),
             jungle: new THREE.Color(0x1a472a),
             swamp: new THREE.Color(0x2f351e),
+            forest: new THREE.Color(0x2d5a27),
             plains: new THREE.Color(0x567d46),
             stone: new THREE.Color(0x808080),
-            path: new THREE.Color(0x9b7653) // Braun für Wege
+            path: new THREE.Color(0x9b7653)
         };
         
-        // Blending der Farben basierend auf Gewichten
         let finalColor = new THREE.Color(0, 0, 0);
         
         const blend = (color, weight) => {
+            if (!color) return;
             finalColor.r += color.r * weight;
             finalColor.g += color.g * weight;
             finalColor.b += color.b * weight;
         };
 
-        blend(biomeColors.desert, data.weights.desert);
-        blend(biomeColors.snow, data.weights.snow);
-        blend(biomeColors.jungle, data.weights.jungle);
-        blend(biomeColors.swamp, data.weights.swamp);
-        blend(biomeColors.plains, data.weights.plains);
+        blend(biomeColors.ocean, data.weights.ocean || 0);
+        blend(biomeColors.desert, data.weights.desert || 0);
+        blend(biomeColors.snow, data.weights.snow || 0);
+        blend(biomeColors.jungle, data.weights.jungle || 0);
+        blend(biomeColors.swamp, data.weights.swamp || 0);
+        blend(biomeColors.forest, data.weights.forest || 0);
+        blend(biomeColors.plains, data.weights.plains || 0);
 
-        // 2. Village Ground logic
-        if (isVillage) {
-            const villageEffect = 1.0 - Math.min(1.0, distToVillage / 300);
-            const pathNoise = getOctaveNoise(x * 0.05, z * 0.05, 2);
-            
-            // In Dorfnähe mischen wir Stein und Weg-Farben ein
-            if (pathNoise > 0.3) {
-                finalColor.lerp(biomeColors.stone, villageEffect * 0.8);
-            } else if (pathNoise > -0.2) {
-                finalColor.lerp(biomeColors.path, villageEffect * 0.7);
-            }
-        }
-        
-        // 3. Laub/Erde Variation (nur in Plains/Jungle)
-        if (data.weights.plains > 0.5 || data.weights.jungle > 0.5) {
-            const leafNoise = getOctaveNoise(x * 0.1, z * 0.1, 2);
-            if (leafNoise > 0.4) {
-                finalColor.lerp(new THREE.Color(0x3d2b1f), 0.3); // Dunkle Erde/Laub
-            }
-        }
-        
-        // Kleine Rausch-Variation für "Textur"-Effekt
-        const noise = simpleNoise(x * 0.5, z * 0.5) * 0.05;
-        finalColor.r += noise;
-        finalColor.g += noise;
-        finalColor.b += noise;
+        // Helligkeits-Boost für Sichtbarkeit (wie im Shader)
+        const h = getGPUHeight(x, z);
+        const brightness = (Math.max(0, Math.min(1, (h + 20) / 120)) * 0.4 + 0.9);
+        finalColor.multiplyScalar(brightness * 1.2);
         
         return finalColor;
     }
@@ -1429,42 +1334,8 @@
     let decorationGroups = new Map(); // Speichert InstancedMeshes pro Zelle
 
     function updateClipmapDecorations(px, pz, scene) {
-        if (!scene) return;
-        
-        const currentCellX = Math.floor(px / DECORATION_CELL_SIZE);
-        const currentCellZ = Math.floor(pz / DECORATION_CELL_SIZE);
-        
-        // 1. Neue Zellen spawnen
-        for (let x = currentCellX - DECORATION_RANGE; x <= currentCellX + DECORATION_RANGE; x++) {
-            for (let z = currentCellZ - DECORATION_RANGE; z <= currentCellZ + DECORATION_RANGE; z++) {
-                const key = `${x},${z}`;
-                if (!decorationGroups.has(key)) {
-                    const group = new THREE.Group();
-                    scene.add(group);
-                    decorationGroups.set(key, group);
-                    spawnDecorationsInCell(x, z, group);
-                }
-            }
-        }
-        
-        // 2. Weit entfernte Zellen aufräumen
-        decorationGroups.forEach((group, key) => {
-            const [x, z] = key.split(',').map(Number);
-            const dx = Math.abs(x - currentCellX);
-            const dz = Math.abs(z - currentCellZ);
-            
-            if (dx > DECORATION_RANGE + 1 || dz > DECORATION_RANGE + 1) {
-                scene.remove(group);
-                group.traverse(obj => {
-                    if (obj.geometry) obj.geometry.dispose();
-                    if (obj.material) {
-                        if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
-                        else obj.material.dispose();
-                    }
-                });
-                decorationGroups.delete(key);
-            }
-        });
+        // Assets entfernt für nackte Map-Struktur Test
+        return;
     }
 
     function createCactus(rng) {
@@ -1661,84 +1532,13 @@
         // basePlane.position.y = -5; // Tief genug unter dem eigentlichen Terrain
         // scene.add(basePlane);
 
-        // initMountains(scene); // Entfernt, da Berge jetzt Teil des Terrains sind
-        // initRiver(scene);
+        // // initMountains(scene); // Deaktiviert für nackte Map-Struktur Test // Entfernt, da Berge jetzt Teil des Terrains sind
+        // // initRiver(scene); // Deaktiviert für nackte Map-Struktur Test
         // await// initForestDetails(scene); // Jetzt in Chunks
 
-        // --- TEST-MARKTPLATZ FÜR JITTER-ANALYSE ---
-        console.log("[FPGraphics] Erstelle Test-Marktplatz...");
-        const testBiome = { name: "Hauptdorf", terrain: "plains", color: 0x567d46 };
-        await spawnVillage(scene, testBiome, 0, 0, enterHouseCallback);
+        // --- TEST-MARKTPLATZ ENTFERNT ---
+        // (Wurde für nackte Map-Struktur Test deaktiviert)
         
-        // Dungeon Assets als Marktplatz-Dekoration hinzufügen
-        const dungeonAssets = AssetsLibrary.ASSETS.DUNGEON.LIST;
-        const marketItems = [
-            { key: 'TABLE', count: 4, area: 40 },
-            { key: 'BARREL', count: 12, area: 60 },
-            { key: 'CHEST', count: 3, area: 30 },
-            { key: 'CHAIR', count: 8, area: 45 },
-            { key: 'COLUMN', count: 4, area: 80 }
-        ];
-
-        marketItems.forEach(itemConfig => {
-            const assetFile = dungeonAssets[itemConfig.key];
-            const assetPath = AssetsLibrary.get('DUNGEON', assetFile);
-            
-            for (let i = 0; i < itemConfig.count; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                const dist = Math.random() * itemConfig.area;
-                const tx = Math.cos(angle) * dist;
-                const tz = Math.sin(angle) * dist;
-                
-                loadModel(assetPath).then(model => {
-                    // Y-Position leicht unter 0 für festen Stand
-                    model.position.set(tx, -0.5, tz); 
-                    model.rotation.y = Math.random() * Math.PI * 2;
-                    // Skalierung je nach Typ anpassen
-                    const scale = itemConfig.key === 'COLUMN' ? 20 : 12;
-                    model.scale.set(scale, scale, scale);
-                    scene.add(model);
-                }).catch(err => console.error(`Fehler beim Laden von ${itemConfig.key}:`, err));
-            }
-        });
-        
-        // Ein paar zusätzliche Bäume und Gras aus Nature Assets um den Marktplatz herum
-        const natureTrees = AssetsLibrary.ASSETS.NATURE.TREES;
-        const natureGrass = AssetsLibrary.ASSETS.NATURE.GRASS;
-
-        for (let i = 0; i < 20; i++) {
-            const angle = (i / 20) * Math.PI * 2;
-            const dist = 150 + Math.random() * 100;
-            const tx = Math.cos(angle) * dist;
-            const tz = Math.sin(angle) * dist;
-            const treeFile = natureTrees[Math.floor(Math.random() * natureTrees.length)];
-            const treePath = AssetsLibrary.get('NATURE', treeFile);
-            
-            loadModel(treePath).then(tree => {
-                tree.position.set(tx, -1, tz); 
-                const s = 12 + Math.random() * 6;
-                tree.scale.set(s, s, s);
-                tree.rotation.y = Math.random() * Math.PI * 2;
-                scene.add(tree);
-            }).catch(err => console.error("Fehler beim Laden der Test-Bäume:", err));
-        }
-
-        // Gras-Fläche für Biome-Übergangs-Test
-        for (let i = 0; i < 80; i++) {
-            const tx = (Math.random() - 0.5) * 600;
-            const tz = (Math.random() - 0.5) * 600;
-            const grassFile = natureGrass[Math.floor(Math.random() * natureGrass.length)];
-            const grassPath = AssetsLibrary.get('NATURE', grassFile);
-
-            loadModel(grassPath).then(grass => {
-                grass.position.set(tx, 0, tz);
-                const s = 10 + Math.random() * 5;
-                grass.scale.set(s, s, s);
-                grass.rotation.y = Math.random() * Math.PI * 2;
-                scene.add(grass);
-            }).catch(err => console.error("Fehler beim Laden des Grases:", err));
-        }
-
         // --- ERZWINGE TAGESLICHT FÜR ANALYSE ---
         if (window.EnvironmentManager) {
             console.log("[FPGraphics] Setze Zeit auf Mittag für Analyse...");
