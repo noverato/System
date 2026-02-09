@@ -1095,9 +1095,9 @@
         // --- CLIPMAP KOLLISION (Wasser/Berge) ---
         if (window.FPGraphics) {
             const h = FPGraphics.getGPUHeight(nx, nz);
-            // Blockiere Bewegung in tiefes Wasser (h < 5) oder extrem steile/hohe Berge (h > 150)
-            if (h < 5.0) return true; 
-            if (h > 150.0) return true;
+            // DEBUG: Kollision im Flatmap-Modus deaktiviert
+            // if (h < 5.0) return true; 
+            // if (h > 150.0) return true;
         }
 
         // Kollision mit Gebäuden (Exterior)
@@ -1131,7 +1131,8 @@
             velocityY += GRAVITY * delta;
             targetPos.y += velocityY * delta;
             
-            const groundH = (window.FPGraphics ? FPGraphics.getGPUHeight(targetPos.x, targetPos.z) : 0);
+            // DEBUG: Flatmap Physik (Höhe 0) passend zum Shader
+            const groundH = 0; // (window.FPGraphics ? FPGraphics.getGPUHeight(targetPos.x, targetPos.z) : 0);
             if (targetPos.y < groundH) {
                 targetPos.y = groundH;
                 velocityY = 0;
@@ -1172,6 +1173,10 @@
         // --- KAMERA AKTUALISIEREN ---
         // Dies berechnet die aktuelle geglättete currentPos
         applyCamera(delta);
+        
+        // Kamera-Matrix sofort aktualisieren, damit der Shader im nächsten Schritt
+        // die exakt gleichen View-Daten hat wie die Kamera-Position (Sync-Fix)
+        camera.updateMatrixWorld();
 
         // --- TERRAIN AN KAMERA AUSRICHTEN ---
         // WICHTIG: Nutze currentPos statt targetPos für perfekte Synchronisation
