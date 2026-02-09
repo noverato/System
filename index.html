@@ -136,11 +136,11 @@ body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; fon
     🕒 <span id="envTime">--:--</span> | 🌤️ <span id="envWeather">Sonnig</span>
 </div>
 
-<button id="loginBtn" class="btn-action" style="width:100%; margin-top:10px; background: var(--twitch-purple);">🔑 TWITCH LOGIN</button>
+<button id="loginBtn" class="btn-action" style="width:100%; margin-top:10px; background: var(--twitch-purple);" data-action="loginWithTwitch">🔑 TWITCH LOGIN</button>
 
-<button id="inventoryBtn" class="btn-action" style="width:100%; margin-top:10px;">🎒 INVENTAR</button>
+<button id="inventoryBtn" class="btn-action" style="width:100%; margin-top:10px;" data-action="openInventory">🎒 INVENTAR</button>
 <div id="adminHud" style="display:none; margin-top:10px;">
-<button id="adminPanelBtn" class="btn-action" style="background:linear-gradient(135deg, #ff0000, #8b0000); width:100%;">🛠 GÖTTER-MENÜ</button>
+<button id="adminPanelBtn" class="btn-action" style="background:linear-gradient(135deg, #ff0000, #8b0000); width:100%;" data-action="openAdminPanel">🛠 GÖTTER-MENÜ</button>
 </div>
 </div>
 
@@ -150,7 +150,7 @@ body { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; fon
 <div class="panel-side">
 <h3 style="color:gold; margin-top:0;">🎒 INFO</h3>
 <div id="sideContent" style="flex-grow: 1; overflow-y: auto;"></div>
-<button id="closeModalBtn" class="btn-action" style="width:100%; margin-top:20px;">X SCHLIESSEN</button>
+<button id="closeModalBtn" class="btn-action" style="width:100%; margin-top:20px;" data-action="closeGeneralModal">X SCHLIESSEN</button>
 </div>
 </div>
 </div>
