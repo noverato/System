@@ -194,6 +194,18 @@
         }
         gpuCompute = new THREE.GPUComputationRenderer(GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, renderer);
         
+        // WICHTIG: FloatType für hohe Präzision der Höhenwerte (verhindert Wellen-Artefakte)
+        if (renderer.capabilities.isWebGL2) {
+            gpuCompute.setDataType(THREE.FloatType);
+        } else {
+            const extension = renderer.getContext().getExtension('OES_texture_float');
+            if (extension) {
+                gpuCompute.setDataType(THREE.FloatType);
+            } else {
+                gpuCompute.setDataType(THREE.HalfFloatType);
+            }
+        }
+        
         const heightData = gpuCompute.createTexture();
         heightVariable = gpuCompute.addVariable("textureHeight", NOISE_SHADER, heightData);
         heightVariable.magFilter = THREE.LinearFilter;
@@ -230,13 +242,17 @@
         // Wir verwenden einen Standard-Shader und passen ihn an
         clipmapMaterial = new THREE.MeshStandardMaterial({
             vertexColors: false,
-            flatShading: false, // Smooth Shading für weniger Artefakte
+            flatShading: false,
             roughness: 0.9,
             metalness: 0.0,
-            transparent: false, // Transparenz aus gegen Depth-Probleme
-            side: THREE.FrontSide, // Nur Vorderseite rendern
+            transparent: false,
+            side: THREE.FrontSide,
             depthWrite: true,
-            depthTest: true
+            depthTest: true,
+            // Extra Z-Ebene zur Vermeidung von Z-Fighting und für sauberes Culling
+            polygonOffset: true,
+            polygonOffsetFactor: -1, // Negativ schiebt es "näher" zur Kamera
+            polygonOffsetUnits: -1
         });
 
         // Custom Shader Injection für Displacement und Biome-Farben
@@ -413,17 +429,12 @@
                 '#include <color_fragment>',
                 `
                 diffuseColor.rgb = getBiomeColor(vWorldPos, vHeight);
-                `
-            );
-
-            // Alpha-Ausblendung am Rand (Alpha-Boden) mit Noise-Kante
-            // Wir nutzen hier opacity direkt da wir transparent=false haben
-            shader.fragmentShader = shader.fragmentShader.replace(
-                '#include <alphamap_fragment>',
-                `
-                #include <alphamap_fragment>
-                float edgeNoise = noise(vWorldPos.xz * 0.02) * 40.0;
-                float edgeFade = smoothstep(clipRadius, clipRadius - 100.0 + edgeNoise, vDist);
+                
+                // Sanftes Ausblenden am Rand (Blending in die Dunkelheit)
+                float edgeNoise = noise(vWorldPos.xz * 0.02) * 30.0;
+                float edgeFade = smoothstep(clipRadius, clipRadius - 80.0 + edgeNoise, vDist);
+                diffuseColor.rgb *= edgeFade;
+                
                 if (vDist > clipRadius) discard;
                 `
             );
@@ -462,8 +473,8 @@
         
         clipmapGroup.position.set(sx, 0, sz);
 
-        // GPGPU Update (Textur folgt Spieler)
-        updateGPGPU(px, pz, renderer);
+        // GPGPU Update (Synchron mit dem Mesh-Snap)
+        updateGPGPU(sx, sz, renderer);
 
         // Uniforms im Shader aktualisieren
         if (clipmapMaterial.userData.shader) {
@@ -473,10 +484,11 @@
                 shader.uniforms.heightMap.value = target.texture;
             }
             
-            // Der worldOffset ist das Zentrum der GPGPU Textur
+            // Der worldOffset ist das Zentrum der GPGPU Textur (Muss sx, sz sein!)
             if (shader.uniforms.worldOffset) {
-                shader.uniforms.worldOffset.value.set(px, pz);
+                shader.uniforms.worldOffset.value.set(sx, sz);
             }
+            // playerPos bleibt glatt für das radiale Culling am Rand
             if (shader.uniforms.playerPos) {
                 shader.uniforms.playerPos.value.set(px, pz);
             }
