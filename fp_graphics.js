@@ -484,18 +484,16 @@
     function updateClipmap(px, pz, renderer) {
         if (!clipmapMesh || !gpuCompute) return;
 
-        // --- TEXEL-SNAP STRATEGIE FÜR STABILITÄT ---
-        // Die GPGPU-Textur sollte nur in ganzen Texel-Schritten springen.
-        // Das verhindert "Wellen" durch Sub-Texel-Interpolationsfehler.
-        const texelSize = GPU_WORLD_SIZE / GPU_TERRAIN_SIZE; // 2400 / 512 = 4.6875
+        // --- TEXEL-SNAP FÜR DIE TEXTUR (Wellen-Fix) ---
+        // Die GPGPU-Textur springt nur in Texel-Schritten, um Fließen zu verhindern.
+        const texelSize = GPU_WORLD_SIZE / GPU_TERRAIN_SIZE; 
         const sx = Math.floor(px / texelSize) * texelSize;
         const sz = Math.floor(pz / texelSize) * texelSize;
         
-        // Das Mesh folgt der Kamera feiner gesnappt gegen Jitter
-        const meshSnap = 0.1;
-        const mx = Math.floor(px / meshSnap) * meshSnap;
-        const mz = Math.floor(pz / meshSnap) * meshSnap;
-        clipmapGroup.position.set(mx, 0, mz);
+        // --- KEIN SNAP FÜR DAS MESH (Jitter-Fix) ---
+        // Das Mesh folgt der Kamera mit voller Präzision.
+        // Der Sub-Texel-Versatz wird im Shader durch (wPos - worldOffset) korrigiert.
+        clipmapGroup.position.set(px, 0, pz);
 
         // GPGPU Update (Synchron mit dem Texel-Snap)
         updateGPGPU(sx, sz, renderer);
@@ -508,11 +506,11 @@
                 shader.uniforms.heightMap.value = target.texture;
             }
             
-            // worldOffset MUSS exakt sx, sz sein, da die GPGPU Textur darauf zentriert ist
+            // worldOffset ist das Zentrum der GPGPU Textur (sx, sz)
             if (shader.uniforms.worldOffset) {
                 shader.uniforms.worldOffset.value.set(sx, sz);
             }
-            // playerPos für radiale Effekte (Distanz zum echten Spieler)
+            // playerPos für radiale Effekte
             if (shader.uniforms.playerPos) {
                 shader.uniforms.playerPos.value.set(px, pz);
             }
