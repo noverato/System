@@ -20,10 +20,10 @@ const CraftingUI = (() => {
                 </p>
 
                 <div style="display:flex; gap:10px; margin-top:15px; border-bottom:1px solid #444; padding-bottom:10px; overflow-x:auto;">
-                    <button class="btn-action" style="white-space:nowrap;" onclick="CraftingUI.filter('materials')">🧵 MATERIALIEN</button>
-                    <button class="btn-action" style="white-space:nowrap;" onclick="CraftingUI.filter('weapons')">⚔️ WAFFEN</button>
-                    <button class="btn-action" style="white-space:nowrap;" onclick="CraftingUI.filter('armor_t1')">🛡️ RÜSTUNG T1</button>
-                    <button class="btn-action" style="white-space:nowrap;" onclick="CraftingUI.filter('consumables')">🧪 TRÄNKE</button>
+                    <button class="btn-action" style="white-space:nowrap;" data-action="craftingAction" data-args='["filter", "materials"]'>🧵 MATERIALIEN</button>
+                    <button class="btn-action" style="white-space:nowrap;" data-action="craftingAction" data-args='["filter", "weapons"]'>⚔️ WAFFEN</button>
+                    <button class="btn-action" style="white-space:nowrap;" data-action="craftingAction" data-args='["filter", "armor_t1"]'>🛡️ RÜSTUNG T1</button>
+                    <button class="btn-action" style="white-space:nowrap;" data-action="craftingAction" data-args='["filter", "consumables"]'>🧪 TRÄNKE</button>
                 </div>
 
                 <div id="craftingList" 
@@ -75,7 +75,7 @@ const CraftingUI = (() => {
 
                     <button class="btn-action" 
                             style="width:100%; ${canCraft ? '' : 'opacity:0.5; cursor:not-allowed;'}" 
-                            onclick="${canCraft ? `CraftingUI.doCraft('${recipe.id}')` : ''}">
+                            ${canCraft ? `data-action="craftingAction" data-args='["doCraft", "${recipe.id}"]'` : ''}>
                         HERSTELLEN
                     </button>
                 </div>
