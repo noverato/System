@@ -1125,15 +1125,8 @@
         lastTime = now;
 
         updateEnvironment();
-        if (window.FPGraphics) {
-            // updateClipmap aktualisiert GPGPU, Shader und Dekorationen
-            FPGraphics.updateClipmap(targetPos.x, targetPos.z, renderer);
-            FPGraphics.updateRain(avatar);
-            FPGraphics.updateRiver();
-            FPGraphics.updateFire(delta, now);
-        }
         
-        // --- PHYSIK & JUMPING ---
+        // --- PHYSIK & BEWEGUNG ZUERST ---
         if (!(window.FPGraphics && FPGraphics.isInterior)) {
             velocityY += GRAVITY * delta;
             targetPos.y += velocityY * delta;
@@ -1145,7 +1138,7 @@
                 isGrounded = true;
             }
         } else {
-            targetPos.y = 0; // Im Haus fix auf Boden
+            targetPos.y = 0;
             isGrounded = true;
         }
 
@@ -1158,35 +1151,15 @@
         let nextZ = targetPos.z;
 
         const speed = MOVE_SPEED * GRID * delta;
-        if (keys['w']) {
-            nextX += forwardVector.x * speed;
-            nextZ += forwardVector.z * speed;
-            moved = true;
-        }
-        if (keys['s']) {
-            nextX -= forwardVector.x * speed;
-            nextZ -= forwardVector.z * speed;
-            moved = true;
-        }
-        if (keys['a']) {
-            nextX += rightVector.x * speed;
-            nextZ += rightVector.z * speed;
-            moved = true;
-        }
-        if (keys['d']) {
-            nextX -= rightVector.x * speed;
-            nextZ -= rightVector.z * speed;
-            moved = true;
-        }
+        if (keys['w']) { nextX += forwardVector.x * speed; nextZ += forwardVector.z * speed; moved = true; }
+        if (keys['s']) { nextX -= forwardVector.x * speed; nextZ -= forwardVector.z * speed; moved = true; }
+        if (keys['a']) { nextX += rightVector.x * speed; nextZ += rightVector.z * speed; moved = true; }
+        if (keys['d']) { nextX -= rightVector.x * speed; nextZ -= rightVector.z * speed; moved = true; }
 
         if (moved) {
-            // --- KOLLISIONSPRÜFUNG ---
-            const isSafe = !checkCollision(nextX, nextZ);
-            
-            if (isSafe) { 
+            if (!checkCollision(nextX, nextZ)) { 
                 targetPos.x = nextX;
                 targetPos.z = nextZ;
-
                 if (Date.now() - lastStepAt > STEP_MS) {
                     gridX = Math.round(targetPos.x / GRID);
                     gridY = Math.round(targetPos.z / GRID);
@@ -1196,12 +1169,23 @@
             }
         }
 
-        updateMonsters();
+        // --- KAMERA AKTUALISIEREN ---
+        // Dies berechnet die aktuelle geglättete currentPos
         applyCamera(delta);
+
+        // --- TERRAIN AN KAMERA AUSRICHTEN ---
+        // WICHTIG: Nutze currentPos statt targetPos für perfekte Synchronisation
+        if (window.FPGraphics) {
+            FPGraphics.updateClipmap(currentPos.x, currentPos.z, renderer);
+            FPGraphics.updateRain(avatar);
+            FPGraphics.updateRiver();
+            FPGraphics.updateFire(delta, now);
+        }
+
+        updateMonsters();
         updateOtherPlayers();
         checkInteractions();
         
-        // --- ANIMATION FSM UPDATE ---
         if (animFSM) {
             animFSM.update(moved, isGrounded, window.isAttacking);
         }
@@ -1292,8 +1276,8 @@
         if (!camera) return;
         
         // Schnelleres Lerping für die Rotation (direkteres Gefühl)
-        const ROT_LERP = Math.min(LERP_FACTOR * delta * 2.5, 1.0);
-        const POS_LERP = Math.min(LERP_FACTOR * delta * 1.5, 1.0);
+        const ROT_LERP = Math.min(LERP_FACTOR * delta * 4.0, 1.0);
+        const POS_LERP = Math.min(LERP_FACTOR * delta * 3.0, 1.0);
         
         // Winkel-Interpolation normalisieren, um "Looping" zu verhindern
         let diff = targetHeading - heading;
