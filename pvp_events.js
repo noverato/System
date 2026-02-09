@@ -73,6 +73,8 @@ window.PvPEvents = {
             .evo-red-tremor { filter: drop-shadow(0 0 15px #ff4444); animation: pvp-shake 0.5s infinite; }
             .evo-astral { opacity: 0.7; filter: drop-shadow(0 0 20px #3b82f6); }
             .evo-divine-aura { filter: drop-shadow(0 0 25px #fbbf24) brightness(1.2); }
+            .btn-challenge { background: transparent; border: 1px solid gold; color: gold; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; transition: 0.3s; }
+            .btn-challenge:hover { background: gold !important; color: black !important; }
             @keyframes pvp-pulse { from { opacity: 0.8; } to { opacity: 1; } }
             @keyframes pvp-shake { 
                 0% { transform: translate(1px, 1px) rotate(0deg); }
@@ -131,13 +133,13 @@ window.PvPEvents = {
                 </div>
 
                 <div style="display:flex; gap:20px;">
-                    <button class="btn-action" onclick="PvPEvents.showOnlineList('follower')" style="min-width:220px; background:#3b82f6;">👤 Follower vs Follower</button>
-                    <button class="btn-action" onclick="PvPEvents.showOnlineList('sub')" style="min-width:220px; background:#a855f7;">🌟 Sub vs Sub</button>
+                    <button class="btn-action" data-action="pvpAction" data-args='["showOnlineList", "follower"]' style="min-width:220px; background:#3b82f6;">👤 Follower vs Follower</button>
+                    <button class="btn-action" data-action="pvpAction" data-args='["showOnlineList", "sub"]' style="min-width:220px; background:#a855f7;">🌟 Sub vs Sub</button>
                 </div>
 
-                <button class="btn-action" onclick="PvPEvents.startBossEvent()" style="min-width:300px; background:linear-gradient(90deg, #933, #f44);">👑 BOSS-EVENT STARTEN</button>
+                <button class="btn-action" data-action="pvpAction" data-args='["startBossEvent"]' style="min-width:300px; background:linear-gradient(90deg, #933, #f44);">👑 BOSS-EVENT STARTEN</button>
                 
-                <button class="btn-action" onclick="PvPEvents.close()" style="background:#444; margin-top:20px;">❌ Schließen</button>
+                <button class="btn-action" data-action="pvpAction" data-args='["close"]' style="background:#444; margin-top:20px;">❌ Schließen</button>
             </div>
         `;
 
@@ -176,10 +178,8 @@ window.PvPEvents = {
                             <div style="font-weight:bold; color:white;">${p.name}</div>
                             <div style="font-size:12px; color:#aaa;">Form: <span style="color:gold;">${evo.name}</span> | Lvl: ${p.level}</div>
                         </div>
-                        <button onclick="PvPEvents.challengePlayer('${p.id}', '${p.name}', ${p.evo}, ${p.level})" 
-                                style="background:transparent; border:1px solid gold; color:gold; padding:5px 10px; border-radius:5px; cursor:pointer; font-size:12px; transition:0.3s;"
-                                onmouseover="this.style.background='gold'; this.style.color='black';"
-                                onmouseout="this.style.background='transparent'; this.style.color='gold';">
+                        <button data-action="pvpAction" data-args='["challengePlayer", "${p.id}", "${p.name}", ${p.evo}, ${p.level}]' 
+                                class="btn-challenge">
                             Fordern
                         </button>
                     </div>
@@ -359,27 +359,29 @@ window.PvPEvents = {
             <p style="font-size:18px;"><span style="color:#4ade80; font-weight:bold;">${battleData.hostName}</span> fordert dich zum Duell!</p>
             <p style="font-size:14px; color:#aaa;">Level: ${battleData.hostLevel} | Form: ${this.getEvoData(battleData.hostEvo).name}</p>
             <div style="display:flex; gap:15px; justify-content:center; margin-top:20px;">
-                <button id="accept-challenge" style="background:#4ade80; color:black; border:none; padding:10px 20px; border-radius:5px; font-weight:bold; cursor:pointer;">ANNEHMEN</button>
-                <button id="reject-challenge" style="background:#ff4444; color:white; border:none; padding:10px 20px; border-radius:5px; font-weight:bold; cursor:pointer;">ABLEHNEN</button>
+                <button id="accept-challenge" data-action="pvpAction" data-args='["handleChallengeAccept", "${battleId}", ${JSON.stringify(battleData)}]' style="background:#4ade80; color:black; border:none; padding:10px 20px; border-radius:5px; font-weight:bold; cursor:pointer;">ANNEHMEN</button>
+                <button id="reject-challenge" data-action="pvpAction" data-args='["handleChallengeReject", "${battleId}"]' style="background:#ff4444; color:white; border:none; padding:10px 20px; border-radius:5px; font-weight:bold; cursor:pointer;">ABLEHNEN</button>
             </div>
         `;
 
         document.body.appendChild(notify);
+    },
 
-        document.getElementById('accept-challenge').onclick = () => {
-            this.isHost = false;
-            this.currentBattleId = battleId;
-            this.handleChallengeResponse(battleId, 'accepted');
-            document.body.removeChild(notify);
-            
-            // Sofort Kampf starten
-            this.startDirectCombat(battleData, battleId);
-        };
+    handleChallengeAccept: function(battleId, battleData) {
+        const notify = document.querySelector('[id^="pvp-notify-"]');
+        if (notify) document.body.removeChild(notify);
+        
+        this.isHost = false;
+        this.currentBattleId = battleId;
+        this.handleChallengeResponse(battleId, 'accepted');
+        this.startDirectCombat(battleData, battleId);
+    },
 
-        document.getElementById('reject-challenge').onclick = () => {
-            this.handleChallengeResponse(battleId, 'rejected');
-            document.body.removeChild(notify);
-        };
+    handleChallengeReject: function(battleId) {
+        const notify = document.querySelector('[id^="pvp-notify-"]');
+        if (notify) document.body.removeChild(notify);
+        
+        this.handleChallengeResponse(battleId, 'rejected');
     },
 
     handleChallengeResponse: function(battleId, response) {
