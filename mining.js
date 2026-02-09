@@ -46,7 +46,7 @@ function renderMiningMenu(targetId = 'modalLeft') {
             <p style="color:#aaa;font-style:italic;">Der Fels merkt sich jeden Schlag…</p>
 
             <div id="mining-area"
-                 onclick="mineAction('${targetId}')"
+                 data-action="mineAction" data-args='["${targetId}"]'
                  style="margin:30px auto;width:180px;height:180px;
                  background:rgba(0,0,0,0.4);border:3px double var(--gold);
                  border-radius:50%;display:flex;align-items:center;
@@ -54,7 +54,7 @@ function renderMiningMenu(targetId = 'modalLeft') {
                 ⛏️
             </div>
 
-            <button class="btn-action" onclick="mineAction('${targetId}')">ZUSCHLAGEN</button>
+            <button class="btn-action" data-action="mineAction" data-args='["${targetId}"]'>ZUSCHLAGEN</button>
 
             <div id="mining-log_${targetId}"
                  style="margin-top:30px;height:150px;overflow-y:auto;
