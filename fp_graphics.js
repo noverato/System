@@ -250,10 +250,8 @@
             side: THREE.FrontSide,
             depthWrite: true,
             depthTest: true,
-            // Extra Z-Ebene zur Vermeidung von Z-Fighting und für sauberes Culling
-            polygonOffset: true,
-            polygonOffsetFactor: -1, // Negativ schiebt es "näher" zur Kamera
-            polygonOffsetUnits: -1
+            // polygonOffset deaktiviert, um Jitter-Verdacht zu prüfen
+            polygonOffset: false
         });
 
         // Custom Shader Injection für Displacement und Biome-Farben
@@ -281,8 +279,9 @@
                 varying vec3 vWorldPos;
                 varying float vHeight;
                 varying float vDist;
+                varying vec3 vObjectNormal; // Für Standard Shading
 
-                // Manuelle bilineare Filterung für den Vertex-Shader (da viele GPUs das hier nicht automatisch machen)
+                // Manuelle bilineare Filterung für den Vertex-Shader
                 float getSmoothHeight(vec2 uv) {
                     float texSize = 512.0; // GPU_TERRAIN_SIZE
                     vec2 f = fract(uv * texSize);
@@ -301,6 +300,11 @@
             ` + shader.vertexShader;
 
             shader.vertexShader = shader.vertexShader.replace(
+                '#include <beginnormal_vertex>',
+                `vec3 objectNormal = vObjectNormal;`
+            );
+
+            shader.vertexShader = shader.vertexShader.replace(
                 '#include <begin_vertex>',
                 `
                 // Wir berechnen die Welt-Position manuell mit meshOffset statt modelMatrix.
@@ -314,6 +318,18 @@
                 // Höhe mit bilinearer Filterung sampeln
                 float h = getSmoothHeight(hUv);
                 vHeight = h;
+
+                // Normalen-Berechnung (Finite Difference) für stabiles Shading
+                float eps = 1.0 / 512.0; 
+                float hL = getSmoothHeight(hUv + vec2(-eps, 0.0));
+                float hR = getSmoothHeight(hUv + vec2(eps, 0.0));
+                float hD = getSmoothHeight(hUv + vec2(0.0, -eps));
+                float hU = getSmoothHeight(hUv + vec2(0.0, eps));
+                
+                // Das Verhältnis von Weltgröße zu Texturgröße bestimmt die Steilheit der Normalen
+                float normalScale = 2.0 * (gpuWorldSize / 512.0);
+                vec3 norm = normalize(vec3(hL - hR, normalScale, hD - hU));
+                vObjectNormal = norm; // Übergabe an Three.js Lighting System
                 
                 // Displacement anwenden (PlaneGeometry ist XY, h ist die neue Z-Höhe)
                 vec3 transformed = vec3(position.x, position.y, h);
@@ -477,8 +493,8 @@
 
         clipmapMesh = new THREE.Mesh(geo, clipmapMaterial);
         clipmapMesh.rotation.x = -Math.PI / 2;
-        clipmapMesh.receiveShadow = true;
-        clipmapMesh.castShadow = true;
+        clipmapMesh.receiveShadow = false; // Schatten deaktiviert zur Jitter-Prüfung
+        clipmapMesh.castShadow = false;
         clipmapMesh.frustumCulled = false; // Gegen Verschwinden bei hohen Bergen
         clipmapGroup.add(clipmapMesh);
 
