@@ -824,9 +824,9 @@
         window.addEventListener('resize', onResize);
         
         // Beleuchtung (Sonne)
-        ambientLight = new THREE.AmbientLight(0xffffff, 0.5); // Etwas heller
+        ambientLight = new THREE.AmbientLight(0xffffff, 0.7); // Deutlich heller
         scene.add(ambientLight);
-        sunLight = new THREE.DirectionalLight(0xfff5e1, 1.0);
+        sunLight = new THREE.DirectionalLight(0xfff5e1, 1.2); // Etwas mehr Sonnenlicht
         sunLight.position.set(150, 250, 100);
         sunLight.castShadow = true;
         sunLight.shadow.mapSize.width = 2048;
@@ -848,8 +848,8 @@
         }
 
         // Nebel für Atmosphäre
-        const RANGE = (window.FPGraphics ? FPGraphics.CLIPMAP_RADIUS * 0.8 : 640);
-        scene.fog = new THREE.Fog(0x1a3c1a, 50, RANGE);
+        const RANGE = (window.FPGraphics ? FPGraphics.CLIPMAP_RADIUS * 0.9 : 800);
+        scene.fog = new THREE.Fog(0x2a4c2a, 100, RANGE); // Etwas helleres Grün und mehr Sichtweite
         
         if (window.FPGraphics) {
             await FPGraphics.initWorld(scene, window.EnvironmentManager, (buildingName) => {
