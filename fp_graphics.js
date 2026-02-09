@@ -313,7 +313,7 @@
                 vec2 worldXZ = position.xy + meshOffset;
                 
                 // UV für Heightmap (0-1 Bereich) basierend auf dem GPGPU Zentrum (worldOffset)
-                vec2 hUv = (worldXZ - worldOffset) / gpuWorldSize + 0.5;
+                vec2 hUv = (worldXZ - worldOffset) / max(gpuWorldSize, 1.0) + 0.5;
                 
                 // FLATMAP MODUS: Höhe wird auf 0 gesetzt für Jitter-Analyse
                 float h = 0.0; // getSmoothHeight(hUv);
@@ -458,7 +458,7 @@
                     col *= 0.92 + 0.12 * n;
                     
                     // h kann negativ sein, smoothstep Bereich prüfen
-                    col *= (smoothstep(-10.0, 50.0, h) * 0.5 + 0.6);
+                    col *= (smoothstep(-10.0, 50.0, h) * 0.5 + 0.8); // Basis-Helligkeit erhöht (0.6 -> 0.8)
                     
                     return col;
                 }
@@ -468,6 +468,9 @@
                 '#include <color_fragment>',
                 `
                 diffuseColor.rgb = getBiomeColor(vWorldPos, vHeight);
+                
+                // FLATMAP-BOOST: Etwas mehr Helligkeit für die Analyse
+                diffuseColor.rgb += vec3(0.05); 
                 
                 // Sanftes Ausblenden am Rand (Blending in die Dunkelheit)
                 float edgeNoise = noise(vWorldPos.xz * 0.02) * 30.0;
@@ -1688,7 +1691,8 @@
                 const tz = Math.sin(angle) * dist;
                 
                 loadModel(assetPath).then(model => {
-                    model.position.set(tx, 0, tz);
+                    // Y-Position leicht unter 0 für festen Stand
+                    model.position.set(tx, -0.5, tz); 
                     model.rotation.y = Math.random() * Math.PI * 2;
                     // Skalierung je nach Typ anpassen
                     const scale = itemConfig.key === 'COLUMN' ? 20 : 12;
@@ -1709,12 +1713,22 @@
             const treePath = AssetsLibrary.get('NATURE', treeFile);
             
             loadModel(treePath).then(tree => {
-                tree.position.set(tx, 0, tz);
+                // Y-Position leicht unter 0, um "Schweben" bei unebenen Modellen zu verhindern
+                tree.position.set(tx, -2, tz); 
                 const s = 15 + Math.random() * 5;
                 tree.scale.set(s, s, s);
                 tree.rotation.y = Math.random() * Math.PI * 2;
                 scene.add(tree);
             }).catch(err => console.error("Fehler beim Laden der Test-Bäume:", err));
+        }
+
+        // --- ERZWINGE TAGESLICHT FÜR ANALYSE ---
+        if (window.EnvironmentManager) {
+            console.log("[FPGraphics] Setze Zeit auf Mittag für Analyse...");
+            EnvironmentManager.currentTime = 0.5;
+            if (window.EventHub) {
+                EventHub.emit('env:time:update', { time: 0.5 });
+            }
         }
     }
 
