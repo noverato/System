@@ -1660,59 +1660,62 @@
 
         // initMountains(scene); // Entfernt, da Berge jetzt Teil des Terrains sind
         // initRiver(scene);
-        // await initVegetation(scene); // Jetzt in Chunks
-        // initForestDetails(scene); // Jetzt in Chunks
+        // await// initForestDetails(scene); // Jetzt in Chunks
 
-        /*
-        const biomeKeys = Object.keys(env.biomes);
-        for (let index = 0; index < biomeKeys.length; index++) {
-            const key = biomeKeys[index];
-            const biome = env.biomes[key];
-            if (key === 'CENTRAL') {
-                await spawnVillage(scene, biome, 0, 0, enterHouseCallback);
-                
-                const fountainGeo = new THREE.CylinderGeometry(15, 18, 5, 16);
-                const fountainMat = new THREE.MeshStandardMaterial({ color: 0x888888, flatShading: true });
-                const fountain = new THREE.Mesh(fountainGeo, fountainMat);
-                fountain.position.set(0, 2.5, 0);
-                fountain.castShadow = true;
-                fountain.receiveShadow = true;
-                scene.add(fountain);
-                
-                const waterGeo = new THREE.CircleGeometry(12, 16);
-                const waterMat = new THREE.MeshStandardMaterial({ 
-                    color: 0x0044ff, 
-                    transparent: true, 
-                    opacity: 0.6,
-                    roughness: 0.1,
-                    metalness: 0.5
-                });
-                const water = new THREE.Mesh(waterGeo, waterMat);
-                water.rotation.x = -Math.PI / 2;
-                water.position.set(0, 5.1, 0);
-                water.receiveShadow = true;
-                scene.add(water);
-            } else {
-                const angle = (index / (biomeKeys.length - 1)) * Math.PI * 2;
-                const dist = 1200;
-                const vx = Math.cos(angle) * dist;
-                const vz = Math.sin(angle) * dist;
-                
-                const bGeo = new THREE.CircleGeometry(400, 32);
-                const bMat = new THREE.MeshLambertMaterial({ 
-                    color: biome.color, 
-                    transparent: true, 
-                    opacity: 0.8 
-                });
-                const bFloor = new THREE.Mesh(bGeo, bMat);
-                bFloor.rotation.x = -Math.PI / 2;
-                bFloor.position.set(vx, 0.2, vz);
-                scene.add(bFloor);
+        // --- TEST-MARKTPLATZ FÜR JITTER-ANALYSE ---
+        console.log("[FPGraphics] Erstelle Test-Marktplatz...");
+        const testBiome = { name: "Hauptdorf", terrain: "plains", color: 0x567d46 };
+        await spawnVillage(scene, testBiome, 0, 0, enterHouseCallback);
+        
+        // Dungeon Assets als Marktplatz-Dekoration hinzufügen
+        const dungeonAssets = AssetsLibrary.ASSETS.DUNGEON.LIST;
+        const marketItems = [
+            { key: 'TABLE', count: 4, area: 40 },
+            { key: 'BARREL', count: 12, area: 60 },
+            { key: 'CHEST', count: 3, area: 30 },
+            { key: 'CHAIR', count: 8, area: 45 },
+            { key: 'COLUMN', count: 4, area: 80 }
+        ];
 
-                await spawnVillage(scene, biome, vx, vz, enterHouseCallback);
+        marketItems.forEach(itemConfig => {
+            const assetFile = dungeonAssets[itemConfig.key];
+            const assetPath = AssetsLibrary.get('DUNGEON', assetFile);
+            
+            for (let i = 0; i < itemConfig.count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const dist = Math.random() * itemConfig.area;
+                const tx = Math.cos(angle) * dist;
+                const tz = Math.sin(angle) * dist;
+                
+                loadModel(assetPath).then(model => {
+                    model.position.set(tx, 0, tz);
+                    model.rotation.y = Math.random() * Math.PI * 2;
+                    // Skalierung je nach Typ anpassen
+                    const scale = itemConfig.key === 'COLUMN' ? 20 : 12;
+                    model.scale.set(scale, scale, scale);
+                    scene.add(model);
+                }).catch(err => console.error(`Fehler beim Laden von ${itemConfig.key}:`, err));
             }
+        });
+        
+        // Ein paar zusätzliche Bäume aus Nature Assets um den Marktplatz herum
+        const natureTrees = AssetsLibrary.ASSETS.NATURE.TREES;
+        for (let i = 0; i < 15; i++) {
+            const angle = (i / 15) * Math.PI * 2;
+            const dist = 120 + Math.random() * 60;
+            const tx = Math.cos(angle) * dist;
+            const tz = Math.sin(angle) * dist;
+            const treeFile = natureTrees[Math.floor(Math.random() * natureTrees.length)];
+            const treePath = AssetsLibrary.get('NATURE', treeFile);
+            
+            loadModel(treePath).then(tree => {
+                tree.position.set(tx, 0, tz);
+                const s = 15 + Math.random() * 5;
+                tree.scale.set(s, s, s);
+                tree.rotation.y = Math.random() * Math.PI * 2;
+                scene.add(tree);
+            }).catch(err => console.error("Fehler beim Laden der Test-Bäume:", err));
         }
-        */
     }
 
     function initMountains(scene) {
