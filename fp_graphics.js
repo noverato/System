@@ -1001,7 +1001,7 @@
         h += h_swamp * biome.weights.swamp;
         h += h_forest * biome.weights.forest;
 
-        h += 10.0; // Basis-Höhe (muss mit GPGPU-Shader übereinstimmen)
+        h += 0.0; // Basis-Höhe (auf 0.0 gesetzt)
 
         // 3. Große Berge im Hintergrund (nur weit weg vom Zentrum und Dörfern)
         if (distToCenter > 1500) {
