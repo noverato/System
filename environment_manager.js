@@ -90,17 +90,22 @@ window.EnvironmentManager = {
     },
 
     init() {
-        console.log("🌍 EnvironmentManager initialisiert.");
+        console.log("🌍 EnvironmentManager initialisiert (TESTMODUS: DAUER-TAG).");
         this.updateTime();
-        setInterval(() => this.updateTime(), 1000);
-        setInterval(() => this.updateWeather(), 10000); 
-        setInterval(() => this.smoothWeather(), 100); // Sanfter Übergang
+        // Zeit- und Wetterzyklen für Testzeitraum deaktiviert
+        // setInterval(() => this.updateTime(), 1000);
+        // setInterval(() => this.updateWeather(), 10000); 
+        // setInterval(() => this.smoothWeather(), 100); 
+        
+        // Initialer Zustand: Sonnig und Mittag
+        this.setWeather('sunny');
+        this.weather.intensity = 0;
+        this.weather.targetIntensity = 0;
     },
 
     updateTime() {
-        const now = new Date();
-        const secondsInHour = (now.getMinutes() * 60) + now.getSeconds();
-        this.currentTime = secondsInHour / 3600; // 0..1 über 60 Minuten
+        // Dauer-Tag Fixierung auf 0.5 (Mittag)
+        this.currentTime = 0.5; 
         
         if (window.EventHub) {
             EventHub.emit('env:time:update', { time: this.currentTime });
@@ -108,6 +113,8 @@ window.EnvironmentManager = {
     },
 
     smoothWeather() {
+        // TESTMODUS: Wetter-Smoothing deaktiviert
+        return;
         if (this.weather.intensity < this.weather.targetIntensity) {
             this.weather.intensity = Math.min(this.weather.targetIntensity, this.weather.intensity + 0.005);
         } else if (this.weather.intensity > this.weather.targetIntensity) {
@@ -116,6 +123,8 @@ window.EnvironmentManager = {
     },
 
     updateWeather() {
+        // TESTMODUS: Wetter-Zyklus deaktiviert
+        return;
         const rand = Math.random();
         if (rand > 0.9) this.setWeather('stormy');
         else if (rand > 0.7) this.setWeather('rainy');
