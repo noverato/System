@@ -518,7 +518,7 @@
             if (typeof openAdminPanel === 'function') {
                 const overlay = document.getElementById('fpInventoryOverlay');
                 if (overlay) {
-                    overlay.innerHTML = '<h2 style="color:red; border-bottom:2px solid red;">Götter-Menü (Overlord)</h2><div id="adminContent"></div><button class="btn-action" style="margin-top:20px; width:100%;" onclick="this.parentElement.style.display=\'none\'">Schließen</button>';
+                    overlay.innerHTML = '<h2 style="color:red; border-bottom:2px solid red;">Götter-Menü (Overlord)</h2><div id="adminContent"></div><button class="btn-action" style="margin-top:20px; width:100%;" data-action="closeParent">Schließen</button>';
                     overlay.style.display = 'block';
                     const fakeModalLeft = document.getElementById('adminContent');
                     const realModalLeft = document.getElementById('modalLeft');
@@ -627,10 +627,10 @@
                                     <div style="background: rgba(0,0,0,0.9); padding: 30px; border: 3px solid #ffd700; border-radius: 15px; color: white; max-width: 500px; text-align: center;">
                                         <h2 style="color: #ffd700; margin-top: 0;">Der Wirt</h2>
                                         <p style="font-size: 1.2em; line-height: 1.6;">"Willkommen im Goldenen Krug, Wanderer! Setz dich, ruh dich aus. Ein Becher Met kostet nur 5 Gold."</p>
-                                        <button id="closeChat" style="background: #ffd700; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">Schließen</button>
+                                        <button id="closeChat" class="btn-action" style="background: #ffd700; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;" data-action="closeChat">Schließen</button>
                                     </div>
                                 `;
-                                document.getElementById('closeChat').onclick = () => houseOverlay.style.display = 'none';
+                                // document.getElementById('closeChat').onclick = ... (Entfernt für CSP)
                             }
                         }
                     };
@@ -1007,7 +1007,9 @@
         document.addEventListener('mousemove', onMouseMove);
 
         const onKeyDown = (onKeyDownEvent) => {
-            keys[onKeyDownEvent.key.toLowerCase()] = true;
+            const key = onKeyDownEvent.key.toLowerCase();
+            keys[key] = true;
+            console.log("Key Down:", key, keys);
             
             // Interaktion mit E
             if (onKeyDownEvent.key.toLowerCase() === 'e') {
@@ -1100,10 +1102,11 @@
             
             // Steile Wände (Slope-Check): Wenn der Boden am Zielpunkt deutlich höher ist als die aktuelle Position
             // Aber nur blockieren, wenn wir uns auf einer ähnlichen Höhe befinden (Grounded-Check)
-            if (isGrounded && (h - targetPos.y > 20.0)) return true;
+            // Schwellenwert auf 35.0 erhöht für flüssigere Bergwanderungen
+            if (isGrounded && (h - targetPos.y > 35.0)) return true;
             
             // Wasser-Kollision (Ozean) - Etwas tieferes Wasser erlauben
-            if (h < -25.0) return true; 
+            if (h < -30.0) return true; 
         }
 
         // Kollision mit Gebäuden (Exterior)
@@ -1180,18 +1183,17 @@
 
     // Bewegung verarbeiten
     let moved = false;
-    // Richtungsvektoren korrigiert (Standard Three.js Orientierung)
-    // Wenn Heading = 0, schauen wir nach -Z.
-    // Vorne: (sin(H), 0, -cos(H))
-    // Rechts: (cos(H), 0, sin(H))
-    const forwardVector = new THREE.Vector3(Math.sin(targetHeading), 0, -Math.cos(targetHeading));
-    const rightVector = new THREE.Vector3(Math.cos(targetHeading), 0, Math.sin(targetHeading));
+    // Richtungsvektoren korrigiert (Standard Three.js Orientierung für diese Szene)
+    // H=0 ist Blickrichtung +Z (basierend auf applyCamera)
+    const forwardVector = new THREE.Vector3(Math.sin(targetHeading), 0, Math.cos(targetHeading));
+    const rightVector = new THREE.Vector3(Math.cos(targetHeading), 0, -Math.sin(targetHeading));
 
     let nextX = targetPos.x;
     let nextZ = targetPos.z;
 
-    const speedMult = keys['shift'] ? 2.0 : (keys['control'] || keys['c'] ? 0.5 : 1.0);
-    const speed = MOVE_SPEED * GRID * delta * speedMult;
+    const speedMult = (keys['shift'] || keys['ShiftLeft']) ? 2.5 : ((keys['control'] || keys['controlleft'] || keys['c']) ? 0.5 : 1.0);
+    // Geschwindigkeit: MOVE_SPEED (0.22) * delta * speedMult (GRID entfernt für korrekte Skalierung)
+    const speed = MOVE_SPEED * delta * speedMult;
     
     if (keys['w']) { nextX += forwardVector.x * speed; nextZ += forwardVector.z * speed; moved = true; }
     if (keys['s']) { nextX -= forwardVector.x * speed; nextZ -= forwardVector.z * speed; moved = true; }
