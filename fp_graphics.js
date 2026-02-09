@@ -236,8 +236,9 @@
         clipmapGroup = new THREE.Group();
         scene.add(clipmapGroup);
 
-        // Circular Geometry for Radial Clipmap
-        const geo = new THREE.CircleGeometry(CLIPMAP_RADIUS, CLIPMAP_SEGMENTS);
+        // Quadratisches Gitter für gleichmäßige Vertex-Verteilung (verhindert Stretching)
+        // CLIPMAP_RADIUS * 2 für die Größe, Segmente für Detaildichte
+        const geo = new THREE.PlaneGeometry(CLIPMAP_RADIUS * 2, CLIPMAP_RADIUS * 2, 256, 256);
         
         // Wir verwenden einen Standard-Shader und passen ihn an
         clipmapMaterial = new THREE.MeshStandardMaterial({
@@ -278,6 +279,23 @@
                 varying vec3 vWorldPos;
                 varying float vHeight;
                 varying float vDist;
+
+                // Manuelle bilineare Filterung für den Vertex-Shader (da viele GPUs das hier nicht automatisch machen)
+                float getSmoothHeight(vec2 uv) {
+                    float texSize = 512.0; // GPU_TERRAIN_SIZE
+                    vec2 f = fract(uv * texSize);
+                    vec2 t00 = floor(uv * texSize) / texSize;
+                    vec2 t10 = (floor(uv * texSize) + vec2(1.0, 0.0)) / texSize;
+                    vec2 t01 = (floor(uv * texSize) + vec2(0.0, 1.0)) / texSize;
+                    vec2 t11 = (floor(uv * texSize) + vec2(1.0, 1.0)) / texSize;
+
+                    float h00 = texture2D(heightMap, t00).r;
+                    float h10 = texture2D(heightMap, t10).r;
+                    float h01 = texture2D(heightMap, t01).r;
+                    float h11 = texture2D(heightMap, t11).r;
+
+                    return mix(mix(h00, h10, f.x), mix(h01, h11, f.x), f.y);
+                }
             ` + shader.vertexShader;
 
             shader.vertexShader = shader.vertexShader.replace(
@@ -289,17 +307,17 @@
                 // UV für Heightmap (0-1 Bereich) basierend auf dem GPGPU Zentrum
                 vec2 hUv = (wPos.xz - worldOffset) / gpuWorldSize + 0.5;
                 
-                // Höhe sampeln
-                float h = texture2D(heightMap, hUv).r;
+                // Höhe mit bilinearer Filterung sampeln
+                float h = getSmoothHeight(hUv);
                 vHeight = h;
                 
-                // Displacement anwenden
+                // Displacement anwenden (PlaneGeometry ist XY, wir verschieben Z)
                 vec3 transformed = vec3(position.x, position.y, h);
                 
                 // Final Weltposition für Fragment Shader
                 vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
                 
-                // vDist muss relativ zum tatsächlichen Spieler sein, nicht zum Mesh-Zentrum
+                // vDist für radiale Effekte trotz quadratischem Mesh
                 vDist = length(vWorldPos.xz - playerPos);
                 `
             );
@@ -466,14 +484,20 @@
     function updateClipmap(px, pz, renderer) {
         if (!clipmapMesh || !gpuCompute) return;
 
-        // Clipmap folgt dem Spieler (gesnappt an ein kleines Gitter gegen Zittern)
-        const snap = 1.0;
-        const sx = Math.floor(px / snap) * snap;
-        const sz = Math.floor(pz / snap) * snap;
+        // --- TEXEL-SNAP STRATEGIE FÜR STABILITÄT ---
+        // Die GPGPU-Textur sollte nur in ganzen Texel-Schritten springen.
+        // Das verhindert "Wellen" durch Sub-Texel-Interpolationsfehler.
+        const texelSize = GPU_WORLD_SIZE / GPU_TERRAIN_SIZE; // 2400 / 512 = 4.6875
+        const sx = Math.floor(px / texelSize) * texelSize;
+        const sz = Math.floor(pz / texelSize) * texelSize;
         
-        clipmapGroup.position.set(sx, 0, sz);
+        // Das Mesh folgt der Kamera feiner gesnappt gegen Jitter
+        const meshSnap = 0.1;
+        const mx = Math.floor(px / meshSnap) * meshSnap;
+        const mz = Math.floor(pz / meshSnap) * meshSnap;
+        clipmapGroup.position.set(mx, 0, mz);
 
-        // GPGPU Update (Synchron mit dem Mesh-Snap)
+        // GPGPU Update (Synchron mit dem Texel-Snap)
         updateGPGPU(sx, sz, renderer);
 
         // Uniforms im Shader aktualisieren
@@ -484,11 +508,11 @@
                 shader.uniforms.heightMap.value = target.texture;
             }
             
-            // Der worldOffset ist das Zentrum der GPGPU Textur (Muss sx, sz sein!)
+            // worldOffset MUSS exakt sx, sz sein, da die GPGPU Textur darauf zentriert ist
             if (shader.uniforms.worldOffset) {
                 shader.uniforms.worldOffset.value.set(sx, sz);
             }
-            // playerPos bleibt glatt für das radiale Culling am Rand
+            // playerPos für radiale Effekte (Distanz zum echten Spieler)
             if (shader.uniforms.playerPos) {
                 shader.uniforms.playerPos.value.set(px, pz);
             }
