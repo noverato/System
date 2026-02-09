@@ -36,7 +36,7 @@
     let velocityY = 0;
     let isGrounded = true;
     const GRAVITY = -0.015;
-    const JUMP_FORCE = 0.45;
+    const JUMP_FORCE = 0.6; // Stärkerer Sprung für Berge
     let lastTime = performance.now();
     // ------------------------
     
@@ -115,7 +115,7 @@
     let targetHeading = 0;
     let targetPos = { x: 0, y: 0, z: 0 };
     let currentPos = { x: 0, y: 0, z: 0 };
-    const MOVE_SPEED = 0.15; // Sanfte Bewegung
+    const MOVE_SPEED = 0.22; // Schnellere, flüssigere Bewegung
     const ROT_SPEED = 0.003; // Maus-Sensitivität
     const LERP_FACTOR = 0.1; // Für Smoothening (Snapback-Fix)
 
@@ -1097,13 +1097,16 @@
         // --- CLIPMAP KOLLISION (Wasser/Berge/Steigung) ---
         if (window.FPGraphics) {
             const h = FPGraphics.getGPUHeight(nx, nz);
-            // Steile Wände (Slope-Check): Wenn der Boden am Zielpunkt mehr als 12 Einheiten höher ist
-            // Dies verhindert, dass man senkrechte Berge hochlaufen kann
-            if (h - targetPos.y > 12.0) return true;
             
-            // Wasser-Kollision (Ozean)
-            if (h < -5.0) return true; 
+            // Steile Wände (Slope-Check): Wenn der Boden am Zielpunkt deutlich höher ist als die aktuelle Position
+            // Aber nur blockieren, wenn wir uns auf einer ähnlichen Höhe befinden (Grounded-Check)
+            if (isGrounded && (h - targetPos.y > 20.0)) return true;
+            
+            // Wasser-Kollision (Ozean) - Etwas tieferes Wasser erlauben
+            if (h < -25.0) return true; 
         }
+
+        // Kollision mit Gebäuden (Exterior)
 
         // Kollision mit Gebäuden (Exterior)
         const buildings = window.FPGraphics ? FPGraphics.villageBuildings : [];
@@ -1121,9 +1124,14 @@
         return false;
     }
 
+    let collisionRaycaster = null;
     function loop() {
         anim = requestAnimationFrame(loop);
         if (!renderer || !scene || !camera) return;
+
+        if (!collisionRaycaster && window.THREE) {
+            collisionRaycaster = new THREE.Raycaster();
+        }
 
         const now = performance.now();
         const delta = Math.min((now - lastTime) / 16.6, 3); // Normalisiert auf 60 FPS
@@ -1136,32 +1144,67 @@
             velocityY += GRAVITY * delta;
             targetPos.y += velocityY * delta;
             
-            // PHYSIK: Nutze die reale Terrain-Höhe der GPGPU
-            const groundH = (window.FPGraphics ? FPGraphics.getGPUHeight(targetPos.x, targetPos.z) : 0);
-            if (targetPos.y < groundH) {
-                targetPos.y = groundH;
-                velocityY = 0;
-                isGrounded = true;
+            // PHYSIK: Nutze die reale Terrain-Höhe (GPGPU + Mesh-Raycast Fallback)
+            let groundH = (window.FPGraphics ? FPGraphics.getGPUHeight(targetPos.x, targetPos.z) : 0);
+            
+            // --- MESH-KOLLISION VALIDIERUNG ---
+            // Wenn wir ein Mesh haben, nutzen wir Raycasting für absolute Präzision
+            if (collisionRaycaster && window.FPGraphics && FPGraphics.terrainMesh) {
+                // Start etwas über dem Spieler, schieße nach unten
+                const rayOrigin = new THREE.Vector3(targetPos.x, targetPos.y + 50, targetPos.z);
+                const rayDir = new THREE.Vector3(0, -1, 0);
+                collisionRaycaster.set(rayOrigin, rayDir);
+                
+                const intersects = collisionRaycaster.intersectObject(FPGraphics.terrainMesh);
+                if (intersects.length > 0) {
+                    // Wir nehmen den höchsten Punkt, falls es mehrere gibt
+                    groundH = intersects[0].point.y;
+                }
             }
-        } else {
-            targetPos.y = 0;
+        
+        // COLLISION FIX: Spieler immer ÜBER dem Boden halten
+        const minHeight = -50.0; // Sicherheitsuntergrenze (Ozeanboden)
+        const finalGroundH = Math.max(groundH, minHeight);
+
+        if (targetPos.y < finalGroundH) {
+            targetPos.y = finalGroundH;
+            velocityY = 0;
             isGrounded = true;
+        } else if (targetPos.y > finalGroundH + 0.5) { // Kleiner Puffer für Boden-Check
+            isGrounded = false;
         }
+    } else {
+        targetPos.y = 0;
+        isGrounded = true;
+    }
 
-        // Bewegung verarbeiten
-        let moved = false;
-        // Richtungsvektoren invertiert, da W/S und A/D vertauscht waren
-        const forwardVector = new THREE.Vector3(-Math.sin(targetHeading), 0, -Math.cos(targetHeading));
-        const rightVector = new THREE.Vector3(-Math.sin(targetHeading - Math.PI / 2), 0, -Math.cos(targetHeading - Math.PI / 2));
+    // Bewegung verarbeiten
+    let moved = false;
+    // Richtungsvektoren korrigiert (Standard Three.js Orientierung)
+    // Wenn Heading = 0, schauen wir nach -Z.
+    // Vorne: (sin(H), 0, -cos(H))
+    // Rechts: (cos(H), 0, sin(H))
+    const forwardVector = new THREE.Vector3(Math.sin(targetHeading), 0, -Math.cos(targetHeading));
+    const rightVector = new THREE.Vector3(Math.cos(targetHeading), 0, Math.sin(targetHeading));
 
-        let nextX = targetPos.x;
-        let nextZ = targetPos.z;
+    let nextX = targetPos.x;
+    let nextZ = targetPos.z;
 
-        const speed = MOVE_SPEED * GRID * delta;
-        if (keys['w']) { nextX += forwardVector.x * speed; nextZ += forwardVector.z * speed; moved = true; }
-        if (keys['s']) { nextX -= forwardVector.x * speed; nextZ -= forwardVector.z * speed; moved = true; }
-        if (keys['a']) { nextX += rightVector.x * speed; nextZ += rightVector.z * speed; moved = true; }
-        if (keys['d']) { nextX -= rightVector.x * speed; nextZ -= rightVector.z * speed; moved = true; }
+    const speedMult = keys['shift'] ? 2.0 : (keys['control'] || keys['c'] ? 0.5 : 1.0);
+    const speed = MOVE_SPEED * GRID * delta * speedMult;
+    
+    if (keys['w']) { nextX += forwardVector.x * speed; nextZ += forwardVector.z * speed; moved = true; }
+    if (keys['s']) { nextX -= forwardVector.x * speed; nextZ -= forwardVector.z * speed; moved = true; }
+    if (keys['a']) { nextX -= rightVector.x * speed; nextZ -= rightVector.z * speed; moved = true; }
+    if (keys['d']) { nextX += rightVector.x * speed; nextZ += rightVector.z * speed; moved = true; }
+
+    // --- DUCKEN-EFFEKT (Kamera-Höhe) ---
+    // Wir ändern nicht targetPos.y (den Boden-Punkt), sondern das Offset der Kamera
+    let cameraHeightOffset = 1.6; // Standard Augenhöhe
+    if (keys['control'] || keys['c']) {
+        cameraHeightOffset = 0.8; // Ducken senkt die Augenhöhe
+    }
+    window._cameraHeightOffset = cameraHeightOffset;
 
         if (moved) {
             if (!checkCollision(nextX, nextZ)) { 
@@ -1323,16 +1366,16 @@
             const back = 38;
             const ox = Math.sin(heading) * back;
             const oz = Math.cos(heading) * back;
-            let camY = py + 16;
+            let camY = py + (window._cameraHeightOffset || 1.6) * 10.0; // Skaliert auf Spielwelt
             
             // Kamera-Clipping-Schutz: Kamera darf nicht unter das Terrain sinken
             const camTerrainH = (window.FPGraphics ? FPGraphics.getGPUHeight(px - ox, pz - oz) : 0);
             if (camY < camTerrainH + 5.0) camY = camTerrainH + 5.0;
 
             camera.position.set(px - ox, camY, pz - oz);
-            camera.lookAt(new THREE.Vector3(px, py + 4, pz));
+            camera.lookAt(new THREE.Vector3(px, py + (window._cameraHeightOffset || 1.6) * 2.5, pz));
         } else {
-            let camY = py + 8;
+            let camY = py + (window._cameraHeightOffset || 1.6) * 5.0; // Skaliert auf Augenhöhe
             
             // Auch in First Person sicherstellen, dass wir über dem Boden sind
             const camTerrainH = (window.FPGraphics ? FPGraphics.getGPUHeight(px, pz) : 0);
