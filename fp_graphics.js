@@ -210,9 +210,29 @@
             polygonOffset: false
         });
 
+        // Texturen laden (Nutze AssetsLibrary für korrekte Pfade)
+        const texLoader = new THREE.TextureLoader();
+        const loadTex = (url) => {
+            const t = texLoader.load(url);
+            t.wrapS = t.wrapT = THREE.RepeatWrapping;
+            t.anisotropy = 16;
+            return t;
+        };
+
+        const grassTex = loadTex(AssetsLibrary.get('TERRAIN', 'GRASS'));
+        const stoneTex = loadTex(AssetsLibrary.get('TERRAIN', 'ROCKS'));
+        const desertTex = loadTex(AssetsLibrary.get('TERRAIN', 'ROCKS_DESERT'));
+        const leavesTex = loadTex(AssetsLibrary.get('TERRAIN', 'LEAVES')); 
+        const flowersTex = loadTex(AssetsLibrary.get('TERRAIN', 'FLOWERS'));
+
         // Custom Shader Injection für Displacement und Biome-Farben
         clipmapMaterial.onBeforeCompile = (shader) => {
             shader.uniforms.heightMap = { value: null };
+            shader.uniforms.grassTex = { value: grassTex };
+            shader.uniforms.stoneTex = { value: stoneTex };
+            shader.uniforms.desertTex = { value: desertTex };
+            shader.uniforms.leavesTex = { value: leavesTex };
+            shader.uniforms.flowersTex = { value: flowersTex };
             shader.uniforms.worldOffset = { value: new THREE.Vector2(0, 0) };
             shader.uniforms.meshOffset = { value: new THREE.Vector2(0, 0) };
             shader.uniforms.playerPos = { value: new THREE.Vector2(0, 0) }; // Actual player pos for vDist
@@ -238,7 +258,6 @@
                 varying vec3 vWorldPos;
                 varying float vHeight;
                 varying float vDist;
-                varying vec3 vObjectNormal; // Für Standard Shading
 
                 // Manuelle bilineare Filterung für den Vertex-Shader
                 float getSmoothHeight(vec2 uv) {
@@ -259,51 +278,49 @@
             ` + shader.vertexShader;
 
             shader.vertexShader = shader.vertexShader.replace(
-                '#include <beginnormal_vertex>',
-                `vec3 objectNormal = vObjectNormal;`
-            );
-
-            shader.vertexShader = shader.vertexShader.replace(
                 '#include <begin_vertex>',
                 `
                 // Wir berechnen die Welt-Position manuell mit meshOffset statt modelMatrix.
-                // Das verhindert den 1-Frame-Lag bei der Synchronisation (Earthquake-Fix).
-                // Da PlaneGeometry rotiert ist (X -> X, Y -> Z), nutzen wir meshOffset entsprechend.
                 vec2 worldXZ = position.xy + meshOffset;
                 
                 // UV für Heightmap (0-1 Bereich) basierend auf dem GPGPU Zentrum (worldOffset)
                 vec2 hUv = (worldXZ - worldOffset) / max(gpuWorldSize, 1.0) + 0.5;
                 
-                // HÖHEN-ABTASTUNG REAKTIVIERT
+                // HÖHEN-ABTASTUNG
                 float h = getSmoothHeight(hUv);
                 vHeight = h;
 
-                // Normalen-Berechnung (verfeinert für korrekte Beleuchtung)
-                float texelSize = 1.0 / 512.0; 
-                float hL = getSmoothHeight(hUv - vec2(texelSize, 0.0));
-                float hR = getSmoothHeight(hUv + vec2(texelSize, 0.0));
-                float hD = getSmoothHeight(hUv - vec2(0.0, texelSize));
-                float hU = getSmoothHeight(hUv + vec2(0.0, texelSize));
-                
-                // Ein Texel in Welt-Einheiten
-                float wStep = gpuWorldSize / 512.0;
-                
-                // Normalen-Vektor in Object Space (Z ist Höhe bei PlaneGeometry vor Rotation)
-                // Wir nutzen den Cross-Product Ansatz: normalize(vec3(2*hDiffX, 2*hDiffY, 4*wStep))
-                // Vereinfacht:
-                vObjectNormal = normalize(vec3(hL - hR, hD - hU, 2.0 * wStep));
-                
                 // Displacement anwenden
-                // PlaneGeometry ist auf der XY-Ebene (Z=0). 
-                // In Three.js wird sie durch rotation.x = -PI/2 flachgelegt.
-                // Deshalb ist position.z hier die Höhe (Displacement).
                 vec3 transformed = vec3(position.x, position.y, h);
                 
                 // Final Weltposition für Fragment Shader
                 vWorldPos = vec3(worldXZ.x, h, worldXZ.y);
                 
-                // vDist für radiale Effekte - WICHTIG: Erhöhter Radius für Sichtbarkeit
+                // vDist für radiale Effekte
                 vDist = length(worldXZ - playerPos);
+                `
+            );
+
+            shader.vertexShader = shader.vertexShader.replace(
+                '#include <beginnormal_vertex>',
+                `
+                // Normalen-Berechnung (verfeinert für korrekte Beleuchtung)
+                // Wir nutzen hUv aus dem begin_vertex Block (muss also davor oder darin sein)
+                // Da beginnormal_vertex vor begin_vertex kommt, berechnen wir hUv hier nochmal kurz
+                vec2 _worldXZ = position.xy + meshOffset;
+                vec2 _hUv = (_worldXZ - worldOffset) / max(gpuWorldSize, 1.0) + 0.5;
+                
+                float texelSize = 1.0 / 512.0; 
+                float hL = getSmoothHeight(_hUv - vec2(texelSize, 0.0));
+                float hR = getSmoothHeight(_hUv + vec2(texelSize, 0.0));
+                float hD = getSmoothHeight(_hUv - vec2(0.0, texelSize));
+                float hU = getSmoothHeight(_hUv + vec2(0.0, texelSize));
+                
+                float wStep = gpuWorldSize / 512.0;
+                
+                // Normalen-Vektor in Object Space (Z ist Höhe)
+                // WICHTIG: Die Normalen müssen für MeshStandardMaterial korrekt im Object Space sein
+                vec3 objectNormal = normalize(vec3(hL - hR, hD - hU, 2.0 * wStep));
                 `
             );
 
@@ -342,10 +359,17 @@
                 uniform vec3 oceanColor;
                 uniform vec3 forestColor;
 
+                uniform sampler2D grassTex;
+                uniform sampler2D stoneTex;
+                uniform sampler2D desertTex;
+                uniform sampler2D leavesTex;
+                uniform sampler2D flowersTex;
+
                 uniform float clipRadius;
                 varying vec3 vWorldPos;
                 varying float vHeight;
                 varying float vDist;
+                varying vec3 vNormal; // Von Three.js bereitgestellt
 
                 // Simple hash for noise
                 float hash(vec2 p) {
@@ -360,7 +384,7 @@
                                mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
                 }
 
-                vec3 getBiomeColor(vec3 pos, float h) {
+                vec3 getBiomeColor(vec3 pos, float h, vec3 normal) {
                     // Biome-Noise
                     float scale = 0.0002; // Etwas gröber für 8000er Map
                     float temp = noise(pos.xz * scale) * 2.0 - 1.0;
@@ -388,14 +412,19 @@
                         else wPlains = 1.0;
                     }
 
-                    // HÖHEN-BIOME (Berge werden zu Stein/Schnee)
+                    // HÖHEN-BIOME & STEILHEIT (Berge werden zu Stein/Schnee)
                     float stoneStart = 60.0;
                     float snowStart = 130.0;
                     
+                    // Steilheit berechnen (normal.y ist 1.0 bei flachem Boden)
+                    float slope = 1.0 - normal.y;
+                    float wStone = smoothstep(0.4, 0.7, slope); // Stein bei steilen Hängen
+                    
                     if (h > stoneStart) {
-                        float stoneFactor = smoothstep(stoneStart, stoneStart + 20.0, h);
-                        // Mische Stein ein
-                        float wStone = stoneFactor;
+                        wStone = max(wStone, smoothstep(stoneStart, stoneStart + 20.0, h));
+                    }
+                    
+                    if (wStone > 0.0) {
                         // Gewichte der anderen reduzieren
                         float reduce = 1.0 - wStone;
                         wOcean *= reduce; wDesert *= reduce; wSnow *= reduce; wJungle *= reduce; wSwamp *= reduce; wForest *= reduce; wPlains *= reduce;
@@ -406,9 +435,6 @@
                             wSnow = mix(wSnow, 1.0, snowHFactor);
                             wStone *= (1.0 - snowHFactor);
                         }
-                        
-                        // Gewichte normalisieren (Stone ist ein implizites Gewicht)
-                        // Wir fügen Stone direkt zur Farbberechnung hinzu
                     }
 
                     // Startpunkt (0,0) erzwingt Plains
@@ -419,56 +445,92 @@
                     wSnow = mix(wSnow, 0.0, startEffect);
 
                     // Normalisieren der Gewichte
-                    float total = wOcean + wDesert + wSnow + wJungle + wSwamp + wForest + wPlains;
-                    // Wir brauchen wStone hier explizit für die Farbmischung
-                    float wStone = 0.0;
-                    if (h > stoneStart) {
-                        wStone = smoothstep(stoneStart, stoneStart + 20.0, h);
-                        // Schnee-Höhen-Einfluss auf wSnow wurde oben schon in wSnow eingerechnet
-                        // Aber wir müssen sicherstellen, dass Stone + Rest = 1.0 bleibt
-                        float rest = 1.0 - wStone;
-                        if (total > 0.0) {
-                            wOcean = (wOcean / total) * rest;
-                            wDesert = (wDesert / total) * rest;
-                            wSnow = (wSnow / total) * rest;
-                            wJungle = (wJungle / total) * rest;
-                            wSwamp = (wSwamp / total) * rest;
-                            wForest = (wForest / total) * rest;
-                            wPlains = (wPlains / total) * rest;
-                        }
-                    } else {
-                        if (total > 0.0) {
-                            wOcean /= total; wDesert /= total; wSnow /= total; wJungle /= total; wSwamp /= total; wForest /= total; wPlains /= total;
-                        }
+                    float total = wOcean + wDesert + wSnow + wJungle + wSwamp + wForest + wPlains + wStone;
+                    if (total > 0.0) {
+                        wOcean /= total; wDesert /= total; wSnow /= total; wJungle /= total; wSwamp /= total; wForest /= total; wPlains /= total; wStone /= total;
                     }
 
+                    // Textur-Mapping (Verbessert für mehr Details)
+                    vec2 tUv = vWorldPos.xz * 0.05; // Größere Textur-Kachelung für Details
+                    vec2 tUvDetail = vWorldPos.xz * 0.5; // Mikro-Details
+                    
+                    vec3 grassCol = texture2D(grassTex, tUv).rgb * plainsColor;
+                    vec3 stoneCol = texture2D(stoneTex, tUv).rgb * stoneColor;
+                    vec3 desertCol = texture2D(desertTex, tUv).rgb * desertColor;
+                    vec3 leavesCol = texture2D(leavesTex, tUv).rgb * jungleColor;
+                    vec3 flowersCol = texture2D(flowersTex, tUv).rgb;
+                    
+                    // Detail-Rauschen einmischen
+                    float detail = texture2D(grassTex, tUvDetail).r * 0.2 + 0.9;
+                    grassCol *= detail;
+                    stoneCol *= detail;
+                    desertCol *= detail;
+
                     vec3 col = oceanColor * wOcean + 
-                               desertColor * wDesert + 
-                               snowColor * wSnow + 
-                               jungleColor * wJungle + 
-                               swampColor * wSwamp + 
-                               forestColor * wForest + 
-                               plainsColor * wPlains +
-                               stoneColor * wStone;
+                               desertCol * wDesert + 
+                               mix(stoneCol, vec3(0.95, 0.98, 1.0), 0.7) * wSnow + // Schnee-Optik
+                               leavesCol * wJungle + 
+                               mix(leavesCol, swampColor, 0.6) * wSwamp + 
+                               mix(grassCol, forestColor, 0.4) * wForest + 
+                               mix(grassCol, flowersCol, 0.15) * wPlains +
+                               stoneCol * wStone;
 
                     // Mikro-Rauschen für Details
                     float n = hash(pos.xz * 0.1);
-                    col *= 0.9 + 0.2 * n;
+                    col *= 0.95 + 0.1 * n;
                     
-                    // Helligkeits-Boost für Sichtbarkeit
-                    col *= (smoothstep(-20.0, 100.0, h) * 0.4 + 0.9); 
-                    
-                    return col;
+                // Helligkeits-Boost (stärker bei Bergen für Struktur)
+                float hBoost = smoothstep(20.0, 200.0, h) * 0.4 + 1.0;
+                col *= hBoost; 
+                
+                // --- SCHATTEN-SIMULATION (Ambient Occlusion an Hängen) ---
+                float shadow = smoothstep(0.3, 0.8, slope);
+                col *= mix(1.0, 0.5, shadow); 
+                
+                // --- ZUSÄTZLICHES LICHT FÜR STRUKTUR (Rim-Light & Top-Down) ---
+                vec3 lightDir = normalize(vec3(0.5, 1.0, 0.3));
+                float diff = max(dot(normal, lightDir), 0.0);
+                
+                // Struktur-Licht (Fake-AO und Relief-Hervorhebung)
+                float structure = dot(normal, vec3(0.0, 1.0, 0.0)) * 0.5 + 0.5;
+                col *= (structure * 0.5 + 0.5); // Mehr Licht auf Flächen, die nach oben zeigen
+                
+                // Rim-Light Effekt für Kanten (Berge)
+                float rim = 1.0 - max(dot(normal, vec3(0.0, 1.0, 0.0)), 0.0);
+                rim = pow(rim, 3.0) * smoothstep(50.0, 200.0, h);
+                
+                col *= (diff * 0.6 + 0.7); // Grundbeleuchtung basierend auf Diffuse
+                col += vec3(0.2, 0.3, 0.4) * rim * 0.8; // Bläuliches Rim-Light
+                
+                // Ambient Light (Gegen "schwarze Berge" im Schatten)
+                col += vec3(0.05, 0.07, 0.1) * (1.0 - diff) * smoothstep(50.0, 300.0, h); 
+                
+                // Höhen-Dunst (Leichter Blaustich in der Tiefe, Weißer in der Höhe)
+                vec3 hazeColor = mix(vec3(0.1, 0.15, 0.2), vec3(0.8, 0.9, 1.0), smoothstep(0.0, 300.0, h));
+                col = mix(col, hazeColor, smoothstep(100.0, 800.0, h) * 0.25);
+                
+                return col;
                 }
             ` + shader.fragmentShader;
 
             shader.fragmentShader = shader.fragmentShader.replace(
                 '#include <color_fragment>',
                 `
-                diffuseColor.rgb = getBiomeColor(vWorldPos, vHeight);
+                diffuseColor.rgb = getBiomeColor(vWorldPos, vHeight, vNormal);
                 
                 // HELLIGKEITS-ANPASSUNG FÜR SICHTBARKEIT
-                diffuseColor.rgb *= 1.4; // Noch etwas heller
+                diffuseColor.rgb *= 1.8; // Erhöht für bessere Sichtbarkeit der Strukturen
+                
+            // --- KONTRAST-BOOST FÜR BERGE ---
+                if (vHeight > 40.0) {
+                    diffuseColor.rgb = pow(diffuseColor.rgb, vec3(0.9)); // Mehr Kontrast durch niedrigeren Exponenten
+                }
+                
+                // --- STRUKTUR-LICHT VERSTÄRKEN ---
+                // Simulierter Lichteinfall von oben/vorne für bessere Formdefinition
+                vec3 lightDir = normalize(vec3(0.5, 1.0, 0.3));
+                float NdotL = max(dot(vNormal, lightDir), 0.0);
+                diffuseColor.rgb *= (NdotL * 0.4 + 0.8);
                 
                 // Sanftes Ausblenden am Rand - ERWEITERT
                 // Wir nutzen einen größeren Bereich für das Ausblenden, damit es nicht so abrupt ist
@@ -488,6 +550,10 @@
         clipmapMesh.receiveShadow = false; // Schatten deaktiviert zur Jitter-Prüfung
         clipmapMesh.castShadow = false;
         clipmapMesh.frustumCulled = false; // Gegen Verschwinden bei hohen Bergen
+        
+        // Exponiere das Mesh für Kollisionsprüfungen in fp_wald.js
+        FPGraphics.terrainMesh = clipmapMesh;
+        
         clipmapGroup.add(clipmapMesh);
 
         // Backup Plane
@@ -1407,8 +1473,38 @@
     let decorationGroups = new Map(); // Speichert InstancedMeshes pro Zelle
 
     function updateClipmapDecorations(px, pz, scene) {
-        // Assets entfernt für nackte Map-Struktur Test
-        return;
+        // Assets reaktiviert für lebendige Welt
+        const viewDist = 300; // Sichtweite für Details
+        const cellSize = DECORATION_CELL_SIZE;
+        
+        const minCX = Math.floor((px - viewDist) / cellSize);
+        const maxCX = Math.floor((px + viewDist) / cellSize);
+        const minCZ = Math.floor((pz - viewDist) / cellSize);
+        const maxCZ = Math.floor((pz + viewDist) / cellSize);
+        
+        // Neue Zellen laden
+        for (let cx = minCX; cx <= maxCX; cx++) {
+            for (let cz = minCZ; cz <= maxCZ; cz++) {
+                const key = `${cx},${cz}`;
+                if (!decorationGroups.has(key)) {
+                    const group = new THREE.Group();
+                    scene.add(group);
+                    decorationGroups.set(key, group);
+                    spawnDecorationsInCell(cx, cz, group);
+                }
+            }
+        }
+        
+        // Alte Zellen entfernen
+        decorationGroups.forEach((group, key) => {
+            const [cx, cz] = key.split(',').map(Number);
+            const dist = Math.hypot(cx * cellSize - px, cz * cellSize - pz);
+            if (dist > viewDist + cellSize) {
+                scene.remove(group);
+                // group.traverse(obj => { if (obj.dispose) obj.dispose(); }); // Zu aggressiv
+                decorationGroups.delete(key);
+            }
+        });
     }
 
     function createCactus(rng) {
@@ -1466,11 +1562,11 @@
         
         // 1. Große Vegetation (Individuelle Meshes für Komplexität)
         let treeCount = 0;
-        if (biome.name === 'jungle') treeCount = 8 + Math.floor(rng() * 8);
-        else if (biome.name === 'plains') treeCount = 2 + Math.floor(rng() * 3);
-        else if (biome.name === 'swamp') treeCount = 5 + Math.floor(rng() * 5);
-        else if (biome.name === 'snow') treeCount = 1 + Math.floor(rng() * 2);
-        else if (biome.name === 'desert') treeCount = 1 + Math.floor(rng() * 2);
+        if (biome.name === 'jungle') treeCount = 6 + Math.floor(rng() * 6);
+        else if (biome.name === 'plains') treeCount = 1 + Math.floor(rng() * 2);
+        else if (biome.name === 'swamp') treeCount = 4 + Math.floor(rng() * 4);
+        else if (biome.name === 'snow') treeCount = 1 + Math.floor(rng() * 1);
+        else if (biome.name === 'desert') treeCount = 1 + Math.floor(rng() * 1);
 
         for (let i = 0; i < treeCount; i++) {
             const tx = x0 + rng() * DECORATION_CELL_SIZE;
@@ -1480,29 +1576,72 @@
             if (th > 12) { 
                 let plant;
                 if (biome.name === 'jungle') {
-                    plant = rng() > 0.4 ? createPalm(rng) : createDetailedTree(tx, tz, th, rng, 0x1a472a, 1.5);
+                    try {
+                        const palm = AssetsLibrary.get('NATURE', 'PALM_TREE') || 'PalmTree_1.gltf';
+                        plant = await loadModel(AssetsLibrary.encode('animation/Nature/glTF/' + palm));
+                        const s = 6 + rng() * 6;
+                        plant.scale.set(s, s, s);
+                    } catch(e) { plant = createPalm(rng); }
                 } else if (biome.name === 'desert') {
-                    plant = rng() > 0.5 ? createCactus(rng) : createDesertRock(rng);
+                    if (rng() > 0.6) {
+                        try {
+                            const cactus = AssetsLibrary.get('NATURE', 'CACTUS') || 'Cactus_1.gltf';
+                            plant = await loadModel(AssetsLibrary.encode('animation/Nature/glTF/' + cactus));
+                            const s = 4 + rng() * 4;
+                            plant.scale.set(s, s, s);
+                        } catch(e) { plant = createCactus(rng); }
+                    } else {
+                        plant = createDesertRock(rng);
+                    }
                 } else if (biome.name === 'snow') {
-                    plant = rng() > 0.3 ? createDetailedTree(tx, tz, th, rng, 0xffffff, 0.8) : createDeadTree(rng);
+                    if (rng() > 0.3) {
+                        try {
+                            const pineList = AssetsLibrary.get('NATURE', 'TREES').filter(t => t.includes('Pine'));
+                            const pine = pineList[Math.floor(rng() * pineList.length)];
+                            plant = await loadModel(AssetsLibrary.encode('animation/Nature/glTF/' + pine));
+                            const s = 5 + rng() * 7;
+                            plant.scale.set(s, s, s);
+                        } catch(e) { plant = createDetailedTree(tx, tz, th, rng, 0xffffff, 0.8); }
+                    } else {
+                        plant = createDeadTree(rng);
+                    }
                 } else if (biome.name === 'swamp') {
-                    plant = rng() > 0.3 ? createDetailedTree(tx, tz, th, rng, 0x2f351e, 1.2) : createDeadTree(rng);
+                    if (rng() > 0.4) {
+                        try {
+                            const twistedList = AssetsLibrary.get('NATURE', 'TREES').filter(t => t.includes('Twisted'));
+                            const tree = twistedList[Math.floor(rng() * twistedList.length)];
+                            plant = await loadModel(AssetsLibrary.encode('animation/Nature/glTF/' + tree));
+                            const s = 6 + rng() * 6;
+                            plant.scale.set(s, s, s);
+                        } catch(e) { plant = createDetailedTree(tx, tz, th, rng, 0x2f351e, 1.2); }
+                    } else {
+                        plant = createDeadTree(rng);
+                    }
                 } else {
-                    plant = createDetailedTree(tx, tz, th, rng);
+                    // Plains / Forest
+                    try {
+                        const isBirch = rng() > 0.7;
+                        const list = isBirch ? 
+                            AssetsLibrary.get('TREES', 'LIST').filter(t => t.includes('Birch')) :
+                            AssetsLibrary.get('TREES', 'LIST').filter(t => t.includes('Maple'));
+                        
+                        const tree = list[Math.floor(rng() * list.length)];
+                        plant = await loadModel(AssetsLibrary.encode('animation/bäume/glTF/' + tree));
+                        const s = 7 + rng() * 8;
+                        plant.scale.set(s, s, s);
+                    } catch(e) { plant = createDetailedTree(tx, tz, th, rng); }
                 }
                 
                 if (plant) {
-                        plant.position.set(tx, th - 1.0, tz); // Leicht einsinken lassen gegen Schweben
-                        plant.rotation.y = rng() * Math.PI * 2;
-                        group.add(plant);
-                    }
+                    plant.position.set(tx, th - 0.5, tz); 
+                    plant.rotation.y = rng() * Math.PI * 2;
+                    group.add(plant);
+                }
             }
         }
 
         // 2. Clutter (Instanced) - Biome-abhängig
-        const clutterCount = 40 + Math.floor(rng() * 40);
-        const stoneInstances = { positions: [], scales: [] };
-        const plantInstances = { positions: [], scales: [] };
+        const clutterCount = 60 + Math.floor(rng() * 60);
         
         for (let i = 0; i < clutterCount; i++) {
             const sx = x0 + rng() * DECORATION_CELL_SIZE;
@@ -1510,70 +1649,47 @@
             const sh = getTerrainHeight(sx, sz);
             
             if (sh > 11) {
-                if (rng() > 0.8) { // Steine seltener als Pflanzen
-                    stoneInstances.positions.push(sx, sh, sz);
-                    stoneInstances.scales.push(0.5 + rng() * 2.5);
-                } else {
-                    plantInstances.positions.push(sx, sh, sz);
-                    plantInstances.scales.push(0.5 + rng() * 1.5);
+                let assetPath = null;
+                let scale = 1.0;
+
+                if (rng() > 0.8) { // Steine
+                    const rockList = AssetsLibrary.get('NATURE', 'ROCKS');
+                    const rock = rockList[Math.floor(rng() * rockList.length)];
+                    assetPath = AssetsLibrary.encode('animation/Nature/glTF/' + rock);
+                    scale = 0.5 + rng() * 2.5;
+                } else { // Pflanzen / Gras / Blumen
+                    if (biome.name === 'desert') {
+                        assetPath = AssetsLibrary.encode('animation/Nature/glTF/' + AssetsLibrary.get('NATURE', 'GRASS')[0]);
+                        scale = 0.5 + rng() * 1.0;
+                    } else if (biome.name === 'snow') {
+                        const pineList = AssetsLibrary.get('NATURE', 'TREES').filter(t => t.includes('Pine'));
+                        assetPath = AssetsLibrary.encode('animation/Nature/glTF/' + pineList[0]);
+                        scale = 0.2 + rng() * 0.4; // Winzige Tannen im Schnee
+                    } else {
+                        // Mix aus Gras und Blumen
+                        if (rng() > 0.4) {
+                            const grassList = AssetsLibrary.get('TREES', 'GRASS');
+                            const grass = grassList[Math.floor(rng() * grassList.length)];
+                            assetPath = AssetsLibrary.encode('animation/bäume/glTF/' + grass);
+                        } else {
+                            const flowerList = AssetsLibrary.get('TREES', 'FLOWERS');
+                            const flower = flowerList[Math.floor(rng() * flowerList.length)];
+                            assetPath = AssetsLibrary.encode('animation/bäume/glTF/' + flower);
+                        }
+                        scale = 1.0 + rng() * 2.0;
+                    }
                 }
-            }
-        }
 
-        // Steine rendern (Testweise ohne Instancing)
-        if (stoneInstances.positions.length > 0) {
-            const stoneColor = biome.name === 'desert' ? 0xbc8f8f : 0x888888;
-            const geo = new THREE.DodecahedronGeometry(1, 0);
-            const mat = new THREE.MeshStandardMaterial({ color: stoneColor, flatShading: true });
-            
-            for (let i = 0; i < stoneInstances.positions.length / 3; i++) {
-                const mesh = new THREE.Mesh(geo, mat);
-                mesh.position.set(stoneInstances.positions[i*3], stoneInstances.positions[i*3+1], stoneInstances.positions[i*3+2]);
-                const s = stoneInstances.scales[i];
-                mesh.scale.set(s, s, s);
-                mesh.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
-                mesh.receiveShadow = true;
-                mesh.castShadow = true;
-                group.add(mesh);
-            }
-        }
-
-        // Kleine Pflanzen / Clutter rendern (Testweise ohne Instancing)
-        if (plantInstances.positions.length > 0) {
-            let plantColor = 0x3a5a2a;
-            let geo;
-            
-            if (biome.name === 'desert') {
-                plantColor = 0x8b4513;
-                geo = new THREE.IcosahedronGeometry(0.8, 0);
-            } else if (biome.name === 'snow') {
-                plantColor = 0xffffff;
-                geo = new THREE.IcosahedronGeometry(1.2, 1);
-            } else if (biome.name === 'jungle') {
-                plantColor = 0x006400;
-                geo = new THREE.CylinderGeometry(0.1, 1.5, 2, 4);
-            } else if (biome.name === 'swamp') {
-                plantColor = 0x1a2410;
-                geo = new THREE.IcosahedronGeometry(1, 0);
-            } else {
-                geo = new THREE.IcosahedronGeometry(0.8, 0);
-            }
-
-            const mat = new THREE.MeshStandardMaterial({ 
-                color: plantColor, 
-                flatShading: biome.name !== 'snow' 
-            });
-            
-            for (let i = 0; i < plantInstances.positions.length / 3; i++) {
-                const mesh = new THREE.Mesh(geo, mat);
-                mesh.position.set(plantInstances.positions[i*3], plantInstances.positions[i*3+1], plantInstances.positions[i*3+2]);
-                const s = plantInstances.scales[i];
-                mesh.scale.set(s, s, s);
-                if (biome.name === 'snow') mesh.scale.y *= 0.3;
-                mesh.rotation.y = rng() * Math.PI * 2;
-                mesh.receiveShadow = true;
-                mesh.castShadow = true;
-                group.add(mesh);
+                if (assetPath) {
+                    loadModel(assetPath).then(model => {
+                        model.position.set(sx, sh - 0.1, sz);
+                        model.scale.set(scale, scale, scale);
+                        model.rotation.y = rng() * Math.PI * 2;
+                        model.castShadow = true;
+                        model.receiveShadow = true;
+                        group.add(model);
+                    }).catch(e => console.warn("Clutter asset load failed:", assetPath));
+                }
             }
         }
     }
