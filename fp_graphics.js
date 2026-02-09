@@ -448,7 +448,7 @@
                     float slopeNoise = noise(pos.xz * 0.5);
                     float slopeThreshold = 28.0 + slopeNoise * 12.0;
                     
-                    if (h > slopeThreshold) {
+                    if (h > slopeThreshold && h > 0.0) {
                         float blend = smoothstep(slopeThreshold, slopeThreshold + 15.0, h);
                         col = mix(col, stoneColor, blend);
                     }
@@ -457,8 +457,8 @@
                     float n = hash(pos.xz * 0.1);
                     col *= 0.92 + 0.12 * n;
                     
-                    // Höhen-Schattierung (Tiefland dunkler, Gipfel heller)
-                    col *= smoothstep(-10.0, 50.0, h) * 0.5 + 0.6;
+                    // h kann negativ sein, smoothstep Bereich prüfen
+                    col *= (smoothstep(-10.0, 50.0, h) * 0.5 + 0.6);
                     
                     return col;
                 }
