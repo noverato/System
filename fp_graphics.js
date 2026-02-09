@@ -260,6 +260,7 @@
         clipmapMaterial.onBeforeCompile = (shader) => {
             shader.uniforms.heightMap = { value: null };
             shader.uniforms.worldOffset = { value: new THREE.Vector2(0, 0) };
+            shader.uniforms.meshOffset = { value: new THREE.Vector2(0, 0) };
             shader.uniforms.playerPos = { value: new THREE.Vector2(0, 0) }; // Actual player pos for vDist
             shader.uniforms.gpuWorldSize = { value: GPU_WORLD_SIZE };
             shader.uniforms.clipRadius = { value: CLIPMAP_RADIUS };
@@ -274,6 +275,7 @@
             shader.vertexShader = `
                 uniform sampler2D heightMap;
                 uniform vec2 worldOffset;
+                uniform vec2 meshOffset;
                 uniform vec2 playerPos;
                 uniform float gpuWorldSize;
                 varying vec3 vWorldPos;
@@ -301,24 +303,36 @@
             shader.vertexShader = shader.vertexShader.replace(
                 '#include <begin_vertex>',
                 `
-                // Welt-Position vor Verschiebung (enthält Snap-Offset)
-                vec4 wPos = modelMatrix * vec4(position, 1.0);
+                // Wir berechnen die Welt-Position manuell mit meshOffset statt modelMatrix.
+                // Das verhindert den 1-Frame-Lag bei der Synchronisation (Earthquake-Fix).
+                // Da PlaneGeometry rotiert ist (X -> X, Y -> Z), nutzen wir meshOffset entsprechend.
+                vec2 worldXZ = position.xy + meshOffset;
                 
-                // UV für Heightmap (0-1 Bereich) basierend auf dem GPGPU Zentrum
-                vec2 hUv = (wPos.xz - worldOffset) / gpuWorldSize + 0.5;
+                // UV für Heightmap (0-1 Bereich) basierend auf dem GPGPU Zentrum (worldOffset)
+                vec2 hUv = (worldXZ - worldOffset) / gpuWorldSize + 0.5;
                 
                 // Höhe mit bilinearer Filterung sampeln
                 float h = getSmoothHeight(hUv);
                 vHeight = h;
                 
-                // Displacement anwenden (PlaneGeometry ist XY, wir verschieben Z)
+                // Displacement anwenden (PlaneGeometry ist XY, h ist die neue Z-Höhe)
                 vec3 transformed = vec3(position.x, position.y, h);
                 
                 // Final Weltposition für Fragment Shader
-                vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+                vWorldPos = vec3(worldXZ.x, h, worldXZ.y);
                 
-                // vDist für radiale Effekte trotz quadratischem Mesh
-                vDist = length(vWorldPos.xz - playerPos);
+                // vDist für radiale Effekte
+                vDist = length(worldXZ - playerPos);
+                `
+            );
+
+            shader.vertexShader = shader.vertexShader.replace(
+                '#include <project_vertex>',
+                `
+                // Wir berechnen gl_Position manuell unter Umgehung von modelMatrix.
+                // Das eliminiert jeglichen Jitter durch verzögerte Matrix-Updates.
+                vec4 mvPosition = viewMatrix * vec4(vWorldPos, 1.0);
+                gl_Position = projectionMatrix * mvPosition;
                 `
             );
 
@@ -509,6 +523,10 @@
             // worldOffset ist das Zentrum der GPGPU Textur (sx, sz)
             if (shader.uniforms.worldOffset) {
                 shader.uniforms.worldOffset.value.set(sx, sz);
+            }
+            // meshOffset für die manuelle Weltposition im Shader (px, pz)
+            if (shader.uniforms.meshOffset) {
+                shader.uniforms.meshOffset.value.set(px, pz);
             }
             // playerPos für radiale Effekte
             if (shader.uniforms.playerPos) {
