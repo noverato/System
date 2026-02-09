@@ -1094,12 +1094,15 @@
             return false;
         }
 
-        // --- CLIPMAP KOLLISION (Wasser/Berge) ---
+        // --- CLIPMAP KOLLISION (Wasser/Berge/Steigung) ---
         if (window.FPGraphics) {
             const h = FPGraphics.getGPUHeight(nx, nz);
-            // DEBUG: Kollision im Flatmap-Modus deaktiviert
-            // if (h < 5.0) return true; 
-            // if (h > 150.0) return true;
+            // Steile Wände (Slope-Check): Wenn der Boden am Zielpunkt mehr als 12 Einheiten höher ist
+            // Dies verhindert, dass man senkrechte Berge hochlaufen kann
+            if (h - targetPos.y > 12.0) return true;
+            
+            // Wasser-Kollision (Ozean)
+            if (h < -5.0) return true; 
         }
 
         // Kollision mit Gebäuden (Exterior)
@@ -1147,8 +1150,9 @@
 
         // Bewegung verarbeiten
         let moved = false;
-        const forwardVector = new THREE.Vector3(Math.sin(targetHeading), 0, Math.cos(targetHeading));
-        const rightVector = new THREE.Vector3(Math.sin(targetHeading - Math.PI / 2), 0, Math.cos(targetHeading - Math.PI / 2));
+        // Richtungsvektoren invertiert, da W/S und A/D vertauscht waren
+        const forwardVector = new THREE.Vector3(-Math.sin(targetHeading), 0, -Math.cos(targetHeading));
+        const rightVector = new THREE.Vector3(-Math.sin(targetHeading - Math.PI / 2), 0, -Math.cos(targetHeading - Math.PI / 2));
 
         let nextX = targetPos.x;
         let nextZ = targetPos.z;
@@ -1307,8 +1311,8 @@
         const pz = currentPos.z;
 
         if (avatar) {
-            // Avatar-Position inkl. Sprung-Höhe
-            avatar.position.set(px, py + 4, pz);
+            // Avatar-Position inkl. Sprung-Höhe (Leicht erhöht, um Clipping zu vermeiden)
+            avatar.position.set(px, py + 4.2, pz);
             avatar.rotation.y = heading;
         }
         if (avatarNameTag) {
