@@ -1563,6 +1563,8 @@
         // (Wurde für nackte Map-Struktur Test deaktiviert)
         
         // --- ERZWINGE TAGESLICHT FÜR ANALYSE ---
+        // (Deaktiviert, da EnvironmentManager dies nun zentral steuert)
+        /*
         if (window.EnvironmentManager) {
             console.log("[FPGraphics] Setze Zeit auf Mittag für Analyse...");
             EnvironmentManager.currentTime = 0.5;
@@ -1570,6 +1572,7 @@
                 EventHub.emit('env:time:update', { time: 0.5 });
             }
         }
+        */
     }
 
     function initMountains(scene) {
