@@ -108,12 +108,12 @@
                 h -= edge * 80.0; // 80 Einheiten tiefer Fall
             }
 
-            // 4. STARTPUNKT (0,0) - Flache grüne Ebene
-            float distToStart = length(pos);
-            if (distToStart < 400.0) {
-                float startFactor = smoothstep(200.0, 400.0, distToStart);
-                h = mix(0.0, h, startFactor);
-            }
+        // 4. STARTPUNKT (0,0) - Flache grüne Ebene
+        float distToStart = length(pos);
+        if (distToStart < 1000.0) {
+            float startFactor = smoothstep(400.0, 1000.0, distToStart);
+            h = mix(0.0, h, startFactor);
+        }
             
             // Schutz gegen extreme Werte
             h = clamp(h, -100.0, 800.0);
@@ -283,6 +283,9 @@
                 vObjectNormal = vec3(0.0, 1.0, 0.0);
                 
                 // Displacement anwenden
+                // PlaneGeometry ist auf der XY-Ebene (Z=0). 
+                // In Three.js wird sie durch rotation.x = -PI/2 flachgelegt.
+                // Deshalb ist position.z hier die Höhe (Displacement).
                 vec3 transformed = vec3(position.x, position.y, h);
                 
                 // Final Weltposition für Fragment Shader
@@ -298,13 +301,19 @@
                 `
                 // Frustum Culling / Clipping Logik
                 // Wir werfen Vertices außerhalb des Radius schon hier weg, falls nötig
-                vec4 mvPosition = viewMatrix * vec4(vWorldPos, 1.0);
-                gl_Position = projectionMatrix * mvPosition;
+                // WICHTIG: Wir nutzen transformed (mit h), damit Three.js die richtige Position projiziert
+                vec4 mvPosition = viewMatrix * vec4(transformed + vec3(meshOffset.x, meshOffset.y, 0.0), 1.0);
+                
+                // Da das Mesh per clipmapGroup.position (px, 0, pz) bewegt wird,
+                // und meshOffset ebenfalls (px, pz) ist, würde das Mesh doppelt verschoben.
+                // RICHTIGER ANSATZ: Das Mesh bleibt lokal bei (0,0,0) und die Verschiebung
+                // erfolgt NUR über die modelViewMatrix von Three.js.
+                
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
 
                 // PERFORMANCE-OPTIMIERUNG: Distanz-Culling im Vertex Shader
-                // Wenn der Vertex zu weit weg ist, schieben wir ihn hinter die Far-Plane
                 if (vDist > clipRadius + 100.0) {
-                    gl_Position.z = gl_Position.w * 2.0; // Sicher außerhalb
+                    gl_Position.z = gl_Position.w * 2.0; 
                 }
                 `
             );
@@ -978,6 +987,13 @@
                 const f = Math.max(0, (d - loc.radius * 0.4) / (loc.radius * 0.6));
                 villageFactor = Math.min(villageFactor, Math.pow(f, 2));
             }
+        }
+        
+        // Zusätzliche Glättung am Startpunkt (0,0) für CPU
+        const dStart = Math.hypot(x, z);
+        if (dStart < 1000.0) {
+            const t = Math.max(0, Math.min(1, (dStart - 400.0) / (1000.0 - 400.0)));
+            villageFactor *= t * t * (3 - 2 * t);
         }
 
         // 2. Basis-Höhe durch Biome bestimmt
