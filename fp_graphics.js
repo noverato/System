@@ -196,24 +196,25 @@
         
         const heightData = gpuCompute.createTexture();
         heightVariable = gpuCompute.addVariable("textureHeight", NOISE_SHADER, heightData);
-        heightVariable.texture.magFilter = THREE.LinearFilter;
-        heightVariable.texture.minFilter = THREE.LinearFilter;
+        heightVariable.magFilter = THREE.LinearFilter;
+        heightVariable.minFilter = THREE.LinearFilter;
         
         const smoothData = gpuCompute.createTexture();
         smoothVariable = gpuCompute.addVariable("textureSmooth", SMOOTH_SHADER, smoothData);
-        smoothVariable.texture.magFilter = THREE.LinearFilter;
-        smoothVariable.texture.minFilter = THREE.LinearFilter;
+        smoothVariable.magFilter = THREE.LinearFilter;
+        smoothVariable.minFilter = THREE.LinearFilter;
         
         gpuCompute.setVariableDependencies(smoothVariable, [heightVariable]);
         
-        heightVariable.material.uniforms = {
-            time: { value: 0 },
-            offset: { value: new THREE.Vector2(0, 0) },
-            worldSize: { value: GPU_WORLD_SIZE }
-        };
-
         const error = gpuCompute.init();
-        if (error !== null) console.error("GPGPU Init Error:", error);
+        if (error !== null) {
+            console.error("GPGPU Init Error:", error);
+        } else {
+            // Uniforms erst nach init() setzen, wenn die Materialien erstellt wurden
+            heightVariable.material.uniforms.time = { value: 0 };
+            heightVariable.material.uniforms.offset = { value: new THREE.Vector2(0, 0) };
+            heightVariable.material.uniforms.worldSize = { value: GPU_WORLD_SIZE };
+        }
     }
 
     function initClipmap(scene) {
@@ -464,10 +465,15 @@
         // Uniforms im Shader aktualisieren
         if (clipmapMaterial.userData.shader) {
             const shader = clipmapMaterial.userData.shader;
-            shader.uniforms.heightMap.value = gpuCompute.getCurrentRenderTarget(smoothVariable).texture;
+            const target = gpuCompute.getCurrentRenderTarget(smoothVariable);
+            if (target && target.texture) {
+                shader.uniforms.heightMap.value = target.texture;
+            }
             
             // Der worldOffset ist das Zentrum der GPGPU Textur
-            shader.uniforms.worldOffset.value.set(px, pz);
+            if (shader.uniforms.worldOffset) {
+                shader.uniforms.worldOffset.value.set(px, pz);
+            }
         }
 
         // Dekorationen aktualisieren
@@ -475,17 +481,21 @@
     }
 
     function updateGPGPU(px, pz, renderer) {
-        if (!gpuCompute) return;
+        if (!gpuCompute || !heightVariable || !heightVariable.material) return;
         
         // Offset so setzen, dass der Spieler in der Mitte der Textur ist
         const ox = px - GPU_WORLD_SIZE / 2;
         const oz = pz - GPU_WORLD_SIZE / 2;
         
-        heightVariable.material.uniforms.offset.value.set(ox, oz);
+        if (heightVariable.material.uniforms.offset) {
+            heightVariable.material.uniforms.offset.value.set(ox, oz);
+        }
         gpuCompute.compute();
         
         const renderTarget = gpuCompute.getCurrentRenderTarget(smoothVariable);
-        renderer.readRenderTargetPixels(renderTarget, 0, 0, GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, gpuHeightData);
+        if (renderTarget) {
+            renderer.readRenderTargetPixels(renderTarget, 0, 0, GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, gpuHeightData);
+        }
     }
     
     function getGPUHeight(x, z) {
