@@ -278,9 +278,20 @@
                 float h = getSmoothHeight(hUv);
                 vHeight = h;
 
-                // Normalen-Berechnung (vereinfacht für Performance, kann später verfeinert werden)
-                // Für echte Normalen müssten wir hUv-Nachbarn abtasten
-                vObjectNormal = vec3(0.0, 1.0, 0.0);
+                // Normalen-Berechnung (verfeinert für korrekte Beleuchtung)
+                float texelSize = 1.0 / 512.0; 
+                float hL = getSmoothHeight(hUv - vec2(texelSize, 0.0));
+                float hR = getSmoothHeight(hUv + vec2(texelSize, 0.0));
+                float hD = getSmoothHeight(hUv - vec2(0.0, texelSize));
+                float hU = getSmoothHeight(hUv + vec2(0.0, texelSize));
+                
+                // Ein Texel in Welt-Einheiten
+                float wStep = gpuWorldSize / 512.0;
+                
+                // Normalen-Vektor in Object Space (Z ist Höhe bei PlaneGeometry vor Rotation)
+                // Wir nutzen den Cross-Product Ansatz: normalize(vec3(2*hDiffX, 2*hDiffY, 4*wStep))
+                // Vereinfacht:
+                vObjectNormal = normalize(vec3(hL - hR, hD - hU, 2.0 * wStep));
                 
                 // Displacement anwenden
                 // PlaneGeometry ist auf der XY-Ebene (Z=0). 
@@ -377,6 +388,29 @@
                         else wPlains = 1.0;
                     }
 
+                    // HÖHEN-BIOME (Berge werden zu Stein/Schnee)
+                    float stoneStart = 60.0;
+                    float snowStart = 130.0;
+                    
+                    if (h > stoneStart) {
+                        float stoneFactor = smoothstep(stoneStart, stoneStart + 20.0, h);
+                        // Mische Stein ein
+                        float wStone = stoneFactor;
+                        // Gewichte der anderen reduzieren
+                        float reduce = 1.0 - wStone;
+                        wOcean *= reduce; wDesert *= reduce; wSnow *= reduce; wJungle *= reduce; wSwamp *= reduce; wForest *= reduce; wPlains *= reduce;
+                        
+                        // Wenn es noch höher ist, wird es Schnee
+                        if (h > snowStart) {
+                            float snowHFactor = smoothstep(snowStart, snowStart + 30.0, h);
+                            wSnow = mix(wSnow, 1.0, snowHFactor);
+                            wStone *= (1.0 - snowHFactor);
+                        }
+                        
+                        // Gewichte normalisieren (Stone ist ein implizites Gewicht)
+                        // Wir fügen Stone direkt zur Farbberechnung hinzu
+                    }
+
                     // Startpunkt (0,0) erzwingt Plains
                     float distToStart = length(pos.xz);
                     float startEffect = 1.0 - smoothstep(100.0, 300.0, distToStart);
@@ -384,10 +418,28 @@
                     wOcean = mix(wOcean, 0.0, startEffect);
                     wSnow = mix(wSnow, 0.0, startEffect);
 
-                    // Normalisieren der Gewichte (vereinfacht)
+                    // Normalisieren der Gewichte
                     float total = wOcean + wDesert + wSnow + wJungle + wSwamp + wForest + wPlains;
-                    if (total > 0.0) {
-                        wOcean /= total; wDesert /= total; wSnow /= total; wJungle /= total; wSwamp /= total; wForest /= total; wPlains /= total;
+                    // Wir brauchen wStone hier explizit für die Farbmischung
+                    float wStone = 0.0;
+                    if (h > stoneStart) {
+                        wStone = smoothstep(stoneStart, stoneStart + 20.0, h);
+                        // Schnee-Höhen-Einfluss auf wSnow wurde oben schon in wSnow eingerechnet
+                        // Aber wir müssen sicherstellen, dass Stone + Rest = 1.0 bleibt
+                        float rest = 1.0 - wStone;
+                        if (total > 0.0) {
+                            wOcean = (wOcean / total) * rest;
+                            wDesert = (wDesert / total) * rest;
+                            wSnow = (wSnow / total) * rest;
+                            wJungle = (wJungle / total) * rest;
+                            wSwamp = (wSwamp / total) * rest;
+                            wForest = (wForest / total) * rest;
+                            wPlains = (wPlains / total) * rest;
+                        }
+                    } else {
+                        if (total > 0.0) {
+                            wOcean /= total; wDesert /= total; wSnow /= total; wJungle /= total; wSwamp /= total; wForest /= total; wPlains /= total;
+                        }
                     }
 
                     vec3 col = oceanColor * wOcean + 
@@ -396,7 +448,8 @@
                                jungleColor * wJungle + 
                                swampColor * wSwamp + 
                                forestColor * wForest + 
-                               plainsColor * wPlains;
+                               plainsColor * wPlains +
+                               stoneColor * wStone;
 
                     // Mikro-Rauschen für Details
                     float n = hash(pos.xz * 0.1);
