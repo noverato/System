@@ -234,6 +234,7 @@
                 uniform vec2 meshOffset;
                 uniform vec2 playerPos;
                 uniform float gpuWorldSize;
+                uniform float clipRadius;
                 varying vec3 vWorldPos;
                 varying float vHeight;
                 varying float vDist;
