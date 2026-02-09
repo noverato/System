@@ -847,9 +847,10 @@
             FPGraphics.initInteriors(scene);
         }
 
-        // Nebel für Atmosphäre
-        const RANGE = (window.FPGraphics ? FPGraphics.CLIPMAP_RADIUS * 0.9 : 800);
-        scene.fog = new THREE.Fog(0x2a4c2a, 100, RANGE); // Etwas helleres Grün und mehr Sichtweite
+        // Nebel für Atmosphäre deaktiviert für bessere Sichtbarkeit
+        // const RANGE = (window.FPGraphics ? FPGraphics.CLIPMAP_RADIUS * 0.9 : 800);
+        // scene.fog = new THREE.Fog(0x2a4c2a, 100, RANGE); 
+        scene.fog = null;
         
         if (window.FPGraphics) {
             await FPGraphics.initWorld(scene, window.EnvironmentManager, (buildingName) => {
@@ -893,7 +894,7 @@
             avatar = new THREE.Group();
             window.avatar = avatar;
             avatar.add(sprite);
-            avatar.position.y = 4;
+            avatar.position.y = 2.0;
             scene.add(avatar);
             
             // Lokales Namensschild
@@ -908,7 +909,7 @@
             const avatarMat = new THREE.MeshLambertMaterial({ color: 0xbfd5ff });
             avatar = new THREE.Mesh(avatarGeo, avatarMat);
             window.avatar = avatar;
-            avatar.position.y = 5;
+            avatar.position.y = 2.0;
             scene.add(avatar);
 
             // Lokales Namensschild (Fallback)
@@ -931,6 +932,7 @@
         // Initiale Position setzen
         currentPos.x = targetPos.x = gridX * GRID;
         currentPos.z = targetPos.z = gridY * GRID;
+        currentPos.y = targetPos.y = 2.0; // Avatar spawnt 2 Meter über dem Boden (0.0)
         
         // Anti-Stuck Check: Wenn wir in einem Gebäude spawnen -> Dorfplatz
         if (checkCollision(currentPos.x, currentPos.z)) {
@@ -1131,8 +1133,8 @@
             velocityY += GRAVITY * delta;
             targetPos.y += velocityY * delta;
             
-            // DEBUG: Flatmap Physik (Höhe 0) passend zum Shader
-            const groundH = 0; // (window.FPGraphics ? FPGraphics.getGPUHeight(targetPos.x, targetPos.z) : 0);
+            // PHYSIK: Nutze die reale Terrain-Höhe der GPGPU
+            const groundH = (window.FPGraphics ? FPGraphics.getGPUHeight(targetPos.x, targetPos.z) : 0);
             if (targetPos.y < groundH) {
                 targetPos.y = groundH;
                 velocityY = 0;
@@ -1317,15 +1319,25 @@
             const back = 38;
             const ox = Math.sin(heading) * back;
             const oz = Math.cos(heading) * back;
-            const camY = py + 16;
+            let camY = py + 16;
+            
+            // Kamera-Clipping-Schutz: Kamera darf nicht unter das Terrain sinken
+            const camTerrainH = (window.FPGraphics ? FPGraphics.getGPUHeight(px - ox, pz - oz) : 0);
+            if (camY < camTerrainH + 5.0) camY = camTerrainH + 5.0;
+
             camera.position.set(px - ox, camY, pz - oz);
             camera.lookAt(new THREE.Vector3(px, py + 4, pz));
         } else {
-            const camY = py + 8;
+            let camY = py + 8;
+            
+            // Auch in First Person sicherstellen, dass wir über dem Boden sind
+            const camTerrainH = (window.FPGraphics ? FPGraphics.getGPUHeight(px, pz) : 0);
+            if (camY < camTerrainH + 2.0) camY = camTerrainH + 2.0;
+
             camera.position.set(px, camY, pz);
             const lookX = px + Math.sin(heading) * 10;
             const lookZ = pz + Math.cos(heading) * 10;
-            camera.lookAt(new THREE.Vector3(lookX, py + 8, lookZ));
+            camera.lookAt(new THREE.Vector3(lookX, camY, lookZ));
         }
         
         // Interaktions-Check bei jeder Kamera-Aktualisierung (nach Bewegung)
