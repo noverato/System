@@ -369,7 +369,7 @@
                 varying vec3 vWorldPos;
                 varying float vHeight;
                 varying float vDist;
-                varying vec3 vNormal; // Von Three.js bereitgestellt
+                // vNormal wird von Three.js bereitgestellt
 
                 // Simple hash for noise
                 float hash(vec2 p) {
@@ -1597,10 +1597,13 @@
                 } else if (biome.name === 'snow') {
                     if (rng() > 0.3) {
                         try {
-                            const pineList = AssetsLibrary.get('NATURE', 'TREES').filter(t => t.includes('Pine'));
-                            const pine = pineList[Math.floor(rng() * pineList.length)];
-                            assetPath = AssetsLibrary.encode('Nature/glTF/' + pine);
-                            plantScale = 5 + rng() * 7;
+                            const trees = AssetsLibrary.get('NATURE', 'TREES');
+                            const pineList = Array.isArray(trees) ? trees.filter(t => t.includes('Pine')) : [];
+                            if (pineList.length > 0) {
+                                const pine = pineList[Math.floor(rng() * pineList.length)];
+                                assetPath = AssetsLibrary.encode('Nature/glTF/' + pine);
+                                plantScale = 5 + rng() * 7;
+                            }
                         } catch(e) { plant = createDetailedTree(tx, tz, th, rng, 0xffffff, 0.8); }
                     } else {
                         plant = createDeadTree(rng);
@@ -1608,10 +1611,13 @@
                 } else if (biome.name === 'swamp') {
                     if (rng() > 0.4) {
                         try {
-                            const twistedList = AssetsLibrary.get('NATURE', 'TREES').filter(t => t.includes('Twisted'));
-                            const tree = twistedList[Math.floor(rng() * twistedList.length)];
-                            assetPath = AssetsLibrary.encode('Nature/glTF/' + tree);
-                            plantScale = 6 + rng() * 6;
+                            const trees = AssetsLibrary.get('NATURE', 'TREES');
+                            const twistedList = Array.isArray(trees) ? trees.filter(t => t.includes('Twisted')) : [];
+                            if (twistedList.length > 0) {
+                                const tree = twistedList[Math.floor(rng() * twistedList.length)];
+                                assetPath = AssetsLibrary.encode('Nature/glTF/' + tree);
+                                plantScale = 6 + rng() * 6;
+                            }
                         } catch(e) { plant = createDetailedTree(tx, tz, th, rng, 0x2f351e, 1.2); }
                     } else {
                         plant = createDeadTree(rng);
@@ -1620,13 +1626,16 @@
                     // Plains / Forest
                     try {
                         const isBirch = rng() > 0.7;
-                        const list = isBirch ? 
-                            AssetsLibrary.get('TREES', 'LIST').filter(t => t.includes('Birch')) :
-                            AssetsLibrary.get('TREES', 'LIST').filter(t => t.includes('Maple'));
+                        const treeList = AssetsLibrary.get('TREES', 'LIST');
+                        const list = Array.isArray(treeList) ? (isBirch ? 
+                            treeList.filter(t => t.includes('Birch')) :
+                            treeList.filter(t => t.includes('Maple'))) : [];
                         
-                        const tree = list[Math.floor(rng() * list.length)];
-                        assetPath = AssetsLibrary.encode('bäume/glTF/' + tree);
-                        plantScale = 7 + rng() * 8;
+                        if (list.length > 0) {
+                            const tree = list[Math.floor(rng() * list.length)];
+                            assetPath = AssetsLibrary.encode('bäume/glTF/' + tree);
+                            plantScale = 7 + rng() * 8;
+                        }
                     } catch(e) { plant = createDetailedTree(tx, tz, th, rng); }
                 }
                 
@@ -1673,7 +1682,8 @@
                             scale = 0.5 + rng() * 1.0;
                         }
                     } else if (biome.name === 'snow') {
-                        const pineList = AssetsLibrary.get('NATURE', 'TREES').filter(t => t.includes('Pine'));
+                        const trees = AssetsLibrary.get('NATURE', 'TREES');
+                        const pineList = Array.isArray(trees) ? trees.filter(t => t.includes('Pine')) : [];
                         if (pineList.length > 0) {
                             assetPath = AssetsLibrary.encode('Nature/glTF/' + pineList[0]);
                             scale = 0.2 + rng() * 0.4; // Winzige Tannen im Schnee
