@@ -315,21 +315,12 @@
                 // UV für Heightmap (0-1 Bereich) basierend auf dem GPGPU Zentrum (worldOffset)
                 vec2 hUv = (worldXZ - worldOffset) / gpuWorldSize + 0.5;
                 
-                // Höhe mit bilinearer Filterung sampeln
-                float h = getSmoothHeight(hUv);
+                // FLATMAP MODUS: Höhe wird auf 0 gesetzt für Jitter-Analyse
+                float h = 0.0; // getSmoothHeight(hUv);
                 vHeight = h;
 
-                // Normalen-Berechnung (Finite Difference) für stabiles Shading
-                float eps = 1.0 / 512.0; 
-                float hL = getSmoothHeight(hUv + vec2(-eps, 0.0));
-                float hR = getSmoothHeight(hUv + vec2(eps, 0.0));
-                float hD = getSmoothHeight(hUv + vec2(0.0, -eps));
-                float hU = getSmoothHeight(hUv + vec2(0.0, eps));
-                
-                // Das Verhältnis von Weltgröße zu Texturgröße bestimmt die Steilheit der Normalen
-                float normalScale = 2.0 * (gpuWorldSize / 512.0);
-                vec3 norm = normalize(vec3(hL - hR, normalScale, hD - hU));
-                vObjectNormal = norm; // Übergabe an Three.js Lighting System
+                // Normalen im Flatmap-Modus sind einfach nach oben gerichtet
+                vObjectNormal = vec3(0.0, 1.0, 0.0);
                 
                 // Displacement anwenden (PlaneGeometry ist XY, h ist die neue Z-Höhe)
                 vec3 transformed = vec3(position.x, position.y, h);
