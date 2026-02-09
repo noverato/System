@@ -243,6 +243,7 @@
         clipmapMaterial.onBeforeCompile = (shader) => {
             shader.uniforms.heightMap = { value: null };
             shader.uniforms.worldOffset = { value: new THREE.Vector2(0, 0) };
+            shader.uniforms.playerPos = { value: new THREE.Vector2(0, 0) }; // Actual player pos for vDist
             shader.uniforms.gpuWorldSize = { value: GPU_WORLD_SIZE };
             shader.uniforms.clipRadius = { value: CLIPMAP_RADIUS };
             shader.uniforms.plainsColor = { value: new THREE.Color(0x557d45) };
@@ -256,6 +257,7 @@
             shader.vertexShader = `
                 uniform sampler2D heightMap;
                 uniform vec2 worldOffset;
+                uniform vec2 playerPos;
                 uniform float gpuWorldSize;
                 varying vec3 vWorldPos;
                 varying float vHeight;
@@ -265,23 +267,24 @@
             shader.vertexShader = shader.vertexShader.replace(
                 '#include <begin_vertex>',
                 `
-                // Welt-Position vor Verschiebung
+                // Welt-Position vor Verschiebung (enthält Snap-Offset)
                 vec4 wPos = modelMatrix * vec4(position, 1.0);
                 
-                // UV für Heightmap (0-1 Bereich)
-                // Wir nutzen hier eine präzisere Berechnung
+                // UV für Heightmap (0-1 Bereich) basierend auf dem GPGPU Zentrum
                 vec2 hUv = (wPos.xz - worldOffset) / gpuWorldSize + 0.5;
                 
-                // Höhe sampeln (Linear Filtered)
+                // Höhe sampeln
                 float h = texture2D(heightMap, hUv).r;
                 vHeight = h;
                 
-                // Displacement anwenden (Local Z wird zu World Y)
+                // Displacement anwenden
                 vec3 transformed = vec3(position.x, position.y, h);
                 
                 // Final Weltposition für Fragment Shader
                 vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
-                vDist = length(position.xy);
+                
+                // vDist muss relativ zum tatsächlichen Spieler sein, nicht zum Mesh-Zentrum
+                vDist = length(vWorldPos.xz - playerPos);
                 `
             );
 
@@ -473,6 +476,9 @@
             // Der worldOffset ist das Zentrum der GPGPU Textur
             if (shader.uniforms.worldOffset) {
                 shader.uniforms.worldOffset.value.set(px, pz);
+            }
+            if (shader.uniforms.playerPos) {
+                shader.uniforms.playerPos.value.set(px, pz);
             }
         }
 
@@ -1505,36 +1511,34 @@
             }
         }
 
-        // Steine rendern
+        // Steine rendern (Testweise ohne Instancing)
         if (stoneInstances.positions.length > 0) {
             const stoneColor = biome.name === 'desert' ? 0xbc8f8f : 0x888888;
             const geo = new THREE.DodecahedronGeometry(1, 0);
             const mat = new THREE.MeshStandardMaterial({ color: stoneColor, flatShading: true });
-            const imesh = new THREE.InstancedMesh(geo, mat, stoneInstances.positions.length / 3);
-            const dummy = new THREE.Object3D();
+            
             for (let i = 0; i < stoneInstances.positions.length / 3; i++) {
-                dummy.position.set(stoneInstances.positions[i*3], stoneInstances.positions[i*3+1], stoneInstances.positions[i*3+2]);
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.set(stoneInstances.positions[i*3], stoneInstances.positions[i*3+1], stoneInstances.positions[i*3+2]);
                 const s = stoneInstances.scales[i];
-                dummy.scale.set(s, s, s);
-                dummy.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
-                dummy.updateMatrix();
-                imesh.setMatrixAt(i, dummy.matrix);
+                mesh.scale.set(s, s, s);
+                mesh.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
+                mesh.receiveShadow = true;
+                mesh.castShadow = true;
+                group.add(mesh);
             }
-            imesh.receiveShadow = true;
-            imesh.castShadow = true;
-            group.add(imesh);
         }
 
-        // Kleine Pflanzen / Clutter rendern
+        // Kleine Pflanzen / Clutter rendern (Testweise ohne Instancing)
         if (plantInstances.positions.length > 0) {
             let plantColor = 0x3a5a2a;
             let geo;
             
             if (biome.name === 'desert') {
-                plantColor = 0x8b4513; // Vertrocknetes Gestrüpp
+                plantColor = 0x8b4513;
                 geo = new THREE.IcosahedronGeometry(0.8, 0);
             } else if (biome.name === 'snow') {
-                plantColor = 0xffffff; // Schneehaufen
+                plantColor = 0xffffff;
                 geo = new THREE.IcosahedronGeometry(1.2, 1);
             } else if (biome.name === 'jungle') {
                 plantColor = 0x006400;
@@ -1550,19 +1554,18 @@
                 color: plantColor, 
                 flatShading: biome.name !== 'snow' 
             });
-            const imesh = new THREE.InstancedMesh(geo, mat, plantInstances.positions.length / 3);
-            const dummy = new THREE.Object3D();
+            
             for (let i = 0; i < plantInstances.positions.length / 3; i++) {
-                dummy.position.set(plantInstances.positions[i*3], plantInstances.positions[i*3+1], plantInstances.positions[i*3+2]);
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.set(plantInstances.positions[i*3], plantInstances.positions[i*3+1], plantInstances.positions[i*3+2]);
                 const s = plantInstances.scales[i];
-                dummy.scale.set(s, s, s);
-                if (biome.name === 'snow') dummy.scale.y *= 0.3; // Flachere Schneehaufen
-                dummy.rotation.y = rng() * Math.PI * 2;
-                dummy.updateMatrix();
-                imesh.setMatrixAt(i, dummy.matrix);
+                mesh.scale.set(s, s, s);
+                if (biome.name === 'snow') mesh.scale.y *= 0.3;
+                mesh.rotation.y = rng() * Math.PI * 2;
+                mesh.receiveShadow = true;
+                mesh.castShadow = true;
+                group.add(mesh);
             }
-            imesh.receiveShadow = true;
-            group.add(imesh);
         }
     }
 
