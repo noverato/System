@@ -76,7 +76,7 @@
         }
 
         void main() {
-            vec2 uv = gl_FragCoord.xy / resolution.xy;
+            vec2 uv = gl_FragCoord.xy / max(resolution.xy, vec2(1.0));
             // Absolute Welt-Position berechnen
             vec2 pos = uv * worldSize + offset;
             
@@ -100,7 +100,7 @@
             for(int i=0; i<5; i++) {
                 float d = length(pos - villageLocs[i]);
                 if (d < radiuses[i]) {
-                    float f = clamp((d - radiuses[i] * 0.4) / (radiuses[i] * 0.6), 0.0, 1.0);
+                    float f = clamp((d - radiuses[i] * 0.4) / max(radiuses[i] * 0.6, 0.0001), 0.0, 1.0);
                     villageFactor = min(villageFactor, f * f);
                 }
             }
@@ -168,8 +168,8 @@
 
     const SMOOTH_SHADER = `
         void main() {
-            vec2 uv = gl_FragCoord.xy / resolution.xy;
-            vec2 texelSize = 1.0 / resolution.xy;
+            vec2 uv = gl_FragCoord.xy / max(resolution.xy, vec2(1.0));
+            vec2 texelSize = 1.0 / max(resolution.xy, vec2(1.0));
             
             float h = 0.0;
             float weightSum = 0.0;
@@ -183,7 +183,7 @@
                     weightSum += weight;
                 }
             }
-            gl_FragColor = vec4(h / weightSum, 0.0, 0.0, 1.0);
+            gl_FragColor = vec4(h / max(weightSum, 0.0001), 0.0, 0.0, 1.0);
         }
     `;
 
@@ -262,13 +262,13 @@
             shader.uniforms.playerPos = { value: new THREE.Vector2(0, 0) }; // Actual player pos for vDist
             shader.uniforms.gpuWorldSize = { value: GPU_WORLD_SIZE };
             shader.uniforms.clipRadius = { value: CLIPMAP_RADIUS };
-            shader.uniforms.plainsColor = { value: new THREE.Color(0x557d45) };
-            shader.uniforms.desertColor = { value: new THREE.Color(0xedcaaf) };
+            shader.uniforms.plainsColor = { value: new THREE.Color(0x6ba15a) }; // Helleres Gras
+            shader.uniforms.desertColor = { value: new THREE.Color(0xf4dcb3) };
             shader.uniforms.snowColor = { value: new THREE.Color(0xffffff) };
-            shader.uniforms.jungleColor = { value: new THREE.Color(0x2d4c1e) };
-            shader.uniforms.swampColor = { value: new THREE.Color(0x2f351a) };
-            shader.uniforms.stoneColor = { value: new THREE.Color(0x808080) };
-            shader.uniforms.pathColor = { value: new THREE.Color(0x9b7653) };
+            shader.uniforms.jungleColor = { value: new THREE.Color(0x3d6629) };
+            shader.uniforms.swampColor = { value: new THREE.Color(0x3e4521) };
+            shader.uniforms.stoneColor = { value: new THREE.Color(0x999999) };
+            shader.uniforms.pathColor = { value: new THREE.Color(0xb08d6a) };
 
             shader.vertexShader = `
                 uniform sampler2D heightMap;
@@ -1702,24 +1702,41 @@
             }
         });
         
-        // Ein paar zusätzliche Bäume aus Nature Assets um den Marktplatz herum
+        // Ein paar zusätzliche Bäume und Gras aus Nature Assets um den Marktplatz herum
         const natureTrees = AssetsLibrary.ASSETS.NATURE.TREES;
-        for (let i = 0; i < 15; i++) {
-            const angle = (i / 15) * Math.PI * 2;
-            const dist = 120 + Math.random() * 60;
+        const natureGrass = AssetsLibrary.ASSETS.NATURE.GRASS;
+
+        for (let i = 0; i < 20; i++) {
+            const angle = (i / 20) * Math.PI * 2;
+            const dist = 150 + Math.random() * 100;
             const tx = Math.cos(angle) * dist;
             const tz = Math.sin(angle) * dist;
             const treeFile = natureTrees[Math.floor(Math.random() * natureTrees.length)];
             const treePath = AssetsLibrary.get('NATURE', treeFile);
             
             loadModel(treePath).then(tree => {
-                // Y-Position leicht unter 0, um "Schweben" bei unebenen Modellen zu verhindern
-                tree.position.set(tx, -2, tz); 
-                const s = 15 + Math.random() * 5;
+                tree.position.set(tx, -1, tz); 
+                const s = 12 + Math.random() * 6;
                 tree.scale.set(s, s, s);
                 tree.rotation.y = Math.random() * Math.PI * 2;
                 scene.add(tree);
             }).catch(err => console.error("Fehler beim Laden der Test-Bäume:", err));
+        }
+
+        // Gras-Fläche für Biome-Übergangs-Test
+        for (let i = 0; i < 80; i++) {
+            const tx = (Math.random() - 0.5) * 600;
+            const tz = (Math.random() - 0.5) * 600;
+            const grassFile = natureGrass[Math.floor(Math.random() * natureGrass.length)];
+            const grassPath = AssetsLibrary.get('NATURE', grassFile);
+
+            loadModel(grassPath).then(grass => {
+                grass.position.set(tx, 0, tz);
+                const s = 10 + Math.random() * 5;
+                grass.scale.set(s, s, s);
+                grass.rotation.y = Math.random() * Math.PI * 2;
+                scene.add(grass);
+            }).catch(err => console.error("Fehler beim Laden des Grases:", err));
         }
 
         // --- ERZWINGE TAGESLICHT FÜR ANALYSE ---
