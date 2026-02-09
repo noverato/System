@@ -12,13 +12,12 @@ const TWITCH_CLIENT_ID = "futhxsgrshkh2h6cqywavg5cous3q0";
 const BROADCASTER_ID = "573773653";
 const REDIRECT_URI = "https://noverato.github.io/System";
 
-let isIdentified = window.isIdentified || false;
-let twitchToken = "", verifiedID = window.verifiedID || "", onlinePlayers = {}, isAdmin = window.isAdmin || false;
-let data = { name: "Held", x: 960, y: 540, lxp: 0, hp: 100, maxHp: 100, stats: { atk: 10, def: 10, currentLevel: 1, className: "Ei" }, inventar: {}, equipment: {}, lxpBuffer: 0 };
-
-// Expose to window for other scripts
-window.data = data;
-window.onlinePlayers = onlinePlayers;
+window.isIdentified = window.isIdentified || false;
+window.verifiedID = window.verifiedID || "";
+window.onlinePlayers = window.onlinePlayers || {};
+window.isAdmin = window.isAdmin || false;
+window.data = window.data || { name: "Held", x: 960, y: 540, lxp: 0, hp: 100, maxHp: 100, stats: { atk: 10, def: 10, currentLevel: 1, className: "Ei" }, inventar: {}, equipment: {}, lxpBuffer: 0 };
+let twitchToken = "";
 
 // --- RENDERING ENGINE ---
 function renderPlayers(players) {
@@ -151,6 +150,7 @@ window.onload = async () => {
                 startForestIfReady();
                 setupPlayerSync();
                 setupEnvHud();
+                setupEventListeners();
             }
         } catch (e) { console.error("Twitch Login Error:", e); }
     } else {
@@ -160,10 +160,129 @@ window.onload = async () => {
             }
             setupPlayerSync();
         }
+        setupEventListeners();
         console.log("System bereit.");
         updateUI();
     }
 };
+
+function setupEventListeners() {
+    const world = document.getElementById('world');
+    if (world) world.addEventListener('click', handleWorldClick);
+
+    // Globale Event-Delegation für dynamische Inhalte (CSP-konform)
+    document.body.addEventListener('click', (e) => {
+        const target = e.target.closest('[data-action]');
+        if (!target) return;
+
+        const action = target.getAttribute('data-action');
+        const args = target.getAttribute('data-args') ? JSON.parse(target.getAttribute('data-args')) : [];
+
+        console.log("Action triggered:", action, args);
+
+        switch (action) {
+            case 'loginWithTwitch':
+                loginWithTwitch();
+                break;
+            case 'openInventory':
+                if (typeof openInventory === 'function') openInventory();
+                break;
+            case 'openAdminPanel':
+                if (typeof openAdminPanel === 'function') openAdminPanel();
+                break;
+            case 'closeGeneralModal':
+                closeGeneralModal();
+                break;
+            case 'openBuilding':
+                if (typeof openBuilding === 'function') openBuilding(args[0]);
+                break;
+            case 'adminAction':
+                if (window.AdminConsole && typeof window.AdminConsole[args[0]] === 'function') {
+                    window.AdminConsole[args[0]](...args.slice(1));
+                }
+                break;
+            case 'mineAction':
+                if (typeof window.mineAction === 'function') window.mineAction(...args);
+                break;
+            case 'renderShopTab':
+                if (typeof window.renderShopTab === 'function') window.renderShopTab(...args);
+                break;
+            case 'renderSellTab':
+                if (typeof window.renderSellTab === 'function') window.renderSellTab(...args);
+                break;
+            case 'buyItem':
+                if (typeof window.buyItem === 'function') window.buyItem(...args);
+                break;
+            case 'sellItem':
+                if (typeof window.sellItem === 'function') window.sellItem(...args);
+                break;
+            case 'chooseClass':
+                if (typeof window.chooseClass === 'function') window.chooseClass(...args);
+                break;
+            case 'choosePath':
+                if (typeof window.choosePath === 'function') window.choosePath(...args);
+                break;
+            case 'evolveTo':
+                if (typeof window.evolveTo === 'function') window.evolveTo(...args);
+                break;
+            case 'executeCombatAction':
+                if (typeof window.executeCombatAction === 'function') window.executeCombatAction(...args);
+                break;
+            case 'escapeCombat':
+                if (typeof window.escapeCombat === 'function') window.escapeCombat(...args);
+                break;
+            case 'battleAction':
+                if (window.BattleEngine && typeof window.BattleEngine[args[0]] === 'function') {
+                    window.BattleEngine[args[0]](...args.slice(1));
+                }
+                break;
+            case 'pvpAction':
+                if (window.PvPEvents && typeof window.PvPEvents[args[0]] === 'function') {
+                    window.PvPEvents[args[0]](...args.slice(1));
+                }
+                break;
+            case 'craftingAction':
+                if (window.CraftingUI && typeof window.CraftingUI[args[0]] === 'function') {
+                    window.CraftingUI[args[0]](...args.slice(1));
+                }
+                break;
+            case 'arenaAction':
+                if (window.Arena && typeof window.Arena[args[0]] === 'function') {
+                    window.Arena[args[0]](...args.slice(1));
+                }
+                break;
+            case 'closeParent':
+                if (target.parentElement) target.parentElement.style.display = 'none';
+                break;
+            case 'closeChat':
+                const houseOverlay = document.getElementById('houseOverlay');
+                if (houseOverlay) houseOverlay.style.display = 'none';
+                break;
+        }
+    });
+
+    // Spezielle Listener für statische Elemente (falls nötig)
+    const loginBtn = document.getElementById('loginBtn');
+    if (loginBtn) loginBtn.addEventListener('click', loginWithTwitch);
+
+    const inventoryBtn = document.getElementById('inventoryBtn');
+    if (inventoryBtn) inventoryBtn.addEventListener('click', () => {
+        if (typeof openInventory === 'function') openInventory();
+    });
+
+    const adminPanelBtn = document.getElementById('adminPanelBtn');
+    if (adminPanelBtn) adminPanelBtn.addEventListener('click', () => {
+        if (typeof openAdminPanel === 'function') openAdminPanel();
+    });
+
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    if (closeModalBtn) closeModalBtn.addEventListener('click', closeGeneralModal);
+
+    const fpAdmin = document.getElementById('fpAdmin');
+    if (fpAdmin) fpAdmin.addEventListener('click', () => {
+        if (typeof openAdminPanel === 'function') openAdminPanel();
+    });
+}
 
 function setupPlayerSync() {
     if (!window.db) return;
