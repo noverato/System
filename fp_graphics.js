@@ -333,6 +333,8 @@
         const leavesTex = loadTex(AssetsLibrary.get('TERRAIN', 'LEAVES')); 
         const flowersTex = loadTex(AssetsLibrary.get('TERRAIN', 'FLOWERS'));
 
+        console.log("🎨 Terrain-Texturen geladen:", { grass: grassTex.image?.src, stone: stoneTex.image?.src });
+
         // Custom Shader Injection für Displacement und Biome-Farben
         clipmapMaterial.onBeforeCompile = (shader) => {
             shader.uniforms.heightMap = { value: null };
@@ -669,20 +671,37 @@
         clipmapGroup.add(clipmapMesh);
 
         // --- GLOBAL WATER SURFACE ---
-        const waterGeo = new THREE.CircleGeometry(CLIPMAP_RADIUS, 32);
-        const waterMat = new THREE.MeshStandardMaterial({
-            color: PALETTE.water,
-            transparent: true,
-            opacity: 0.6,
-            roughness: 0.1,
-            metalness: 0.5,
-            side: THREE.DoubleSide
+        const waterPath = AssetsLibrary.get('TERRAIN', 'OCEAN');
+        loadModel(waterPath).then(waterModel => {
+            globalWater = waterModel;
+            globalWater.position.y = 2.0; // Muss mit waterLevel im Shader übereinstimmen
+            
+            // Culling auf alle Meshes im Modell anwenden
+            globalWater.traverse(child => {
+                if (child.isMesh) {
+                    applyWorldCulling(child.material);
+                }
+            });
+            
+            clipmapGroup.add(globalWater);
+            console.log("🌊 Ozean-Modell geladen:", waterPath);
+        }).catch(err => {
+            console.warn("Konnte ocean.glb nicht laden, nutze Fallback-Plane:", err);
+            const waterGeo = new THREE.CircleGeometry(CLIPMAP_RADIUS, 32);
+            const waterMat = new THREE.MeshStandardMaterial({
+                color: PALETTE.water,
+                transparent: true,
+                opacity: 0.6,
+                roughness: 0.1,
+                metalness: 0.5,
+                side: THREE.DoubleSide
+            });
+            globalWater = new THREE.Mesh(waterGeo, waterMat);
+            globalWater.rotation.x = -Math.PI / 2;
+            globalWater.position.y = 2.0;
+            applyWorldCulling(globalWater.material);
+            clipmapGroup.add(globalWater);
         });
-        globalWater = new THREE.Mesh(waterGeo, waterMat);
-        globalWater.rotation.x = -Math.PI / 2;
-        globalWater.position.y = 2.0; // Muss mit waterLevel im Shader übereinstimmen
-        applyWorldCulling(globalWater); // Nutzt das gleiche Culling-Prinzip wie das Terrain
-        clipmapGroup.add(globalWater);
 
         // Backup Plane
         const backGeo = new THREE.CircleGeometry(CLIPMAP_RADIUS + 10, 32);
