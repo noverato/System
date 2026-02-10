@@ -1869,14 +1869,15 @@
                 } else {
                     const rand = rng();
                     if (rand > 0.4) {
-                        // Hauptgras (Grass.glb)
+                        // Hauptgras (Terrain_Grass.glb aus /Terrain/)
                         assetPath = AssetsLibrary.get('TERRAIN', 'GRASS');
                         scale = 1.0 + rng() * 0.5;
                     } else if (rand > 0.1) {
-                        // Grass_Large oder Grass_Small
+                        // Grass_Large oder Grass_Small (jetzt aus /baeume/glTF/)
+                        const grassList = AssetsLibrary.get('TREES', 'GRASS');
                         assetPath = rng() > 0.5 
-                            ? AssetsLibrary.get('TERRAIN', 'GRASS_LARGE') 
-                            : AssetsLibrary.get('TERRAIN', 'GRASS_SMALL');
+                            ? AssetsLibrary.encode('baeume/glTF/' + grassList[0])
+                            : AssetsLibrary.encode('baeume/glTF/' + grassList[1]);
                         scale = 0.8 + rng() * 0.4;
                     } else {
                         // Blumen reaktivieren
