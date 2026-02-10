@@ -676,6 +676,9 @@
         const waterPath = AssetsLibrary.get('TERRAIN', 'OCEAN');
         loadModel(waterPath).then(waterModel => {
             globalWater = waterModel;
+            // Skalierung auf die gesamte Map-Sichtweite (CLIPMAP_RADIUS * 2)
+            // Wir nehmen 10000x10000, damit es wie ein Ozean unter der gesamten Map liegt
+            globalWater.scale.set(10000, 1, 10000); 
             globalWater.position.y = 2.0; // Muss mit waterLevel im Shader übereinstimmen
             
             // Culling auf alle Meshes im Modell anwenden (Ocean ist Terrain, also isTerrain=true)
@@ -702,7 +705,7 @@
             });
             
             clipmapGroup.add(globalWater);
-            console.log("🌊 Ozean-Modell geladen:", waterPath);
+            console.log("🌊 Globales Ozean-Modell geladen (Skalierung 10000):", waterPath);
         }).catch(err => {
             console.warn("Konnte ocean.glb nicht laden, nutze Fallback-Plane:", err);
             const waterGeo = new THREE.CircleGeometry(CLIPMAP_RADIUS, 32);
@@ -740,9 +743,9 @@
         const terrainBasePath = AssetsLibrary.get('TERRAIN', 'GRASS_MODEL');
         loadModel(terrainBasePath).then(terrainBase => {
             // Begrenzung auf das Wald-Biom im Zentrum (0,0)
-            // Wir skalieren es nicht mehr auf 10000, sondern auf eine moderate Wald-Größe (z.B. 500m)
-            terrainBase.scale.set(500, 1, 500); 
-            terrainBase.position.set(0, 2.1, 0); // Leicht über dem Wasser (2.0) und Boden positionieren
+            // Wir skalieren es etwas größer (2000m), damit es als Wald-Basis auffällt
+            terrainBase.scale.set(2000, 1, 2000); 
+            terrainBase.position.set(0, 3.5, 0); // Höher positionieren, um über der Clipmap sichtbar zu sein
             
             terrainBase.traverse(child => {
                 if (child.isMesh) {
@@ -754,8 +757,8 @@
                     child.layers.set(2); 
                     
                     if (child.material) {
-                        child.material.color.set(0x228B22); 
-                        // Wir lassen die Textur aktiv, falls vorhanden, für den Wald-Look
+                        // Wir nutzen eine etwas dunklere Farbe für das Wald-Terrain, um es abzuheben
+                        child.material.color.set(0x1a4a1a); 
                         child.material.transparent = true;
                         child.material.opacity = 1.0;
                     }
@@ -763,7 +766,7 @@
             });
             
             scene.add(terrainBase);
-            console.log("🌲 Wald-Terrain-Asset geladen (Zentrum):", terrainBasePath);
+            console.log("🌲 Wald-Terrain-Asset geladen (Zentrum, Scale 2000, Y=3.5):", terrainBasePath);
         }).catch(err => {
             console.warn("Konnte Terrain-Basis nicht laden:", err);
         });
