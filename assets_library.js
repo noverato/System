@@ -245,7 +245,7 @@ const AssetsLibrary = (() => {
         TERRAIN: {
             PATH: 'Terrain/',
             MODELS: {
-                GRASS_MODEL: 'Grass.glb',
+                GRASS_MODEL: 'Terrain_Grass.glb',
                 OCEAN: 'ocean.glb'
             },
             TEXTURE_PATH: 'Nature/Textures/',
