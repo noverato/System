@@ -742,9 +742,9 @@
         // Das Terrain_Grass.glb wird nur für das Wald-Biom (Zentrum) geladen.
         const terrainBasePath = AssetsLibrary.get('TERRAIN', 'GRASS_MODEL');
         loadModel(terrainBasePath).then(terrainBase => {
-            // Wir skalieren es massiv (10000m), damit es als Basis dient
-            terrainBase.scale.set(10000, 1, 10000); 
-            terrainBase.position.set(0, 2.5, 0); // Leicht über der Wasserlinie (2.0)
+            // Skalierung auf 1.0 (Originalgröße des Assets für das Hauptdorf)
+            terrainBase.scale.set(1.0, 1.0, 1.0); 
+            terrainBase.position.set(0, 2.5, 0); // Zentral im Hauptdorf positioniert
             
             terrainBase.traverse(child => {
                 if (child.isMesh) {
@@ -752,20 +752,19 @@
                     child.receiveShadow = true;
                     child.frustumCulled = false;
                     
-                    // Standard-Layer 0, damit es für alle Kameras (inkl. Admin) sichtbar ist
+                    // Standard-Layer 0, damit es für alle Kameras sichtbar ist
                     child.layers.set(0); 
                     
                     if (child.material) {
                         child.material.color.set(0x228B22); // Dunkelgrün #228B22
                         child.material.transparent = false;
                         child.material.depthWrite = true;
-                        child.material.depthTest = true;
                     }
                 }
             });
             
             scene.add(terrainBase);
-            console.log("🌲 Terrain-Asset geladen (Layer 0, Scale 10000, Y=2.5):", terrainBasePath);
+            console.log("🌲 Hauptdorf-Terrain geladen (Scale 1.0, Y=2.5):", terrainBasePath);
         }).catch(err => {
             console.warn("Konnte Terrain-Basis nicht laden:", err);
         });
