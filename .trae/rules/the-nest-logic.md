@@ -10,8 +10,9 @@
 
 
 ## 2. System-Architektur & Firebase
-* **Firebase Core:** Firestore speichert alle Profile (LXP, EP, Klasse, Pfad, PvP, Inventar).
-* **Realtime-Sync:** Alle Aktionen (Sammeln, Handeln, Evolution) müssen sofort in Firebase gespiegelt werden.
+
+* ** Firebase Core:** Firestore speichert alle Profile ( LXP, EP, Klasse, Pfad, PvP, Inventar, Position ).
+* ** Realtime-Sync:** Alle Aktionen (Sammeln, Handeln, Evolution) müssen sofort in Firebase gespiegelt werden.
 
 ## 3. Wirtschaft & Marktdynamik
 * **LXP Währung:** Basis für alle Transaktionen.
