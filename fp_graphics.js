@@ -615,7 +615,7 @@
                 vec3 hazeColor = mix(vec3(0.1, 0.15, 0.2), vec3(0.8, 0.9, 1.0), smoothstep(0.0, 300.0, h));
                 col = mix(col, hazeColor, smoothstep(100.0, 800.0, h) * 0.25);
                 
-                return col;
+                return clamp(col, 0.0, 1.0);
                 }
             ` + shader.fragmentShader;
 
@@ -625,7 +625,7 @@
                 diffuseColor.rgb = getBiomeColor(vWorldPos, vHeight, vNormal);
                 
                 // HELLIGKEITS-ANPASSUNG FÜR SICHTBARKEIT
-                diffuseColor.rgb *= 1.8; // Erhöht für bessere Sichtbarkeit der Strukturen
+                diffuseColor.rgb *= 1.2; // Moderater Boost, um Überstrahlung zu vermeiden
                 
             // --- KONTRAST-BOOST FÜR BERGE ---
                 if (vHeight > 40.0) {
@@ -1839,10 +1839,9 @@
                     const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
                     if (!instancedData.has(finalPath)) instancedData.set(finalPath, []);
                     
-                    // OFFSET FIX: Wir heben das Gras um 0.05 an, um Z-Fighting mit dem Boden zu vermeiden.
-                    // Der ursprüngliche Offset von -0.1 war zu tief.
+                    // OFFSET FIX: Wir heben das Gras deutlich an (+0.3), um sicher über dem Boden zu sein.
                     instancedData.get(finalPath).push({
-                        pos: [sx, sh + 0.05, sz],
+                        pos: [sx, sh + 0.3, sz],
                         scale: scale,
                         rot: rng() * Math.PI * 2
                     });
@@ -2119,9 +2118,9 @@
                     const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
                     if (!instancedData.has(finalPath)) instancedData.set(finalPath, []);
                     
-                    // OFFSET FIX: Wir heben das Clutter (Steine/Gras) leicht an (0.05), um Z-Fighting zu vermeiden.
+                    // OFFSET FIX: Wir heben das Clutter (Steine/Gras) deutlich an (+0.3).
                     instancedData.get(finalPath).push({
-                        pos: [sx, sh + 0.05, sz],
+                        pos: [sx, sh + 0.3, sz],
                         scale: scale,
                         rot: rng() * Math.PI * 2
                     });
