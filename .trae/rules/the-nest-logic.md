@@ -1,11 +1,13 @@
 # Project Rules: The Nest (Ultimate Full-System Logic)
 
 ## 1. Zugriff & Sicherheit (Twitch, Bot & Handy)
-* **Twitch Auto-Identifikation:** Zwingender Login-Check via Twitch-API für jeden Zuschauer.
-* **streamer.bot Abhängigkeit:** Die Welt ist NUR betretbar, wenn der Stream aktiv ist und streamer.bot das Signal "Online" gibt. Kein Offline-Zugriff für Spieler möglich.
-* **Handy-Validierung:** Device-Aware UI: Das System muss aktiv zwischen Desktop- und Mobile-Usern unterscheiden (User-Agent Sniffing oder Viewport-Check)Handy-Modus: Automatische Aktivierung der Touch-Steuerung, größere Buttons und ein kompaktes HUD, das den kleinen Bildschirm nicht verdeckt.
-Desktop-Modus: Volle Tastatur/Maus-Unterstützung und detaillierteres Interface.
-Validierung: Verhindere, dass Mobile-Elemente (wie ein virtueller Joystick) auf dem Desktop erscheinen, es sei denn, ein Touch-Monitor wird erkannt
+* ** Twitch Auto-Identifikation:** Zwingender Login-Check via Twitch-API für jeden Zuschauer.
+* ** streamer.bot Abhängigkeit:** Die Welt ist NUR betretbar, wenn der Stream aktiv ist und streamer.bot das Signal "Online" gibt. Kein Offline-Zugriff für Spieler möglich.
+* ** Handy-Validierung:** Device-Aware UI: Das System muss aktiv zwischen Desktop- und Mobile-Usern unterscheiden (User-Agent Sniffing oder Viewport-Check).
+* ** Handy-Modus: Automatische Aktivierung der Touch-Steuerung, größere Buttons und ein kompaktes HUD, das den kleinen Bildschirm nicht verdeckt.
+* ** Desktop-Modus: Volle Tastatur/Maus-Unterstützung und detaillierteres Interface.
+* ** Validierung: Verhindere, dass Mobile-Elemente (wie ein virtueller Joystick) auf dem Desktop erscheinen, es sei denn, ein Touch-Monitor wird erkannt.
+
 
 ## 2. System-Architektur & Firebase
 * **Firebase Core:** Firestore speichert alle Profile (LXP, EP, Klasse, Pfad, PvP, Inventar).
@@ -29,7 +31,9 @@ Validierung: Verhindere, dass Mobile-Elemente (wie ein virtueller Joystick) auf 
 * **Klassen:** Waldläufer, Natur-Krieger, Druide, Hüter, Sucher, Einsiedler, Wächter.
 * **Pfad-Wahl:** Jede Klasse muss sich für Licht oder Dunkel entscheiden (beeinflusst Skills & 3D-Modelle).
 
-## 7. Welt-Constraints (Grafik)
-* **Terrain:** 86 km², prozedurale Berge/Täler (Noise-Logik). NIEMALS flach.
-* **Asset-Placement:** Raycasting-Pflicht für alle Objekte auf dem Mesh.
-* **Performance:** Frustum Culling (Glocke) aktiv.
+## 7. Welt-Simulation & AOI-System (Master Rule):
+* **AOI-Radius: Alle Assets nutzen das Per-Player Simulation Bubble System (AOI).
+* **Simulation State: Nur innerhalb des AOI-Radius sind AI, Physik und Ticks aktiv.
+* **Dormant State: Assets außerhalb des Radius bleiben sichtbar, werden aber in den Dormant-Modus versetzt (0% CPU-Last, keine Logik).
+* **Raycasting-Pflicht: Bleibt bestehen für das initiale Placement, aber erst nach Height-Validation im AOI-Radius (Fix für Unter-der-Erde-Spawn).**
+* ** Spieler können nur im AOI-Radius interagieren.

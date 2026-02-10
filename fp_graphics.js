@@ -10,6 +10,8 @@
     };
 
     const CLIPMAP_RADIUS = 2000; // Größere Sichtweite für 8000x8000 Map
+    const AOI_RADIUS = 500;      // Aktiver Simulationsradius (Bubble)
+    const DORMANT_RADIUS = 600;  // Radius, ab dem Assets komplett einfrieren
     const CLIPMAP_SEGMENTS = 128; // Reduziert für Stabilität
     
     const DECORATION_CELL_SIZE = 256; 
@@ -35,19 +37,22 @@
             mat.onBeforeCompile = (shader) => {
                 shader.uniforms.playerPos = worldCullingUniforms.playerPos;
                 shader.uniforms.clipRadius = worldCullingUniforms.clipRadius;
+                shader.uniforms.aoiRadius = { value: AOI_RADIUS };
                 
                 shader.vertexShader = `
                     uniform vec2 playerPos;
                     uniform float clipRadius;
+                    uniform float aoiRadius;
                     varying float vDist;
+                    varying float vAOI;
                 ` + shader.vertexShader;
                 
                 shader.vertexShader = shader.vertexShader.replace(
                     '#include <worldpos_vertex>',
                     `
                     #include <worldpos_vertex>
-                    // worldPosition wird von Three.js in worldpos_vertex definiert
                     vDist = length(worldPosition.xz - playerPos);
+                    vAOI = step(vDist, aoiRadius);
                     `
                 );
                 
@@ -64,13 +69,19 @@
                 shader.fragmentShader = `
                     uniform float clipRadius;
                     varying float vDist;
+                    varying float vAOI;
                 ` + shader.fragmentShader;
                 
                 shader.fragmentShader = shader.fragmentShader.replace(
                     '#include <dithering_fragment>',
                     `
                     #include <dithering_fragment>
-                    // if (vDist > clipRadius) discard;
+                    // Visueller Hinweis auf die AOI-Grenze (Dormant-Zone)
+                    // Außerhalb des AOI-Radius wird das Bild minimal entsättigt oder dunkler,
+                    // um den "statischen" Charakter der dormant Assets zu unterstreichen.
+                    if (vDist > aoiRadius) {
+                        gl_FragColor.rgb *= 0.85; // Leicht abdunkeln
+                    }
                     `
                 );
             };

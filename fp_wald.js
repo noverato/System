@@ -112,6 +112,29 @@
         }
     }
 
+    function updateCollectibles() {
+        if (!avatar) return;
+        for (const c of collectibles) {
+            const dist = c.position.distanceTo(avatar.position);
+            if (dist > DORMANT_RADIUS) {
+                c.visible = true; // Sichtbar für GPU
+                continue;
+            }
+            // Aktive Effekte für Collectibles (z.B. sanftes Schweben)
+            c.position.y += Math.sin(Date.now() * 0.002) * 0.01;
+        }
+    }
+
+    function updateBuildings() {
+        if (!avatar) return;
+        const buildings = window.FPGraphics ? FPGraphics.villageBuildings : [];
+        for (const b of buildings) {
+            const dist = b.position.distanceTo(avatar.position);
+            // Gebäude außerhalb des Radius als dormant markieren
+            b.userData.isDormant = (dist > DORMANT_RADIUS);
+        }
+    }
+
     const ENEMY_TYPES = {
         DAY: { icon: '🐺', name: 'Waldwolf', speed: 0.1, power: 1 },
         NIGHT: { icon: '👻', name: 'Nachtgeist', speed: 0.15, power: 2 }
@@ -300,8 +323,32 @@
         }
     }
 
+    // --- AOI & DORMANT SETTINGS ---
+    const AOI_RADIUS = 500;
+    const DORMANT_RADIUS = 600;
+    let eiActive = false;
+    let groundValidated = false;
+    // ------------------------------
+
     function updateMonsters() {
         if (!scene || !avatar) return;
+        
+        // --- EI HEIGHT VALIDATION (Spawn Fix) ---
+        if (!groundValidated) {
+            const h = (window.FPGraphics ? FPGraphics.getGPUHeight(avatar.position.x, avatar.position.z, true) : null);
+            if (h !== null) {
+                avatar.position.y = h + 4;
+                targetPos.y = h + 4;
+                currentPos.y = h + 4;
+                groundValidated = true;
+                eiActive = true;
+                console.log("🥚 Ei-Position validiert auf Höhe:", h);
+            } else {
+                return; // Simulation pausieren bis Boden bereit ist
+            }
+        }
+        // ----------------------------------------
+
         const px = avatar.position.x;
         const pz = avatar.position.z;
         const villageSafeZone = 350;
@@ -312,6 +359,14 @@
             const dx = px - m.position.x;
             const dz = pz - m.position.z;
             const dist = Math.hypot(dx, dz);
+
+            // --- AOI CHECK: DORMANT STATE ---
+            if (dist > DORMANT_RADIUS) {
+                m.visible = true; // Sichtbar für GPU (statisches Bild)
+                continue; // Simulation einfrieren (keine Bewegung, keine Ticks)
+            }
+            // --------------------------------
+
             const distToVillage = Math.hypot(m.position.x, m.position.z);
 
             // 0. KRITISCHE SAFE ZONE: Löschen wenn zu nah am Brunnen (0,0)
@@ -907,7 +962,7 @@
             avatar = new THREE.Group();
             window.avatar = avatar;
             avatar.add(sprite);
-            avatar.position.y = 2.0;
+            avatar.position.y = -100; // Unter die Erde, bis Validierung erfolgt
             scene.add(avatar);
             
             // Lokales Namensschild
@@ -922,7 +977,7 @@
             const avatarMat = new THREE.MeshLambertMaterial({ color: 0xbfd5ff });
             avatar = new THREE.Mesh(avatarGeo, avatarMat);
             window.avatar = avatar;
-            avatar.position.y = 2.0;
+            avatar.position.y = -100;
             scene.add(avatar);
 
             // Lokales Namensschild (Fallback)
@@ -945,7 +1000,7 @@
         // Initiale Position setzen
         currentPos.x = targetPos.x = gridX * GRID;
         currentPos.z = targetPos.z = gridY * GRID;
-        currentPos.y = targetPos.y = 2.0; // Avatar spawnt 2 Meter über dem Boden (0.0)
+        currentPos.y = targetPos.y = -100; // Wartet auf Ground-Validation
         
         // Anti-Stuck Check: Wenn wir in einem Gebäude spawnen -> Dorfplatz
         if (checkCollision(currentPos.x, currentPos.z)) {
@@ -1155,6 +1210,23 @@
 
         updateEnvironment();
         
+        // --- AOI & SPAWN VALIDATION ---
+        // Wenn der Boden noch nicht validiert ist, überspringen wir die Physik/Bewegung
+        if (!groundValidated) {
+            // updateMonsters führt die Validierung durch
+            updateMonsters();
+            
+            // Kamera und Terrain trotzdem aktualisieren, damit wir laden
+            applyCamera(delta);
+            if (window.FPGraphics) {
+                FPGraphics.updateClipmap(currentPos.x, currentPos.z, renderer);
+            }
+            if (renderer && scene && camera) {
+                renderer.render(scene, camera);
+            }
+            return;
+        }
+
         // --- PHYSIK & BEWEGUNG ZUERST ---
         if (!(window.FPGraphics && FPGraphics.isInterior)) {
             velocityY += GRAVITY * delta;
@@ -1251,7 +1323,11 @@
             FPGraphics.updateFire(delta, now);
         }
 
+        // --- AOI UPDATES ---
         updateMonsters();
+        updateCollectibles();
+        updateBuildings();
+        
         updateOtherPlayers();
         checkInteractions();
         
