@@ -387,8 +387,9 @@
             shader.vertexShader = shader.vertexShader.replace(
                 '#include <begin_vertex>',
                 `
-                // Wir berechnen die Welt-Position manuell mit meshOffset statt modelMatrix.
-                vec2 worldXZ = position.xy + meshOffset;
+                // Wir berechnen die Welt-Position basierend auf der modelMatrix (Rotation-safe).
+                vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                vec2 worldXZ = worldPosition.xz;
                 
                 // UV für Heightmap (0-1 Bereich) basierend auf dem GPGPU Zentrum (worldOffset)
                 vec2 hUv = (worldXZ - worldOffset) / max(gpuWorldSize, 1.0) + 0.5;
@@ -397,11 +398,12 @@
                 float h = getSmoothHeight(hUv);
                 vHeight = h;
 
-                // Displacement anwenden
-                vec3 transformed = vec3(position.x, position.y, h);
-                
-                // Final Weltposition für Fragment Shader
+                // Displacement anwenden: Wir setzen die Höhe h direkt in die Weltposition
                 vWorldPos = vec3(worldXZ.x, h, worldXZ.y);
+                
+                // Wir setzen die lokale Position so, dass sie nach der Transformation h entspricht.
+                // Da das Mesh -90° X-rotiert ist (PlaneBufferGeometry), ist lokal Z = Welt Y.
+                vec3 transformed = vec3(position.x, position.y, h);
                 
                 // vDist für radiale Effekte
                 vDist = length(worldXZ - playerPos);
@@ -412,10 +414,8 @@
                 '#include <beginnormal_vertex>',
                 `
                 // Normalen-Berechnung (verfeinert für korrekte Beleuchtung)
-                // Wir nutzen hUv aus dem begin_vertex Block (muss also davor oder darin sein)
-                // Da beginnormal_vertex vor begin_vertex kommt, berechnen wir hUv hier nochmal kurz
-                vec2 _worldXZ = position.xy + meshOffset;
-                vec2 _hUv = (_worldXZ - worldOffset) / max(gpuWorldSize, 1.0) + 0.5;
+                vec4 _worldPos = modelMatrix * vec4(position, 1.0);
+                vec2 _hUv = (_worldPos.xz - worldOffset) / max(gpuWorldSize, 1.0) + 0.5;
                 
                 float texelSize = 1.0 / 512.0; 
                 float hL = getSmoothHeight(_hUv - vec2(texelSize, 0.0));
@@ -426,7 +426,7 @@
                 float wStep = gpuWorldSize / 512.0;
                 
                 // Normalen-Vektor in Object Space (Z ist Höhe)
-                // WICHTIG: Die Normalen müssen für MeshStandardMaterial korrekt im Object Space sein
+                // In Object-Space (-90° X-Rot) ist die Z-Achse die Höhe (Y in World).
                 vec3 objectNormal = normalize(vec3(hL - hR, hD - hU, 2.0 * wStep));
                 `
             );
@@ -434,26 +434,14 @@
             shader.vertexShader = shader.vertexShader.replace(
                 '#include <project_vertex>',
                 `
-                // Frustum Culling / Clipping Logik
-                // Wir werfen Vertices außerhalb des Radius schon hier weg, falls nötig
-                // WICHTIG: Wir nutzen transformed (mit h), damit Three.js die richtige Position projiziert
-                vec4 mvPosition = viewMatrix * vec4(transformed + vec3(meshOffset.x, meshOffset.y, 0.0), 1.0);
-                
-                // Da das Mesh per clipmapGroup.position (px, 0, pz) bewegt wird,
-                // und meshOffset ebenfalls (px, pz) ist, würde das Mesh doppelt verschoben.
-                // RICHTIGER ANSATZ: Das Mesh bleibt lokal bei (0,0,0) und die Verschiebung
-                // erfolgt NUR über die modelViewMatrix von Three.js.
-                
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
+                // Wir nutzen transformed (mit h), damit Three.js die richtige Position projiziert
+                vec4 mvPosition = viewMatrix * modelMatrix * vec4(transformed, 1.0);
+                gl_Position = projectionMatrix * mvPosition;
 
                 // PERFORMANCE-OPTIMIERUNG: Distanz-Culling im Vertex Shader
-                // Wir nutzen gl_Position.w * 2.0, um den Vertex hinter die Far Plane zu schieben.
-                // Erhöhter Puffer (+150), um Pop-In am Horizont zu minimieren.
-                /*
                 if (vDist > clipRadius + 150.0) {
                     gl_Position.z = gl_Position.w * 2.0; 
                 }
-                */
                 `
             );
 
@@ -798,9 +786,13 @@
         const h = (h00 * (1 - tx) + h10 * tx) * (1 - tz) +
                   (h01 * (1 - tx) + h11 * tx) * tz;
         
-        // Fallback wenn GPGPU noch keine Daten hat
-        if (h === 0 && Math.abs(x) > 10 && Math.abs(z) > 10) {
-            return noFallback ? null : getCPUHeight(x, z);
+        // Fallback wenn GPGPU noch keine Daten hat oder noch initialisiert
+        // h === 0 ist am Anfang oft ein Zeichen für "noch nicht bereit"
+        if (h === 0) {
+            // Wenn wir am Startpunkt (0,0) sind, wissen wir, dass die Höhe eigentlich ~15 sein sollte.
+            // Wenn wir 0 erhalten, ist die GPGPU also noch nicht bereit.
+            if (noFallback) return null;
+            return getCPUHeight(x, z);
         }
         
         return h;
@@ -1285,11 +1277,14 @@
         // 3. Start point (0,0) override
         if (distToCenter < 1500.0) {
             const t = Math.max(0, Math.min(1, (distToCenter - 500.0) / (1500.0 - 500.0)));
-            const startH = 10.0; // Start auf 10m Höhe
+            const startH = 15.0; // Start auf 15m Höhe (synchron mit GPGPU Shader)
             h = h * t + startH * (1 - t);
         }
 
-        return h * villageFactor;
+        // 4. Village factor should only flatten the noise, not force it to 0 height
+        // We apply it after the start point override but ensure it doesn't kill the base height
+        const baseH = (distToCenter < 1500.0) ? 15.0 : 0.0;
+        return baseH + (h - baseH) * villageFactor;
     }
 
     function getBiomeData(x, z, h) {

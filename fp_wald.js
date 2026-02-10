@@ -335,17 +335,16 @@
         
         // --- EI HEIGHT VALIDATION (Spawn Fix) ---
         if (!groundValidated) {
-            const h = (window.FPGraphics ? FPGraphics.getGPUHeight(avatar.position.x, avatar.position.z, true) : null);
-            if (h !== null) {
-                avatar.position.y = h + 4;
-                targetPos.y = h + 4;
-                currentPos.y = h + 4;
-                groundValidated = true;
-                eiActive = true;
-                console.log("🥚 Ei-Position validiert auf Höhe:", h);
-            } else {
-                return; // Simulation pausieren bis Boden bereit ist
-            }
+            // Wir nutzen getGPUHeight mit true für forceFallback, um sofort eine Höhe zu bekommen
+            const h = (window.FPGraphics ? FPGraphics.getGPUHeight(avatar.position.x, avatar.position.z, true) : 0);
+            
+            // h ist 0 nur wenn FPGraphics fehlt, sonst liefert forceFallback mindestens 15.0 (CPU Sync)
+            avatar.position.y = h + 4;
+            targetPos.y = h + 4;
+            currentPos.y = h + 4;
+            groundValidated = true;
+            eiActive = true;
+            console.log("🥚 Ei-Position validiert auf Höhe:", h);
         }
         // ----------------------------------------
 
@@ -1213,14 +1212,17 @@
         // --- AOI & SPAWN VALIDATION ---
         // Wenn der Boden noch nicht validiert ist, überspringen wir die Physik/Bewegung
         if (!groundValidated) {
-            // updateMonsters führt die Validierung durch
-            updateMonsters();
-            
-            // Kamera und Terrain trotzdem aktualisieren, damit wir laden
-            applyCamera(delta);
+            // Zuerst Clipmap aktualisieren, damit GPGPU Daten für die Validierung bereitstellt
             if (window.FPGraphics) {
                 FPGraphics.updateClipmap(currentPos.x, currentPos.z, renderer);
             }
+
+            // Jetzt Validierung durchführen
+            updateMonsters();
+            
+            // Kamera aktualisieren
+            applyCamera(delta);
+
             if (renderer && scene && camera) {
                 renderer.render(scene, camera);
             }
@@ -1232,20 +1234,18 @@
             velocityY += GRAVITY * delta;
             targetPos.y += velocityY * delta;
             
-            // PHYSIK: Nutze die reale Terrain-Höhe (GPGPU + Mesh-Raycast Fallback)
+            // PHYSIK: Nutze die reale Terrain-Höhe (GPGPU)
             let groundH = (window.FPGraphics ? FPGraphics.getGPUHeight(targetPos.x, targetPos.z) : 0);
             
-            // --- MESH-KOLLISION VALIDIERUNG ---
-            // Wenn wir ein Mesh haben, nutzen wir Raycasting für absolute Präzision
-            if (collisionRaycaster && window.FPGraphics && FPGraphics.terrainMesh) {
-                // Start etwas über dem Spieler, schieße nach unten
+            // --- INTERIOR-KOLLISION VALIDIERUNG ---
+            // Raycasting nur noch für Gebäude/Innenräume, da Terrain über GPGPU präziser ist
+            if (collisionRaycaster && window.FPGraphics && FPGraphics.isInterior && FPGraphics.currentInteriorMesh) {
                 const rayOrigin = new THREE.Vector3(targetPos.x, targetPos.y + 50, targetPos.z);
                 const rayDir = new THREE.Vector3(0, -1, 0);
                 collisionRaycaster.set(rayOrigin, rayDir);
                 
-                const intersects = collisionRaycaster.intersectObject(FPGraphics.terrainMesh);
+                const intersects = collisionRaycaster.intersectObject(FPGraphics.currentInteriorMesh);
                 if (intersects.length > 0) {
-                    // Wir nehmen den höchsten Punkt, falls es mehrere gibt
                     groundH = intersects[0].point.y;
                 }
             }
