@@ -685,12 +685,17 @@
                     
                     // WASSER-TRANSPARENZ & FARBE ERZWINGEN (Fix für Weiß-Problem)
                     if (child.material) {
-                        child.material.transparent = true;
-                        child.material.opacity = 0.7;
-                        child.material.color.set(0x4fa3e1); // Schönes Blau
-                        child.material.roughness = 0.1;
-                        child.material.metalness = 0.5;
-                        child.material.depthWrite = false; // Verhindert Z-Buffer Probleme bei Transparenz
+                        // Wir ersetzen das Material durch ein MeshBasicMaterial, um Licht-Überstrahlung zu vermeiden
+                        const oldMat = child.material;
+                        child.material = new THREE.MeshBasicMaterial({
+                            color: 0x4fa3e1,
+                            transparent: true,
+                            opacity: 0.6,
+                            side: THREE.DoubleSide,
+                            depthWrite: false,
+                            blending: THREE.NormalBlending
+                        });
+                        oldMat.dispose();
                     }
                 }
             });
@@ -737,13 +742,20 @@
             // 86km2 Map entspricht ca. 9273 units Seitenlänge (sqrt(86,000,000))
             // Wenn das Modell 1x1m groß ist, wäre 9273 passend. Wir nehmen 10000 zur Sicherheit.
             terrainBase.scale.set(10000, 1, 10000); 
-            terrainBase.position.set(0, 0, 0); 
+            terrainBase.position.set(0, -1.0, 0); // Deutlicher absenken, um Überlagerung mit Clipmap zu vermeiden
             
             terrainBase.traverse(child => {
                 if (child.isMesh) {
                     applyWorldCulling(child.material, true); // isTerrain = true -> AOI Ausnahme
                     child.receiveShadow = true;
-                    child.position.y = -0.5; // Leicht absenken, um Z-Fighting mit dem Clipmap-Terrain zu minimieren
+                    child.frustumCulled = false;
+                    child.layers.enable(0); // Sicherstellen, dass Layer 0 aktiv ist
+                    
+                    // Sicherstellen, dass die Basis nicht weiß reflektiert
+                    if (child.material) {
+                        child.material.color.set(0x228B22); // Dunkelgrün Basis
+                        if (child.material.map) child.material.map = null; // Textur entfernen, falls fehlerhaft (weiß)
+                    }
                 }
             });
             
@@ -1876,9 +1888,9 @@
                     const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
                     if (!instancedData.has(finalPath)) instancedData.set(finalPath, []);
                     
-                    // OFFSET FIX: Wir heben das Gras deutlich an (+0.3), um sicher über dem Boden zu sein.
+                    // OFFSET FIX: Wir heben das Gras deutlich an (+0.5), um sicher über dem Boden zu sein.
                     instancedData.get(finalPath).push({
-                        pos: [sx, sh + 0.3, sz],
+                        pos: [sx, sh + 0.5, sz],
                         scale: scale,
                         rot: rng() * Math.PI * 2
                     });
