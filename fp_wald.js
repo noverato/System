@@ -229,13 +229,28 @@
     const animFSM = new AnimationFSM();
 
     function ensureThree() {
-        if (window.THREE) return Promise.resolve(true);
+        console.log("[FPWald] Überprüfe Three.js Verfügbarkeit...");
+        if (window.THREE && window.THREE.GLTFLoader && window.THREE.GPUComputationRenderer) {
+            console.log("[FPWald] Three.js und Plugins bereits geladen.");
+            return Promise.resolve(true);
+        }
         return new Promise(resolve => {
-            const el = document.createElement('script');
-            el.src = 'https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js';
-            el.onload = () => resolve(true);
-            el.onerror = () => resolve(false);
-            document.head.appendChild(el);
+            console.log("[FPWald] Warte auf Three.js Plugins...");
+            const timeout = setTimeout(() => {
+                console.error("[FPWald] Timeout beim Laden von Three.js Plugins!");
+                resolve(false);
+            }, 10000);
+
+            const check = () => {
+                if (window.THREE && window.THREE.GLTFLoader && window.THREE.GPUComputationRenderer) {
+                    clearTimeout(timeout);
+                    console.log("[FPWald] Three.js Plugins geladen.");
+                    resolve(true);
+                } else {
+                    setTimeout(check, 100);
+                }
+            };
+            check();
         });
     }
     function rndSeed(s) {
@@ -331,10 +346,14 @@
     // ------------------------------
 
     function updateMonsters() {
-        if (!scene || !avatar) return;
+        if (!scene || !avatar) {
+            console.warn("[FPWald] updateMonsters: Szene oder Avatar fehlt.", { scene: !!scene, avatar: !!avatar });
+            return;
+        }
         
         // --- EI HEIGHT VALIDATION (Spawn Fix) ---
         if (!groundValidated) {
+            console.log("[FPWald] Starte initiale Höhen-Validierung...");
             // Wir nutzen getGPUHeight, um die initiale Höhe zu bestimmen.
             // Falls GPGPU noch nicht bereit ist, wird automatisch die CPU-Höhe (15m am Start) genommen.
             const h = (window.FPGraphics ? FPGraphics.getGPUHeight(avatar.position.x, avatar.position.z) : 0);
@@ -561,4 +580,1221 @@
             }
         }
     }
+
+    function initAdminUI() {
+        // Götter-Menü Button hinzufügen
+        const overlordBtn = document.createElement('button');
+        overlordBtn.className = 'btn-action';
+        overlordBtn.style.position = 'absolute';
+        overlordBtn.style.top = '80px';
+        overlordBtn.style.left = '20px';
+        overlordBtn.style.background = 'linear-gradient(135deg, #ff0000, #8b0000)';
+        overlordBtn.style.zIndex = '1000';
+        overlordBtn.innerText = '🛠 GÖTTER-MENÜ';
+        overlordBtn.onclick = () => {
+            if (typeof openAdminPanel === 'function') {
+                const overlay = document.getElementById('fpInventoryOverlay');
+                if (overlay) {
+                    overlay.innerHTML = '<h2 style="color:red; border-bottom:2px solid red;">Götter-Menü (Overlord)</h2><div id="adminContent"></div><button class="btn-action" style="margin-top:20px; width:100%;" data-action="closeParent">Schließen</button>';
+                    overlay.style.display = 'block';
+                    const fakeModalLeft = document.getElementById('adminContent');
+                    const realModalLeft = document.getElementById('modalLeft');
+                    if (realModalLeft) {
+                        const observer = new MutationObserver(() => {
+                            if (overlay.style.display === 'block') {
+                                fakeModalLeft.innerHTML = realModalLeft.innerHTML;
+                            }
+                        });
+                        observer.observe(realModalLeft, { childList: true, subtree: true });
+                        openAdminPanel();
+                        setTimeout(() => observer.disconnect(), 1000);
+                    }
+                }
+            }
+        };
+        const fpModal = document.getElementById('fpModal');
+        if (fpModal) fpModal.appendChild(overlordBtn);
+    }
+
+    function checkInteractions() {
+        if (!avatar) return;
+        
+        let interactUI = document.getElementById('fpInteractUI');
+        const modal = document.getElementById('fpModal');
+        
+        // Hilfsfunktion zur UI-Erstellung
+        const ensureUI = () => {
+            if (!interactUI && modal) {
+                interactUI = document.createElement('div');
+                interactUI.id = 'fpInteractUI';
+                interactUI.style.cssText = `
+                    position: absolute; bottom: 20%; left: 50%;
+                    transform: translateX(-50%); background: rgba(0,0,0,0.7);
+                    color: white; padding: 15px 25px; border-radius: 10px;
+                    font-family: 'Cinzel', serif; font-size: 20px;
+                    border: 2px solid #ffd700; z-index: 1000;
+                    text-align: center; pointer-events: none;
+                `;
+                modal.appendChild(interactUI);
+            }
+            return interactUI;
+        };
+
+        if (window.FPGraphics && FPGraphics.isInterior) {
+            let pos = { x: 5000, y: 0, z: 5000 }; // Fallback
+            if (FPGraphics.currentInterior === 'inn') pos = { x: 5200, y: 0, z: 5200 };
+            if (FPGraphics.currentInterior === 'market') pos = { x: 5400, y: 0, z: 5400 };
+            
+            const dx = avatar.position.x - pos.x;
+            const dz = avatar.position.z - pos.z;
+            const size = FPGraphics.currentInterior === 'market' ? 60 : 50;
+            
+            // Verlassen-Prompt: Nur in der Nähe der Tür (vorne bei z ≈ size)
+            if (dz > size - 15 && Math.abs(dx) < 15) {
+                const ui = ensureUI();
+                if (ui) {
+                    ui.innerHTML = `Drücke <span style="color:#ffd700">[E]</span> zum VERLASSEN`;
+                    ui.style.display = 'block';
+                }
+                window._lastInteract = () => enterHouse();
+            } else {
+                // NPC-Interaktionen im Interior
+                let nearNPC = false;
+                if (FPGraphics.currentInterior === 'smithy') {
+                    const d = Math.hypot(avatar.position.x - (pos.x + 20), avatar.position.z - (pos.z + 20));
+                    if (d < 25) nearNPC = true;
+                } else if (FPGraphics.currentInterior === 'inn') {
+                    const d = Math.hypot(avatar.position.x - pos.x, avatar.position.z - (pos.z - 30));
+                    if (d < 25) nearNPC = true;
+                } else if (FPGraphics.currentInterior === 'market') {
+                    const d = Math.hypot(avatar.position.x - pos.x, avatar.position.z - (pos.z - 40));
+                    if (d < 25) nearNPC = true;
+                }
+
+                if (nearNPC) {
+                    const ui = ensureUI();
+                    if (ui) {
+                        let actionName = 'REDEN';
+                        if (FPGraphics.currentInterior === 'smithy') actionName = 'SCHMIEDEN';
+                        if (FPGraphics.currentInterior === 'market') actionName = 'HANDELN';
+                        ui.innerHTML = `Drücke <span style="color:#ffd700">[E]</span> zum ${actionName}`;
+                        ui.style.display = 'block';
+                    }
+                    window._lastInteract = () => {
+                        const overlay = document.getElementById('fpMarketOverlay');
+                        if (FPGraphics.currentInterior === 'smithy') {
+                            if (overlay) {
+                                overlay.style.display = 'block';
+                                overlay.innerHTML = '<div id="crafting_container"></div>';
+                                addOverlayCloseButton(overlay);
+                                if (window.CraftingUI) window.CraftingUI.render('crafting_container');
+                            }
+                        } else if (FPGraphics.currentInterior === 'market') {
+                            if (overlay) {
+                                overlay.style.display = 'block';
+                                overlay.innerHTML = '<div id="market_container"></div>';
+                                addOverlayCloseButton(overlay);
+                                if (typeof renderMarketplace === 'function') renderMarketplace('market_container');
+                            }
+                        } else {
+                            const houseOverlay = document.getElementById('houseOverlay');
+                            if (houseOverlay) {
+                                houseOverlay.style.display = 'block';
+                                houseOverlay.innerHTML = `
+                                    <div style="background: rgba(0,0,0,0.9); padding: 30px; border: 3px solid #ffd700; border-radius: 15px; color: white; max-width: 500px; text-align: center;">
+                                        <h2 style="color: #ffd700; margin-top: 0;">Der Wirt</h2>
+                                        <p style="font-size: 1.2em; line-height: 1.6;">"Willkommen im Goldenen Krug, Wanderer! Setz dich, ruh dich aus. Ein Becher Met kostet nur 5 Gold."</p>
+                                        <button id="closeChat" class="btn-action" style="background: #ffd700; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;" data-action="closeChat">Schließen</button>
+                                    </div>
+                                `;
+                                // document.getElementById('closeChat').onclick = ... (Entfernt für CSP)
+                            }
+                        }
+                    };
+                } else if (interactUI) {
+                    interactUI.style.display = 'none';
+                    window._lastInteract = null;
+                }
+            }
+            return;
+        }
+
+        const px = avatar.position.x;
+        const pz = avatar.position.z;
+        
+        // 1. KOMPASS UPDATE
+        updateCompass(px, pz);
+
+        let found = null;
+
+        // Gebäude-Interaktion
+        const buildings = window.FPGraphics ? FPGraphics.villageBuildings : [];
+        buildings.forEach(b => {
+            const d = Math.hypot(b.position.x - px, b.position.z - pz);
+            if (d < 65) found = { name: b.userData.name, callback: b.userData.callback };
+        });
+
+        // Sammelobjekt-Interaktion
+        if (!found) {
+            collectibles.forEach(c => {
+                const d = Math.hypot(c.position.x - px, c.position.z - pz);
+                if (d < 15) found = { name: c.userData.name, callback: () => collectItem(c) };
+            });
+        }
+
+        if (found) {
+            const ui = ensureUI();
+            if (ui) {
+                ui.innerHTML = `Drücke <span style="color:#ffd700">[E]</span> für ${found.name}`;
+                ui.style.display = 'block';
+            }
+            window._lastInteract = found.callback;
+        } else {
+            if (interactUI) {
+                interactUI.style.display = 'none';
+            }
+            window._lastInteract = null;
+        }
+    }
+
+    function updateCompass(px, pz) {
+        let compass = document.getElementById('fpCompassHUD');
+        if (!compass) {
+            compass = document.createElement('div');
+            compass.id = 'fpCompassHUD';
+            compass.style.position = 'absolute';
+            compass.style.top = '20px';
+            compass.style.left = '50%';
+            compass.style.transform = 'translateX(-50%)';
+            compass.style.width = '300px';
+            compass.style.height = '40px';
+            compass.style.background = 'rgba(0,0,0,0.5)';
+            compass.style.border = '1px solid rgba(255,215,0,0.3)';
+            compass.style.borderRadius = '5px';
+            compass.style.overflow = 'hidden';
+            compass.style.display = 'flex';
+            compass.style.alignItems = 'center';
+            compass.style.justifyContent = 'center';
+            compass.style.zIndex = '1000';
+            document.getElementById('fpModal').appendChild(compass);
+        }
+
+        // Winkel zum Dorf (0,0)
+        const angleToVillage = Math.atan2(0 - px, 0 - pz);
+        // Relative Rotation (Heading vs Dorf)
+        let diff = angleToVillage - heading;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+
+        // Himmelsrichtungen basierend auf heading
+        const dirs = ['N', 'O', 'S', 'W'];
+        const hDeg = (heading * 180 / Math.PI) % 360;
+        const dirIdx = Math.round(((hDeg < 0 ? hDeg + 360 : hDeg) / 90)) % 4;
+        const curDir = dirs[dirIdx];
+
+        // Zeichne Kompass-Inhalt
+        const offset = (diff / Math.PI) * 150; // Versatz im 300px breiten Kompass
+        compass.innerHTML = `
+            <div style="position:absolute; width:2px; height:100%; background:gold; left:50%; transform:translateX(-50%); z-index:2; opacity:0.5;"></div>
+            <div style="font-family:monospace; color:white; font-size:18px; letter-spacing:5px;">
+                ${dirs[(dirIdx+3)%4]} . ${curDir} . ${dirs[(dirIdx+1)%4]}
+            </div>
+            <div style="position:absolute; left:calc(50% + ${offset}px); font-size:20px; transition: left 0.2s ease-out;">🏠</div>
+        `;
+    }
+
+    function teleportToVillage() {
+        if (!window.data) return;
+        
+        const now = new Date();
+        const todayStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
+        
+        // Initialisiere Teleport-Stats falls nicht vorhanden
+        if (window.data && !window.data.teleportStats) {
+            window.data.teleportStats = { lastDate: todayStr, count: 0 };
+        }
+        
+        // Gib dem Spieler die Feder, falls er sie noch nicht hat (Auto-Unlock)
+        if (window.data && window.data.inventar) {
+            if (!window.data.inventar["item_nest_feder"]) {
+                window.data.inventar["item_nest_feder"] = 1;
+            }
+        }
+        
+        // Reset bei neuem Tag
+        if (window.data.teleportStats.lastDate !== todayStr) {
+            window.data.teleportStats.lastDate = todayStr;
+            window.data.teleportStats.count = 0;
+        }
+        
+        const count = window.data.teleportStats.count;
+        const COST = 700;
+        
+        if (count < 2) {
+            // Kostenlos
+            alert(`Teleport zum Dorfplatz... (Kostenlos: ${count + 1}/2 heute)`);
+        } else {
+            // Kostet 700 LXP
+            if ((window.data.lxp || 0) < COST) {
+                alert(`Nicht genug LXP! Ein Teleport kostet ${COST} LXP (du hast heute bereits 2 kostenlose Anwendungen genutzt).`);
+                return;
+            }
+            if (!confirm(`Die kostenlosen Teleporte für heute sind aufgebraucht. Möchtest du für ${COST} LXP zum Dorf teleportieren?`)) {
+                return;
+            }
+            window.data.lxp -= COST;
+        }
+        
+        // Teleport durchführen
+        gridX = 0;
+        gridY = 0;
+        targetPos.x = 0;
+        targetPos.z = 0;
+        window.data.teleportStats.count++;
+        
+        if (typeof saveStep === 'function') saveStep();
+        if (typeof updateUI === 'function') updateUI();
+        
+        // Visueller Effekt (optional)
+        if (scene) {
+            const flashGeo = new THREE.SphereGeometry(10, 32, 32);
+            const flashMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.8 });
+            const flash = new THREE.Mesh(flashGeo, flashMat);
+            flash.position.set(0, 8, 0);
+            scene.add(flash);
+            setTimeout(() => {
+                let op = 0.8;
+                const interval = setInterval(() => {
+                    op -= 0.1;
+                    flash.material.opacity = op;
+                    if (op <= 0) {
+                        clearInterval(interval);
+                        scene.remove(flash);
+                    }
+                }, 50);
+            }, 500);
+        }
+    }
+
+    async function mount() {
+        console.log("[FPWald] Starte Mount...");
+        const host = document.getElementById('fpCanvas');
+        if (!host) {
+            console.error("[FPWald] fpCanvas nicht gefunden!");
+            return false;
+        }
+        if (!window.THREE) { 
+            console.error("[FPWald] THREE nicht gefunden in mount!");
+            host.innerHTML = '<div style="color:gold; padding:10px;">Lade 3D-Engine...</div>'; 
+            return false; 
+        }
+        
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x91abbd); // Sanfteres Graublau
+        console.log("[FPWald] Scene initialisiert.");
+        const quality = getQuality();
+        const fogD = quality === 1 ? 0.005 : (quality === 2 ? 0.003 : 0.001);
+        scene.fog = new THREE.FogExp2(0x91abbd, fogD); 
+        fogEnabled = true;
+        const w = host.clientWidth || window.innerWidth || 900;
+        const h = host.clientHeight || window.innerHeight || 600;
+        camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 1500); // Sichtweite erhöht
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        
+        const pr = Math.min(window.devicePixelRatio || 1, quality === 1 ? 1 : 2);
+        renderer.setPixelRatio(pr);
+        renderer.setSize(w, h);
+        host.innerHTML = '';
+        host.appendChild(renderer.domElement);
+        window.addEventListener('resize', onResize);
+        console.log("[FPWald] Renderer bereit.");
+        
+        // Beleuchtung (Sonne)
+        ambientLight = new THREE.AmbientLight(0xffffff, 0.7); // Deutlich heller
+        scene.add(ambientLight);
+        sunLight = new THREE.DirectionalLight(0xfff5e1, 1.2); // Etwas mehr Sonnenlicht
+        sunLight.position.set(150, 250, 100);
+        sunLight.castShadow = true;
+        console.log("[FPWald] Licht initialisiert.");
+        sunLight.shadow.mapSize.width = 4096;
+        sunLight.shadow.mapSize.height = 4096;
+        sunLight.shadow.camera.left = -1000;
+        sunLight.shadow.camera.right = 1000;
+        sunLight.shadow.camera.top = 1000;
+        sunLight.shadow.camera.bottom = -1000;
+        sunLight.shadow.camera.far = 2000;
+        sunLight.shadow.bias = -0.00005; // Etwas weniger Bias für bessere Kontakt-Schatten
+        scene.add(sunLight);
+
+        // KAMERA LAYER INITIALISIEREN
+        // Layer 0: Alles (Standard)
+        // Layer 1: Wasser
+        // Layer 2: Terrain-Assets (Wald)
+        camera.layers.enable(0);
+        camera.layers.enable(1);
+        camera.layers.enable(2);
+
+        // Wolken hinzufügen
+        if (window.FPGraphics) FPGraphics.createClouds(scene);
+        
+        // Gelände & Innenräume
+        if (window.FPGraphics) {
+            FPGraphics.initInteriors(scene);
+        }
+
+        // Nebel für Atmosphäre
+        const RANGE = (window.FPGraphics ? FPGraphics.CLIPMAP_RADIUS * 0.9 : 800);
+        scene.fog = new THREE.Fog(0x87ceeb, 100, RANGE); 
+        
+        if (window.FPGraphics) {
+            console.log("[FPWald] Initialisiere FPGraphics Welt...");
+            await FPGraphics.initWorld(scene, window.EnvironmentManager, (buildingName) => {
+                if (buildingName === "Schmiede") enterHouse('smithy');
+                else if (buildingName === "Wirtshaus") enterHouse('inn');
+                else if (buildingName === "Marktplatz" || buildingName === "Markt") {
+                    const overlay = document.getElementById('fpMarketOverlay');
+                    if (overlay) {
+                        overlay.style.display = 'block';
+                        overlay.innerHTML = '<div id="market_container"></div>';
+                        addOverlayCloseButton(overlay);
+                        if (typeof renderMarketplace === 'function') renderMarketplace('market_container');
+                    }
+                } else if (buildingName === "Steinbruch") {
+                    const overlay = document.getElementById('fpMarketOverlay');
+                    if (overlay) {
+                        overlay.style.display = 'block';
+                        overlay.innerHTML = '<div id="mining_container"></div>';
+                        addOverlayCloseButton(overlay);
+                        if (window.Mining) window.Mining.open('mining_container');
+                    }
+                } else if (buildingName === "Arena") {
+                    if (window.PvPEvents) window.PvPEvents.openMenu();
+                }
+            }, renderer);
+            console.log("[FPWald] FPGraphics Welt bereit.");
+            FPGraphics.initRain(scene);
+        } else {
+            console.error("[FPWald] FPGraphics nicht gefunden!");
+        }
+
+        try {
+            let path = 'Ei.png';
+            if (window.getCreatureSprite && window.data) {
+                path = getCreatureSprite(window.data);
+            }
+            const tex = new THREE.TextureLoader().load(path);
+            tex.magFilter = THREE.NearestFilter;
+            tex.minFilter = THREE.NearestFilter;
+            const sm = new THREE.SpriteMaterial({ map: tex });
+            const sprite = new THREE.Sprite(sm);
+            sprite.scale.set(8, 8, 1);
+            
+            avatar = new THREE.Group();
+            window.avatar = avatar;
+            avatar.add(sprite);
+            avatar.position.y = -100; // Unter die Erde, bis Validierung erfolgt
+            scene.add(avatar);
+            
+            // Lokales Namensschild
+            const twitchName = (window.data && window.data.name) ? window.data.name : 'Gast';
+            avatarNameTag = (window.FPGraphics ? FPGraphics.createNameTag(twitchName) : new THREE.Group());
+            scene.add(avatarNameTag);
+
+            updateAvatarWeapons(); // Waffen initialisieren
+            initAdminUI(); // Admin-UI initialisieren
+        } catch {
+            const avatarGeo = new THREE.BoxGeometry(6, 10, 6);
+            const avatarMat = new THREE.MeshLambertMaterial({ color: 0xbfd5ff });
+            avatar = new THREE.Mesh(avatarGeo, avatarMat);
+            window.avatar = avatar;
+            avatar.position.y = -100;
+            scene.add(avatar);
+
+            // Lokales Namensschild (Fallback)
+            const twitchName = (window.data && window.data.name) ? window.data.name : 'Gast';
+            avatarNameTag = (window.FPGraphics ? FPGraphics.createNameTag(twitchName) : new THREE.Group());
+            scene.add(avatarNameTag);
+        }
+        if (window.data) {
+            gridX = Math.round((window.data.x || 0) / GRID);
+            gridY = Math.round((window.data.y || 0) / GRID);
+            
+            // Wenn der Spieler das erste Mal spawnt oder keine Koordinaten hat -> Dorfplatz (0,0)
+            if (window.data.x === undefined || window.data.y === undefined) {
+                gridX = 0; gridY = 0;
+            }
+        } else {
+            gridX = 0; gridY = 0;
+        }
+
+        // Initiale Position setzen
+        currentPos.x = targetPos.x = gridX * GRID;
+        currentPos.z = targetPos.z = gridY * GRID;
+        currentPos.y = targetPos.y = -100; // Wartet auf Ground-Validation
+        
+        // Anti-Stuck Check: Wenn wir in einem Gebäude spawnen -> Dorfplatz
+        if (checkCollision(currentPos.x, currentPos.z)) {
+            console.warn("Spieler in Gebäude gespawnt! Teleport zum Dorfplatz...");
+            gridX = 0; gridY = 0;
+            currentPos.x = targetPos.x = 0;
+            currentPos.z = targetPos.z = 0;
+        }
+
+        targetHeading = heading = 0;
+
+        applyCamera();
+        startSync(); // Sync starten
+        
+        console.log("[FPWald] Mount abgeschlossen. Avatar Position:", avatar.position);
+        
+        // --- GLOBALE TELEPORT-FUNKTION ---
+        window.teleportTo = (x, z) => {
+            console.log(`🚀 Teleportiere zu: ${x}, ${z}`);
+            
+            // Sofortige Synchronisation aller Positions-Variablen
+            currentPos.x = targetPos.x = x;
+            currentPos.z = targetPos.z = z;
+            currentPos.y = targetPos.y = -100; // Boden-Validierung erzwingen
+            
+            // Ground-Validation zurücksetzen, damit updateMonsters() die Höhe neu berechnet
+            groundValidated = false;
+            
+            if (avatar) {
+                avatar.position.set(x, -100, z);
+            }
+            // Grid-Koordinaten aktualisieren
+            gridX = Math.round(x / GRID);
+            gridY = Math.round(z / GRID);
+            
+            // Sofort Kamera anpassen (ohne Delta für harten Sprung)
+            applyCamera(0);
+            
+            // Save-Step triggern für Persistenz
+            saveStep();
+        };
+
+        window.resetPosition = () => window.teleportTo(0, 0);
+        
+        // Pointer Lock für Maussteuerung
+        const canvas = renderer.domElement;
+        
+        // Raycaster für Gebäude-Klicks
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        canvas.addEventListener('mousedown', (e) => {
+            // Wenn Linksklick und kein Pointer Lock -> Pointer Lock anfordern
+            if (e.button === 0 && document.pointerLockElement !== canvas) {
+                canvas.requestPointerLock();
+                return;
+            }
+
+            // Wenn Linksklick und Pointer Lock aktiv -> Prüfen ob Gebäude getroffen wurde
+            if (e.button === 0 && document.pointerLockElement === canvas) {
+                // In Pointer Lock ist die Maus immer in der Mitte
+                mouse.x = 0;
+                mouse.y = 0;
+                raycaster.setFromCamera(mouse, camera);
+
+                // 1. Prüfen ob Gebäude getroffen wurde
+                const buildings = window.FPGraphics ? FPGraphics.villageBuildings : [];
+                const buildingIntersects = raycaster.intersectObjects(buildings, true);
+                if (buildingIntersects.length > 0) {
+                    let obj = buildingIntersects[0].object;
+                    while (obj.parent && !obj.userData.callback) {
+                        obj = obj.parent;
+                    }
+                    if (obj.userData.callback) {
+                        obj.userData.callback();
+                        document.exitPointerLock();
+                        return;
+                    }
+                }
+
+                // 2. Prüfen ob Sammelobjekt getroffen wurde
+                const collectIntersects = raycaster.intersectObjects(collectibles, true);
+                if (collectIntersects.length > 0) {
+                    const obj = collectIntersects[0].object;
+                    if (obj.userData.isCollectible) {
+                        collectItem(obj);
+                    }
+                }
+
+                // --- ANGRIFFS-LOGIK FÜR FSM ---
+                window.isAttacking = true;
+                setTimeout(() => { window.isAttacking = false; }, 300);
+            }
+        });
+
+        const onMouseMove = (e) => {
+            if (document.pointerLockElement === canvas) {
+                // Positiver movementX soll targetHeading erhöhen (Rechtsdrehung)
+                targetHeading += e.movementX * ROT_SPEED;
+            }
+        };
+        document.addEventListener('mousemove', onMouseMove);
+
+        const onKeyDown = (onKeyDownEvent) => {
+            const key = onKeyDownEvent.key.toLowerCase();
+            keys[key] = true;
+            console.log("Key Down:", key, keys);
+            
+            // Interaktion mit E
+            if (onKeyDownEvent.key.toLowerCase() === 'e') {
+                const houseOverlay = document.getElementById('houseOverlay');
+                if (houseOverlay) {
+                    // Wenn Overlay offen ist, klicke den "BETRETEN" Button falls vorhanden
+                    const enterBtn = houseOverlay.querySelector('#enterBtn');
+                    if (enterBtn) {
+                        enterBtn.click();
+                    } else {
+                        houseOverlay.remove(); // Sonst einfach schließen
+                    }
+                } else if (window._lastInteract) {
+                    window._lastInteract();
+                }
+            }
+            // Inventar mit I
+            if (onKeyDownEvent.key.toLowerCase() === 'i') {
+                const overlay = document.getElementById('fpInventoryOverlay');
+                if (overlay) {
+                    if (overlay.style.display === 'block') {
+                        overlay.style.display = 'none';
+                    } else {
+                        // Öffne das normale Inventar im Overlay
+                        if (typeof renderInventar === 'function') {
+                            overlay.style.display = 'block';
+                            renderInventar('fpInventoryOverlay');
+                            if (typeof addOverlayCloseButton === 'function') {
+                                addOverlayCloseButton(overlay);
+                            }
+                        }
+                    }
+                }
+            }
+            // ESC zum Schließen von Overlays oder dem Wald
+            if (onKeyDownEvent.key === 'Escape') {
+                const invOverlay = document.getElementById('fpInventoryOverlay');
+                const marketOverlay = document.getElementById('fpMarketOverlay');
+                const houseOverlay = document.getElementById('houseOverlay');
+                
+                let closedAny = false;
+                if (marketOverlay && marketOverlay.style.display === 'block') { marketOverlay.style.display = 'none'; closedAny = true; }
+                if (invOverlay && invOverlay.style.display === 'block') { invOverlay.style.display = 'none'; closedAny = true; }
+                if (houseOverlay && houseOverlay.style.display === 'block') { houseOverlay.style.display = 'none'; closedAny = true; }
+                
+                if (closedAny) return;
+                
+                if (typeof close === 'function') close();
+                return;
+            }
+            // Teleport mit T
+            if (onKeyDownEvent.key.toLowerCase() === 't') {
+                if (typeof teleportToVillage === 'function') teleportToVillage();
+            }
+            // JUMP mit Space
+            if (onKeyDownEvent.key === ' ' && isGrounded) {
+                velocityY = JUMP_FORCE;
+                isGrounded = false;
+            }
+        };
+        const onKeyUp = (onKeyUpEvent) => keys[onKeyUpEvent.key.toLowerCase()] = false;
+        window.addEventListener('keydown', onKeyDown);
+        window.addEventListener('keyup', onKeyUp);
+
+    function checkCollision(nx, nz) {
+        if (window.FPGraphics && FPGraphics.isInterior) {
+            let pos = { x: 5000, y: 0, z: 5000 };
+            let size = 50; // Standardhalbe Breite/Tiefe (100x100)
+            
+            if (FPGraphics.currentInterior === 'inn') {
+                pos = { x: 5200, y: 0, z: 5200 };
+            } else if (FPGraphics.currentInterior === 'market') {
+                pos = { x: 5400, y: 0, z: 5400 };
+                size = 60; // 120x120
+            }
+            
+            // Kollision mit den Wänden des Raumes (AABB Check)
+            const dx = nx - pos.x;
+            const dz = nz - pos.z;
+            
+            if (Math.abs(dx) > size - 2 || Math.abs(dz) > size - 2) {
+                return true; 
+            }
+            return false;
+        }
+
+        // --- CLIPMAP KOLLISION (Wasser/Berge/Steigung) ---
+        if (window.FPGraphics) {
+            const h = FPGraphics.getGPUHeight(nx, nz);
+            
+            // Steile Wände (Slope-Check): Wenn der Boden am Zielpunkt deutlich höher ist als die aktuelle Position
+            // Aber nur blockieren, wenn wir uns auf einer ähnlichen Höhe befinden (Grounded-Check)
+            // Schwellenwert auf 35.0 erhöht für flüssigere Bergwanderungen
+            if (isGrounded && (h - targetPos.y > 35.0)) return true;
+            
+            // Wasser-Kollision (Ozean) - Etwas tieferes Wasser erlauben
+            if (h < -30.0) return true; 
+        }
+
+        // Kollision mit Gebäuden (Exterior)
+
+        // Kollision mit Gebäuden (Exterior)
+        const buildings = window.FPGraphics ? FPGraphics.villageBuildings : [];
+        for (const b of buildings) {
+            const d = Math.hypot(b.position.x - nx, b.position.z - nz);
+            const radius = b.userData.radius || 15;
+            if (d < radius) return true;
+        }
+
+        // Kollision mit Sammelobjekten
+        for (const c of collectibles) {
+            const d = Math.hypot(c.position.x - nx, c.position.z - nz);
+            if (d < (c.userData.radius || 4)) return true;
+        }
+        return false;
+    }
+
+    let collisionRaycaster = null;
+    function loop() {
+        anim = requestAnimationFrame(loop);
+        if (!renderer || !scene || !camera) return;
+
+        if (!collisionRaycaster && window.THREE) {
+            collisionRaycaster = new THREE.Raycaster();
+        }
+
+        const now = performance.now();
+        const delta = Math.min((now - lastTime) / 16.6, 3); // Normalisiert auf 60 FPS
+        lastTime = now;
+
+        updateEnvironment();
+        
+        // --- AOI & SPAWN VALIDATION ---
+        // Wenn der Boden noch nicht validiert ist, überspringen wir die Physik/Bewegung
+        if (!groundValidated) {
+            console.log("[FPWald] Boden noch nicht validiert. Prüfe Ground...");
+            // Zuerst Clipmap aktualisieren, damit GPGPU Daten für die Validierung bereitstellt
+            if (window.FPGraphics) {
+                FPGraphics.updateClipmap(currentPos.x, currentPos.z, renderer);
+            } else {
+                console.error("[FPWald] FPGraphics fehlt bei Ground-Validation!");
+            }
+
+            // Jetzt Validierung durchführen
+            updateMonsters();
+            
+            // Kamera aktualisieren
+            applyCamera(delta);
+
+            if (renderer && scene && camera) {
+                renderer.render(scene, camera);
+            } else {
+                console.error("[FPWald] Render-Fehler bei Ground-Validation:", { renderer: !!renderer, scene: !!scene, camera: !!camera });
+            }
+            return;
+        }
+
+        // --- PHYSIK & BEWEGUNG ZUERST ---
+        if (!(window.FPGraphics && FPGraphics.isInterior)) {
+            velocityY += GRAVITY * delta;
+            targetPos.y += velocityY * delta;
+            
+            // PHYSIK: Nutze die reale Terrain-Höhe (GPGPU)
+            let groundH = (window.FPGraphics ? FPGraphics.getGPUHeight(targetPos.x, targetPos.z) : 0);
+            
+            // --- INTERIOR-KOLLISION VALIDIERUNG ---
+            // Raycasting nur noch für Gebäude/Innenräume, da Terrain über GPGPU präziser ist
+            if (collisionRaycaster && window.FPGraphics && FPGraphics.isInterior && FPGraphics.currentInteriorMesh) {
+                const rayOrigin = new THREE.Vector3(targetPos.x, targetPos.y + 50, targetPos.z);
+                const rayDir = new THREE.Vector3(0, -1, 0);
+                collisionRaycaster.set(rayOrigin, rayDir);
+                
+                const intersects = collisionRaycaster.intersectObject(FPGraphics.currentInteriorMesh);
+                if (intersects.length > 0) {
+                    groundH = intersects[0].point.y;
+                }
+            }
+        
+        // COLLISION FIX: Spieler immer ÜBER dem Boden halten
+        const minHeight = -50.0; // Sicherheitsuntergrenze (Ozeanboden)
+        const finalGroundH = Math.max(groundH, minHeight);
+
+        if (targetPos.y < finalGroundH) {
+            targetPos.y = finalGroundH;
+            velocityY = 0;
+            isGrounded = true;
+        } else if (targetPos.y > finalGroundH + 0.5) { // Kleiner Puffer für Boden-Check
+            isGrounded = false;
+        }
+    } else {
+        targetPos.y = 0;
+        isGrounded = true;
+    }
+
+    // Bewegung verarbeiten
+    let moved = false;
+    // Richtungsvektoren korrigiert (Standard Three.js Orientierung für diese Szene)
+    // H=0 ist Blickrichtung +Z (basierend auf applyCamera)
+    const forwardVector = new THREE.Vector3(Math.sin(targetHeading), 0, Math.cos(targetHeading));
+    const rightVector = new THREE.Vector3(Math.cos(targetHeading), 0, -Math.sin(targetHeading));
+
+    let nextX = targetPos.x;
+    let nextZ = targetPos.z;
+
+    const speedMult = (keys['shift'] || keys['ShiftLeft']) ? 2.5 : ((keys['control'] || keys['controlleft'] || keys['c']) ? 0.5 : 1.0);
+    // Geschwindigkeit: MOVE_SPEED (0.22) * delta * speedMult (GRID entfernt für korrekte Skalierung)
+    const speed = MOVE_SPEED * delta * speedMult;
+    
+    if (keys['w']) { nextX += forwardVector.x * speed; nextZ += forwardVector.z * speed; moved = true; }
+    if (keys['s']) { nextX -= forwardVector.x * speed; nextZ -= forwardVector.z * speed; moved = true; }
+    if (keys['a']) { nextX -= rightVector.x * speed; nextZ -= rightVector.z * speed; moved = true; }
+    if (keys['d']) { nextX += rightVector.x * speed; nextZ += rightVector.z * speed; moved = true; }
+
+    // --- DUCKEN-EFFEKT (Kamera-Höhe) ---
+    // Wir ändern nicht targetPos.y (den Boden-Punkt), sondern das Offset der Kamera
+    let cameraHeightOffset = 1.6; // Standard Augenhöhe
+    if (keys['control'] || keys['c']) {
+        cameraHeightOffset = 0.8; // Ducken senkt die Augenhöhe
+    }
+    window._cameraHeightOffset = cameraHeightOffset;
+
+        if (moved) {
+            if (!checkCollision(nextX, nextZ)) { 
+                targetPos.x = nextX;
+                targetPos.z = nextZ;
+                if (Date.now() - lastStepAt > STEP_MS) {
+                    gridX = Math.round(targetPos.x / GRID);
+                    gridY = Math.round(targetPos.z / GRID);
+                    saveStep();
+                    lastStepAt = Date.now();
+                }
+            }
+        }
+
+        // --- KAMERA AKTUALISIEREN ---
+        // Dies berechnet die aktuelle geglättete currentPos
+        applyCamera(delta);
+        
+        // Kamera-Matrix sofort aktualisieren, damit der Shader im nächsten Schritt
+        // die exakt gleichen View-Daten hat wie die Kamera-Position (Sync-Fix)
+        camera.updateMatrixWorld();
+
+        // --- TERRAIN AN KAMERA AUSRICHTEN ---
+        // WICHTIG: Nutze currentPos statt targetPos für perfekte Synchronisation
+        if (window.FPGraphics) {
+            FPGraphics.updateClipmap(currentPos.x, currentPos.z, renderer);
+            FPGraphics.updateRain(avatar);
+            FPGraphics.updateRiver();
+            FPGraphics.updateFire(delta, now);
+        }
+
+        // --- AOI UPDATES ---
+        updateMonsters();
+        updateCollectibles();
+        updateBuildings();
+        
+        updateOtherPlayers();
+        checkInteractions();
+        
+        if (animFSM) {
+            animFSM.update(moved, isGrounded, window.isAttacking);
+        }
+        
+        if (renderer && scene && camera) {
+            renderer.render(scene, camera);
+        }
+    }
+
+    // --- START RENDERING ---
+    lastTime = performance.now();
+    loop();
+    console.log("[FPWald] Render-Loop gestartet.");
+
+    // Cleanup für Event-Listener in unmount speichern
+    keyHandler = { onMouseMove, onKeyDown, onKeyUp };
+
+        // Mobile Steuerung ausblenden für PC-Nutzer
+        const isPC = !/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        if (isPC) {
+            // Verstecke die untere Nav-Leiste im fpModal
+            const hideNav = () => {
+                const navBar = document.querySelector('#fpModal > div > div:nth-child(2)');
+                if (navBar && navBar.style) {
+                    navBar.style.display = 'none';
+                    navBar.style.pointerEvents = 'none';
+                    navBar.style.height = '0';
+                    navBar.style.opacity = '0';
+                }
+            };
+            hideNav();
+            setTimeout(hideNav, 500); // Sicherheits-Check nach halber Sekunde
+            setTimeout(hideNav, 1500); // Und nochmal nach 1.5s
+        }
+
+        spawnCollectibles(); // Sammelobjekte spawnen
+        spawnMonsters(); // Monster spawnen
+
+        // Event-Integration für Waffen-Updates
+        if (window.EventHub) {
+            EventHub.on('inventory:update', () => updateAvatarWeapons());
+            EventHub.on('equipment:update', () => updateAvatarWeapons());
+        }
+
+        return true;
+    }
+    function unmount() {
+        if (syncTimer) clearInterval(syncTimer);
+        syncTimer = null;
+        window.removeEventListener('resize', onResize);
+        if (anim) cancelAnimationFrame(anim);
+        anim = null;
+
+        // Chunks aufräumen
+        if (window.FPGraphics && FPGraphics.cleanup) {
+            FPGraphics.cleanup(scene);
+        } else {
+            // Fallback falls FPGraphics nicht da ist (was unwahrscheinlich ist)
+            // chunks.forEach(chunk => { ... });
+        }
+
+        if (keyHandler) {
+            document.removeEventListener('mousemove', keyHandler.onMouseMove);
+            window.removeEventListener('keydown', keyHandler.onKeyDown);
+            window.removeEventListener('keyup', keyHandler.onKeyUp);
+            keyHandler = null;
+        }
+
+        if (renderer) {
+            if (document.pointerLockElement === renderer.domElement) {
+                document.exitPointerLock();
+            }
+            renderer.dispose();
+        }
+        renderer = null;
+        
+        // Andere Spieler aufräumen
+        if (scene) {
+            const interactUI = document.getElementById('fpInteractUI');
+            if (interactUI) interactUI.remove();
+            const compass = document.getElementById('fpCompassHUD');
+            if (compass) compass.remove();
+
+            scene = null;
+            camera = null;
+            const host = document.getElementById('fpCanvas');
+            if (host) host.innerHTML = '';
+        }
+    }
+
+    function applyCamera(delta = 1) {
+        if (!camera) return;
+        
+        // Schnelleres Lerping für die Rotation (direkteres Gefühl)
+        const ROT_LERP = Math.min(LERP_FACTOR * delta * 4.0, 1.0);
+        const POS_LERP = Math.min(LERP_FACTOR * delta * 3.0, 1.0);
+        
+        // Winkel-Interpolation normalisieren, um "Looping" zu verhindern
+        let diff = targetHeading - heading;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        heading += diff * ROT_LERP;
+
+        // Validierung gegen NaN (Sicherheitscheck für Blackscreen-Fix)
+        if (isNaN(currentPos.x)) currentPos.x = targetPos.x || 0;
+        if (isNaN(currentPos.y)) currentPos.y = targetPos.y || 0;
+        if (isNaN(currentPos.z)) currentPos.z = targetPos.z || 0;
+        
+        currentPos.x += (targetPos.x - currentPos.x) * POS_LERP;
+        currentPos.y += (targetPos.y - currentPos.y) * POS_LERP;
+        currentPos.z += (targetPos.z - currentPos.z) * POS_LERP;
+
+        // Wenn immer noch NaN, dann auf 0 setzen
+        if (isNaN(currentPos.x)) currentPos.x = 0;
+        if (isNaN(currentPos.y)) currentPos.y = 0;
+        if (isNaN(currentPos.z)) currentPos.z = 0;
+
+        // Werte im Bereich halten
+        if (targetHeading > Math.PI) targetHeading -= Math.PI * 2;
+        if (targetHeading < -Math.PI) targetHeading += Math.PI * 2;
+        if (heading > Math.PI) heading -= Math.PI * 2;
+        if (heading < -Math.PI) heading += Math.PI * 2;
+
+        const px = currentPos.x;
+        const py = currentPos.y;
+        const pz = currentPos.z;
+
+        if (avatar) {
+            // Avatar-Position inkl. Sprung-Höhe (Leicht erhöht, um Clipping zu vermeiden)
+            avatar.position.set(px, py + 4.2, pz);
+            avatar.rotation.y = heading;
+        }
+        if (avatarNameTag) {
+            avatarNameTag.position.set(px, py + 10, pz);
+        }
+        
+        if (thirdPerson) {
+            const back = 38;
+            const ox = Math.sin(heading) * back;
+            const oz = Math.cos(heading) * back;
+            let camY = py + (window._cameraHeightOffset || 1.6) * 10.0; // Skaliert auf Spielwelt
+            
+            // Kamera-Clipping-Schutz: Kamera darf nicht unter das Terrain sinken
+            const camTerrainH = (window.FPGraphics ? FPGraphics.getGPUHeight(px - ox, pz - oz) : 0);
+            if (camY < camTerrainH + 5.0) camY = camTerrainH + 5.0;
+
+            camera.position.set(px - ox, camY, pz - oz);
+            camera.lookAt(new THREE.Vector3(px, py + (window._cameraHeightOffset || 1.6) * 2.5, pz));
+        } else {
+            let camY = py + (window._cameraHeightOffset || 1.6) * 5.0; // Skaliert auf Augenhöhe
+            
+            // Auch in First Person sicherstellen, dass wir über dem Boden sind
+            const camTerrainH = (window.FPGraphics ? FPGraphics.getGPUHeight(px, pz) : 0);
+            if (camY < camTerrainH + 2.0) camY = camTerrainH + 2.0;
+
+            camera.position.set(px, camY, pz);
+            const lookX = px + Math.sin(heading) * 10;
+            const lookZ = pz + Math.cos(heading) * 10;
+            camera.lookAt(new THREE.Vector3(lookX, camY, lookZ));
+        }
+        
+        // Interaktions-Check bei jeder Kamera-Aktualisierung (nach Bewegung)
+        checkInteractions();
+    }
+    function saveStep() {
+        if (!window.data || !window.verifiedID) return;
+        window.data.x = Math.round(targetPos.x);
+        window.data.y = Math.round(targetPos.z);
+        
+        // Sofortiges Update für andere (High-Frequency)
+        if (window.db) {
+            window.db.ref('players/' + window.verifiedID).update({
+                x: window.data.x,
+                y: window.data.y,
+                heading: targetHeading,
+                name: window.data.name || 'Gast',
+                lastSeen: Date.now()
+            });
+        }
+        
+        if (typeof window.saveUserData === 'function') {
+            window.saveUserData();
+        }
+    }
+
+    function startSync() {
+        if (syncTimer) clearInterval(syncTimer);
+        syncTimer = setInterval(() => {
+            if (!window.verifiedID || !window.db) return;
+            // Nur senden, wenn wir uns bewegt haben oder die Drehung sich geändert hat
+            window.db.ref('players/' + window.verifiedID).update({
+                x: Math.round(targetPos.x),
+                y: Math.round(targetPos.z),
+                heading: targetHeading,
+                name: window.data.name || 'Gast',
+                lastSeen: Date.now()
+            });
+        }, 50);
+    }
+
+    function updateOtherPlayers() {
+        if (!scene || !window.onlinePlayers) return;
+        
+        const LERP_SPEED = 0.15;
+
+        Object.keys(window.onlinePlayers).forEach(id => {
+            if (id === window.verifiedID) return;
+            const p = window.onlinePlayers[id];
+            if (!p || p.hidden) return;
+            
+            if (Date.now() - (p.lastSeen || 0) > 60000) {
+                const data = otherPlayers.get(id);
+                if (data) {
+                    if (scene) {
+                        scene.remove(data.sprite);
+                        if (data.nameTag) scene.remove(data.nameTag);
+                    }
+                    otherPlayers.delete(id);
+                }
+                return;
+            }
+
+            let data = otherPlayers.get(id);
+            if (!data) {
+                try {
+                    if (!scene) return;
+                    const path = (typeof getCreatureSprite === 'function') ? getCreatureSprite(p, id === '573773653') : 'Ei.png';
+                    const tex = new THREE.TextureLoader().load(path);
+                    tex.magFilter = THREE.NearestFilter;
+                    tex.minFilter = THREE.NearestFilter;
+                    const sm = new THREE.SpriteMaterial({ map: tex });
+                    const sprite = new THREE.Sprite(sm);
+                    sprite.scale.set(8, 8, 1);
+                    sprite.position.set(p.x || 0, 4, p.y || 0);
+                    scene.add(sprite);
+                    
+                    // Namensschild für Mitspieler
+                    const nameTag = (window.FPGraphics ? FPGraphics.createNameTag(p.name || 'Gast') : new THREE.Group());
+                    nameTag.position.set(p.x || 0, 10, p.y || 0);
+                    scene.add(nameTag);
+                    
+                    data = { 
+                        sprite, 
+                        nameTag,
+                        targetPos: new THREE.Vector3(p.x || 0, 4, p.y || 0),
+                        targetRot: p.heading || 0
+                    };
+                    otherPlayers.set(id, data);
+                 } catch(e) { console.error("Error creating sprite for", id, e); }
+             } else {
+                 data.targetPos.set(p.x || 0, 4, p.y || 0);
+                 data.targetRot = p.heading || 0;
+                 data.sprite.position.lerp(data.targetPos, LERP_SPEED);
+                 
+                 // Namensschild mitbewegen
+                 if (data.nameTag) {
+                     data.nameTag.position.set(
+                         data.sprite.position.x,
+                         data.sprite.position.y + 6,
+                         data.sprite.position.z
+                     );
+                 }
+             }
+        });
+
+        otherPlayers.forEach((data, id) => {
+            if (!window.onlinePlayers[id]) {
+                if (scene) {
+                    scene.remove(data.sprite);
+                    if (data.nameTag) scene.remove(data.nameTag);
+                }
+                otherPlayers.delete(id);
+            }
+        });
+    }
+
+    function forward() {}
+    function back() {}
+    function left() {}
+    function right() {}
+    function gridXMove(d) { gridX += d; targetPos.x = gridX * GRID; }
+    function gridZMove(d) { gridY += d; targetPos.z = gridY * GRID; }
+
+    async function open() {
+        console.log("[FPWald] Öffne 3D-Wald...");
+        const modal = document.getElementById('fpModal');
+        if (!modal) {
+            console.error("[FPWald] fpModal nicht gefunden!");
+            return;
+        }
+        modal.style.display = 'flex';
+        
+        const success = await ensureThree();
+        if (!success) {
+            console.error("[FPWald] Three.js konnte nicht initialisiert werden.");
+            return;
+        }
+
+        const mounted = await mount();
+        if (mounted) {
+            console.log("[FPWald] Mount erfolgreich, binde UI...");
+            bindUI();
+        } else {
+            console.error("[FPWald] Mount fehlgeschlagen.");
+        }
+
+        try { 
+            if (window.db && window.verifiedID) { 
+                const updateData = { hidden: false, lastSeen: Date.now() };
+                if (window.data && window.data.name) {
+                    updateData.name = window.data.name;
+                }
+                window.db.ref('players/' + window.verifiedID).update(updateData); 
+            } 
+        } catch (e) {
+            console.warn("[FPWald] Fehler beim DB-Update:", e);
+        }
+        
+        if (!presenceTimer) {
+            presenceTimer = setInterval(() => {
+                try { if (window.db && window.verifiedID) { window.db.ref('players/' + window.verifiedID).update({ lastSeen: Date.now(), hidden: false }); } } catch {}
+            }, 10000);
+        }
+    }
+    function close() {
+        unmount();
+        const modal = document.getElementById('fpModal');
+        if (modal) modal.style.display = 'none';
+        
+        // Zurück zur 2D-Welt deaktiviert
+        // const world = document.getElementById('world');
+        // if (world) world.style.display = 'block';
+
+        // window.removeEventListener('keydown', handleKeys); // Veraltet, wird in unmount() über keyHandler erledigt
+        if (presenceTimer) { clearInterval(presenceTimer); presenceTimer = null; }
+    }
+    function bindUI() {
+        const btnL = document.getElementById('fpLeft');
+        const btnF = document.getElementById('fpForward');
+        const btnR = document.getElementById('fpRight');
+        const btnB = document.getElementById('fpBack');
+        const btnX = document.getElementById('fpExit');
+        const btnInv = document.getElementById('fpInv');
+        const navBar = document.querySelector('.fp-nav');
+
+        // Teleport-Button für Mobile hinzufügen (falls noch nicht da)
+        let btnTele = document.getElementById('fpTele');
+        if (!btnTele && navBar) {
+            btnTele = document.createElement('button');
+            btnTele.id = 'fpTele';
+            btnTele.className = 'btn-nav';
+            btnTele.innerHTML = '🪶';
+            btnTele.title = 'Teleport zum Dorf';
+            btnTele.onclick = teleportToVillage;
+            // Vor dem Inventar-Button einfügen
+            navBar.insertBefore(btnTele, btnInv);
+        }
+
+        // PC-Spieler Check (Maus vorhanden und kein Touch)
+        const isPC = !('ontouchstart' in window) || navigator.maxTouchPoints === 0;
+        if (navBar) {
+            navBar.style.display = isPC ? 'none' : 'flex';
+        }
+
+        if (btnL) btnL.onclick = left;
+        if (btnF) btnF.onclick = forward;
+        if (btnR) btnR.onclick = right;
+        if (btnB) btnB.onclick = back;
+        if (btnX) btnX.onclick = () => {
+            const overlay = document.getElementById('fpInventoryOverlay');
+            const isOverlayVisible = overlay && (overlay.style.display === 'block' || overlay.style.display === 'flex');
+            if (isOverlayVisible) {
+                overlay.style.display = 'none';
+            } else {
+                close();
+            }
+        };
+        if (btnInv) btnInv.onclick = () => {
+            const overlay = document.getElementById('fpInventoryOverlay');
+            if (overlay) {
+                if (overlay.style.display === 'none') {
+                    overlay.style.display = 'block';
+                    if (typeof renderInventoryUI === 'function') renderInventoryUI();
+                } else {
+                    overlay.style.display = 'none';
+                }
+            }
+        };
+
+    }
+    window.FPWald = { 
+        open, 
+        close, 
+        bindUI, 
+        teleport: teleportToVillage, 
+        get avatar() { return avatar; },
+        getPosition: () => ({ x: targetPos.x, z: targetPos.z, heading: targetHeading })
+    };
 })();
