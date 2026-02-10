@@ -492,18 +492,16 @@
                 }
 
                 vec3 getBiomeColor(vec3 pos, float h, vec3 normal) {
+                    // TEST-FIX: Erzwinge Dunkelgrün (#228B22) um Shader-Fehler auszuschließen
+                    return vec3(0.133, 0.545, 0.133); 
+
                     // Biome-Noise
-                    float scale = 0.0002; // Etwas gröber für 8000er Map
+                    float scale = 0.0002; 
                     float temp = noise(pos.xz * scale) * 2.0 - 1.0;
                     float humidity = noise(pos.xz * scale + vec2(100.0)) * 2.0 - 1.0;
 
                     // 7 Biome Gewichte
                     float wOcean = 0.0, wDesert = 0.0, wSnow = 0.0, wJungle = 0.0, wSwamp = 0.0, wForest = 0.0, wPlains = 0.0;
-
-                    // Ocean (Tiefland)
-                    if (h < 2.0) {
-                        wOcean = smoothstep(2.0, -5.0, h);
-                    }
 
                     // Biome Logik basierend auf Temp/Humid
                     if (temp > 0.5) {
@@ -511,32 +509,40 @@
                         else if (humidity > 0.3) wJungle = 1.0;
                         else wForest = 1.0;
                     } else if (temp < -0.4) {
-                        wSnow = 1.0;
+                        // SNOW FIX: Reduziere Wahrscheinlichkeit für reines Weiß am Anfang
+                        wSnow = 0.2; 
+                        wPlains = 0.8;
                     } else {
                         if (humidity > 0.6) wSwamp = 1.0;
-                        else if (humidity < -0.5) wDesert = 0.5; // Halbwüste
+                        else if (humidity < -0.5) wDesert = 0.5;
                         else if (temp > 0.0) wForest = 1.0;
                         else wPlains = 1.0;
                     }
 
-                    // HÖHEN-BIOME & STEILHEIT (Berge werden zu Stein/Schnee)
+                    // Ocean (Tiefland)
+                    if (h < 2.0) {
+                        float oceanF = smoothstep(2.0, -5.0, h);
+                        wOcean = oceanF;
+                        // Andere Gewichte reduzieren
+                        float invOcean = 1.0 - oceanF;
+                        wDesert *= invOcean; wSnow *= invOcean; wJungle *= invOcean; wSwamp *= invOcean; wForest *= invOcean; wPlains *= invOcean;
+                    }
+
+                    // HÖHEN-BIOME & STEILHEIT
                     float stoneStart = 60.0;
                     float snowStart = 130.0;
                     
-                    // Steilheit berechnen (normal.y ist 1.0 bei flachem Boden)
                     float slope = 1.0 - normal.y;
-                    float wStone = smoothstep(0.4, 0.7, slope); // Stein bei steilen Hängen
+                    float wStone = smoothstep(0.4, 0.7, slope);
                     
                     if (h > stoneStart) {
                         wStone = max(wStone, smoothstep(stoneStart, stoneStart + 20.0, h));
                     }
                     
                     if (wStone > 0.0) {
-                        // Gewichte der anderen reduzieren
                         float reduce = 1.0 - wStone;
                         wOcean *= reduce; wDesert *= reduce; wSnow *= reduce; wJungle *= reduce; wSwamp *= reduce; wForest *= reduce; wPlains *= reduce;
                         
-                        // Wenn es noch höher ist, wird es Schnee
                         if (h > snowStart) {
                             float snowHFactor = smoothstep(snowStart, snowStart + 30.0, h);
                             wSnow = mix(wSnow, 1.0, snowHFactor);
@@ -549,7 +555,6 @@
                     float startEffect = 1.0 - smoothstep(100.0, 300.0, distToStart);
                     wPlains = mix(wPlains, 1.0, startEffect);
                     wOcean = mix(wOcean, 0.0, startEffect);
-                    wSnow = mix(wSnow, 0.0, startEffect);
 
                     // Normalisieren der Gewichte
                     float total = wOcean + wDesert + wSnow + wJungle + wSwamp + wForest + wPlains + wStone;
@@ -557,9 +562,8 @@
                         wOcean /= total; wDesert /= total; wSnow /= total; wJungle /= total; wSwamp /= total; wForest /= total; wPlains /= total; wStone /= total;
                     }
 
-                    // Textur-Mapping (Verbessert für mehr Details)
-                    vec2 tUv = vWorldPos.xz * 0.05; // Größere Textur-Kachelung für Details
-                    vec2 tUvDetail = vWorldPos.xz * 0.5; // Mikro-Details
+                    // Textur-Mapping
+                    vec2 tUv = pos.xz * 0.02; // Kleinere UV-Skalierung für weniger Kachelung
                     
                     vec3 grassCol = texture2D(grassTex, tUv).rgb * plainsColor;
                     vec3 stoneCol = texture2D(stoneTex, tUv).rgb * stoneColor;
@@ -567,57 +571,40 @@
                     vec3 leavesCol = texture2D(leavesTex, tUv).rgb * jungleColor;
                     vec3 flowersCol = texture2D(flowersTex, tUv).rgb;
                     
-                    // Detail-Rauschen einmischen
-                    float detail = texture2D(grassTex, tUvDetail).r * 0.2 + 0.9;
-                    grassCol *= detail;
-                    stoneCol *= detail;
-                    desertCol *= detail;
+                    // FALLBACK: Falls Texturen nicht geladen wurden (weiß sind), nutze Biome-Farben
+                    if (length(grassCol) < 0.01) grassCol = plainsColor;
+                    if (length(stoneCol) < 0.01) stoneCol = stoneColor;
+                    if (length(desertCol) < 0.01) desertCol = desertColor;
 
                     vec3 col = oceanColor * wOcean + 
                                desertCol * wDesert + 
-                               mix(stoneCol, vec3(0.95, 0.98, 1.0), 0.7) * wSnow + // Schnee-Optik
+                               mix(stoneCol, vec3(0.9, 0.95, 1.0), 0.8) * wSnow + 
                                leavesCol * wJungle + 
                                mix(leavesCol, swampColor, 0.6) * wSwamp + 
                                mix(grassCol, forestColor, 0.4) * wForest + 
-                               mix(grassCol, flowersCol, 0.15) * wPlains +
+                               mix(grassCol, flowersCol, 0.1) * wPlains +
                                stoneCol * wStone;
 
-                    // Mikro-Rauschen für Details
+                    // Mikro-Rauschen
                     float n = hash(pos.xz * 0.1);
                     col *= 0.95 + 0.1 * n;
                     
-                // Helligkeits-Boost (stärker bei Bergen für Struktur)
-                float hBoost = smoothstep(20.0, 200.0, h) * 0.4 + 1.0;
-                col *= hBoost; 
-                
-                // --- SCHATTEN-SIMULATION (Ambient Occlusion an Hängen) ---
-                float shadow = smoothstep(0.3, 0.8, slope);
-                col *= mix(1.0, 0.5, shadow); 
-                
-                // --- ZUSÄTZLICHES LICHT FÜR STRUKTUR (Rim-Light & Top-Down) ---
-                vec3 lightDir = normalize(vec3(0.5, 1.0, 0.3));
-                float diff = max(dot(normal, lightDir), 0.0);
-                
-                // Struktur-Licht (Fake-AO und Relief-Hervorhebung)
-                float structure = dot(normal, vec3(0.0, 1.0, 0.0)) * 0.5 + 0.5;
-                col *= (structure * 0.5 + 0.5); // Mehr Licht auf Flächen, die nach oben zeigen
-                
-                // Rim-Light Effekt für Kanten (Berge)
-                float rim = 1.0 - max(dot(normal, vec3(0.0, 1.0, 0.0)), 0.0);
-                rim = pow(rim, 3.0) * smoothstep(50.0, 200.0, h);
-                
-                col *= (diff * 0.6 + 0.7); // Grundbeleuchtung basierend auf Diffuse
-                col += vec3(0.2, 0.3, 0.4) * rim * 0.8; // Bläuliches Rim-Light
-                
-                // Ambient Light (Gegen "schwarze Berge" im Schatten)
-                col += vec3(0.05, 0.07, 0.1) * (1.0 - diff) * smoothstep(50.0, 300.0, h); 
-                
-                // Höhen-Dunst (Leichter Blaustich in der Tiefe, Weißer in der Höhe)
-                vec3 hazeColor = mix(vec3(0.1, 0.15, 0.2), vec3(0.8, 0.9, 1.0), smoothstep(0.0, 300.0, h));
-                col = mix(col, hazeColor, smoothstep(100.0, 800.0, h) * 0.25);
-                
-                return clamp(col, 0.0, 1.0);
+                    // Helligkeits-Boost reduziert (Gegen Überstrahlung)
+                    float hBoost = smoothstep(50.0, 500.0, h) * 0.2 + 1.0;
+                    col *= hBoost; 
+                    
+                    // Schatten-Simulation
+                    float shadow = smoothstep(0.2, 0.9, slope);
+                    col *= mix(1.0, 0.6, shadow); 
+                    
+                    // Rim-Light nur bei hohen Bergen
+                    float rim = 1.0 - max(dot(normal, vec3(0.0, 1.0, 0.0)), 0.0);
+                    rim = pow(rim, 4.0) * smoothstep(100.0, 400.0, h);
+                    col += vec3(0.1, 0.15, 0.2) * rim;
+                    
+                    return clamp(col, 0.0, 1.0);
                 }
+
             ` + shader.fragmentShader;
 
             shader.fragmentShader = shader.fragmentShader.replace(
@@ -625,8 +612,13 @@
                 `
                 diffuseColor.rgb = getBiomeColor(vWorldPos, vHeight, vNormal);
                 
+                // --- ÜBERSTRAHLUNGS-SCHUTZ ---
+                // Falls der Boden immer noch weiß ist, könnte die Lichtintensität zu hoch sein.
+                // Wir begrenzen die Helligkeit hier hart.
+                diffuseColor.rgb = min(diffuseColor.rgb, vec3(0.95)); 
+                
                 // HELLIGKEITS-ANPASSUNG FÜR SICHTBARKEIT
-                diffuseColor.rgb *= 1.2; // Moderater Boost, um Überstrahlung zu vermeiden
+                diffuseColor.rgb *= 0.6; // Weiter reduziert auf 0.6, um Überstrahlung zu verhindern
                 
             // --- KONTRAST-BOOST FÜR BERGE ---
                 if (vHeight > 40.0) {
