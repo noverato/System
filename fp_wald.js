@@ -84,7 +84,21 @@
         sunLight.intensity = intensity * 1.5 * (1 - weather.intensity * 0.8);
         
         const angle = (t * Math.PI * 2) - (Math.PI / 2);
-        sunLight.position.set(Math.cos(angle) * 200, Math.sin(angle) * 200, 100);
+        const sunDist = 400;
+        
+        // Die Sonne kreist um den Spieler (für konstante Schattenqualität)
+        const px = avatar ? avatar.position.x : 0;
+        const pz = avatar ? avatar.position.z : 0;
+        
+        sunLight.position.set(
+            px + Math.cos(angle) * sunDist, 
+            Math.sin(angle) * sunDist, 
+            pz + 100
+        );
+        
+        // Target des Sonnenlichts folgt dem Spieler
+        sunLight.target.position.set(px, 0, pz);
+        sunLight.target.updateMatrixWorld();
 
         // 3. Ambient Light
         ambientLight.intensity = Math.max(0.1, intensity * 0.5) * (1 - weather.intensity * 0.4);
@@ -829,14 +843,14 @@
         sunLight = new THREE.DirectionalLight(0xfff5e1, 1.2); // Etwas mehr Sonnenlicht
         sunLight.position.set(150, 250, 100);
         sunLight.castShadow = true;
-        sunLight.shadow.mapSize.width = 2048;
-        sunLight.shadow.mapSize.height = 2048;
-        sunLight.shadow.camera.left = -500;
-        sunLight.shadow.camera.right = 500;
-        sunLight.shadow.camera.top = 500;
-        sunLight.shadow.camera.bottom = -500;
-        sunLight.shadow.camera.far = 1000;
-        sunLight.shadow.bias = -0.0001;
+        sunLight.shadow.mapSize.width = 4096;
+        sunLight.shadow.mapSize.height = 4096;
+        sunLight.shadow.camera.left = -1000;
+        sunLight.shadow.camera.right = 1000;
+        sunLight.shadow.camera.top = 1000;
+        sunLight.shadow.camera.bottom = -1000;
+        sunLight.shadow.camera.far = 2000;
+        sunLight.shadow.bias = -0.00005; // Etwas weniger Bias für bessere Kontakt-Schatten
         scene.add(sunLight);
 
         // Wolken hinzufügen
@@ -847,10 +861,9 @@
             FPGraphics.initInteriors(scene);
         }
 
-        // Nebel für Atmosphäre deaktiviert für bessere Sichtbarkeit
-        // const RANGE = (window.FPGraphics ? FPGraphics.CLIPMAP_RADIUS * 0.9 : 800);
-        // scene.fog = new THREE.Fog(0x2a4c2a, 100, RANGE); 
-        scene.fog = null;
+        // Nebel für Atmosphäre
+        const RANGE = (window.FPGraphics ? FPGraphics.CLIPMAP_RADIUS * 0.9 : 800);
+        scene.fog = new THREE.Fog(0x87ceeb, 100, RANGE); 
         
         if (window.FPGraphics) {
             await FPGraphics.initWorld(scene, window.EnvironmentManager, (buildingName) => {
