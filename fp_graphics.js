@@ -685,7 +685,6 @@
                     
                     // WASSER-TRANSPARENZ & FARBE ERZWINGEN (Fix für Weiß-Problem)
                     if (child.material) {
-                        // Wir ersetzen das Material durch ein MeshBasicMaterial, um Licht-Überstrahlung zu vermeiden
                         const oldMat = child.material;
                         child.material = new THREE.MeshBasicMaterial({
                             color: 0x4fa3e1,
@@ -693,10 +692,12 @@
                             opacity: 0.6,
                             side: THREE.DoubleSide,
                             depthWrite: false,
-                            blending: THREE.NormalBlending
+                            blending: THREE.NormalBlending,
+                            fog: false // Nebel-Einfluss deaktivieren
                         });
                         oldMat.dispose();
                     }
+                    child.layers.set(1); // Wasser auf Layer 1 legen
                 }
             });
             
@@ -735,32 +736,34 @@
         */
 
         // --- STATIC TERRAIN BASE (The Nest Master Rule) ---
-        // Das Terrain_Grass.glb wird als permanente, statische Basis geladen.
+        // Das Terrain_Grass.glb wird nur für das Wald-Biom (Zentrum) geladen.
         const terrainBasePath = AssetsLibrary.get('TERRAIN', 'GRASS_MODEL');
         loadModel(terrainBasePath).then(terrainBase => {
-            // Die Basis ist von AOI ausgenommen und wird am Ursprung platziert
-            // 86km2 Map entspricht ca. 9273 units Seitenlänge (sqrt(86,000,000))
-            // Wenn das Modell 1x1m groß ist, wäre 9273 passend. Wir nehmen 10000 zur Sicherheit.
-            terrainBase.scale.set(10000, 1, 10000); 
-            terrainBase.position.set(0, -1.0, 0); // Deutlicher absenken, um Überlagerung mit Clipmap zu vermeiden
+            // Begrenzung auf das Wald-Biom im Zentrum (0,0)
+            // Wir skalieren es nicht mehr auf 10000, sondern auf eine moderate Wald-Größe (z.B. 500m)
+            terrainBase.scale.set(500, 1, 500); 
+            terrainBase.position.set(0, 2.1, 0); // Leicht über dem Wasser (2.0) und Boden positionieren
             
             terrainBase.traverse(child => {
                 if (child.isMesh) {
-                    applyWorldCulling(child.material, true); // isTerrain = true -> AOI Ausnahme
+                    applyWorldCulling(child.material, true); 
                     child.receiveShadow = true;
                     child.frustumCulled = false;
-                    child.layers.enable(0); // Sicherstellen, dass Layer 0 aktiv ist
                     
-                    // Sicherstellen, dass die Basis nicht weiß reflektiert
+                    // Separater Layer für Terrain-Assets (Layer 2)
+                    child.layers.set(2); 
+                    
                     if (child.material) {
-                        child.material.color.set(0x228B22); // Dunkelgrün Basis
-                        if (child.material.map) child.material.map = null; // Textur entfernen, falls fehlerhaft (weiß)
+                        child.material.color.set(0x228B22); 
+                        // Wir lassen die Textur aktiv, falls vorhanden, für den Wald-Look
+                        child.material.transparent = true;
+                        child.material.opacity = 1.0;
                     }
                 }
             });
             
             scene.add(terrainBase);
-            console.log("⛰️ Terrain-Basis (statischer Mesh) geladen:", terrainBasePath);
+            console.log("🌲 Wald-Terrain-Asset geladen (Zentrum):", terrainBasePath);
         }).catch(err => {
             console.warn("Konnte Terrain-Basis nicht laden:", err);
         });

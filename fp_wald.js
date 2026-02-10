@@ -907,6 +907,14 @@
         sunLight.shadow.bias = -0.00005; // Etwas weniger Bias für bessere Kontakt-Schatten
         scene.add(sunLight);
 
+        // KAMERA LAYER INITIALISIEREN
+        // Layer 0: Alles (Standard)
+        // Layer 1: Wasser
+        // Layer 2: Terrain-Assets (Wald)
+        camera.layers.enable(0);
+        camera.layers.enable(1);
+        camera.layers.enable(2);
+
         // Wolken hinzufügen
         if (window.FPGraphics) FPGraphics.createClouds(scene);
         
