@@ -335,10 +335,10 @@
         
         // --- EI HEIGHT VALIDATION (Spawn Fix) ---
         if (!groundValidated) {
-            // Wir nutzen getGPUHeight mit true für forceFallback, um sofort eine Höhe zu bekommen
-            const h = (window.FPGraphics ? FPGraphics.getGPUHeight(avatar.position.x, avatar.position.z, true) : 0);
+            // Wir nutzen getGPUHeight, um die initiale Höhe zu bestimmen.
+            // Falls GPGPU noch nicht bereit ist, wird automatisch die CPU-Höhe (15m am Start) genommen.
+            const h = (window.FPGraphics ? FPGraphics.getGPUHeight(avatar.position.x, avatar.position.z) : 0);
             
-            // h ist 0 nur wenn FPGraphics fehlt, sonst liefert forceFallback mindestens 15.0 (CPU Sync)
             avatar.position.y = h + 4;
             targetPos.y = h + 4;
             currentPos.y = h + 4;
