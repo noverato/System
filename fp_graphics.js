@@ -2415,6 +2415,32 @@
         return group;
     }
 
+    /**
+     * Erstellt ein Namensschild als Sprite mit Canvas-Textur.
+     */
+    function createNameTag(text) {
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.width = 512;
+        canvas.height = 128;
+
+        context.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        
+        context.font = 'bold 80px Arial';
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillStyle = '#ffffff';
+        context.fillText(text, canvas.width / 2, canvas.height / 2);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+        const sprite = new THREE.Sprite(material);
+        sprite.scale.set(12, 3, 1);
+        
+        return sprite;
+    }
+
     // --- PUBLIC API ---
     window.FPGraphics = {
         init: (renderer, scene) => {
@@ -2460,6 +2486,8 @@
             worldCullingUniforms.playerPos.set(playerPos.x, playerPos.z);
             worldCullingUniforms.time.value = time;
         },
+        updateClipmap,
+        createNameTag,
         getGPUHeight,
         createModularHouse,
         villageBuildings,
