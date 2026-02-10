@@ -114,22 +114,24 @@ window.EnvironmentManager = {
 
     smoothWeather() {
         // TESTMODUS: Wetter-Smoothing deaktiviert
-        return;
+        /*
         if (this.weather.intensity < this.weather.targetIntensity) {
             this.weather.intensity = Math.min(this.weather.targetIntensity, this.weather.intensity + 0.005);
         } else if (this.weather.intensity > this.weather.targetIntensity) {
             this.weather.intensity = Math.max(this.weather.targetIntensity, this.weather.intensity - 0.005);
         }
+        */
     },
 
     updateWeather() {
         // TESTMODUS: Wetter-Zyklus deaktiviert
-        return;
+        /*
         const rand = Math.random();
         if (rand > 0.9) this.setWeather('stormy');
         else if (rand > 0.7) this.setWeather('rainy');
         else if (rand > 0.5) this.setWeather('cloudy');
         else this.setWeather('sunny');
+        */
     },
 
     setWeather(type) {

@@ -752,8 +752,8 @@
         }
     }
     
-    function getGPUHeight(x, z) {
-        if (!gpuCompute) return getTerrainHeight(x, z);
+    function getGPUHeight(x, z, noFallback = false) {
+        if (!gpuCompute) return noFallback ? null : getCPUHeight(x, z);
         
         const ox = heightVariable.material.uniforms.offset.value.x;
         const oz = heightVariable.material.uniforms.offset.value.y;
@@ -763,7 +763,7 @@
         const v = (z - oz) / GPU_WORLD_SIZE;
         
         if (u < 0 || u > 1 || v < 0 || v > 1) {
-            return getTerrainHeight(x, z);
+            return noFallback ? null : getCPUHeight(x, z);
         }
 
         // Bilineare Interpolation für glatteres Terrain
@@ -789,7 +789,7 @@
         
         // Fallback wenn GPGPU noch keine Daten hat
         if (h === 0 && Math.abs(x) > 10 && Math.abs(z) > 10) {
-            return getTerrainHeight(x, z);
+            return noFallback ? null : getCPUHeight(x, z);
         }
         
         return h;
@@ -1222,9 +1222,13 @@
         // --- GPGPU SAMPLING BEVORZUGT ---
         // Wenn GPGPU-Daten vorhanden sind, nutzen wir diese für 100% Übereinstimmung mit dem Mesh
         if (gpuCompute && gpuHeightData && gpuHeightData.length > 0) {
-            return getGPUHeight(x, z);
+            const gh = getGPUHeight(x, z, true); // true = noFallback
+            if (gh !== null) return gh;
         }
+        return getCPUHeight(x, z);
+    }
 
+    function getCPUHeight(x, z) {
         const distToCenter = Math.hypot(x, z);
         
         // 1. Village Zone (Dorf-Bereiche flach halten)
