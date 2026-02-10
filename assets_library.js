@@ -56,7 +56,7 @@ const AssetsLibrary = (() => {
                 'Flower_1.gltf', 'Flower_2.gltf', 'Flower_1_Clump.gltf', 'Flower_2_Clump.gltf',
                 'Flower_3_Clump.gltf', 'Flower_4_Clump.gltf', 'Flower_5_Clump.gltf'
             ],
-            GRASS: ['Grass_Large.glb', 'Grass_Small.glb']
+            GRASS: ['Grass_Large.gltf', 'Grass_Small.gltf']
         },
 
         // Nature Ordner - "nature"
