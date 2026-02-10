@@ -154,7 +154,7 @@
                     `
                     #include <project_vertex>
                     bool hide = false;
-                    \${is3D ? 'if (vDist > lodDist) hide = true;' : 'if (vDist < lodDist || vDist > maxDist) hide = true;'}
+                    ${is3D ? 'if (vDist > lodDist) hide = true;' : 'if (vDist < lodDist || vDist > maxDist) hide = true;'}
                     if (hide) {
                         gl_Position.z = gl_Position.w * 2.0;
                     }
@@ -204,7 +204,7 @@
     let mainScene; // Referenz für Dekorationen
     let globalWater;
 
-    const NOISE_SHADER = \`
+    const NOISE_SHADER = `
         uniform float time;
         uniform vec2 offset; // Welt-Position der Textur-Ecke (unten-links)
         uniform float worldSize;
@@ -325,9 +325,9 @@
 
             gl_FragColor = vec4(h, 0.0, 0.0, 1.0);
         }
-    \`;
+    `;
 
-    const SMOOTH_SHADER = \`
+    const SMOOTH_SHADER = `
         void main() {
             vec2 uv = gl_FragCoord.xy / max(resolution.xy, vec2(1.0));
             vec2 texelSize = 1.0 / max(resolution.xy, vec2(1.0));
@@ -346,7 +346,7 @@
             }
             gl_FragColor = vec4(h / max(weightSum, 0.0001), 0.0, 0.0, 1.0);
         }
-    \`;
+    `;
 
     function initGPGPU(renderer) {
         if (typeof THREE.GPUComputationRenderer === 'undefined') {
@@ -457,7 +457,7 @@
             shader.uniforms.oceanColor = { value: new THREE.Color(0x1a4a8a) }; // Tiefblau
             shader.uniforms.forestColor = { value: new THREE.Color(0x2d5a27) }; // Waldgrün
 
-            shader.vertexShader = \`
+            shader.vertexShader = `
                 uniform sampler2D heightMap;
                 uniform vec2 worldOffset;
                 uniform vec2 meshOffset;
@@ -487,21 +487,29 @@
                 }
 
                 void main() {
-                    // UV basierend auf Welt-Position für nahtloses Scrolling
-                    vec2 uv = (position.xz + meshOffset - worldOffset) / gpuWorldSize + 0.5;
-                    vHeight = getSmoothHeight(uv);
-                    
-                    vec3 transformed = position;
-                    transformed.y = vHeight;
-                    
-                    vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
-                    vDist = length(vWorldPos.xz - playerPos);
+            ` + shader.vertexShader.replace(
+                '#include <begin_vertex>',
+                `
+                #include <begin_vertex>
+                
+                // UV-Koordinaten für die Heightmap berechnen (Mapping von Welt- auf Textur-Koordinaten)
+                vec2 worldXZ = (position.xz + meshOffset) + worldOffset;
+                vec2 hUV = (worldXZ + (gpuWorldSize * 0.5)) / gpuWorldSize;
+                
+                // Rand-Verhalten (Kacheln verhindern)
+                hUV = clamp(hUV, 0.0, 1.0);
+                
+                float h = getSmoothHeight(hUV);
+                vHeight = h;
+                
+                transformed.y += h;
+                vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+                vDist = length(vWorldPos.xz - playerPos);
+                `
+            );
 
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
-                }
-            \`;
-
-            shader.fragmentShader = \`
+            // Fragment Shader: Biome & Textur-Splatting
+            shader.fragmentShader = `
                 uniform sampler2D grassTex;
                 uniform sampler2D stoneTex;
                 uniform sampler2D desertTex;
@@ -513,491 +521,347 @@
                 uniform vec3 jungleColor;
                 uniform vec3 swampColor;
                 uniform vec3 stoneColor;
-                uniform vec3 pathColor;
                 uniform vec3 oceanColor;
                 uniform vec3 forestColor;
-                uniform float clipRadius;
-                uniform float aoiRadius;
                 varying vec3 vWorldPos;
                 varying float vHeight;
                 varying float vDist;
-
-                void main() {
-                    // Biome basierend auf Höhe und Noise (vereinfacht im FS)
-                    vec3 color = plainsColor;
-                    
-                    // Textur-Mapping (Welt-basiert für nahtlose Übergänge)
-                    vec2 uv = vWorldPos.xz * 0.05;
-                    vec3 tex = texture2D(grassTex, uv).rgb;
-                    
-                    if (vHeight > 400.0) {
-                        color = snowColor;
-                        tex = texture2D(stoneTex, uv).rgb;
-                    } else if (vHeight > 200.0) {
-                        color = stoneColor;
-                        tex = texture2D(stoneTex, uv).rgb;
-                    } else if (vHeight < 2.0) {
-                        color = oceanColor;
-                    }
-                    
-                    // Culling-Visualisierung
-                    float alpha = 1.0 - smoothstep(clipRadius * 0.8, clipRadius, vDist);
-                    if (vDist > clipRadius) discard;
-                    
-                    gl_FragColor = vec4(color * tex, alpha);
-                }
-            \`;
+            ` + shader.fragmentShader.replace(
+                '#include <map_fragment>',
+                `
+                #include <map_fragment>
+                
+                // Welt-basierte UVs für Kachelung
+                vec2 wUV = vWorldPos.xz * 0.05;
+                
+                // Texturen mischen
+                vec3 texGrass = texture2D(grassTex, wUV).rgb;
+                vec3 texStone = texture2D(stoneTex, wUV * 0.5).rgb;
+                vec3 texDesert = texture2D(desertTex, wUV).rgb;
+                
+                // Steigungs-Check für Felsen (Normale berechnen)
+                vec3 dX = dFdx(vWorldPos);
+                vec3 dZ = dFdy(vWorldPos);
+                vec3 normal = normalize(cross(dX, dZ));
+                float slope = 1.0 - normal.y;
+                
+                // Biome-Logik basierend auf Höhe
+                vec3 bioColor = plainsColor;
+                
+                if (vHeight < 3.0) bioColor = oceanColor; // Tiefer Ozean
+                else if (vHeight < 8.0) bioColor = mix(oceanColor, plainsColor, smoothstep(3.0, 8.0, vHeight)); // Küste
+                else if (vHeight > 400.0) bioColor = mix(plainsColor, snowColor, smoothstep(400.0, 700.0, vHeight)); // Schnee
+                
+                // Fels-Splatting bei Steigung
+                float rockFactor = smoothstep(0.3, 0.6, slope);
+                vec3 finalColor = mix(bioColor * texGrass, stoneColor * texStone, rockFactor);
+                
+                diffuseColor.rgb = finalColor;
+                `
+            );
         };
 
         clipmapMesh = new THREE.Mesh(geo, clipmapMaterial);
         clipmapMesh.rotation.x = -Math.PI / 2;
-        clipmapMesh.frustumCulled = false; // Wir handhaben Culling manuell im Shader
+        clipmapMesh.frustumCulled = false; // Wir bewegen das Mesh mit dem Spieler
         clipmapGroup.add(clipmapMesh);
     }
 
-    let decorationGroups = new Map(); // cellKey -> Group
+    function initWater(scene) {
+        const waterGeo = new THREE.PlaneGeometry(CLIPMAP_RADIUS * 2, CLIPMAP_RADIUS * 2);
+        const waterMat = new THREE.MeshStandardMaterial({
+            color: PALETTE.water,
+            transparent: true,
+            opacity: 0.6,
+            roughness: 0.1,
+            metalness: 0.5
+        });
+        
+        globalWater = new THREE.Mesh(waterGeo, waterMat);
+        globalWater.rotation.x = -Math.PI / 2;
+        globalWater.position.y = 2.0; // Wasserhöhe
+        scene.add(globalWater);
+    }
 
-    function updateClipmapDecorations(px, pz, scene) {
-        if (!scene) return;
+    // --- DEKORATIONSSYSTEM (Bäume, Felsen, Gras) ---
+    const decorationGrids = new Map(); // Map<string, Group>
+    const grassGrids = new Map();       // Map<string, Group>
+
+    function updateDecorations(playerPos) {
+        if (!mainScene) return;
         
-        const cx = Math.floor(px / DECORATION_CELL_SIZE);
-        const cz = Math.floor(pz / DECORATION_CELL_SIZE);
+        const cellX = Math.floor(playerPos.x / DECORATION_CELL_SIZE);
+        const cellZ = Math.floor(playerPos.z / DECORATION_CELL_SIZE);
         
-        const activeKeys = new Set();
-        
-        for (let x = cx - DECORATION_RANGE; x <= cx + DECORATION_RANGE; x++) {
-            for (let z = cz - DECORATION_RANGE; z <= cz + DECORATION_RANGE; z++) {
-                const key = \`\${x}_\${z}\`;
-                activeKeys.add(key);
-                
-                if (!decorationGroups.has(key)) {
-                    const group = new THREE.Group();
-                    decorationGroups.set(key, group);
-                    scene.add(group);
-                    spawnDecorationsInCell(x, z, group);
+        // 1. Dekorationen (Bäume/Felsen)
+        for (let x = cellX - DECORATION_RANGE; x <= cellX + DECORATION_RANGE; x++) {
+            for (let z = cellZ - DECORATION_RANGE; z <= cellZ + DECORATION_RANGE; z++) {
+                const key = `${x}_${z}`;
+                if (!decorationGrids.has(key)) {
+                    const group = createDecorationCell(x, z);
+                    decorationGrids.set(key, group);
+                    mainScene.add(group);
                 }
             }
         }
         
-        // Alte Zellen entfernen
-        decorationGroups.forEach((group, key) => {
-            if (!activeKeys.has(key)) {
-                scene.remove(group);
-                group.traverse(obj => {
-                    if (obj.geometry) obj.geometry.dispose();
-                    if (obj.material) {
-                        if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
-                        else obj.material.dispose();
-                    }
-                });
-                decorationGroups.delete(key);
+        // Cleanup ferner Zellen
+        decorationGrids.forEach((group, key) => {
+            const [x, z] = key.split('_').map(Number);
+            if (Math.abs(x - cellX) > DECORATION_RANGE + 1 || Math.abs(z - cellZ) > DECORATION_RANGE + 1) {
+                mainScene.remove(group);
+                disposeGroup(group);
+                decorationGrids.delete(key);
+            }
+        });
+
+        // 2. Hybrides Gras-System (3D/2D)
+        const gCellX = Math.floor(playerPos.x / GRASS_CELL_SIZE);
+        const gCellZ = Math.floor(playerPos.z / GRASS_CELL_SIZE);
+
+        for (let x = gCellX - GRASS_RANGE; x <= gCellX + GRASS_RANGE; x++) {
+            for (let z = gCellZ - GRASS_RANGE; z <= gCellZ + GRASS_RANGE; z++) {
+                const key = `${x}_${z}`;
+                if (!grassGrids.has(key)) {
+                    const group = createGrassCell(x, z);
+                    grassGrids.set(key, group);
+                    mainScene.add(group);
+                }
+            }
+        }
+
+        grassGrids.forEach((group, key) => {
+            const [x, z] = key.split('_').map(Number);
+            if (Math.abs(x - gCellX) > GRASS_RANGE + 1 || Math.abs(z - gCellZ) > GRASS_RANGE + 1) {
+                mainScene.remove(group);
+                disposeGroup(group);
+                grassGrids.delete(key);
             }
         });
     }
 
-    function updateClipmap(px, pz, renderer) {
-        if (!clipmapMesh) return;
-        
-        // GPGPU updaten
-        updateGPGPU(px, pz, renderer);
-        
-        // Clipmap an Spieler-Position ausrichten (Grid-Snapping für Stabilität)
-        const snap = 10.0;
-        const sx = Math.floor(px / snap) * snap;
-        const sz = Math.floor(pz / snap) * snap;
-        
-        clipmapMesh.position.set(sx, 0, sz);
-        
-        if (clipmapMaterial.uniforms) {
-            clipmapMaterial.uniforms.heightMap.value = gpuCompute.getCurrentRenderTarget(smoothVariable).texture;
-            clipmapMaterial.uniforms.worldOffset.value.set(px, pz);
-            clipmapMaterial.uniforms.meshOffset.value.set(sx, sz);
-            clipmapMaterial.uniforms.playerPos.value.set(px, pz);
-            worldCullingUniforms.playerPos.set(px, pz);
-        }
-
-        // Dekorationen aktualisieren
-        updateClipmapDecorations(px, pz, mainScene);
-    }
-
-    function updateGPGPU(px, pz, renderer) {
-        if (!gpuCompute || !heightVariable || !heightVariable.material) return;
-        
-        // Offset so setzen, dass der Spieler in der Mitte der Textur ist
-        const ox = px - GPU_WORLD_SIZE / 2;
-        const oz = pz - GPU_WORLD_SIZE / 2;
-        
-        if (heightVariable.material.uniforms.offset) {
-            heightVariable.material.uniforms.offset.value.set(ox, oz);
-        }
-        gpuCompute.compute();
-        
-        const renderTarget = gpuCompute.getCurrentRenderTarget(smoothVariable);
-        if (renderTarget) {
-            renderer.readRenderTargetPixels(renderTarget, 0, 0, GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, gpuHeightData);
-        }
-    }
-    
-    function getGPUHeight(x, z, noFallback = false) {
-        if (!gpuCompute) return noFallback ? null : getCPUHeight(x, z);
-        
-        const ox = heightVariable.material.uniforms.offset.value.x;
-        const oz = heightVariable.material.uniforms.offset.value.y;
-        
-        // Relative Position in UV umrechnen (0 bis 1)
-        const u = (x - ox) / GPU_WORLD_SIZE;
-        const v = (z - oz) / GPU_WORLD_SIZE;
-        
-        if (u < 0 || u > 1 || v < 0 || v > 1) {
-            return noFallback ? null : getCPUHeight(x, z);
-        }
-
-        // Bilineare Interpolation für glatteres Terrain
-        const fx = u * (GPU_TERRAIN_SIZE - 1);
-        const fz = v * (GPU_TERRAIN_SIZE - 1);
-        const ix = Math.floor(fx);
-        const iz = Math.floor(fz);
-        const tx = fx - ix;
-        const tz = fz - iz;
-
-        const getH = (x, z) => {
-            const idx = (z * GPU_TERRAIN_SIZE + x) * 4;
-            return gpuHeightData[idx];
-        };
-
-        const h00 = getH(ix, iz);
-        const h10 = getH(Math.min(ix + 1, GPU_TERRAIN_SIZE - 1), iz);
-        const h01 = getH(ix, Math.min(iz + 1, GPU_TERRAIN_SIZE - 1));
-        const h11 = getH(Math.min(ix + 1, GPU_TERRAIN_SIZE - 1), Math.min(iz + 1, GPU_TERRAIN_SIZE - 1));
-
-        const h = (h00 * (1 - tx) + h10 * tx) * (1 - tz) +
-                  (h01 * (1 - tx) + h11 * tx) * tz;
-        
-        // Fallback wenn GPGPU noch keine Daten hat oder noch initialisiert
-        if (h === 0) {
-            if (noFallback) return null;
-            return getCPUHeight(x, z);
-        }
-        
-        return h;
-    }
-    
-    let chunks = new Map();
-    let villageBuildings = [];
-    const VILLAGE_POS = { x: 0, z: 0 };
-    
-    let isInterior = false;
-    let currentInterior = null;
-    let selectedHouse = null;
-    let calibrationParams = {
-        overallScale: 6.0,
-        targetWidth: 6.5,
-        targetDepth: 6.5,
-        wallScaleW: 1.625,
-        wallScaleD: 1.625,
-        roofScaleY: 1.3,
-        gableScaleY: 1.3,
-        wallY: 0,
-        roofY: 4,
-        offsetX: 0,
-        offsetY: 0,
-        offsetZ: 0,
-        houseModel: 'house1'
-    };
-
-    // Lade initiale Werte aus LocalStorage falls vorhanden
-    const savedParams = localStorage.getItem('houseCalibrationParams');
-    if (savedParams) {
-        try {
-            const parsed = JSON.parse(savedParams);
-            calibrationParams = { ...calibrationParams, ...parsed };
-        } catch (e) {
-            console.warn("Fehler beim Laden der Kalibrierung aus LocalStorage:", e);
-        }
-    }
-
-    function selectNearestHouse(px, pz) {
-        let minDist = Infinity;
-        let nearest = null;
-        
-        chunks.forEach(chunk => {
-            if (chunk.group) {
-                chunk.group.children.forEach(obj => {
-                    if (obj.isBuildingGroup) {
-                        const dist = Math.hypot(obj.position.x - px, obj.position.z - pz);
-                        if (dist < minDist) {
-                            minDist = dist;
-                            nearest = obj;
-                        }
-                    }
-                });
-            }
-        });
-
-        if (nearest) {
-            if (selectedHouse) {
-                selectedHouse.remove(selectedHouse.getObjectByName("CalibrationHelper"));
-            }
-            selectedHouse = nearest;
-            const helper = new THREE.BoxHelper(selectedHouse, 0x00ff00);
-            helper.name = "CalibrationHelper";
-            selectedHouse.add(helper);
-            console.log("[Kalibrierung] Haus ausgewählt:", selectedHouse.userData.name);
-            return true;
-        }
-        return false;
-    }
-
-    async function updateCalibration(params) {
-        if (!selectedHouse) return;
-        Object.assign(calibrationParams, params);
-        localStorage.setItem('houseCalibrationParams', JSON.stringify(calibrationParams));
-        
-        const x = selectedHouse.position.x;
-        const z = selectedHouse.position.z;
-        const name = selectedHouse.userData.name;
-        const parent = selectedHouse.parent;
-        
-        parent.remove(selectedHouse);
-        
-        let type = 'calibration';
-        if (calibrationParams.houseModel === 'house1') {
-            type = 'house1';
-        }
-
-        const newHouse = await createModularHouse(type, x, z);
-        newHouse.userData.name = name;
-        newHouse.isBuildingGroup = true;
-        parent.add(newHouse);
-        
-        selectedHouse = newHouse;
-        const helper = new THREE.BoxHelper(selectedHouse, 0x00ff00);
-        helper.name = "CalibrationHelper";
-        selectedHouse.add(helper);
-    }
-
-    let lastExteriorPos = null;
-
-    const INTERIOR_POS_SMITHY = { x: 5000, y: 0, z: 5000 };
-    const INTERIOR_POS_INN = { x: 5200, y: 0, z: 5200 };
-    const INTERIOR_POS_MARKET = { x: 5400, y: 0, z: 5400 };
-
-    let rainParticles = null;
-    let grassInst = null;
-    let fireParticles = [];
-    let blacksmithNPC = null;
-    let innkeeperNPC = null;
-    let marketNPC = null;
-    let villageGroups = [];
-    let riverPlanes = [];
-
-    function getQuality() {
-        const pr = Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
-        const cores = (navigator.hardwareConcurrency || 4);
-        const mem = (navigator.deviceMemory || 4);
-        let q = 2;
-        if (pr <= 1 && (cores <= 4 || mem <= 4)) q = 1;
-        if (pr >= 2 && cores >= 8 && mem >= 8) q = 3;
-        return q;
-    }
-
-    const QUALITY = getQuality();
-
-    if (typeof window.noise === 'undefined') {
-        window.noise = {
-            perlin2: (x, y) => simpleNoise(x, y),
-            seed: (s) => {}
-        };
-    }
-
-    let loader;
-    try {
-        if (typeof THREE.GLTFLoader !== 'undefined') {
-            loader = new THREE.GLTFLoader();
-            if (typeof THREE.DRACOLoader !== 'undefined') {
-                const dracoLoader = new THREE.DRACOLoader();
-                dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
-                loader.setDRACOLoader(dracoLoader);
-            }
-        }
-    } catch (e) {
-        console.error("Fehler beim Initialisieren des GLTFLoaders:", e);
-    }
-
-    const modelCache = new Map();
-
-    async function loadModel(path) {
-        if (modelCache.has(path)) return modelCache.get(path).clone();
-        if (!loader) throw new Error("Loader not initialized");
-        
-        const encodedPath = (path.startsWith('http') || path.startsWith('animation/') || path.includes('%')) 
-            ? path 
-            : AssetsLibrary.encode(path);
-        
-        const tryLoad = (fullPath) => {
-            return new Promise((resolve, reject) => {
-                loader.load(fullPath, (gltf) => {
-                    const isTerrain = fullPath.includes('/Terrain/') || fullPath.includes('Terrain_Grass') || fullPath.includes('ocean.glb');
-                    gltf.scene.traverse(obj => {
-                        if (obj.isMesh && obj.material) {
-                            applyWorldCulling(obj.material, isTerrain);
-                        }
-                    });
-                    modelCache.set(path, gltf.scene);
-                    resolve(gltf.scene.clone());
-                }, undefined, reject);
-            });
-        };
-
-        try {
-            return await tryLoad(encodedPath);
-        } catch (e) {
-            if (path.includes('/glTF/')) {
-                const fallbackPath = path.replace('/glTF/', '/');
-                return await tryLoad(fallbackPath);
-            }
-            throw e;
-        }
-    }
-
-    async function createModularHouse(type = 'small', seedX = 0, seedZ = 0) {
+    function createDecorationCell(cx, cz) {
         const group = new THREE.Group();
+        const seed = cx * 1337 + cz * 42;
+        const rng = rndSeed(seed);
         
-        if (type === 'house1' || (type === 'calibration' && calibrationParams.houseModel === 'house1')) {
-            try {
-                const model = await loadModel(AssetsLibrary.get('HOUSE', 'HOUSE_1'));
-                let s = 10;
-                if (type === 'calibration') {
-                    s = calibrationParams.overallScale;
-                    group.position.x += calibrationParams.offsetX;
-                    group.position.y += calibrationParams.offsetY;
-                    group.position.z += calibrationParams.offsetZ;
-                } else {
-                    const rand = Math.random();
-                    s = 8 + rand * 4;
-                    group.rotation.y = Math.floor(rand * 4) * (Math.PI / 2);
-                }
-                model.scale.set(s, s, s);
-                group.add(model);
-                return group;
-            } catch (e) {
-                console.warn("Konnte House_1.glb nicht laden, wechsle zu modular:", e);
-            }
+        const count = 12; // Weniger Bäume für Performance
+        for (let i = 0; i < count; i++) {
+            const x = (cx + rng()) * DECORATION_CELL_SIZE;
+            const z = (cz + rng()) * DECORATION_CELL_SIZE;
+            
+            const h = getGPUHeight(x, z);
+            if (h < 5.0 || h > 300.0) continue; // Nur in moderaten Höhen spawnen
+            
+            const type = rng() > 0.5 ? 'pine' : 'oak';
+            const tree = type === 'pine' ? createPine(rng) : createOak(rng);
+            tree.position.set(x, h, z);
+            
+            // AOI Check: Dormant state falls zu weit weg
+            applyWorldCulling(tree.material);
+            
+            group.add(tree);
         }
-
-        // Fallback: Einfaches Low-Poly Haus
-        const houseBody = new THREE.Mesh(
-            new THREE.BoxGeometry(7, 7, 7),
-            new THREE.MeshStandardMaterial({ color: 0x8b4513, flatShading: true })
-        );
-        houseBody.position.y = 3.5;
-        group.add(houseBody);
-
-        const roof = new THREE.Mesh(
-            new THREE.ConeGeometry(6, 4, 4),
-            new THREE.MeshStandardMaterial({ color: 0x4a3728, flatShading: true })
-        );
-        roof.position.y = 9;
-        roof.rotation.y = Math.PI / 4;
-        group.add(roof);
-
         return group;
     }
 
-    function simpleNoise(x, z) {
-        let n = Math.sin(x * 0.0123 + z * 0.0456) + Math.cos(x * 0.0789 - z * 0.0123);
-        n += Math.sin(x * 0.0234 - z * 0.0567) * 0.5;
-        return n * 0.5;
-    }
-
-    const VILLAGE_LOCATIONS = [
-        { x: 0, z: 0, radius: 400 },
-        { x: 1200, z: 0, radius: 300 },
-        { x: -1200, z: 0, radius: 300 },
-        { x: 0, z: 1200, radius: 300 },
-        { x: 0, z: -1200, radius: 300 }
-    ];
-
-    function getTerrainHeight(x, z) {
-        if (gpuCompute && gpuHeightData && gpuHeightData.length > 0) {
-            const gh = getGPUHeight(x, z, true);
-            if (gh !== null) return gh;
-        }
-        return getCPUHeight(x, z);
-    }
-
-    function getCPUHeight(x, z) {
-        const distToCenter = Math.hypot(x, z);
-        let villageFactor = 1.0;
-        for (const loc of VILLAGE_LOCATIONS) {
-            const d = Math.hypot(x - loc.x, z - loc.z);
-            if (d < loc.radius) {
-                const f = Math.max(0, (d - loc.radius * 0.4) / (loc.radius * 0.6));
-                villageFactor = Math.min(villageFactor, Math.pow(f, 2));
-            }
-        }
+    function createGrassCell(cx, cz) {
+        const group = new THREE.Group();
+        const seed = cx * 999 + cz * 123;
+        const rng = rndSeed(seed);
         
-        let h = 15.0; // Basis-Höhe am Startpunkt
-        if (distToCenter > 1000.0) {
-            h += simpleNoise(x * 0.01, z * 0.01) * 50.0;
+        // 1. 3D GRAS (Nahbereich)
+        const count3D = 40;
+        const grassGeo = new THREE.PlaneGeometry(1, 1);
+        const grassMat3D = new THREE.MeshBasicMaterial({ color: 0x44aa44, side: THREE.DoubleSide, alphaTest: 0.5 });
+        applyGrassShader(grassMat3D, true);
+        
+        const mesh3D = new THREE.InstancedMesh(grassGeo, grassMat3D, count3D);
+        const dummy = new THREE.Object3D();
+        
+        for (let i = 0; i < count3D; i++) {
+            const x = (cx + rng()) * GRASS_CELL_SIZE;
+            const z = (cz + rng()) * GRASS_CELL_SIZE;
+            const h = getGPUHeight(x, z);
+            if (h < 5.0 || h > 200.0) continue;
+            
+            dummy.position.set(x, h + 0.5, z);
+            dummy.rotation.y = rng() * Math.PI;
+            dummy.scale.set(2, 2, 2);
+            dummy.updateMatrix();
+            mesh3D.setMatrix(i, dummy.matrix);
         }
-        return h * villageFactor;
+        group.add(mesh3D);
+        
+        // 2. 2D GRAS (Fernbereich)
+        // Nutzt Sprite-Textur für Performance
+        const count2D = 15;
+        const grassTex2D = new THREE.TextureLoader().load(GRASS_PNG_PATH);
+        const grassMat2D = new THREE.MeshBasicMaterial({ map: grassTex2D, transparent: true, alphaTest: 0.5 });
+        applyGrassShader(grassMat2D, false);
+        
+        const mesh2D = new THREE.InstancedMesh(grassGeo, grassMat2D, count2D);
+        for (let i = 0; i < count2D; i++) {
+            const x = (cx + rng()) * GRASS_CELL_SIZE;
+            const z = (cz + rng()) * GRASS_CELL_SIZE;
+            const h = getGPUHeight(x, z);
+            if (h < 5.0 || h > 200.0) continue;
+            
+            dummy.position.set(x, h + 4.0, z);
+            dummy.scale.set(12, 12, 12);
+            dummy.updateMatrix();
+            mesh2D.setMatrix(i, dummy.matrix);
+        }
+        group.add(mesh2D);
+        
+        return group;
     }
 
-    async function spawnDecorationsInCell(cx, cz, group) {
-        // Implementierung von Dekorationen (Bäume, Steine, etc.)
+    // --- PRIMITIVE ASSET CREATION ---
+    function createPine(rng) {
+        const g = new THREE.Group();
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 4), new THREE.MeshStandardMaterial({ color: PALETTE.trunk }));
+        trunk.position.y = 2;
+        const leaves = new THREE.Mesh(new THREE.ConeGeometry(3, 8, 8), new THREE.MeshStandardMaterial({ color: 0x2d4c1e }));
+        leaves.position.y = 6;
+        g.add(trunk, leaves);
+        g.scale.setScalar(1 + rng() * 0.5);
+        return g;
     }
 
-    async function initWorld(scene, env, enterHouseCallback, renderer) {
-        if (renderer) {
+    function createOak(rng) {
+        const g = new THREE.Group();
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.8, 3), new THREE.MeshStandardMaterial({ color: PALETTE.trunk }));
+        trunk.position.y = 1.5;
+        const leaves = new THREE.Mesh(new THREE.SphereGeometry(3, 8, 8), new THREE.MeshStandardMaterial({ color: 0x3a5f2a }));
+        leaves.position.y = 5;
+        g.add(trunk, leaves);
+        g.scale.setScalar(1 + rng() * 0.5);
+        return g;
+    }
+
+    function disposeGroup(group) {
+        group.traverse(child => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) {
+                if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+                else child.material.dispose();
+            }
+        });
+    }
+
+    function rndSeed(s) {
+        let x = s;
+        return () => (x = (x * 1103515245 + 12345) % 2147483648) / 2147483648;
+    }
+
+    function getGPUHeight(x, z) {
+        if (!gpuCompute || !heightVariable) return 15.0; // Fallback für Startpunkt
+        
+        // Mapping von Welt-Koordinaten auf Textur-Koordinaten (0.0 bis 1.0)
+        const u = (x + (GPU_WORLD_SIZE * 0.5)) / GPU_WORLD_SIZE;
+        const v = (z + (GPU_WORLD_SIZE * 0.5)) / GPU_WORLD_SIZE;
+        
+        if (u < 0 || u > 1 || v < 0 || v > 1) return -50.0;
+        
+        const tx = Math.floor(u * (GPU_TERRAIN_SIZE - 1));
+        const ty = Math.floor(v * (GPU_TERRAIN_SIZE - 1));
+        const idx = (ty * GPU_TERRAIN_SIZE + tx) * 4;
+        
+        return gpuHeightData[idx] || 0;
+    }
+
+    // --- MODULAR HOUSE SYSTEM ---
+    const villageBuildings = [];
+
+    function createModularHouse(type, seedX, seedZ) {
+        const group = new THREE.Group();
+        const rng = rndSeed(seedX * 100 + seedZ);
+        
+        // Versuch GLTF zu laden, sonst Fallback
+        const modelPath = type === 'house' ? AssetsLibrary.get('BUILDINGS', 'HOUSE_SMALL') : AssetsLibrary.get('BUILDINGS', 'HOUSE_LARGE');
+        
+        // Da wir im Script-Kontext sind, nutzen wir einen Fallback-Box-Stil für Stabilität
+        const houseBase = new THREE.Mesh(
+            new THREE.BoxGeometry(10, 8, 10),
+            new THREE.MeshStandardMaterial({ color: PALETTE.walls })
+        );
+        houseBase.position.y = 4;
+        group.add(houseBase);
+        
+        const roof = new THREE.Mesh(
+            new THREE.ConeGeometry(8, 6, 4),
+            new THREE.MeshStandardMaterial({ color: PALETTE.roof })
+        );
+        roof.position.y = 11;
+        roof.rotation.y = Math.PI / 4;
+        group.add(roof);
+        
+        group.position.set(seedX, getGPUHeight(seedX, seedZ), seedZ);
+        applyWorldCulling(houseBase.material);
+        applyWorldCulling(roof.material);
+        
+        villageBuildings.push(group);
+        return group;
+    }
+
+    // --- PUBLIC API ---
+    window.FPGraphics = {
+        init: (renderer, scene) => {
             initGPGPU(renderer);
             initClipmap(scene);
-            updateClipmap(0, 0, renderer);
-        }
-    }
-
-    function cleanup(scene) {
-        if (clipmapGroup) {
-            scene.remove(clipmapGroup);
-            clipmapGroup.traverse(obj => {
-                if (obj.geometry) obj.geometry.dispose();
-                if (obj.material) {
-                    if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
-                    else obj.material.dispose();
-                }
-            });
-            clipmapGroup = null;
-        }
-        decorationGroups.forEach(group => {
-            scene.remove(group);
-            group.traverse(obj => {
-                if (obj.geometry) obj.geometry.dispose();
-                if (obj.material) {
-                    if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
-                    else obj.material.dispose();
-                }
-            });
-        });
-        decorationGroups.clear();
-        chunks.clear();
-        villageBuildings = [];
-    }
-
-    window.FPGraphics = {
-        CLIPMAP_RADIUS,
-        chunks,
-        isInterior,
-        currentInterior,
-        villageBuildings,
-        initWorld,
-        getTerrainHeight,
-        updateGPGPU,
+            initWater(scene);
+            
+            // Initialer Render-Pass für die Heightmap
+            gpuCompute.compute();
+            renderer.readRenderTargetPixels(gpuCompute.getCurrentRenderTarget(heightVariable), 0, 0, GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, gpuHeightData);
+        },
+        update: (renderer, playerPos, time) => {
+            if (!gpuCompute) return;
+            
+            // 1. GPGPU Update
+            heightVariable.material.uniforms.time.value = time;
+            gpuCompute.compute();
+            
+            // Gelegentliches Auslesen der Heightmap für CPU-Kollision (nicht jeden Frame für Performance)
+            if (Math.floor(time * 60) % 10 === 0) {
+                renderer.readRenderTargetPixels(gpuCompute.getCurrentRenderTarget(heightVariable), 0, 0, GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, gpuHeightData);
+            }
+            
+            // 2. Clipmap Update
+            if (clipmapMesh) {
+                // Das Mesh folgt dem Spieler in 10m Schritten (verhindert Jittering durch Gleitkommafehler)
+                const snap = 10;
+                const snapX = Math.floor(playerPos.x / snap) * snap;
+                const snapZ = Math.floor(playerPos.z / snap) * snap;
+                
+                clipmapMesh.position.set(snapX, 0, snapZ);
+                clipmapMaterial.onBeforeCompile = (shader) => {
+                    if (shader.uniforms.heightMap) shader.uniforms.heightMap.value = gpuCompute.getCurrentRenderTarget(heightVariable).texture;
+                    if (shader.uniforms.meshOffset) shader.uniforms.meshOffset.value.set(snapX, snapZ);
+                    if (shader.uniforms.playerPos) shader.uniforms.playerPos.value.set(playerPos.x, playerPos.z);
+                };
+            }
+            
+            // 3. Dekorationen
+            updateDecorations(playerPos);
+            
+            // 4. Uniforms für Global Culling
+            worldCullingUniforms.playerPos.set(playerPos.x, playerPos.z);
+            worldCullingUniforms.time.value = time;
+        },
         getGPUHeight,
-        updateClipmap,
-        cleanup,
         createModularHouse,
-        selectNearestHouse,
-        updateCalibration,
-        PALETTE
+        villageBuildings,
+        cleanup: () => {
+            decorationGrids.forEach(disposeGroup);
+            grassGrids.forEach(disposeGroup);
+            decorationGrids.clear();
+            grassGrids.clear();
+            if (clipmapMesh) {
+                clipmapMesh.geometry.dispose();
+                clipmapMaterial.dispose();
+            }
+        }
     };
 })();
