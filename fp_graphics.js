@@ -766,8 +766,8 @@
             scene.add(terrainBase);
             console.log("🌲 Hauptdorf-Terrain geladen (Scale 1.0, Y=2.5):", terrainBasePath);
             
-            // --- NEU: Hauptdorf Wiesen-Logik (InstancedMesh) ---
-            initHauptdorfMeadow();
+            // Die Wiesen-Logik wurde in das dynamische Chunk-System (updateGrassChunks) integriert,
+            // um Performance durch Distance-Culling und kleineren Speicher-Footprint zu garantieren.
         }).catch(err => {
             console.warn("Konnte Terrain-Basis nicht laden:", err);
         });
@@ -776,103 +776,6 @@
     /**
      * Erstellt eine dichte Wiese für das Hauptdorf-Biom mittels InstancedMesh.
      */
-    async function initHauptdorfMeadow() {
-        const grassAssetPath = AssetsLibrary.encode('baeume/glTF/Grass_Large.gltf');
-        console.log("🌿 Initialisiere ULTRA-DICHTE Hauptdorf-Wiese (Xenoblade-Look)...");
-
-        try {
-            const gltf = await loadModel(grassAssetPath);
-            let grassMesh = null;
-            
-            gltf.traverse(child => {
-                if (child.isMesh && !grassMesh) grassMesh = child;
-            });
-
-            if (!grassMesh) return;
-
-            // ULTRA-DICHTE Parameter (The Nest Master Rule: Kein Boden sichtbar)
-            // Radius 1500 entspricht dem Hauptdorf-Bereich im Noise-Shader
-            const radius = 1500; 
-            const step = 0.6; // Leicht erhöht auf 0.6 für Radius 1500 (Performance vs Dichte)
-            const jitter = 0.15; 
-            const waterLevel = 2.2; 
-
-            const validPositions = [];
-            const rng = mulberry32(42);
-
-            console.log(`🌿 Berechne Raster für Radius ${radius}... (Dies kann kurz dauern)`);
-
-            // Raster berechnen
-            for (let x = -radius; x <= radius; x += step) {
-                for (let z = -radius; z <= radius; z += step) {
-                    // Kreis-Check
-                    const d2 = x * x + z * z;
-                    if (d2 > radius * radius) continue;
-
-                    // Sanftes Ausfaden am Rand des Bioms
-                    const dist = Math.sqrt(d2);
-                    if (dist > radius - 100 && rng() > (radius - dist) / 100) continue;
-
-                    const h = typeof getGPUHeight === 'function' ? getGPUHeight(x, z) : 2.5;
-                    if (h < waterLevel) continue;
-
-                    const jX = x + (rng() - 0.5) * jitter;
-                    const jZ = z + (rng() - 0.5) * jitter;
-                    
-                    validPositions.push({ x: jX, y: h, z: jZ });
-                }
-            }
-
-            const count = validPositions.length;
-            console.log(`🌿 Erzeuge ${count} Gras-Instanzen für das gesamte Hauptdorf.`);
-
-            const instancedMesh = new THREE.InstancedMesh(grassMesh.geometry, grassMesh.material, count);
-            
-            const matrix = new THREE.Matrix4();
-            const position = new THREE.Vector3();
-            const rotation = new THREE.Quaternion();
-            const scale = new THREE.Vector3();
-            const euler = new THREE.Euler();
-
-            for (let i = 0; i < count; i++) {
-                const pos = validPositions[i];
-                
-                const yOffset = 0.01; 
-                position.set(pos.x, pos.y + yOffset, pos.z);
-                
-                euler.set(0, rng() * Math.PI * 2, 0);
-                rotation.setFromEuler(euler);
-                
-                // Skalierung 2.5 - 4.5 für gute Abdeckung bei großer Fläche
-                const s = 2.5 + rng() * 2.0;
-                scale.set(s, s, s);
-
-                matrix.compose(position, rotation, scale);
-                instancedMesh.setMatrixAt(i, matrix);
-            }
-
-            instancedMesh.instanceMatrix.needsUpdate = true;
-            instancedMesh.renderOrder = 2;
-            instancedMesh.frustumCulled = true; // Wichtig bei dieser Menge für Performance
-            instancedMesh.layers.set(0);
-            
-            instancedMesh.castShadow = true;
-            instancedMesh.receiveShadow = true;
-
-            applyWorldCulling(instancedMesh.material, true);
-
-            if (mainScene) {
-                mainScene.add(instancedMesh);
-                console.log(`✅ Hauptdorf-Biom (Radius ${radius}) mit ${count} Instanzen begrünt.`);
-            } else {
-                console.warn("⚠️ Hauptdorf-Wiese konnte nicht hinzugefügt werden: mainScene ist nicht definiert.");
-            }
-
-        } catch (err) {
-            console.error("❌ Fehler beim Erstellen der ULTRA-DICHTEN Wiese:", err);
-        }
-    }
-
     function updateClipmap(px, pz, renderer) {
         if (!clipmapMesh || !gpuCompute) return;
 
@@ -1930,84 +1833,109 @@
         // Biome für die Zelle bestimmen
         const midX = x0 + GRASS_CELL_SIZE / 2;
         const midZ = z0 + GRASS_CELL_SIZE / 2;
-        const midH = getTerrainHeight(midX, midZ);
+        const midH = getGPUHeight(midX, midZ);
         const biome = getBiomeData(midX, midZ, midH);
         
         // Ocean/Water check
         if (midH < 2.0) return;
 
-        // Dichte basierend auf Biome
-        let density = 20; // Default
-        if (biome.name === 'plains') density = 150;
-        else if (biome.name === 'forest') density = 120;
-        else if (biome.name === 'jungle') density = 200;
-        else if (biome.name === 'swamp') density = 100;
-        else if (biome.name === 'desert') density = 10;
-        else if (biome.name === 'snow') density = 5;
+        // Check for Hauptdorf (Radius 1500)
+        const distToCenter = Math.sqrt(midX * midX + midZ * midZ);
+        const isHauptdorf = distToCenter < 1500;
 
         const instancedData = new Map();
         
-        for (let i = 0; i < density; i++) {
-            const sx = x0 + rng() * GRASS_CELL_SIZE;
-            const sz = z0 + rng() * GRASS_CELL_SIZE;
-            const sh = getTerrainHeight(sx, sz);
+        if (isHauptdorf) {
+            // ULTRA-DICHTE Grid-Logik für Hauptdorf
+            const step = 0.6;
+            const jitter = 0.15;
+            const assetPath = AssetsLibrary.encode('baeume/glTF/Grass_Large.gltf');
+            const finalPath = 'animation/' + assetPath;
             
-            if (sh > 1.5) {
-                let assetPath = null;
-                let scale = 1.0;
+            if (!instancedData.has(finalPath)) instancedData.set(finalPath, []);
+            const dataArr = instancedData.get(finalPath);
 
-                if (biome.name === 'desert') {
-                    // Wüste bekommt vorerst gar nichts, bis Terrain steht
-                    /*
-                    const grass = AssetsLibrary.get('NATURE', 'GRASS');
-                    if (Array.isArray(grass) && grass.length > 0) {
-                        assetPath = AssetsLibrary.encode('Nature/glTF/' + grass[0]);
-                        scale = 0.5 + rng() * 1.0;
-                    }
-                    */
-                } else if (biome.name === 'snow') {
-                    // Kein Gras im Schnee
-                } else {
-                    const rand = rng();
-                    if (rand > 0.4) {
-                        // Hauptgras (Terrain_Grass.glb aus /Terrain/)
-                        assetPath = AssetsLibrary.get('TERRAIN', 'GRASS');
-                        scale = 1.0 + rng() * 0.5;
-                    } else if (rand > 0.1) {
-                        // Grass_Large oder Grass_Small (jetzt aus /baeume/glTF/)
-                        const grassList = AssetsLibrary.get('TREES', 'GRASS');
-                        assetPath = rng() > 0.5 
-                            ? AssetsLibrary.encode('baeume/glTF/' + grassList[0])
-                            : AssetsLibrary.encode('baeume/glTF/' + grassList[1]);
-                        scale = 0.8 + rng() * 0.4;
-                    } else {
-                        // Blumen reaktivieren
-                        const flowerList = AssetsLibrary.get('TREES', 'FLOWERS');
-                        if (Array.isArray(flowerList) && flowerList.length > 0) {
-                            const flower = flowerList[Math.floor(rng() * flowerList.length)];
-                            assetPath = AssetsLibrary.encode('baeume/glTF/' + flower);
-                            scale = 1.0 + rng() * 1.5;
-                        }
-                    }
-                }
-
-                if (assetPath) {
-                    // Sicherstellen, dass der Pfad mit animation/ beginnt
-                    const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
-                    if (!instancedData.has(finalPath)) instancedData.set(finalPath, []);
+            for (let x = 0; x < GRASS_CELL_SIZE; x += step) {
+                for (let z = 0; z < GRASS_CELL_SIZE; z += step) {
+                    const sx = x0 + x + (rng() - 0.5) * jitter;
+                    const sz = z0 + z + (rng() - 0.5) * jitter;
                     
-                    // OFFSET FIX: Wir heben das Gras deutlich an (+0.5), um sicher über dem Boden zu sein.
-                    instancedData.get(finalPath).push({
-                        pos: [sx, sh + 0.5, sz],
-                        scale: scale,
+                    // Zusätzlicher Radius-Check für die exakte Kreisform
+                    const d = Math.sqrt(sx * sx + sz * sz);
+                    if (d > 1500) continue;
+
+                    // Ausfaden am Rand
+                    if (d > 1400 && rng() > (1500 - d) / 100) continue;
+
+                    const sh = getGPUHeight(sx, sz);
+                    if (sh < 2.2) continue; // Wasser-Check
+
+                    dataArr.push({
+                        pos: [sx, sh + 0.01, sz],
+                        scale: 2.5 + rng() * 2.0,
                         rot: rng() * Math.PI * 2
                     });
+                }
+            }
+        } else {
+            // Standard Biome-basierte Logik
+            let density = 20;
+            if (biome.name === 'plains') density = 150;
+            else if (biome.name === 'forest') density = 120;
+            else if (biome.name === 'jungle') density = 200;
+            else if (biome.name === 'swamp') density = 100;
+            else if (biome.name === 'desert') density = 10;
+            else if (biome.name === 'snow') density = 5;
+
+            for (let i = 0; i < density; i++) {
+                const sx = x0 + rng() * GRASS_CELL_SIZE;
+                const sz = z0 + rng() * GRASS_CELL_SIZE;
+                const sh = getGPUHeight(sx, sz);
+                
+                if (sh > 1.5) {
+                    let assetPath = null;
+                    let scale = 1.0;
+
+                    if (biome.name === 'snow') {
+                        // Kein Gras im Schnee
+                    } else if (biome.name !== 'desert') {
+                        const rand = rng();
+                        if (rand > 0.4) {
+                            assetPath = AssetsLibrary.get('TERRAIN', 'GRASS');
+                            scale = 1.0 + rng() * 0.5;
+                        } else if (rand > 0.1) {
+                            const grassList = AssetsLibrary.get('TREES', 'GRASS');
+                            assetPath = rng() > 0.5 
+                                ? AssetsLibrary.encode('baeume/glTF/' + grassList[0])
+                                : AssetsLibrary.encode('baeume/glTF/' + grassList[1]);
+                            scale = 0.8 + rng() * 0.4;
+                        } else {
+                            const flowerList = AssetsLibrary.get('TREES', 'FLOWERS');
+                            if (Array.isArray(flowerList) && flowerList.length > 0) {
+                                const flower = flowerList[Math.floor(rng() * flowerList.length)];
+                                assetPath = AssetsLibrary.encode('baeume/glTF/' + flower);
+                                scale = 1.0 + rng() * 1.5;
+                            }
+                        }
+                    }
+
+                    if (assetPath) {
+                        const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
+                        if (!instancedData.has(finalPath)) instancedData.set(finalPath, []);
+                        instancedData.get(finalPath).push({
+                            pos: [sx, sh + 0.5, sz],
+                            scale: scale,
+                            rot: rng() * Math.PI * 2
+                        });
+                    }
                 }
             }
         }
 
         // Instanzen erstellen
         for (const [path, instances] of instancedData.entries()) {
+            if (instances.length === 0) continue;
+            
             getModelInstanceData(path).then(data => {
                 if (!data) return;
                 const instancedMesh = new THREE.InstancedMesh(data.geo, data.mat, instances.length);
@@ -2026,8 +1954,14 @@
                     matrix.compose(position, quaternion, scaleVec);
                     instancedMesh.setMatrixAt(i, matrix);
                 }
-                instancedMesh.castShadow = false; // Gras wirft keinen Schatten für Performance
+                
+                instancedMesh.castShadow = isHauptdorf; // Nur im Hauptdorf Schatten für Look
                 instancedMesh.receiveShadow = true;
+                instancedMesh.frustumCulled = true;
+                
+                // Culling-Shader anwenden
+                applyWorldCulling(instancedMesh.material, true);
+                
                 group.add(instancedMesh);
             }).catch(e => {});
         }
