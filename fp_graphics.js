@@ -786,7 +786,7 @@
     // Dieser Pfad wird jetzt zentral in AssetsLibrary.js verwaltet.
     
     let chunks = new Map(); // Nur noch für Kollision/Vegetation im Hintergrund (Veraltet)
-    let villageBuildings = [];
+    let fpVillageBuildings = [];
     const VILLAGE_POS = { x: 0, z: 0 };
     
     let isInterior = false;
@@ -1000,7 +1000,7 @@
         }
     }
 
-    async function createModularHouse(type = 'small', seedX = 0, seedZ = 0) {
+    async function createLegacyModularHouse(type = 'small', seedX = 0, seedZ = 0) {
         const group = new THREE.Group();
         
         // Spezialfall: Neues House_1.glb Modell
@@ -1448,7 +1448,7 @@
         return g;
     }
 
-    function createCactus(rng) {
+    function createLegacyCactus(rng) {
         const g = new THREE.Group();
         const mat = new THREE.MeshStandardMaterial({ color: 0x556b2f, flatShading: true });
         
@@ -2367,26 +2367,79 @@
 
     // --- MODULAR HOUSE SYSTEM ---
 
-    function createModularHouse(type, seedX, seedZ) {
+    async function createModularHouse(type = 'small', seedX = 0, seedZ = 0) {
         const group = new THREE.Group();
-        const rng = rndSeed(seedX * 100 + seedZ);
         
-        // Versuch GLTF zu laden, sonst Fallback
-        const modelPath = type === 'house' ? AssetsLibrary.get('BUILDINGS', 'HOUSE_SMALL') : AssetsLibrary.get('BUILDINGS', 'HOUSE_LARGE');
-        
-        // Da wir im Script-Kontext sind, nutzen wir einen Fallback-Box-Stil für Stabilität
+        // Spezialfall: Neues House_1.glb Modell
+        if (type === 'house1' || (type === 'calibration' && calibrationParams.houseModel === 'house1')) {
+            try {
+                const model = await loadModel(AssetsLibrary.get('HOUSE', 'HOUSE_1'));
+                
+                let s = 10;
+                if (type === 'calibration') {
+                    s = calibrationParams.overallScale;
+                    group.position.x += calibrationParams.offsetX;
+                    group.position.y += calibrationParams.offsetY;
+                    group.position.z += calibrationParams.offsetZ;
+                } else {
+                    // Deterministische Variation für normale Häuser
+                    const houseRng = () => {
+                        const s = Math.sin(seedX * 12.9898 + seedZ * 78.233) * 43758.5453;
+                        return s - Math.floor(s);
+                    };
+                    const rand = houseRng();
+                    s = 8 + rand * 4; // Skalierung 8-12
+                    group.rotation.y = Math.floor(rand * 4) * (Math.PI / 2); // 0, 90, 180, 270 Grad
+                }
+                
+                model.scale.set(s, s, s);
+                group.add(model);
+                
+                group.position.set(seedX, getGPUHeight(seedX, seedZ), seedZ);
+                fpVillageBuildings.push(group);
+                return group;
+            } catch (e) {
+                console.warn("Konnte House_1.glb nicht laden, wechsle zu modular:", e);
+                // Fallback zu modular
+            }
+        }
+
+        // Grundwerte initialisieren
+        let currentScale = 6.0;
+        let targetWidth, targetDepth, wallScaleW, wallScaleD;
+        let roofScaleY = 1.3, gableScaleY = 1.3;
+        let wallY = 0, roofY = 4;
+
+        if (type === 'calibration') {
+            currentScale = calibrationParams.overallScale;
+            targetWidth = calibrationParams.targetWidth;
+            targetDepth = calibrationParams.targetDepth;
+            wallScaleW = calibrationParams.wallScaleW;
+            wallScaleD = calibrationParams.wallScaleD;
+            roofScaleY = calibrationParams.roofScaleY;
+            gableScaleY = calibrationParams.gableScaleY;
+            wallY = calibrationParams.wallY;
+            roofY = calibrationParams.roofY;
+        } else {
+            // Normales modulares Haus
+            targetWidth = 6.5;
+            targetDepth = 6.5;
+            wallScaleW = 1.625;
+            wallScaleD = 1.625;
+        }
+
         const houseBase = new THREE.Mesh(
-            new THREE.BoxGeometry(10, 8, 10),
+            new THREE.BoxGeometry(targetWidth * currentScale, 8, targetDepth * currentScale),
             new THREE.MeshStandardMaterial({ color: PALETTE.walls })
         );
-        houseBase.position.y = 4;
+        houseBase.position.y = 4 + wallY;
         group.add(houseBase);
         
         const roof = new THREE.Mesh(
-            new THREE.ConeGeometry(8, 6, 4),
+            new THREE.ConeGeometry(targetWidth * currentScale * 0.8, 10 * roofScaleY, 4),
             new THREE.MeshStandardMaterial({ color: PALETTE.roof })
         );
-        roof.position.y = 11;
+        roof.position.y = 10 + roofY;
         roof.rotation.y = Math.PI / 4;
         group.add(roof);
         
@@ -2394,7 +2447,7 @@
         applyWorldCulling(houseBase.material);
         applyWorldCulling(roof.material);
         
-        villageBuildings.push(group);
+        fpVillageBuildings.push(group);
         return group;
     }
 
@@ -2473,7 +2526,7 @@
         createNameTag,
         getGPUHeight,
         createModularHouse,
-        villageBuildings,
+        villageBuildings: fpVillageBuildings,
         cleanup: () => {
             decorationGrids.forEach(disposeGroup);
             grassGrids.forEach(disposeGroup);
