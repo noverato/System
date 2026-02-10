@@ -778,7 +778,7 @@
      */
     async function initHauptdorfMeadow() {
         const grassAssetPath = AssetsLibrary.encode('baeume/glTF/Grass_Large.gltf');
-        console.log("🌿 Initialisiere Hauptdorf-Wiese mit:", grassAssetPath);
+        console.log("🌿 Initialisiere Hauptdorf-Wiese (Grid-System)...");
 
         try {
             const gltf = await loadModel(grassAssetPath);
@@ -790,8 +790,37 @@
 
             if (!grassMesh) return;
 
-            const count = 25000; // Massiv erhöhte Dichte für echten Wiesen-Look (The Nest Rule: Kein Kahlschlag)
-            const radius = 220; // Radius um den Spawn (0,0)
+            // Raster-Parameter für lückenlose Wiese (The Nest Core Logic)
+            const radius = 220; 
+            const step = 0.85; // Engeres Raster für dichten Wuchs
+            const jitter = 0.05; // Minimaler Jitter für Natürlichkeit
+            const waterLevel = 2.2; // Kein Gras unter/im Wasser (Layer-Check via Height)
+
+            const validPositions = [];
+            const rng = mulberry32(42);
+
+            // Raster berechnen (Grid-System statt Zufallsstreuung)
+            for (let x = -radius; x <= radius; x += step) {
+                for (let z = -radius; z <= radius; z += step) {
+                    // Kreis-Check (innerhalb des Bioms)
+                    if (x * x + z * z > radius * radius) continue;
+
+                    // Wasser-Check: Hauptdorf-Terrain liegt bei Y=2.5. Wasser bei Y=2.0.
+                    // Wir nutzen getGPUHeight für präzise Kollision mit dem Terrain.
+                    const h = typeof getGPUHeight === 'function' ? getGPUHeight(x, z) : 2.5;
+                    if (h < waterLevel) continue;
+
+                    // Minimaler Jitter für natürliche Optik (max 0.05)
+                    const jX = x + (rng() - 0.5) * jitter * 2;
+                    const jZ = z + (rng() - 0.5) * jitter * 2;
+                    
+                    validPositions.push({ x: jX, y: h, z: jZ });
+                }
+            }
+
+            const count = validPositions.length;
+            console.log(`🌿 Erzeuge ${count} Gras-Instanzen im Raster (Lückenlos-Modus).`);
+
             const instancedMesh = new THREE.InstancedMesh(grassMesh.geometry, grassMesh.material, count);
             
             const matrix = new THREE.Matrix4();
@@ -799,27 +828,20 @@
             const rotation = new THREE.Quaternion();
             const scale = new THREE.Vector3();
             const euler = new THREE.Euler();
-            const rng = mulberry32(42); 
 
             for (let i = 0; i < count; i++) {
-                const r = Math.sqrt(rng()) * radius;
-                const angle = rng() * Math.PI * 2;
+                const pos = validPositions[i];
                 
-                const x = Math.cos(angle) * r;
-                const z = Math.sin(angle) * r;
-
-                // Physikalische Platzierung:
-                // Das Hauptdorf-Terrain liegt bei Y=2.5. Wir setzen das Gras leicht darüber.
-                // Zufälliger kleiner Y-Offset (0.02 - 0.08) für natürlichere Überlappung
+                // Platzierung (leicht über dem Boden)
                 const yOffset = 0.02 + rng() * 0.06;
-                position.set(x, 2.5 + yOffset, z);
+                position.set(pos.x, pos.y + yOffset, pos.z);
                 
                 // Zufällige Rotation (Y-Achse)
                 euler.set(0, rng() * Math.PI * 2, 0);
                 rotation.setFromEuler(euler);
                 
-                // Natürliche Skalierung (1.2 - 2.2) - Größeres Gras für besseren Look
-                const s = 1.2 + rng() * 1.0;
+                // Skalierung (leicht erhöht für bessere Abdeckung)
+                const s = 1.4 + rng() * 0.8;
                 scale.set(s, s, s);
 
                 matrix.compose(position, rotation, scale);
@@ -827,18 +849,15 @@
             }
 
             instancedMesh.instanceMatrix.needsUpdate = true;
-            instancedMesh.renderOrder = 2; // Stabil über Boden (0) und Wasser (1)
+            instancedMesh.renderOrder = 2;
             instancedMesh.frustumCulled = false;
-            
-            // Layer 0 für Sichtbarkeit
             instancedMesh.layers.set(0);
             
-            // Culling anwenden (außer das Hauptdorf-Gras selbst)
             applyWorldCulling(instancedMesh.material, true);
 
             if (mainScene) {
                 mainScene.add(instancedMesh);
-                console.log(`✅ Hauptdorf-Wiese mit ${count} Instanzen erstellt.`);
+                console.log(`✅ Hauptdorf-Wiese (Grid) mit ${count} Instanzen erstellt.`);
             } else {
                 console.warn("⚠️ Hauptdorf-Wiese konnte nicht hinzugefügt werden: mainScene ist nicht definiert.");
             }
