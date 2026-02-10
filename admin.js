@@ -191,26 +191,48 @@ const AdminConsole = {
     teleportToBiome: function(biomeKey) {
         const coords = {
             'CENTRAL': { x: 0, z: 0 },
-            'RANGER': { x: 2000, z: 2000 },
-            'WARRIOR': { x: -2000, z: 2000 },
-            'DRUID': { x: 2000, z: -2000 },
-            'GUARDIAN': { x: -2000, z: -2000 },
-            'SEEKER': { x: 4000, z: 0 },
-            'HERMIT': { x: -4000, z: 0 },
-            'WARDEN': { x: 0, z: 4000 }
+            'RANGER': { x: 4500, z: 4500 },     // Tiefer in den Wald (Wipfelwacht)
+            'WARRIOR': { x: -4500, z: 4500 },    // Tiefer in den Ehrenhain
+            'DRUID': { x: 4500, z: -4500 },      // Sumpf-Region
+            'GUARDIAN': { x: -4500, z: -4500 },   // Berg-Region
+            'SEEKER': { x: 8000, z: 0 },         // Schattenmarkt (Osten)
+            'HERMIT': { x: -8000, z: 0 },        // Leeren-Schrein (Westen)
+            'WARDEN': { x: 0, z: 8000 }          // Sonnen-Zitadelle (Norden)
         };
 
         const target = coords[biomeKey];
         if (target && window.avatar) {
+            // Direkte Positionsänderung des Avatars
             window.avatar.position.x = target.x;
             window.avatar.position.z = target.z;
             
-            // Falls eine Kamera-Steuerung existiert, diese ebenfalls updaten
+            // Sofortige Höhenanpassung erzwingen, damit man nicht unter der Map landet
+            if (typeof getTerrainHeight === 'function') {
+                const groundHeight = getTerrainHeight(target.x, target.z);
+                window.avatar.position.y = groundHeight + 5; // Sicherer Puffer
+            } else {
+                window.avatar.position.y = 50; // Fallback
+            }
+            
+            // Kamera-Steuerung (OrbitControls/PointerLock) synchronisieren
             if (window.controls && window.controls.target) {
-                window.controls.target.set(target.x, 0, target.z);
+                window.controls.target.set(target.x, window.avatar.position.y, target.z);
             }
 
-            this.sync(`Teleport zum Biom: ${biomeKey} (${target.x}, ${target.z})`);
+            // Falls First-Person Kamera direkt am Avatar hängt
+            if (window.camera) {
+                // Kamera-Position relativ zum Avatar setzen, falls nötig
+            }
+
+            this.sync(`GÖTTER-SPRUNG: ${biomeKey} (${target.x}, ${target.z})`);
+            
+            // Kleiner Delay für Engine-Sync (Physics/Chunk Loading)
+            setTimeout(() => {
+                if (window.avatar) {
+                    const finalHeight = (typeof getTerrainHeight === 'function') ? getTerrainHeight(target.x, target.z) : 20;
+                    window.avatar.position.y = finalHeight + 2;
+                }
+            }, 100);
         } else {
             this.sync(`Biom ${biomeKey} nicht gefunden oder Avatar fehlt.`);
         }
