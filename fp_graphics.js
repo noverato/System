@@ -1689,21 +1689,27 @@
                             scale = 0.2 + rng() * 0.4; // Winzige Tannen im Schnee
                         }
                     } else {
-                        // Mix aus Gras und Blumen
-                        if (rng() > 0.4) {
+                        // Mix aus Gras, Blumen und dem neuen Landscape Grass
+                        const rand = rng();
+                        if (rand > 0.6) {
+                            // Neues hochwertiges Landscape Grass (Draco komprimiert)
+                            assetPath = AssetsLibrary.get('TERRAIN', 'GRASS_MODEL');
+                            scale = 1.5 + rng() * 2.5;
+                        } else if (rand > 0.3) {
                             const grassList = AssetsLibrary.get('TREES', 'GRASS');
                             if (Array.isArray(grassList) && grassList.length > 0) {
                                 const grass = grassList[Math.floor(rng() * grassList.length)];
                                 assetPath = AssetsLibrary.encode('bäume/glTF/' + grass);
+                                scale = 1.0 + rng() * 2.0;
                             }
                         } else {
                             const flowerList = AssetsLibrary.get('TREES', 'FLOWERS');
                             if (Array.isArray(flowerList) && flowerList.length > 0) {
                                 const flower = flowerList[Math.floor(rng() * flowerList.length)];
                                 assetPath = AssetsLibrary.encode('bäume/glTF/' + flower);
+                                scale = 1.0 + rng() * 2.0;
                             }
                         }
-                        scale = 1.0 + rng() * 2.0;
                     }
                 }
 
