@@ -1837,7 +1837,7 @@
                 }
 
                 if (assetPath) {
-                    const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
+                    const finalPath = assetPath; 
                     if (!instancedData.has(finalPath)) instancedData.set(finalPath, []);
                     
                     // OFFSET FIX: Wir heben das Gras deutlich an (+0.3), um sicher über dem Boden zu sein.
@@ -2051,7 +2051,7 @@
                 }
                 
                 if (assetPath) {
-                    const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
+                    const finalPath = assetPath;
                     loadModel(finalPath).then(model => {
                         if (!model) return;
                         // Bäume und große Objekte leicht in den Boden stecken für besseren Übergang,
@@ -2116,7 +2116,7 @@
                 }
 
                 if (assetPath) {
-                    const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
+                    const finalPath = assetPath;
                     if (!instancedData.has(finalPath)) instancedData.set(finalPath, []);
                     
                     // OFFSET FIX: Wir heben das Clutter (Steine/Gras) deutlich an (+0.3).

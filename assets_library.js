@@ -39,9 +39,9 @@ const AssetsLibrary = (() => {
             }
         },
 
-        // Bäume Ordner - "bäume" / "büsche"
+        // Bäume Ordner - "baeume" / "büsche"
         TREES: {
-            PATH: 'bäume/glTF/',
+            PATH: 'baeume/glTF/',
             LIST: [
                 'BirchTree_1.gltf', 'BirchTree_2.gltf', 'BirchTree_3.gltf', 'BirchTree_4.gltf', 'BirchTree_5.gltf',
                 'MapleTree_1.gltf', 'MapleTree_2.gltf', 'MapleTree_3.gltf', 'MapleTree_4.gltf', 'MapleTree_5.gltf',
