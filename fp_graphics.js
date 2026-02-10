@@ -742,10 +742,9 @@
         // Das Terrain_Grass.glb wird nur für das Wald-Biom (Zentrum) geladen.
         const terrainBasePath = AssetsLibrary.get('TERRAIN', 'GRASS_MODEL');
         loadModel(terrainBasePath).then(terrainBase => {
-            // Begrenzung auf das Wald-Biom im Zentrum (0,0)
-            // Wir skalieren es etwas größer (2000m), damit es als Wald-Basis auffällt
-            terrainBase.scale.set(2000, 1, 2000); 
-            terrainBase.position.set(0, 3.5, 0); // Höher positionieren, um über der Clipmap sichtbar zu sein
+            // Wir skalieren es massiv (10000m), damit es als Basis dient
+            terrainBase.scale.set(10000, 1, 10000); 
+            terrainBase.position.set(0, 2.5, 0); // Leicht über der Wasserlinie (2.0)
             
             terrainBase.traverse(child => {
                 if (child.isMesh) {
@@ -753,20 +752,20 @@
                     child.receiveShadow = true;
                     child.frustumCulled = false;
                     
-                    // Separater Layer für Terrain-Assets (Layer 2)
-                    child.layers.set(2); 
+                    // Standard-Layer 0, damit es für alle Kameras (inkl. Admin) sichtbar ist
+                    child.layers.set(0); 
                     
                     if (child.material) {
-                        // Wir nutzen eine etwas dunklere Farbe für das Wald-Terrain, um es abzuheben
-                        child.material.color.set(0x1a4a1a); 
-                        child.material.transparent = true;
-                        child.material.opacity = 1.0;
+                        child.material.color.set(0x228B22); // Dunkelgrün #228B22
+                        child.material.transparent = false;
+                        child.material.depthWrite = true;
+                        child.material.depthTest = true;
                     }
                 }
             });
             
             scene.add(terrainBase);
-            console.log("🌲 Wald-Terrain-Asset geladen (Zentrum, Scale 2000, Y=3.5):", terrainBasePath);
+            console.log("🌲 Terrain-Asset geladen (Layer 0, Scale 10000, Y=2.5):", terrainBasePath);
         }).catch(err => {
             console.warn("Konnte Terrain-Basis nicht laden:", err);
         });
