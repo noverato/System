@@ -36,5 +36,8 @@
 * **AOI-Radius: Alle Assets nutzen das Per-Player Simulation Bubble System (AOI).
 * **Simulation State: Nur innerhalb des AOI-Radius sind AI, Physik und Ticks aktiv.
 * **Dormant State: Assets außerhalb des Radius bleiben sichtbar, werden aber in den Dormant-Modus versetzt (0% CPU-Last, keine Logik).
+* **Terrain-Ausnahme: Das Asset Terrain_Grass.glb (und alle Dateien im Ordner /Terrain/) ist strikt von der AOI-Logik und dem Dormant-State ausgenommen.
+Es wird als permanente, statische Basis geladen.
+Es findet keine Height-Validation für das Terrain selbst statt (da es die Basis für die Validierung anderer Objekte ist)
 * **Raycasting-Pflicht: Bleibt bestehen für das initiale Placement, aber erst nach Height-Validation im AOI-Radius (Fix für Unter-der-Erde-Spawn).**
 * ** Spieler können nur im AOI-Radius interagieren.

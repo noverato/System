@@ -29,8 +29,8 @@
      * Wendet das radiale Culling (Glocken-Prinzip) auf ein Material an.
      * Dies stellt sicher, dass alle Objekte (auch InstancedMeshes) am Horizont verschwinden.
      */
-    function applyWorldCulling(material) {
-        if (!material) return;
+    function applyWorldCulling(material, isTerrain = false) {
+        if (!material || isTerrain) return; // Terrain Assets sind ausgenommen von AOI/Culling per TRAE Rules
         const mats = Array.isArray(material) ? material : [material];
         
         mats.forEach(mat => {
@@ -677,10 +677,10 @@
             globalWater = waterModel;
             globalWater.position.y = 2.0; // Muss mit waterLevel im Shader übereinstimmen
             
-            // Culling auf alle Meshes im Modell anwenden
+            // Culling auf alle Meshes im Modell anwenden (Ocean ist Terrain, also isTerrain=true)
             globalWater.traverse(child => {
                 if (child.isMesh) {
-                    applyWorldCulling(child.material);
+                    applyWorldCulling(child.material, true);
                 }
             });
             
@@ -700,7 +700,7 @@
             globalWater = new THREE.Mesh(waterGeo, waterMat);
             globalWater.rotation.x = -Math.PI / 2;
             globalWater.position.y = 2.0;
-            applyWorldCulling(globalWater.material);
+            applyWorldCulling(globalWater.material, true);
             clipmapGroup.add(globalWater);
         });
 
@@ -1011,9 +1011,10 @@
             
             loader.load(fullPath, (gltf) => {
                 // Falls das Modell Texturen hat, die relativ geladen werden müssen
+                const isTerrain = fullPath.includes('/Terrain/') || fullPath.includes('Terrain_Grass') || fullPath.includes('ocean.glb');
                 gltf.scene.traverse(obj => {
                     if (obj.isMesh && obj.material) {
-                        applyWorldCulling(obj.material);
+                        applyWorldCulling(obj.material, isTerrain);
                         const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
                         mats.forEach(m => {
                             if (m.map) m.map.name = m.map.name || "texture";
@@ -1640,7 +1641,8 @@
         });
 
         if (mesh) {
-            applyWorldCulling(mesh.material);
+            const isTerrain = path.includes('/Terrain/') || path.includes('Terrain_Grass') || path.includes('ocean.glb');
+            applyWorldCulling(mesh.material, isTerrain);
             const data = { geo: mesh.geometry, mat: mesh.material };
             instanceCache.set(path, data);
             return data;
@@ -1809,7 +1811,7 @@
                     if (rng() > 0.8) {
                         const grassList = AssetsLibrary.get('TREES', 'GRASS');
                         if (Array.isArray(grassList) && grassList.length > 0) {
-                            assetPath = AssetsLibrary.encode('bäume/glTF/' + grassList[0]);
+                            assetPath = AssetsLibrary.encode('baeume/glTF/' + grassList[0]);
                             scale = 0.5 + rng() * 0.5;
                         }
                     }
@@ -1823,21 +1825,22 @@
                         const grassList = AssetsLibrary.get('TREES', 'GRASS');
                         if (Array.isArray(grassList) && grassList.length > 0) {
                             const grass = grassList[Math.floor(rng() * grassList.length)];
-                            assetPath = AssetsLibrary.encode('bäume/glTF/' + grass);
+                            assetPath = AssetsLibrary.encode('baeume/glTF/' + grass);
                             scale = 1.0 + rng() * 1.5;
                         }
                     } else {
                         const flowerList = AssetsLibrary.get('TREES', 'FLOWERS');
                         if (Array.isArray(flowerList) && flowerList.length > 0) {
                             const flower = flowerList[Math.floor(rng() * flowerList.length)];
-                            assetPath = AssetsLibrary.encode('bäume/glTF/' + flower);
+                            assetPath = AssetsLibrary.encode('baeume/glTF/' + flower);
                             scale = 1.0 + rng() * 1.5;
                         }
                     }
                 }
 
                 if (assetPath) {
-                    const finalPath = assetPath; 
+                    // Sicherstellen, dass der Pfad mit animation/ beginnt
+                    const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
                     if (!instancedData.has(finalPath)) instancedData.set(finalPath, []);
                     
                     // OFFSET FIX: Wir heben das Gras deutlich an (+0.3), um sicher über dem Boden zu sein.
@@ -2042,7 +2045,7 @@
                         
                         if (list.length > 0) {
                             const tree = list[Math.floor(rng() * list.length)];
-                            assetPath = AssetsLibrary.encode('bäume/glTF/' + tree);
+                            assetPath = AssetsLibrary.encode('baeume/glTF/' + tree);
                             plantScale = 8 + rng() * 10;
                         } else {
                             plant = createDetailedTree(tx, tz, th, rng);
@@ -2051,7 +2054,8 @@
                 }
                 
                 if (assetPath) {
-                    const finalPath = assetPath;
+                    // Sicherstellen, dass der Pfad mit animation/ beginnt
+                    const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
                     loadModel(finalPath).then(model => {
                         if (!model) return;
                         // Bäume und große Objekte leicht in den Boden stecken für besseren Übergang,
@@ -2116,7 +2120,8 @@
                 }
 
                 if (assetPath) {
-                    const finalPath = assetPath;
+                    // Sicherstellen, dass der Pfad mit animation/ beginnt
+                    const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
                     if (!instancedData.has(finalPath)) instancedData.set(finalPath, []);
                     
                     // OFFSET FIX: Wir heben das Clutter (Steine/Gras) deutlich an (+0.3).

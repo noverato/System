@@ -56,7 +56,7 @@ const AssetsLibrary = (() => {
                 'Flower_1.gltf', 'Flower_2.gltf', 'Flower_1_Clump.gltf', 'Flower_2_Clump.gltf',
                 'Flower_3_Clump.gltf', 'Flower_4_Clump.gltf', 'Flower_5_Clump.gltf'
             ],
-            GRASS: ['Grass_Large.gltf', 'Grass_Small.gltf']
+            GRASS: ['Grass_Large.glb', 'Grass_Small.glb']
         },
 
         // Nature Ordner - "nature"
@@ -275,10 +275,14 @@ const AssetsLibrary = (() => {
 
     return {
         /**
-         * Kodiert einen beliebigen Pfad GitHub-konform.
+         * Kodiert einen beliebigen Pfad GitHub-konform und stellt sicher, dass er mit BASE_URL beginnt.
          */
         encode(path) {
-            return encodePath(path);
+            let fullPath = path;
+            if (!fullPath.startsWith(BASE_URL) && !fullPath.startsWith('http')) {
+                fullPath = BASE_URL + fullPath;
+            }
+            return encodePath(fullPath);
         },
 
         /**
