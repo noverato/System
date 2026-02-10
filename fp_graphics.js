@@ -10,8 +10,8 @@
     };
 
     const CLIPMAP_RADIUS = 2000; // Größere Sichtweite für 8000x8000 Map
-    const AOI_RADIUS = 500;      // Aktiver Simulationsradius (Bubble)
-    const DORMANT_RADIUS = 600;  // Radius, ab dem Assets komplett einfrieren
+    const AOI_RADIUS = 10;      // Aktiver Simulationsradius (Bubble)
+    const DORMANT_RADIUS = 15;  // Radius, ab dem Assets komplett einfrieren
     const CLIPMAP_SEGMENTS = 128; // Reduziert für Stabilität
     
     const DECORATION_CELL_SIZE = 256; 

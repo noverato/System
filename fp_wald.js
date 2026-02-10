@@ -324,8 +324,8 @@
     }
 
     // --- AOI & DORMANT SETTINGS ---
-    const AOI_RADIUS = 500;
-    const DORMANT_RADIUS = 600;
+    const AOI_RADIUS = 10;
+    const DORMANT_RADIUS = 15;
     let eiActive = false;
     let groundValidated = false;
     // ------------------------------
