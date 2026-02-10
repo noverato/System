@@ -1838,8 +1838,11 @@
                 if (assetPath) {
                     const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
                     if (!instancedData.has(finalPath)) instancedData.set(finalPath, []);
+                    
+                    // OFFSET FIX: Wir heben das Gras um 0.05 an, um Z-Fighting mit dem Boden zu vermeiden.
+                    // Der ursprüngliche Offset von -0.1 war zu tief.
                     instancedData.get(finalPath).push({
-                        pos: [sx, sh - 0.1, sz],
+                        pos: [sx, sh + 0.05, sz],
                         scale: scale,
                         rot: rng() * Math.PI * 2
                     });
@@ -2051,7 +2054,9 @@
                     const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
                     loadModel(finalPath).then(model => {
                         if (!model) return;
-                        model.position.set(tx, th - 0.2, tz); 
+                        // Bäume und große Objekte leicht in den Boden stecken für besseren Übergang,
+                        // aber weniger tief als zuvor (-0.2 -> -0.05).
+                        model.position.set(tx, th - 0.05, tz); 
                         model.scale.set(plantScale, plantScale, plantScale);
                         model.rotation.y = rng() * Math.PI * 2;
                         // Bäume werfen Schatten
@@ -2064,7 +2069,8 @@
                         group.add(model);
                     }).catch(e => {});
                 } else if (plant) {
-                    plant.position.set(tx, th - 0.2, tz); 
+                    // Auch generierte Pflanzen leicht anpassen
+                    plant.position.set(tx, th - 0.05, tz); 
                     plant.rotation.y = rng() * Math.PI * 2;
                     plant.castShadow = true;
                     plant.receiveShadow = true;
@@ -2112,8 +2118,10 @@
                 if (assetPath) {
                     const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
                     if (!instancedData.has(finalPath)) instancedData.set(finalPath, []);
+                    
+                    // OFFSET FIX: Wir heben das Clutter (Steine/Gras) leicht an (0.05), um Z-Fighting zu vermeiden.
                     instancedData.get(finalPath).push({
-                        pos: [sx, sh - 0.1, sz],
+                        pos: [sx, sh + 0.05, sz],
                         scale: scale,
                         rot: rng() * Math.PI * 2
                     });
