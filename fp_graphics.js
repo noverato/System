@@ -766,8 +766,8 @@
             scene.add(terrainBase);
             console.log("🌲 Hauptdorf-Terrain geladen (Scale 1.0, Y=2.5):", terrainBasePath);
             
-            // Die Wiesen-Logik wurde in das dynamische Chunk-System (updateGrassChunks) integriert,
-            // um Performance durch Distance-Culling und kleineren Speicher-Footprint zu garantieren.
+            // --- NEU: Hauptdorf Wiesen-Logik (InstancedMesh) ---
+            initHauptdorfMeadow();
         }).catch(err => {
             console.warn("Konnte Terrain-Basis nicht laden:", err);
         });
@@ -776,6 +776,84 @@
     /**
      * Erstellt eine dichte Wiese für das Hauptdorf-Biom mittels InstancedMesh.
      */
+    async function initHauptdorfMeadow() {
+        const grassAssetPath = AssetsLibrary.encode('baeume/glTF/Grass_Large.gltf');
+        console.log("🌿 Initialisiere ULTRA-DICHTE Hauptdorf-Wiese (AOI-Statisch)...");
+
+        try {
+            const gltf = await loadModel(grassAssetPath);
+            let grassMesh = null;
+            
+            gltf.traverse(child => {
+                if (child.isMesh && !grassMesh) grassMesh = child;
+            });
+
+            if (!grassMesh) return;
+
+            // Parameter für das gesamte Hauptdorf (The Nest Master Rule)
+            const radius = 1500; 
+            const step = 0.8; // Etwas größerer Step für die Gesamtfläche (Performance)
+            const jitter = 0.15; 
+            const waterLevel = 2.2; 
+
+            const validPositions = [];
+            const rng = mulberry32(42);
+
+            for (let x = -radius; x <= radius; x += step) {
+                for (let z = -radius; z <= radius; z += step) {
+                    const d2 = x * x + z * z;
+                    if (d2 > radius * radius) continue;
+
+                    const dist = Math.sqrt(d2);
+                    if (dist > radius - 100 && rng() > (radius - dist) / 100) continue;
+
+                    const h = typeof getGPUHeight === 'function' ? getGPUHeight(x, z) : 2.5;
+                    if (h < waterLevel) continue;
+
+                    const jX = x + (rng() - 0.5) * jitter;
+                    const jZ = z + (rng() - 0.5) * jitter;
+                    
+                    validPositions.push({ x: jX, y: h, z: jZ });
+                }
+            }
+
+            const count = validPositions.length;
+            const instancedMesh = new THREE.InstancedMesh(grassMesh.geometry, grassMesh.material, count);
+            
+            const matrix = new THREE.Matrix4();
+            const position = new THREE.Vector3();
+            const rotation = new THREE.Quaternion();
+            const scale = new THREE.Vector3();
+            const euler = new THREE.Euler();
+
+            for (let i = 0; i < count; i++) {
+                const pos = validPositions[i];
+                position.set(pos.x, pos.y + 0.01, pos.z);
+                euler.set(0, rng() * Math.PI * 2, 0);
+                rotation.setFromEuler(euler);
+                const s = 2.5 + rng() * 2.0;
+                scale.set(s, s, s);
+                matrix.compose(position, rotation, scale);
+                instancedMesh.setMatrixAt(i, matrix);
+            }
+
+            instancedMesh.instanceMatrix.needsUpdate = true;
+            instancedMesh.frustumCulled = true;
+            instancedMesh.castShadow = true;
+            instancedMesh.receiveShadow = true;
+
+            // AOI-Logik: Außerhalb des AOI statisch/dormant (durch Shader)
+            applyWorldCulling(instancedMesh.material, false);
+
+            if (mainScene) {
+                mainScene.add(instancedMesh);
+                console.log(`✅ Hauptdorf-Wiese (Radius ${radius}) mit ${count} Instanzen geladen.`);
+            }
+        } catch (err) {
+            console.error("❌ Fehler beim Erstellen der Hauptdorf-Wiese:", err);
+        }
+    }
+
     function updateClipmap(px, pz, renderer) {
         if (!clipmapMesh || !gpuCompute) return;
 
@@ -1839,95 +1917,64 @@
         // Ocean/Water check
         if (midH < 2.0) return;
 
-        // Check for Hauptdorf (Radius 1500)
+        // Hauptdorf Check (Radius 1500)
+        // Wenn wir uns im Hauptdorf befinden, lassen wir die statische initHauptdorfMeadow das Gras regeln
         const distToCenter = Math.sqrt(midX * midX + midZ * midZ);
-        const isHauptdorf = distToCenter < 1500;
+        if (distToCenter < 1500) return;
+
+        // Dichte basierend auf Biome
+        let density = 20; // Default
+        if (biome.name === 'plains') density = 150;
+        else if (biome.name === 'forest') density = 120;
+        else if (biome.name === 'jungle') density = 200;
+        else if (biome.name === 'swamp') density = 100;
+        else if (biome.name === 'desert') density = 10;
+        else if (biome.name === 'snow') density = 5;
 
         const instancedData = new Map();
         
-        if (isHauptdorf) {
-            // ULTRA-DICHTE Grid-Logik für Hauptdorf
-            const step = 0.6;
-            const jitter = 0.15;
-            const assetPath = AssetsLibrary.encode('baeume/glTF/Grass_Large.gltf');
-            const finalPath = 'animation/' + assetPath;
+        for (let i = 0; i < density; i++) {
+            const sx = x0 + rng() * GRASS_CELL_SIZE;
+            const sz = z0 + rng() * GRASS_CELL_SIZE;
+            const sh = getGPUHeight(sx, sz);
             
-            if (!instancedData.has(finalPath)) instancedData.set(finalPath, []);
-            const dataArr = instancedData.get(finalPath);
+            if (sh > 1.5) {
+                let assetPath = null;
+                let scale = 1.0;
 
-            for (let x = 0; x < GRASS_CELL_SIZE; x += step) {
-                for (let z = 0; z < GRASS_CELL_SIZE; z += step) {
-                    const sx = x0 + x + (rng() - 0.5) * jitter;
-                    const sz = z0 + z + (rng() - 0.5) * jitter;
-                    
-                    // Zusätzlicher Radius-Check für die exakte Kreisform
-                    const d = Math.sqrt(sx * sx + sz * sz);
-                    if (d > 1500) continue;
-
-                    // Ausfaden am Rand
-                    if (d > 1400 && rng() > (1500 - d) / 100) continue;
-
-                    const sh = getGPUHeight(sx, sz);
-                    if (sh < 2.2) continue; // Wasser-Check
-
-                    dataArr.push({
-                        pos: [sx, sh + 0.01, sz],
-                        scale: 2.5 + rng() * 2.0,
-                        rot: rng() * Math.PI * 2
-                    });
-                }
-            }
-        } else {
-            // Standard Biome-basierte Logik
-            let density = 20;
-            if (biome.name === 'plains') density = 150;
-            else if (biome.name === 'forest') density = 120;
-            else if (biome.name === 'jungle') density = 200;
-            else if (biome.name === 'swamp') density = 100;
-            else if (biome.name === 'desert') density = 10;
-            else if (biome.name === 'snow') density = 5;
-
-            for (let i = 0; i < density; i++) {
-                const sx = x0 + rng() * GRASS_CELL_SIZE;
-                const sz = z0 + rng() * GRASS_CELL_SIZE;
-                const sh = getGPUHeight(sx, sz);
-                
-                if (sh > 1.5) {
-                    let assetPath = null;
-                    let scale = 1.0;
-
-                    if (biome.name === 'snow') {
-                        // Kein Gras im Schnee
-                    } else if (biome.name !== 'desert') {
-                        const rand = rng();
-                        if (rand > 0.4) {
-                            assetPath = AssetsLibrary.get('TERRAIN', 'GRASS');
-                            scale = 1.0 + rng() * 0.5;
-                        } else if (rand > 0.1) {
-                            const grassList = AssetsLibrary.get('TREES', 'GRASS');
-                            assetPath = rng() > 0.5 
-                                ? AssetsLibrary.encode('baeume/glTF/' + grassList[0])
-                                : AssetsLibrary.encode('baeume/glTF/' + grassList[1]);
-                            scale = 0.8 + rng() * 0.4;
-                        } else {
-                            const flowerList = AssetsLibrary.get('TREES', 'FLOWERS');
-                            if (Array.isArray(flowerList) && flowerList.length > 0) {
-                                const flower = flowerList[Math.floor(rng() * flowerList.length)];
-                                assetPath = AssetsLibrary.encode('baeume/glTF/' + flower);
-                                scale = 1.0 + rng() * 1.5;
-                            }
+                if (biome.name === 'snow') {
+                    // Kein Gras im Schnee
+                } else if (biome.name !== 'desert') {
+                    const rand = rng();
+                    if (rand > 0.4) {
+                        assetPath = AssetsLibrary.get('TERRAIN', 'GRASS');
+                        scale = 1.0 + rng() * 0.5;
+                    } else if (rand > 0.1) {
+                        const grassList = AssetsLibrary.get('TREES', 'GRASS');
+                        assetPath = rng() > 0.5 
+                            ? AssetsLibrary.encode('baeume/glTF/' + grassList[0])
+                            : AssetsLibrary.encode('baeume/glTF/' + grassList[1]);
+                        scale = 0.8 + rng() * 0.4;
+                    } else {
+                        const flowerList = AssetsLibrary.get('TREES', 'FLOWERS');
+                        if (Array.isArray(flowerList) && flowerList.length > 0) {
+                            const flower = flowerList[Math.floor(rng() * flowerList.length)];
+                            assetPath = AssetsLibrary.encode('baeume/glTF/' + flower);
+                            scale = 1.0 + rng() * 1.5;
                         }
                     }
+                }
 
-                    if (assetPath) {
-                        const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
-                        if (!instancedData.has(finalPath)) instancedData.set(finalPath, []);
-                        instancedData.get(finalPath).push({
-                            pos: [sx, sh + 0.5, sz],
-                            scale: scale,
-                            rot: rng() * Math.PI * 2
-                        });
-                    }
+                if (assetPath) {
+                    // Pfad-Check: AssetsLibrary.encode liefert oft schon animation/
+                    const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
+                    if (!instancedData.has(finalPath)) instancedData.set(finalPath, []);
+                    
+                    instancedData.get(finalPath).push({
+                        pos: [sx, sh + 0.5, sz],
+                        scale: scale,
+                        rot: rng() * Math.PI * 2
+                    });
                 }
             }
         }
@@ -1935,7 +1982,6 @@
         // Instanzen erstellen
         for (const [path, instances] of instancedData.entries()) {
             if (instances.length === 0) continue;
-            
             getModelInstanceData(path).then(data => {
                 if (!data) return;
                 const instancedMesh = new THREE.InstancedMesh(data.geo, data.mat, instances.length);
@@ -1954,13 +2000,12 @@
                     matrix.compose(position, quaternion, scaleVec);
                     instancedMesh.setMatrixAt(i, matrix);
                 }
-                
-                instancedMesh.castShadow = isHauptdorf; // Nur im Hauptdorf Schatten für Look
+                instancedMesh.castShadow = false;
                 instancedMesh.receiveShadow = true;
                 instancedMesh.frustumCulled = true;
                 
-                // Culling-Shader anwenden
-                applyWorldCulling(instancedMesh.material, true);
+                // AOI Culling (Glocke) anwenden
+                applyWorldCulling(instancedMesh.material, false);
                 
                 group.add(instancedMesh);
             }).catch(e => {});
