@@ -2365,24 +2365,7 @@
         return () => (x = (x * 1103515245 + 12345) % 2147483648) / 2147483648;
     }
 
-    function getGPUHeight(x, z) {
-        if (!gpuCompute || !heightVariable) return 15.0; // Fallback für Startpunkt
-        
-        // Mapping von Welt-Koordinaten auf Textur-Koordinaten (0.0 bis 1.0)
-        const u = (x + (GPU_WORLD_SIZE * 0.5)) / GPU_WORLD_SIZE;
-        const v = (z + (GPU_WORLD_SIZE * 0.5)) / GPU_WORLD_SIZE;
-        
-        if (u < 0 || u > 1 || v < 0 || v > 1) return -50.0;
-        
-        const tx = Math.floor(u * (GPU_TERRAIN_SIZE - 1));
-        const ty = Math.floor(v * (GPU_TERRAIN_SIZE - 1));
-        const idx = (ty * GPU_TERRAIN_SIZE + tx) * 4;
-        
-        return gpuHeightData[idx] || 0;
-    }
-
     // --- MODULAR HOUSE SYSTEM ---
-    const villageBuildings = [];
 
     function createModularHouse(type, seedX, seedZ) {
         const group = new THREE.Group();
