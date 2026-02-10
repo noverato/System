@@ -256,6 +256,15 @@ const AssetsLibrary = (() => {
                 LEAVES: 'Leaves_TwistedTree.png',
                 FLOWERS: 'Flowers.png'
             }
+        },
+
+        // NEU: Gras-Varianten (für späteres Re-Aktivieren)
+        GRASS_VARIANTS: {
+            PATH: 'Terrain/',
+            MODELS: {
+                LARGE: 'Grass_Large.glb',
+                SMALL: 'Grass_Small.glb'
+            }
         }
     };
 

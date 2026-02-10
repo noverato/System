@@ -715,6 +715,30 @@
         clipmapBackupMesh.rotation.x = -Math.PI / 2;
         clipmapBackupMesh.position.y = -5;
         clipmapGroup.add(clipmapBackupMesh);
+
+        // --- STATIC TERRAIN BASE (The Nest Master Rule) ---
+        // Das Terrain_Grass.glb wird als permanente, statische Basis geladen.
+        const terrainBasePath = AssetsLibrary.get('TERRAIN', 'GRASS_MODEL');
+        loadModel(terrainBasePath).then(terrainBase => {
+            // Die Basis ist von AOI ausgenommen und wird am Ursprung platziert
+            // 86km2 Map entspricht ca. 9273 units Seitenlänge (sqrt(86,000,000))
+            // Wenn das Modell 1x1m groß ist, wäre 9273 passend. Wir nehmen 10000 zur Sicherheit.
+            terrainBase.scale.set(10000, 1, 10000); 
+            terrainBase.position.set(0, 0, 0); 
+            
+            terrainBase.traverse(child => {
+                if (child.isMesh) {
+                    applyWorldCulling(child.material, true); // isTerrain = true -> AOI Ausnahme
+                    child.receiveShadow = true;
+                    child.position.y = -0.5; // Leicht absenken, um Z-Fighting mit dem Clipmap-Terrain zu minimieren
+                }
+            });
+            
+            scene.add(terrainBase);
+            console.log("⛰️ Terrain-Basis (statischer Mesh) geladen:", terrainBasePath);
+        }).catch(err => {
+            console.warn("Konnte Terrain-Basis nicht laden:", err);
+        });
     }
 
     function updateClipmap(px, pz, renderer) {
@@ -1801,40 +1825,32 @@
                 let scale = 1.0;
 
                 if (biome.name === 'desert') {
+                    // Wüste bekommt vorerst gar nichts, bis Terrain steht
+                    /*
                     const grass = AssetsLibrary.get('NATURE', 'GRASS');
                     if (Array.isArray(grass) && grass.length > 0) {
                         assetPath = AssetsLibrary.encode('Nature/glTF/' + grass[0]);
                         scale = 0.5 + rng() * 1.0;
                     }
+                    */
                 } else if (biome.name === 'snow') {
-                    // Fast kein Gras im Schnee
-                    if (rng() > 0.8) {
-                        const grassList = AssetsLibrary.get('TREES', 'GRASS');
-                        if (Array.isArray(grassList) && grassList.length > 0) {
-                            assetPath = AssetsLibrary.encode('baeume/glTF/' + grassList[0]);
-                            scale = 0.5 + rng() * 0.5;
-                        }
-                    }
+                    // Kein Gras im Schnee
                 } else {
                     const rand = rng();
                     if (rand > 0.4) {
-                        // Hauptgras (Draco)
-                        assetPath = AssetsLibrary.get('TERRAIN', 'GRASS_MODEL');
-                        scale = 1.2 + rng() * 2.0;
+                        // Hauptgras deaktiviert, da Terrain_Grass.glb die Basis ist
                     } else if (rand > 0.15) {
-                        const grassList = AssetsLibrary.get('TREES', 'GRASS');
-                        if (Array.isArray(grassList) && grassList.length > 0) {
-                            const grass = grassList[Math.floor(rng() * grassList.length)];
-                            assetPath = AssetsLibrary.encode('baeume/glTF/' + grass);
-                            scale = 1.0 + rng() * 1.5;
-                        }
+                        // Grass_Large/Small deaktiviert auf Wunsch des Users
                     } else {
+                        // Blumen ebenfalls deaktiviert, um 404-Fehler zu vermeiden
+                        /*
                         const flowerList = AssetsLibrary.get('TREES', 'FLOWERS');
                         if (Array.isArray(flowerList) && flowerList.length > 0) {
                             const flower = flowerList[Math.floor(rng() * flowerList.length)];
                             assetPath = AssetsLibrary.encode('baeume/glTF/' + flower);
                             scale = 1.0 + rng() * 1.5;
                         }
+                        */
                     }
                 }
 
