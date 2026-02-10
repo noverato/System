@@ -791,18 +791,27 @@
             if (!grassMesh) return;
 
             // ULTRA-DICHTE Parameter (The Nest Master Rule: Kein Boden sichtbar)
-            const radius = 220; 
-            const step = 0.4; // EXTREM enges Raster für maximale Dichte (Lückenlos)
-            const jitter = 0.1; // Minimaler Jitter für organischen Look
+            // Radius 1500 entspricht dem Hauptdorf-Bereich im Noise-Shader
+            const radius = 1500; 
+            const step = 0.6; // Leicht erhöht auf 0.6 für Radius 1500 (Performance vs Dichte)
+            const jitter = 0.15; 
             const waterLevel = 2.2; 
 
             const validPositions = [];
             const rng = mulberry32(42);
 
-            // Raster berechnen (Grid-System für lückenlose Abdeckung)
+            console.log(`🌿 Berechne Raster für Radius ${radius}... (Dies kann kurz dauern)`);
+
+            // Raster berechnen
             for (let x = -radius; x <= radius; x += step) {
                 for (let z = -radius; z <= radius; z += step) {
-                    if (x * x + z * z > radius * radius) continue;
+                    // Kreis-Check
+                    const d2 = x * x + z * z;
+                    if (d2 > radius * radius) continue;
+
+                    // Sanftes Ausfaden am Rand des Bioms
+                    const dist = Math.sqrt(d2);
+                    if (dist > radius - 100 && rng() > (radius - dist) / 100) continue;
 
                     const h = typeof getGPUHeight === 'function' ? getGPUHeight(x, z) : 2.5;
                     if (h < waterLevel) continue;
@@ -815,7 +824,7 @@
             }
 
             const count = validPositions.length;
-            console.log(`🌿 Erzeuge ${count} Gras-Instanzen für lückenlose Wiese.`);
+            console.log(`🌿 Erzeuge ${count} Gras-Instanzen für das gesamte Hauptdorf.`);
 
             const instancedMesh = new THREE.InstancedMesh(grassMesh.geometry, grassMesh.material, count);
             
@@ -828,16 +837,14 @@
             for (let i = 0; i < count; i++) {
                 const pos = validPositions[i];
                 
-                // Platzierung (direkt auf dem Mesh)
                 const yOffset = 0.01; 
                 position.set(pos.x, pos.y + yOffset, pos.z);
                 
-                // Zufällige Rotation (Y-Achse)
                 euler.set(0, rng() * Math.PI * 2, 0);
                 rotation.setFromEuler(euler);
                 
-                // MASSIVE Skalierung (3.0 - 5.5) für echte Wiesen-Höhe und Breite (Xenoblade-Style)
-                const s = 3.0 + rng() * 2.5;
+                // Skalierung 2.5 - 4.5 für gute Abdeckung bei großer Fläche
+                const s = 2.5 + rng() * 2.0;
                 scale.set(s, s, s);
 
                 matrix.compose(position, rotation, scale);
@@ -845,11 +852,10 @@
             }
 
             instancedMesh.instanceMatrix.needsUpdate = true;
-            instancedMesh.renderOrder = 2; // Über Boden (0) und Wasser (1)
-            instancedMesh.frustumCulled = false;
+            instancedMesh.renderOrder = 2;
+            instancedMesh.frustumCulled = true; // Wichtig bei dieser Menge für Performance
             instancedMesh.layers.set(0);
             
-            // Schatten-Aktivierung für Tiefe (wie in Bild 2)
             instancedMesh.castShadow = true;
             instancedMesh.receiveShadow = true;
 
@@ -857,7 +863,7 @@
 
             if (mainScene) {
                 mainScene.add(instancedMesh);
-                console.log(`✅ ULTRA-DICHTE Wiese mit ${count} Instanzen erstellt.`);
+                console.log(`✅ Hauptdorf-Biom (Radius ${radius}) mit ${count} Instanzen begrünt.`);
             } else {
                 console.warn("⚠️ Hauptdorf-Wiese konnte nicht hinzugefügt werden: mainScene ist nicht definiert.");
             }
