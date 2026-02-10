@@ -5,7 +5,7 @@
  */
 
 const AssetsLibrary = (() => {
-    const BASE_URL = './animation/';
+    const BASE_URL = 'animation/';
 
     const ASSETS = {
         // Medieval Village MegaKit [Standard] - "village" / "häuse"
@@ -56,7 +56,7 @@ const AssetsLibrary = (() => {
                 'Flower_1.gltf', 'Flower_2.gltf', 'Flower_1_Clump.gltf', 'Flower_2_Clump.gltf',
                 'Flower_3_Clump.gltf', 'Flower_4_Clump.gltf', 'Flower_5_Clump.gltf'
             ],
-            GRASS: ['Grass_Large.gltf', 'Grass_Small.gltf']
+            GRASS: ['Grass_Large.glb', 'Grass_Small.glb']
         },
 
         // Nature Ordner - "nature"
