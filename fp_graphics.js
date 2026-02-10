@@ -324,6 +324,7 @@
             const t = texLoader.load(url);
             t.wrapS = t.wrapT = THREE.RepeatWrapping;
             t.anisotropy = 16;
+            t.encoding = THREE.sRGBEncoding; // Sicherstellen, dass Farben korrekt interpretiert werden
             return t;
         };
 
@@ -1836,7 +1837,7 @@
                 }
 
                 if (assetPath) {
-                    const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
+                    const finalPath = assetPath; // AssetsLibrary liefert bereits den korrekten Pfad
                     if (!instancedData.has(finalPath)) instancedData.set(finalPath, []);
                     
                     // OFFSET FIX: Wir heben das Gras deutlich an (+0.3), um sicher über dem Boden zu sein.
@@ -2050,7 +2051,7 @@
                 }
                 
                 if (assetPath) {
-                    const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
+                    const finalPath = assetPath; // AssetsLibrary liefert bereits den korrekten Pfad
                     loadModel(finalPath).then(model => {
                         if (!model) return;
                         // Bäume und große Objekte leicht in den Boden stecken für besseren Übergang,
@@ -2115,7 +2116,7 @@
                 }
 
                 if (assetPath) {
-                    const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
+                    const finalPath = assetPath; // AssetsLibrary liefert bereits den korrekten Pfad
                     if (!instancedData.has(finalPath)) instancedData.set(finalPath, []);
                     
                     // OFFSET FIX: Wir heben das Clutter (Steine/Gras) deutlich an (+0.3).

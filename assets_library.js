@@ -5,7 +5,7 @@
  */
 
 const AssetsLibrary = (() => {
-    const BASE_URL = 'animation/';
+    const BASE_URL = './animation/';
 
     const ASSETS = {
         // Medieval Village MegaKit [Standard] - "village" / "häuse"
