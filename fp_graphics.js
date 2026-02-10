@@ -765,9 +765,83 @@
             
             scene.add(terrainBase);
             console.log("🌲 Hauptdorf-Terrain geladen (Scale 1.0, Y=2.5):", terrainBasePath);
+            
+            // --- NEU: Hauptdorf Wiesen-Logik (InstancedMesh) ---
+            initHauptdorfMeadow();
         }).catch(err => {
             console.warn("Konnte Terrain-Basis nicht laden:", err);
         });
+    }
+
+    /**
+     * Erstellt eine dichte Wiese für das Hauptdorf-Biom mittels InstancedMesh.
+     */
+    async function initHauptdorfMeadow() {
+        const grassAssetPath = AssetsLibrary.encode('baeume/glTF/Grass_Large.gltf');
+        console.log("🌿 Initialisiere Hauptdorf-Wiese mit:", grassAssetPath);
+
+        try {
+            const gltf = await loadModel(grassAssetPath);
+            let grassMesh = null;
+            
+            gltf.traverse(child => {
+                if (child.isMesh && !grassMesh) grassMesh = child;
+            });
+
+            if (!grassMesh) return;
+
+            const count = 2500; // Hohe Dichte für Wiesen-Look
+            const radius = 150; // Radius um den Spawn (0,0)
+            const instancedMesh = new THREE.InstancedMesh(grassMesh.geometry, grassMesh.material, count);
+            
+            const matrix = new THREE.Matrix4();
+            const position = new THREE.Vector3();
+            const rotation = new THREE.Quaternion();
+            const scale = new THREE.Vector3();
+            const euler = new THREE.Euler();
+            const rng = mulberry32(42); // Fester Seed für konsistente Wiese
+
+            for (let i = 0; i < count; i++) {
+                // Gleichmäßige Verteilung im Kreis
+                const r = Math.sqrt(rng()) * radius;
+                const angle = rng() * Math.PI * 2;
+                
+                const x = Math.cos(angle) * r;
+                const z = Math.sin(angle) * r;
+                const h = getTerrainHeight(x, z);
+
+                // Physikalische Platzierung auf Y=0.05 (relativ zum Mesh/Boden)
+                // Da das Hauptdorf-Terrain bei Y=2.5 liegt, setzen wir es absolut
+                position.set(x, 2.5 + 0.05, z);
+                
+                // Zufällige Rotation (Y-Achse)
+                euler.set(0, rng() * Math.PI * 2, 0);
+                rotation.setFromEuler(euler);
+                
+                // Natürliche Skalierung (0.8 - 1.2)
+                const s = 0.8 + rng() * 0.4;
+                scale.set(s, s, s);
+
+                matrix.compose(position, rotation, scale);
+                instancedMesh.setMatrixAt(i, matrix);
+            }
+
+            instancedMesh.instanceMatrix.needsUpdate = true;
+            instancedMesh.renderOrder = 2; // Stabil über Boden (0) und Wasser (1)
+            instancedMesh.frustumCulled = false;
+            
+            // Layer 0 für Sichtbarkeit
+            instancedMesh.layers.set(0);
+            
+            // Culling anwenden (außer das Hauptdorf-Gras selbst)
+            applyWorldCulling(instancedMesh.material, true);
+
+            scene.add(instancedMesh);
+            console.log(`✅ Hauptdorf-Wiese mit ${count} Instanzen erstellt.`);
+
+        } catch (err) {
+            console.error("❌ Fehler beim Erstellen der Hauptdorf-Wiese:", err);
+        }
     }
 
     function updateClipmap(px, pz, renderer) {
