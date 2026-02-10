@@ -704,7 +704,8 @@
             clipmapGroup.add(globalWater);
         });
 
-        // Backup Plane
+        // Backup Plane entfernt - Terrain_Grass.glb übernimmt die Basis-Funktion
+        /*
         const backGeo = new THREE.CircleGeometry(CLIPMAP_RADIUS + 10, 32);
         const backMat = new THREE.MeshStandardMaterial({ 
             color: 0x1a2a1a, 
@@ -715,6 +716,7 @@
         clipmapBackupMesh.rotation.x = -Math.PI / 2;
         clipmapBackupMesh.position.y = -5;
         clipmapGroup.add(clipmapBackupMesh);
+        */
 
         // --- STATIC TERRAIN BASE (The Nest Master Rule) ---
         // Das Terrain_Grass.glb wird als permanente, statische Basis geladen.
