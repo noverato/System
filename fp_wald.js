@@ -1025,9 +1025,15 @@
         // --- GLOBALE TELEPORT-FUNKTION ---
         window.teleportTo = (x, z) => {
             console.log(`🚀 Teleportiere zu: ${x}, ${z}`);
+            
+            // Sofortige Synchronisation aller Positions-Variablen
             currentPos.x = targetPos.x = x;
             currentPos.z = targetPos.z = z;
             currentPos.y = targetPos.y = -100; // Boden-Validierung erzwingen
+            
+            // Ground-Validation zurücksetzen, damit updateMonsters() die Höhe neu berechnet
+            groundValidated = false;
+            
             if (avatar) {
                 avatar.position.set(x, -100, z);
             }
@@ -1035,8 +1041,11 @@
             gridX = Math.round(x / GRID);
             gridY = Math.round(z / GRID);
             
-            // Sofort Kamera anpassen
-            applyCamera();
+            // Sofort Kamera anpassen (ohne Delta für harten Sprung)
+            applyCamera(0);
+            
+            // Save-Step triggern für Persistenz
+            saveStep();
         };
 
         window.resetPosition = () => window.teleportTo(0, 0);
@@ -1717,5 +1726,12 @@
         };
 
     }
-    window.FPWald = { open, close, bindUI, teleport: teleportToVillage, get avatar() { return avatar; } };
+    window.FPWald = { 
+        open, 
+        close, 
+        bindUI, 
+        teleport: teleportToVillage, 
+        get avatar() { return avatar; },
+        getPosition: () => ({ x: targetPos.x, z: targetPos.z, heading: targetHeading })
+    };
 })();

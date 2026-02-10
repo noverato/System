@@ -790,8 +790,8 @@
 
             if (!grassMesh) return;
 
-            const count = 2500; // Hohe Dichte für Wiesen-Look
-            const radius = 150; // Radius um den Spawn (0,0)
+            const count = 25000; // Massiv erhöhte Dichte für echten Wiesen-Look (The Nest Rule: Kein Kahlschlag)
+            const radius = 220; // Radius um den Spawn (0,0)
             const instancedMesh = new THREE.InstancedMesh(grassMesh.geometry, grassMesh.material, count);
             
             const matrix = new THREE.Matrix4();
@@ -799,27 +799,27 @@
             const rotation = new THREE.Quaternion();
             const scale = new THREE.Vector3();
             const euler = new THREE.Euler();
-            const rng = mulberry32(42); // Fester Seed für konsistente Wiese
+            const rng = mulberry32(42); 
 
             for (let i = 0; i < count; i++) {
-                // Gleichmäßige Verteilung im Kreis
                 const r = Math.sqrt(rng()) * radius;
                 const angle = rng() * Math.PI * 2;
                 
                 const x = Math.cos(angle) * r;
                 const z = Math.sin(angle) * r;
-                const h = getTerrainHeight(x, z);
 
-                // Physikalische Platzierung auf Y=0.05 (relativ zum Mesh/Boden)
-                // Da das Hauptdorf-Terrain bei Y=2.5 liegt, setzen wir es absolut
-                position.set(x, 2.5 + 0.05, z);
+                // Physikalische Platzierung:
+                // Das Hauptdorf-Terrain liegt bei Y=2.5. Wir setzen das Gras leicht darüber.
+                // Zufälliger kleiner Y-Offset (0.02 - 0.08) für natürlichere Überlappung
+                const yOffset = 0.02 + rng() * 0.06;
+                position.set(x, 2.5 + yOffset, z);
                 
                 // Zufällige Rotation (Y-Achse)
                 euler.set(0, rng() * Math.PI * 2, 0);
                 rotation.setFromEuler(euler);
                 
-                // Natürliche Skalierung (0.8 - 1.2)
-                const s = 0.8 + rng() * 0.4;
+                // Natürliche Skalierung (1.2 - 2.2) - Größeres Gras für besseren Look
+                const s = 1.2 + rng() * 1.0;
                 scale.set(s, s, s);
 
                 matrix.compose(position, rotation, scale);

@@ -214,40 +214,19 @@ const AdminConsole = {
         };
 
         const target = coords[biomeKey];
-        if (target && window.avatar) {
-            // Direkte Positionsänderung des Avatars
-            window.avatar.position.x = target.x;
-            window.avatar.position.z = target.z;
-            
-            // Sofortige Höhenanpassung erzwingen, damit man nicht unter der Map landet
-            if (typeof getTerrainHeight === 'function') {
-                const groundHeight = getTerrainHeight(target.x, target.z);
-                window.avatar.position.y = groundHeight + 5; // Sicherer Puffer
-            } else {
-                window.avatar.position.y = 50; // Fallback
+        if (target) {
+            if (typeof window.teleportTo === 'function') {
+                window.teleportTo(target.x, target.z);
+                this.sync(`GÖTTER-SPRUNG: ${biomeKey} (${target.x}, ${target.z})`);
+            } else if (window.avatar) {
+                // Fallback falls FPWald noch nicht bereit ist
+                window.avatar.position.x = target.x;
+                window.avatar.position.z = target.z;
+                window.avatar.position.y = 50;
+                this.sync(`GÖTTER-SPRUNG (Fallback): ${biomeKey} (${target.x}, ${target.z})`);
             }
-            
-            // Kamera-Steuerung (OrbitControls/PointerLock) synchronisieren
-            if (window.controls && window.controls.target) {
-                window.controls.target.set(target.x, window.avatar.position.y, target.z);
-            }
-
-            // Falls First-Person Kamera direkt am Avatar hängt
-            if (window.camera) {
-                // Kamera-Position relativ zum Avatar setzen, falls nötig
-            }
-
-            this.sync(`GÖTTER-SPRUNG: ${biomeKey} (${target.x}, ${target.z})`);
-            
-            // Kleiner Delay für Engine-Sync (Physics/Chunk Loading)
-            setTimeout(() => {
-                if (window.avatar) {
-                    const finalHeight = (typeof getTerrainHeight === 'function') ? getTerrainHeight(target.x, target.z) : 20;
-                    window.avatar.position.y = finalHeight + 2;
-                }
-            }, 100);
         } else {
-            this.sync(`Biom ${biomeKey} nicht gefunden oder Avatar fehlt.`);
+            this.sync(`Biom ${biomeKey} nicht gefunden.`);
         }
     },
 
@@ -280,19 +259,6 @@ function openAdminPanel() {
             <div style="background: rgba(0,0,0,0.5); padding: 5px; border: 1px solid #555; margin-bottom: 10px; font-size: 12px; color: #4ade80;">
                 📍 Aktuelle Position: <span id="admin-coords">X: 0 | Z: 0</span>
             </div>
-            
-            <script>
-                // Live-Update für Koordinaten im Admin-Panel
-                if (window._coordInterval) clearInterval(window._coordInterval);
-                window._coordInterval = setInterval(() => {
-                    const span = document.getElementById('admin-coords');
-                    if (span && window.avatar) {
-                        span.innerText = \`X: \${Math.round(window.avatar.position.x)} | Z: \${Math.round(window.avatar.position.z)}\`;
-                    } else if (!span) {
-                        clearInterval(window._coordInterval);
-                    }
-                }, 200);
-            </script>
 
             <div style="margin-bottom: 15px;">
                 <h3 style="margin-bottom: 8px; font-size: 14px;">⚔️ ADMIN-POWER-LEVEL</h3>
@@ -422,6 +388,18 @@ function openAdminPanel() {
     AdminConsole.setPowerLevel(currentLevel);
 
     AdminConsole.updateAdminItemSpawner();
+
+    // Live-Update für Koordinaten im Admin-Panel (Sync mit FPWald)
+    if (window._adminCoordInterval) clearInterval(window._adminCoordInterval);
+    window._adminCoordInterval = setInterval(() => {
+        const span = document.getElementById('admin-coords');
+        if (span && window.FPWald && typeof window.FPWald.getPosition === 'function') {
+            const pos = window.FPWald.getPosition();
+            span.innerText = `X: ${Math.round(pos.x)} | Z: ${Math.round(pos.z)}`;
+        } else if (!span) {
+            clearInterval(window._adminCoordInterval);
+        }
+    }, 100);
 
     // Event Listener für Kalibrierung (CSP-konform)
     container.addEventListener('input', (e) => {
