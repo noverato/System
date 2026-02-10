@@ -185,6 +185,37 @@ const AdminConsole = {
         });
     },
 
+    /**
+     * Teleportiert den Spieler zu einem Biom
+     */
+    teleportToBiome: function(biomeKey) {
+        const coords = {
+            'CENTRAL': { x: 0, z: 0 },
+            'RANGER': { x: 2000, z: 2000 },
+            'WARRIOR': { x: -2000, z: 2000 },
+            'DRUID': { x: 2000, z: -2000 },
+            'GUARDIAN': { x: -2000, z: -2000 },
+            'SEEKER': { x: 4000, z: 0 },
+            'HERMIT': { x: -4000, z: 0 },
+            'WARDEN': { x: 0, z: 4000 }
+        };
+
+        const target = coords[biomeKey];
+        if (target && window.avatar) {
+            window.avatar.position.x = target.x;
+            window.avatar.position.z = target.z;
+            
+            // Falls eine Kamera-Steuerung existiert, diese ebenfalls updaten
+            if (window.controls && window.controls.target) {
+                window.controls.target.set(target.x, 0, target.z);
+            }
+
+            this.sync(`Teleport zum Biom: ${biomeKey} (${target.x}, ${target.z})`);
+        } else {
+            this.sync(`Biom ${biomeKey} nicht gefunden oder Avatar fehlt.`);
+        }
+    },
+
     // 4. SYNCHRONISATION
     sync: function(msg) {
         console.log(`%c[GOTT]: ${msg}`, "color: gold; font-weight: bold; background: #000; padding: 2px 5px;");
@@ -230,7 +261,21 @@ function openAdminPanel() {
 
             <hr style="border: 1px solid #444; margin: 15px 0;">
 
-            <h3 style="margin-bottom: 10px;">🏠 HAUS-KALIBRIERUNG (GOLDENE WERTE)</h3>
+            <h3 style="margin-bottom: 10px;">� BIOM-TELEPORTATION</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px; background: rgba(0,0,0,0.3); padding: 5px; border: 1px solid rgba(255,215,0,0.2);">
+                <button class="btn-action" style="font-size: 10px;" data-action="adminAction" data-args='["teleportToBiome", "CENTRAL"]'>HAUPTDORF</button>
+                <button class="btn-action" style="font-size: 10px;" data-action="adminAction" data-args='["teleportToBiome", "RANGER"]'>WIPFELWACHT</button>
+                <button class="btn-action" style="font-size: 10px;" data-action="adminAction" data-args='["teleportToBiome", "WARRIOR"]'>EHRENHAIN</button>
+                <button class="btn-action" style="font-size: 10px;" data-action="adminAction" data-args='["teleportToBiome", "DRUID"]'>SUMPF-ZUFLUCHT</button>
+                <button class="btn-action" style="font-size: 10px;" data-action="adminAction" data-args='["teleportToBiome", "GUARDIAN"]'>FELSFESTUNG</button>
+                <button class="btn-action" style="font-size: 10px;" data-action="adminAction" data-args='["teleportToBiome", "SEEKER"]'>SCHATTENMARKT</button>
+                <button class="btn-action" style="font-size: 10px;" data-action="adminAction" data-args='["teleportToBiome", "HERMIT"]'>LEEREN-SCHREIN</button>
+                <button class="btn-action" style="font-size: 10px;" data-action="adminAction" data-args='["teleportToBiome", "WARDEN"]'>SONNEN-ZITADELLE</button>
+            </div>
+
+            <hr style="border: 1px solid #444; margin: 15px 0;">
+
+            <h3 style="margin-bottom: 10px;">�🏠 HAUS-KALIBRIERUNG (GOLDENE WERTE)</h3>
             <div style="background: rgba(0,0,0,0.5); padding: 10px; border: 1px solid gold; font-size: 11px;">
                 <button class="btn-action" data-action="adminAction" data-args='["startHouseCalibration"]' style="width:100%; margin-bottom:10px; background: #b45309;">NÄCHSTES HAUS AUSWÄHLEN</button>
                 
