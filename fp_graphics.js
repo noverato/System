@@ -68,6 +68,7 @@
                 
                 shader.fragmentShader = `
                     uniform float clipRadius;
+                    uniform float aoiRadius;
                     varying float vDist;
                     varying float vAOI;
                 ` + shader.fragmentShader;
@@ -345,6 +346,7 @@
             shader.uniforms.playerPos = { value: new THREE.Vector2(0, 0) }; // Actual player pos for vDist
             shader.uniforms.gpuWorldSize = { value: GPU_WORLD_SIZE };
             shader.uniforms.clipRadius = { value: CLIPMAP_RADIUS };
+            shader.uniforms.aoiRadius = { value: AOI_RADIUS };
             shader.uniforms.plainsColor = { value: new THREE.Color(0x6ba15a) }; // Helleres Gras
             shader.uniforms.desertColor = { value: new THREE.Color(0xf4dcb3) };
             shader.uniforms.snowColor = { value: new THREE.Color(0xffffff) };
@@ -362,6 +364,7 @@
                 uniform vec2 playerPos;
                 uniform float gpuWorldSize;
                 uniform float clipRadius;
+                uniform float aoiRadius;
                 varying vec3 vWorldPos;
                 varying float vHeight;
                 varying float vDist;
@@ -388,8 +391,9 @@
                 '#include <begin_vertex>',
                 `
                 // Wir berechnen die Welt-Position basierend auf der modelMatrix (Rotation-safe).
-                vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-                vec2 worldXZ = worldPosition.xz;
+                // Wir nutzen einen internen Namen (_wPos), um Konflikte mit Three.js 'worldPosition' zu vermeiden.
+                vec4 _wPos = modelMatrix * vec4(position, 1.0);
+                vec2 worldXZ = _wPos.xz;
                 
                 // UV für Heightmap (0-1 Bereich) basierend auf dem GPGPU Zentrum (worldOffset)
                 vec2 hUv = (worldXZ - worldOffset) / max(gpuWorldSize, 1.0) + 0.5;
@@ -465,6 +469,7 @@
                 uniform sampler2D flowersTex;
 
                 uniform float clipRadius;
+                uniform float aoiRadius;
                 varying vec3 vWorldPos;
                 varying float vHeight;
                 varying float vDist;
@@ -635,6 +640,11 @@
                 // Wir nutzen einen größeren Bereich für das Ausblenden, damit es nicht so abrupt ist
                 float edgeFade = smoothstep(clipRadius, clipRadius * 0.8, vDist);
                 diffuseColor.rgb = mix(diffuseColor.rgb * 0.5, diffuseColor.rgb, edgeFade);
+                
+                // AOI-System: Außerhalb des AOI-Radius leicht abdunkeln (Dormant-Zone Visuelle Markierung)
+                if (vDist > aoiRadius) {
+                    diffuseColor.rgb *= 0.85;
+                }
                 
                 // DISCARD LOGIK FÜR DIE GLOCKE
                 // Wenn vDist > clipRadius, wird das Fragment verworfen.
