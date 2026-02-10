@@ -23,6 +23,12 @@ const EventHub = (() => {
 
         /* ⚔️ BATTLE / ARENA */
         BATTLE_START: 'battle:start',
+        BATTLE_STAGE_READY: 'battle:stage:ready',
+        BATTLE_ACTION_START: 'battle:action:start',
+        BATTLE_IMPACT: 'battle:impact',
+        BATTLE_RESOLVE: 'battle:resolve',
+        BATTLE_HEAL: 'battle:heal',
+        BATTLE_ACTIONLOCK: 'battle:actionlock',
         BATTLE_VICTORY: 'battle:victory',
         BATTLE_ESCAPE: 'battle:escape',
 
@@ -104,6 +110,11 @@ const EventHub = (() => {
 
     on(EVENTS.BATTLE_VICTORY, handleVictory);
     on(EVENTS.ARENA_VICTORY, handleVictory);
+
+    // Bridge für bestehendes 'battle:lose' → standardisierte Events
+    on('battle:lose', ({ monster }) => {
+        emit(EVENTS.BATTLE_ESCAPE, { monster });
+    });
 
     // 🎁 Loot → Beute → Inventar
     on(EVENTS.LOOT_GENERATED, ({ baseItem, monster }) => {

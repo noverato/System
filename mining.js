@@ -36,8 +36,9 @@ function randomRecoveryTime() {
 // ==========================
 // ⛏️ UI
 // ==========================
-function renderMiningMenu() {
-    const container = document.getElementById('modalLeft');
+function renderMiningMenu(targetId = 'modalLeft') {
+    const container = document.getElementById(targetId);
+    if (!container) return;
 
     container.innerHTML = `
         <div style="text-align:center;padding:20px;">
@@ -45,7 +46,7 @@ function renderMiningMenu() {
             <p style="color:#aaa;font-style:italic;">Der Fels merkt sich jeden Schlag…</p>
 
             <div id="mining-area"
-                 onclick="mineAction()"
+                 data-action="mineAction" data-args='["${targetId}"]'
                  style="margin:30px auto;width:180px;height:180px;
                  background:rgba(0,0,0,0.4);border:3px double var(--gold);
                  border-radius:50%;display:flex;align-items:center;
@@ -53,9 +54,9 @@ function renderMiningMenu() {
                 ⛏️
             </div>
 
-            <button class="btn-action" onclick="mineAction()">ZUSCHLAGEN</button>
+            <button class="btn-action" data-action="mineAction" data-args='["${targetId}"]'>ZUSCHLAGEN</button>
 
-            <div id="mining-log"
+            <div id="mining-log_${targetId}"
                  style="margin-top:30px;height:150px;overflow-y:auto;
                  background:rgba(20,15,10,0.85);padding:15px;
                  border-radius:10px;border:1px solid var(--gold);
@@ -69,7 +70,7 @@ function renderMiningMenu() {
 // ==========================
 // 🪓 KERNLOGIK
 // ==========================
-function mineAction() {
+function mineAction(targetId = 'modalLeft') {
     const now = Date.now();
 
     // 🧠 Regeneration (NICHT planbar!)
@@ -84,28 +85,28 @@ function mineAction() {
 
     // 💀 Hard Cap – fast nichts mehr
     if (miningSession.hits > MINING_CONFIG.hardCapHits) {
-        addMiningLog("🪨 Der Fels gibt nichts mehr her…", "#666");
+        addMiningLog("🪨 Der Fels gibt nichts mehr her…", "#666", targetId);
         return;
     }
 
     // ⚠️ Soft Cap – stark reduziert
     if (miningSession.hits > MINING_CONFIG.softCapHits) {
         if (Math.random() < 0.15) {
-            giveStone();
+            giveStone(targetId);
         } else {
-            addMiningLog("⛏️ Nur Staub…", "#777");
+            addMiningLog("⛏️ Nur Staub…", "#777", targetId);
         }
         return;
     }
 
     // ✅ Effektive Hits
     if (miningSession.hits <= MINING_CONFIG.maxEffectiveHits) {
-        rollWeightedLoot();
+        rollWeightedLoot(targetId);
     } else {
         if (Math.random() < 0.35) {
-            giveStone();
+            giveStone(targetId);
         } else {
-            addMiningLog("⛏️ Der Schlag hallt leer wider…", "#777");
+            addMiningLog("⛏️ Der Schlag hallt leer wider…", "#777", targetId);
         }
     }
 }
@@ -113,38 +114,38 @@ function mineAction() {
 // ==========================
 // 🎲 GEWICHTETER LOOT
 // ==========================
-function rollWeightedLoot() {
+function rollWeightedLoot(targetId = 'modalLeft') {
     const roll = Math.random();
 
-    if (roll < 0.70) return giveStone();
-    if (roll < 0.88) return giveIron();
-    if (roll < 0.96) return giveLXP();
-    if (roll < 0.99) return giveGold();
+    if (roll < 0.70) return giveStone(targetId);
+    if (roll < 0.88) return giveIron(targetId);
+    if (roll < 0.96) return giveLXP(targetId);
+    if (roll < 0.99) return giveGold(targetId);
 
-    addMiningLog("✨ Ein seltener Glanz… doch nichts bleibt.", "#999");
+    addMiningLog("✨ Ein seltener Glanz… doch nichts bleibt.", "#999", targetId);
 }
 
 // ==========================
 // 🎁 LOOT FUNKTIONEN
 // ==========================
-function giveStone() {
+function giveStone(targetId = 'modalLeft') {
     addToInventory("res_stein", 1);
-    addMiningLog("🪨 Stein gefunden", "var(--gold)");
+    addMiningLog("🪨 Stein gefunden", "var(--gold)", targetId);
 }
 
-function giveIron() {
+function giveIron(targetId = 'modalLeft') {
     addToInventory("res_eisen", 1);
-    addMiningLog("⛓️ Eisen entdeckt", "#aaa");
+    addMiningLog("⛓️ Eisen entdeckt", "#aaa", targetId);
 }
 
-function giveGold() {
+function giveGold(targetId = 'modalLeft') {
     addToInventory("res_gold", 1);
-    addMiningLog("🟡 GOLD-ERZ!", "#ffd700");
+    addMiningLog("🟡 GOLD-ERZ!", "#ffd700", targetId);
 }
 
-function giveLXP() {
+function giveLXP(targetId = 'modalLeft') {
     data.lxp += 3;
-    addMiningLog("💎 LXP absorbiert (+3)", "#3b82f6");
+    addMiningLog("💎 LXP absorbiert (+3)", "#3b82f6", targetId);
 }
 
 // ==========================
@@ -160,8 +161,8 @@ function addToInventory(id, amount) {
 // ==========================
 // 📜 LOG
 // ==========================
-function addMiningLog(msg, color) {
-    const log = document.getElementById("mining-log");
+function addMiningLog(msg, color, targetId = 'modalLeft') {
+    const log = document.getElementById(`mining-log_${targetId}`);
     if (!log) return;
 
     const entry = document.createElement("div");
@@ -169,3 +170,20 @@ function addMiningLog(msg, color) {
     entry.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}`;
     log.prepend(entry);
 }
+
+window.renderMiningMenu = renderMiningMenu;
+window.mineAction = mineAction;
+function simpleGather(area) {
+    const pools = {
+        wald: ["res_stock", "res_gras", "res_kraeuter", "res_schleimkern"],
+        steinbruch: ["res_stein"]
+    };
+    const list = pools[area] || pools.wald;
+    const id = list[Math.floor(Math.random() * list.length)];
+    const qty = 1 + Math.floor(Math.random() * 2);
+    addToInventory(id, qty);
+    
+    const meta = (typeof window.getItemById === "function") ? window.getItemById(id) : { name: id, emoji: "📦" };
+    addMiningLog(`${meta.emoji || "📦"} ${meta.name || id} +${qty}`, "var(--gold)");
+}
+window.simpleGather = simpleGather;

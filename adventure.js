@@ -34,6 +34,15 @@ const AdventureModule = {
             }
             this.startObservation();
         }, 1000);
+
+        // Event-basiertes Triggering für modernere Module (z.B. FP-Wald)
+        if (window.EventHub) {
+            EventHub.on(EventHub.EVENTS.ENCOUNTER_STEP, () => {
+                if (this.state.isActive) {
+                    this.rollForEncounter();
+                }
+            });
+        }
     },
 
     /**
@@ -77,6 +86,9 @@ const AdventureModule = {
      * Würfelt um eine Monsterbegegnung.
      */
     rollForEncounter() {
+        // Wenn das neue Encounter-System aktiv ist, dieses Modul pausieren
+        if (window.Encounter) return;
+
         if (Math.random() < this.config.encounterChance) {
             this.triggerEncounter();
         }

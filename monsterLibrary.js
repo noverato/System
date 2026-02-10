@@ -17,23 +17,24 @@ const MONSTER_PREFIXES = [
 
 // 🔹 Wildnis-Monster
 const WILDNIS_MONSTER = [
-    { name: "Slime", emoji: "💧" },
-    { name: "Goblin", emoji: "👺" },
-    { name: "Skelett", emoji: "💀" },
-    { name: "Waldspinne", emoji: "🕷️" },
-    { name: "Moos-Golem", emoji: "🗿" },
-    { name: "Schattenwolf", emoji: "🐺" },
-    { name: "Bandit", emoji: "🗡️" },
-    { name: "Waldgeist", emoji: "👻" }
+    { name: "Slime", emoji: "💧", img: "Schleim.png" },
+    { name: "Goblin", emoji: "👺", img: "Goblin.png" },
+    { name: "Skelett", emoji: "💀", img: "Skelett.png" },
+    { name: "Waldspinne", emoji: "🕷️", img: "Goblin.png" }, // Fallback
+    { name: "Moos-Golem", emoji: "🗿", img: "Oger.png" },
+    { name: "Schattenwolf", emoji: "🐺", img: "Goblin.png" }, // Fallback
+    { name: "Bandit", emoji: "🗡️", img: "Skelett.png" }, // Fallback
+    { name: "Waldgeist", emoji: "👻", img: "Lich.png" },
+    { name: "Oger", emoji: "👹", img: "Oger.png" }
 ];
 
 // 🔹 Arena-Bosse
 const ARENA_BOSSE = [
-    { name: "Der Arena-Meister", emoji: "👑" },
-    { name: "Knochen-Gigant", emoji: "🦴" },
-    { name: "Minotaurus", emoji: "🐂" },
-    { name: "Vampir-Lord", emoji: "🧛" },
-    { name: "Der Schatten-Monarch", emoji: "🌑" }
+    { name: "Der Arena-Meister", emoji: "👑", img: "Overlord.png" },
+    { name: "Knochen-Gigant", emoji: "🦴", img: "Skelett.png" },
+    { name: "Minotaurus", emoji: "🐂", img: "Oger.png" },
+    { name: "Vampir-Lord", emoji: "🧛", img: "Lich.png" },
+    { name: "Der Schatten-Monarch", emoji: "🌑", img: "Lich.png" }
 ];
 
 // 🔹 Suffixe
@@ -51,7 +52,7 @@ function random(arr) {
 }
 
 // 🔹 Monster-Erstellung
-function createMonster(name, level, emoji, isBoss, prefix) {
+function createMonster(name, level, emoji, isBoss, prefix, core) {
     let baseHp = 80 + level * 20;
     let baseAtk = 8 + level * 4;
     let baseLxp = 50 + level * 15;
@@ -77,7 +78,7 @@ function createMonster(name, level, emoji, isBoss, prefix) {
         def: Math.round(baseAtk * 0.8),
         spd: 10,
         lxpReward: Math.round(baseLxp),
-        img: emoji
+        img: core.img || emoji // Nutze Bild wenn vorhanden, sonst Emoji
     };
 }
 
@@ -90,7 +91,7 @@ const MonsterLibrary = {
         const suffix = random(MONSTER_SUFFIXES);
 
         const name = `${prefix.name} ${core.name} ${suffix}`;
-        return createMonster(name, level, core.emoji, false, prefix);
+        return createMonster(name, level, core.emoji, false, prefix, core);
     },
 
     generateArenaBoss(level = 1) {
@@ -98,9 +99,11 @@ const MonsterLibrary = {
         const prefix = { name: "Ewiger", hpMod: 1, atkMod: 1, lxpMod: 1 };
 
         const name = `BOSS: ${boss.name}`;
-        return createMonster(name, level, boss.emoji, true, prefix);
+        return createMonster(name, level, boss.emoji, true, prefix, boss);
     }
 };
 
-// 🌍 Global verfügbar machen
+// 🔥 GLOBALER EXPORT
 window.MonsterLibrary = MonsterLibrary;
+window.MONSTER_PREFIXES = MONSTER_PREFIXES;
+window.MONSTER_SUFFIXES = MONSTER_SUFFIXES;

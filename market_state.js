@@ -33,3 +33,5 @@ const MarketState = {
         console.log(`⚖️ Markt-Update: ${itemID} Umlauf jetzt ${globalCounts[itemID]}`);
     }
 };
+
+window.MarketState = MarketState;

@@ -65,6 +65,20 @@ const Beute = (() => {
         const suffix = findSuffix(monsterName);
         const coreLabel = findCoreLabel(monsterName);
 
+        const CORE_EMOJI = {
+            "Fell": "🐾",
+            "Chitin": "🕷️",
+            "Knochen": "💀",
+            "Schleim": "💧",
+            "Kern": "🧱",
+            "Essenz": "🌀",
+            "Habseligkeiten": "🎒",
+            "Ohr": "👂",
+            "Zahn": "🦷",
+            "Horn": "🦌",
+            "Überrest": "📦"
+        };
+
         let nameParts = [];
 
         // 1. Präfix (z.B. "Riesiges")
@@ -79,7 +93,8 @@ const Beute = (() => {
 
         return {
             ...baseItem,
-            display_name: nameParts.join(" ")
+            display_name: nameParts.join(" "),
+            emoji: CORE_EMOJI[coreLabel] || "📦"
         };
     }
 

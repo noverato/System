@@ -10,15 +10,15 @@
 /* =========================
    MARKT RENDERN
 ========================= */
-function renderMarketplace() {
-    const display = document.getElementById("modalLeft");
+function renderMarketplace(targetId = "modalLeft") {
+    const display = document.getElementById(targetId);
     if (!display) return;
 
     display.innerHTML = `
         <div style="padding:20px; color:#fdf5e6;">
             <div style="display:flex; justify-content:space-between; border-bottom:2px solid var(--gold); padding-bottom:10px;">
                 <h2 style="color:var(--gold);">Handelsplatz des Hains</h2>
-                <div>💰 <span id="marketGold">${data.lxp}</span> LXP</div>
+                <div>💰 <span id="marketGold_${targetId}">${data.lxp}</span> LXP</div>
             </div>
 
             <p style="color:#aaa; font-style:italic;">
@@ -26,11 +26,11 @@ function renderMarketplace() {
             </p>
 
             <div style="display:flex; gap:10px; margin-top:15px;">
-                <button class="btn-action" style="flex:1;" onclick="renderShopTab()">🛒 KAUFEN</button>
-                <button class="btn-action" style="flex:1; background:#333;" onclick="renderSellTab()">📦 VERKAUFEN</button>
+                <button class="btn-action" style="flex:1;" data-action="renderShopTab" data-args='["${targetId}"]'>🛒 KAUFEN</button>
+                <button class="btn-action" style="flex:1; background:#333;" data-action="renderSellTab" data-args='["${targetId}"]'>📦 VERKAUFEN</button>
             </div>
 
-            <div id="marketContent"
+            <div id="marketContent_${targetId}"
                  style="margin-top:20px; display:grid;
                  grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
                  gap:15px;">
@@ -38,8 +38,12 @@ function renderMarketplace() {
         </div>
     `;
 
-    renderShopTab();
+    renderShopTab(targetId);
 }
+
+window.renderMarketplace = renderMarketplace;
+window.buyItem = buyItem;
+window.sellItem = sellItem;
 
 /* =========================
    PREISBERECHNUNG
@@ -80,8 +84,8 @@ function getMarketPrice(catalogItem, istVerkauf = false) {
 /* =========================
    KAUFEN TAB
 ========================= */
-function renderShopTab() {
-    const container = document.getElementById("marketContent");
+function renderShopTab(targetId = "modalLeft") {
+    const container = document.getElementById(`marketContent_${targetId}`);
     if (!container) return;
     container.innerHTML = "";
 
@@ -105,16 +109,23 @@ function renderShopTab() {
     }
 
     itemsForSale.forEach(catalogItem => {
-        const meta = window.items?.[catalogItem.id] || {};
+        let meta = (typeof window.getItemById === "function") ? window.getItemById(catalogItem.id) : null;
+        if (!meta) meta = { name: catalogItem.id, emoji: "📦" }; // Fallback
+
         const price = getMarketPrice(catalogItem, false);
+
+        // Emoji-First Logik für den Markt
+        const visual = meta.emoji 
+            ? `<span style="font-size: 2em; display:block; margin-bottom:5px;">${meta.emoji}</span>`
+            : `<img src="${meta.icon || "stone.png"}" style="width:40px; display:block; margin: 0 auto 5px;">`;
 
         container.innerHTML += `
             <div style="background:rgba(0,0,0,0.35); padding:15px; border-radius:10px; text-align:center;">
-                <img src="${meta.icon || "stone.png"}" style="width:40px;">
+                ${visual}
                 <div style="color:cyan; font-weight:bold;">${meta.name || catalogItem.id}</div>
-                <div style="font-size:12px; color:#aaa;">${meta.desc || "Handelsware"}</div>
+                <div style="font-size:12px; color:#aaa;">${meta.desc || meta.description || "Handelsware"}</div>
                 <div style="margin:8px 0; color:var(--gold);">${price} LXP</div>
-                <button class="btn-action" style="width:100%;" onclick="buyItem('${catalogItem.id}')">
+                <button class="btn-action" style="width:100%;" data-action="buyItem" data-args='["${catalogItem.id}", "${targetId}"]'>
                     KAUFEN
                 </button>
             </div>
@@ -125,8 +136,8 @@ function renderShopTab() {
 /* =========================
    VERKAUFEN TAB
 ========================= */
-function renderSellTab() {
-    const container = document.getElementById("marketContent");
+function renderSellTab(targetId = "modalLeft") {
+    const container = document.getElementById(`marketContent_${targetId}`);
     if (!container) return;
     container.innerHTML = "";
 
@@ -138,18 +149,25 @@ function renderSellTab() {
         const catalogItem = findCatalogItem(id);
         if (catalogItem && catalogItem.category === 4) continue; // Sub-Schutz
 
-        const meta = window.items?.[id] || { name: id };
+        let meta = (typeof window.getItemById === "function") ? window.getItemById(id) : null;
+        if (!meta) meta = { name: id, emoji: "📦" }; // Fallback
+
         const price = getMarketPrice(catalogItem || { id, price: 50 }, true);
+
+        // Emoji-First Logik für den Verkauf
+        const visual = meta.emoji 
+            ? `<span style="font-size: 2em; display:block; margin-bottom:5px;">${meta.emoji}</span>`
+            : `<img src="${meta.icon || "stone.png"}" style="width:30px; display:block; margin: 0 auto 5px;">`;
 
         hasItems = true;
         container.innerHTML += `
             <div style="background:rgba(20,15,10,0.6); padding:15px; border-radius:10px; text-align:center;">
-                <img src="${meta.icon || "stone.png"}" style="width:30px;">
-                <div style="color:var(--gold);">${meta.name}</div>
+                ${visual}
+                <div style="color:var(--gold);">${meta.name || id}</div>
                 <div>Besitz: ${data.inventar[id]}</div>
                 <div style="color:#4ade80;">+${price} LXP</div>
                 <button class="btn-action" style="width:100%; background:#522;"
-                        onclick="sellItem('${id}')">
+                        data-action="sellItem" data-args='["${id}", "${targetId}"]'>
                     VERKAUFEN
                 </button>
             </div>
@@ -167,7 +185,7 @@ function renderSellTab() {
 /* =========================
    HANDELSLOGIK
 ========================= */
-function buyItem(id) {
+function buyItem(id, targetId = "modalLeft") {
     const catalogItem = findCatalogItem(id);
     const price = getMarketPrice(catalogItem, false);
 
@@ -183,10 +201,10 @@ function buyItem(id) {
         MarketState.updateCirculation(id, -1);
     }
 
-    finalizeMarketTrade();
+    finalizeMarketTrade(targetId);
 }
 
-function sellItem(id) {
+function sellItem(id, targetId = "modalLeft") {
     if (!data.inventar[id]) return;
 
     const catalogItem = findCatalogItem(id);
@@ -201,22 +219,27 @@ function sellItem(id) {
         MarketState.updateCirculation(id, 1);
     }
 
-    finalizeMarketTrade();
+    finalizeMarketTrade(targetId);
 }
 
 /* =========================
    HELFER
 ========================= */
 function findCatalogItem(id) {
-    for (const group of Object.values(MarketCatalog)) {
+    const catalog = window.MarketCatalog || MarketCatalog;
+    if (!catalog) return null;
+    for (const group of Object.values(catalog)) {
+        if (!Array.isArray(group)) continue;
         const found = group.find(i => i.id === id);
         if (found) return found;
     }
     return null;
 }
 
-function finalizeMarketTrade() {
-    document.getElementById("marketGold").innerText = data.lxp;
+function finalizeMarketTrade(targetId = "modalLeft") {
+    const goldDisplay = document.getElementById(`marketGold_${targetId}`);
+    if (goldDisplay) goldDisplay.innerText = data.lxp;
+    
     if (typeof save === "function") save();
-    renderShopTab();
+    renderShopTab(targetId);
 }

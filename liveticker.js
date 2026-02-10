@@ -19,9 +19,12 @@ const RaphaelSystem = (() => {
 
         if (box) return box;
 
-        const holder = document.getElementById('overlordPanel')
+        const holder = document.getElementById('hud')
+            || document.getElementById('overlordPanel')
             || document.getElementById('playerPanel')
             || document.body;
+
+        if (!holder) return null;
 
         box = document.createElement('div');
         box.id = 'raphael-ticker';
@@ -42,6 +45,7 @@ const RaphaelSystem = (() => {
 
     function push(html) {
         const container = getOrCreateContainer();
+        if (!container) return;
         const div = document.createElement('div');
         div.style.marginBottom = '6px';
         div.innerHTML = html;
@@ -100,6 +104,40 @@ const RaphaelSystem = (() => {
     }
 
     /* ==============================
+       📡 EVENT-ANBINDUNG (Live-Chronik)
+    ============================== */
+    if (window.EventHub) {
+        EventHub.on(EventHub.EVENTS.ENCOUNTER_START, ({ monster }) => {
+            const enemyName = monster?.name || 'ein Wesen';
+            push(`<b>${playerName()}</b> stellt sich <b>${enemyName}</b>.`);
+        });
+        EventHub.on(EventHub.EVENTS.BATTLE_ACTION_START, ({ side }) => {
+            const enemyName = window.BattleEngine?.enemy?.name || 'ein Wesen';
+            if (side === 'enemy') {
+                push(`<b>${enemyName}</b> greift <b>${playerName()}</b> an.`);
+            } else {
+                push(`<b>${playerName()}</b> greift <b>${enemyName}</b> an.`);
+            }
+        });
+        EventHub.on(EventHub.EVENTS.BATTLE_IMPACT, ({ side }) => {
+            const enemyName = window.BattleEngine?.enemy?.name || 'ein Wesen';
+            if (side === 'enemy') {
+                push(`💥 <b>${enemyName}</b> trifft!`);
+            } else {
+                push(`💥 <b>${playerName()}</b> trifft!`);
+            }
+        });
+        EventHub.on(EventHub.EVENTS.BATTLE_VICTORY, ({ monster }) => {
+            const enemyName = monster?.name || window.BattleEngine?.enemy?.name || 'ein Gegner';
+            push(`🏆 <b>${playerName()}</b> besiegt <b>${enemyName}</b>.`);
+        });
+        EventHub.on(EventHub.EVENTS.BATTLE_ESCAPE, ({ monster }) => {
+            const enemyName = monster?.name || window.BattleEngine?.enemy?.name || 'ein Gegner';
+            push(`🏃 <b>${playerName()}</b> entkommt <b>${enemyName}</b>.`);
+        });
+    }
+
+    /* ==============================
        🎒 INVENTAR
     ============================== */
 
@@ -129,7 +167,8 @@ const RaphaelSystem = (() => {
         if (evo == null) return;
 
         if (lastEvo !== null && evo > lastEvo) {
-            push(`<b>${playerName()}</b> spürt eine neue Form entstehen.`);
+            const emoji = (typeof window.getCreatureEmoji === 'function') ? window.getCreatureEmoji(window.data) : '✨';
+            push(`${emoji} <b>${playerName()}</b> spürt eine neue Form entstehen.`);
         }
 
         lastEvo = evo;

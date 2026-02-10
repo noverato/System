@@ -9,11 +9,22 @@ const ITEM_DATABASE = {
         "res_stein": { id: "res_stein", name: "Stein", emoji: "🪨", type: "resource", rarity: "Common", description: "Einfaches Baumaterial." },
         "res_eisen": { id: "res_eisen", name: "Eisen", emoji: "⛓️", type: "resource", rarity: "Common", description: "Wichtig für stabile Ausrüstung." },
         "res_gold": { id: "res_gold", name: "Gold-Erz", emoji: "🟡", type: "resource", rarity: "Uncommon", description: "Glänzt und ist wertvoll." },
-        "lxp_shard": { id: "lxp_shard", name: "LXP-Splitter", emoji: "💎", type: "lxp", rarity: "Rare", description: "Ein Fragment purer Erfahrung." }
+        "lxp_shard": { id: "lxp_shard", name: "LXP-Splitter", emoji: "💎", type: "lxp", rarity: "Rare", description: "Ein Fragment purer Erfahrung." },
+        "res_stock": { id: "res_stock", name: "Stock", emoji: "🪵", type: "resource", rarity: "Common", description: "Ein stabiler Ast aus dem Wald." },
+        "res_gras": { id: "res_gras", name: "Gras", emoji: "🌿", type: "resource", rarity: "Common", description: "Frisches Gras aus der Wiese." },
+        "res_kraeuter": { id: "res_kraeuter", name: "Kräuter", emoji: "🌿", type: "resource", rarity: "Common", description: "Ein Bündel heilender Kräuter." },
+        "res_schleimkern": { id: "res_schleimkern", name: "Schleimkern", emoji: "🧪", type: "resource", rarity: "Uncommon", description: "Ein geleeartiger Kern aus Slimes." }
     },
 
     // --- WAFFEN: LICHT-PFAD ---
     weapons_light: {
+        holz: {
+            "w_holzschwert": { id: "w_holzschwert", name: "Holzschwert", emoji: "⚔️", levelReq: 1, evoReq: 0, stats: { atk: 5 }, type: "Waffe", slot: "weapon", rarity: "Common", description: "Ein einfaches Schwert aus Hartholz." },
+            "w_holzdolch": { id: "w_holzdolch", name: "Holzdolch", emoji: "🔪", levelReq: 1, evoReq: 0, stats: { atk: 3 }, type: "Waffe", slot: "weapon", rarity: "Common", description: "Klein, aber aus Holz." },
+            "w_holzstab": { id: "w_holzstab", name: "Holzstab", emoji: "🪄", levelReq: 1, evoReq: 0, stats: { atk: 4 }, type: "Waffe", slot: "weapon", rarity: "Common", description: "Ein langer Wanderstab." },
+            "w_holzbogen": { id: "w_holzbogen", name: "Holzbogen", emoji: "🏹", levelReq: 1, evoReq: 0, stats: { atk: 4 }, type: "Waffe", slot: "weapon", rarity: "Common", description: "Ein einfacher Bogen." },
+            "w_pfeile": { id: "w_pfeile", name: "Holzpfeile", emoji: "🏹", levelReq: 1, evoReq: 0, stats: { atk: 1 }, type: "Munition", rarity: "Common", description: "Einfache Pfeile." }
+        },
         boegen: {
             "w_f_bogen_1_5": { id: "w_f_bogen_1_5", name: "Esche-Kurzbogen", levelReq: 5, evoReq: 1, stats: { atk: 8 }, type: "Waffe", rarity: "Follower" },
             "w_f_bogen_2_8": { id: "w_f_bogen_2_8", name: "Eiben-Langbogen", levelReq: 8, evoReq: 2, stats: { atk: 15 }, type: "Waffe", rarity: "Follower" },
@@ -69,12 +80,29 @@ const ITEM_DATABASE = {
 
     // --- SCHILDE ---
     shields: {
-        light: { "s_f_light_1": { id: "s_f_light_1", name: "Holzschild", levelReq: 5, evoReq: 1, stats: { def: 10 }, type: "Schild", rarity: "Follower" } },
+        light: { 
+            "w_holzschild": { id: "w_holzschild", name: "Holzschild", emoji: "🛡️", levelReq: 1, evoReq: 0, stats: { def: 5 }, type: "Schild", slot: "offhand", rarity: "Common", description: "Schützt ein wenig vor Angriffen." },
+            "s_f_light_1": { id: "s_f_light_1", name: "Holzschild", levelReq: 5, evoReq: 1, stats: { def: 10 }, type: "Schild", rarity: "Follower" } 
+        },
         dark: { "s_f_dark_1": { id: "s_f_dark_1", name: "Verstärkter Rundschild", levelReq: 5, evoReq: 1, stats: { def: 12 }, type: "Schild", rarity: "Follower" } }
     },
 
     // --- SUB-SPECIALS ---
-    specials: { sub_armor: {}, sub_weapons: {} }
+    specials: { 
+        sub_armor: {}, 
+        sub_weapons: {},
+        tools: {
+            "item_nest_feder": { 
+                id: "item_nest_feder", 
+                name: "Nest-Feder", 
+                emoji: "🪶", 
+                type: "Spezial", 
+                rarity: "Legendär", 
+                description: "Eine magische Feder, die dich zum Ursprungs-Nest (0,0) teleportiert. 2x täglich kostenlos, danach 700 LXP.",
+                usable: true
+            }
+        }
+    }
 };
 
 /**
@@ -101,32 +129,7 @@ function getItemById(id) {
     return search(ITEM_DATABASE);
 }
 
-function getItemsByEvo(stufe) {
-    const results = [];
-    const search = (obj) => {
-        for (const key in obj) {
-            if (obj[key] && obj[key].evoReq === stufe) {
-                results.push(obj[key]);
-            } else if (typeof obj[key] === 'object' && obj[key] !== null && !obj[key].id) {
-                search(obj[key]);
-            }
-        }
-    };
-    search(ITEM_DATABASE);
-    return results;
-}
-
-/**
- * DIE FINALE BRÜCKE (Globaler Zugriff & Proxy)
- * Ermöglicht der inventar.js den Zugriff via items[id]
- */
-window.items = new Proxy(ITEM_DATABASE, {
-    get: function(target, prop) {
-        // Falls direkt auf ITEM_DATABASE zugegriffen wird (z.B. items.resources)
-        if (prop in target) return target[prop];
-        // Falls via items["res_stein"] zugegriffen wird -> Nutze getItemById
-        return getItemById(prop);
-    }
-});
-
-console.log("⚔️ Item-Warenlager geladen. Globale 'items' Brücke aktiv.");
+// 🔥 GLOBALER EXPORT (Wichtig für andere Module!)
+window.items = ITEM_DATABASE;
+window.allItems = ITEM_DATABASE; // Fallback für ältere Referenzen
+window.getItemById = getItemById;

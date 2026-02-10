@@ -62,7 +62,7 @@ const Arena = (() => {
 
                 <div style="display:flex; gap:25px;">
                     <button class="btn-action"
-                        onclick="Arena.startMonsterFight()"
+                        data-action="arenaAction" data-args='["startMonsterFight"]'
                         style="min-width:200px;">
                         ⚔️ Monsterkampf
                     </button>
@@ -75,13 +75,13 @@ const Arena = (() => {
                 </div>
 
                 <button class="btn-action"
-                    onclick="Arena.startBossEvent()"
+                    data-action="arenaAction" data-args='["startBossEvent"]'
                     style="min-width:260px;">
                     👑 Boss-Event
                 </button>
 
                 <button class="btn-action"
-                    onclick="Arena.close()"
+                    data-action="arenaAction" data-args='["close"]'
                     style="background:#444;">
                     ❌ Verlassen
                 </button>

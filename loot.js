@@ -112,3 +112,6 @@ function getRandomItem(category, tier, path) {
     
     return selectedItem;
 }
+
+// 🔥 GLOBALER EXPORT
+window.LootManager = LootManager;

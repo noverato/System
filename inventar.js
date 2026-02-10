@@ -11,37 +11,137 @@
  * @param {string} cssClass - Optionale CSS-Klasse
  */
 function getItemMarkup(item, cssStyle = "") {
-    if (item && item.icon && item.icon.trim() !== "" && item.icon !== "stone.png") {
-        return `<img src="${item.icon}" style="${cssStyle} object-fit: contain;">`;
-    } else if (item && item.emoji) {
+    if (item && item.emoji) {
         return `<span style="font-size: 2em; ${cssStyle}">${item.emoji}</span>`;
     } else {
-        return `<span style="font-size: 2em; ${cssStyle}">📦</span>`; // Globaler Fallback
+        return `<span style="font-size: 2em; ${cssStyle}">📦</span>`;
     }
 }
 
 // --- KERN-LOGIK ---
 
 function openInventory() {
+    // Wenn der Wald offen ist, öffne das Overlay im Wald
+    const fpModal = document.getElementById('fpModal');
+    if (fpModal && fpModal.style.display === 'flex') {
+        const overlay = document.getElementById('fpInventoryOverlay');
+        if (overlay) {
+            overlay.style.display = 'block';
+            renderInventoryUI();
+            return;
+        }
+    }
+
+    // Sonst normales Modal
+    if (window.FPWald && typeof window.FPWald.close === 'function') {
+        window.FPWald.close();
+    }
     toggleModal('gameModal', true);
     renderInventoryUI();
 }
 
+/**
+ * Sucht ein Item über alle Kategorien hinweg.
+ */
+function getItemById(id) {
+    if (!id) return null;
+    
+    // 1. Suche in ITEM_DATABASE oder window.items (rekursiv)
+    const db = window.ITEM_DATABASE || window.items || window.allItems;
+    if (db) {
+        const search = (obj) => {
+            if (obj && obj.id === id) return obj;
+            for (const key in obj) {
+                if (typeof obj[key] === 'object' && obj[key] !== null) {
+                    if (obj[key].id === id) return obj[key];
+                    const found = search(obj[key]);
+                    if (found) return found;
+                }
+            }
+            return null;
+        };
+        const found = search(db);
+        if (found) return found;
+    }
+
+    return null;
+}
+
+/**
+ * Hilfsfunktion für die Positionierung von Waffen auf dem Avatar.
+ */
+window.getWeaponOffsets = function(className, itemName) {
+    const fallback = { x: 0, y: 0, rotation: 0 };
+    if (!className) return fallback;
+
+    // Konvertiere className zu Key-Format (Leerzeichen -> Unterstrich, Umlaute ersetzen)
+    const key = className
+        .replace(/ /g, '_')
+        .replace(/ä/g, 'ae')
+        .replace(/ö/g, 'oe')
+        .replace(/ü/g, 'ue')
+        .replace(/Ä/g, 'Ae')
+        .replace(/Ö/g, 'Oe')
+        .replace(/Ü/g, 'Ue')
+        .replace(/ß/g, 'ss');
+
+    const anchorData = window.AvatarAnchors ? window.AvatarAnchors[key] : null;
+    if (!anchorData) return fallback;
+
+    // Prüfen ob es eine Waffe oder ein Schild ist
+    const itemData = getItemById(itemName);
+    const isShield = itemData && itemData.slot === 'offhand';
+
+    return isShield ? (anchorData.shield || fallback) : (anchorData.weapon || fallback);
+};
+
 function renderInventoryUI() {
     const main = document.getElementById('modalLeft');
-    if (!main) return;
+    const fpOverlay = document.getElementById('fpInventoryOverlay');
     
-    main.innerHTML = '';
+    // Bestimme das Ziel-Element (entweder gameModal oder fpModal Overlay)
+    const isForestOverlay = fpOverlay && fpOverlay.style.display !== 'none';
+    const target = isForestOverlay ? fpOverlay : main;
+    if (!target) return;
+    
+    target.innerHTML = '';
+    
+    // Wenn Overlay im Wald, brauche wir einen Schließen-Button
+    if (isForestOverlay) {
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'btn-action';
+        closeBtn.innerText = 'X';
+        closeBtn.style.position = 'absolute';
+        closeBtn.style.top = '10px';
+        closeBtn.style.right = '10px';
+        closeBtn.style.zIndex = '101';
+        closeBtn.onclick = () => { fpOverlay.style.display = 'none'; };
+        target.appendChild(closeBtn);
+    }
+
     const temp = document.getElementById('inventory-template');
-    main.appendChild(temp.content.cloneNode(true));
+    if (!temp) return;
+    
+    target.appendChild(temp.content.cloneNode(true));
 
     // 1. STAT-SYNCHRONISATION
     const bonuses = typeof getEquipmentStats === 'function' ? getEquipmentStats() : { atk:0, def:0, hp:0, mp:0, setBonusActive: false };
     
-    document.getElementById('stat-hp').innerText = (data.maxHp || 100) + (bonuses.hp || 0);
-    document.getElementById('stat-mp').innerText = (data.maxMp || 50) + (bonuses.mp || 0);
-    document.getElementById('stat-atk').innerText = (data.stats.atk || 0) + (bonuses.atk || 0);
-    document.getElementById('stat-def').innerText = (data.stats.def || 0) + (bonuses.def || 0);
+    const elHp = document.getElementById('stat-hp');
+    const elMp = document.getElementById('stat-mp');
+    const elAtk = document.getElementById('stat-atk');
+    const elDef = document.getElementById('stat-def');
+    const elLxp = document.getElementById('inv-lxp-display');
+
+    if (elHp) elHp.innerText = (data.maxHp || 100) + (bonuses.hp || 0);
+    if (elMp) elMp.innerText = (data.maxMp || 50) + (bonuses.mp || 0);
+    if (elAtk) elAtk.innerText = ((data.stats && data.stats.atk) || 0) + (bonuses.atk || 0);
+    if (elDef) elDef.innerText = ((data.stats && data.stats.def) || 0) + (bonuses.def || 0);
+    if (elLxp) elLxp.innerText = (data.lxp || 0) + " LXP";
+
+    // 1b. LEVEL-ANZEIGE (Neu)
+    const elLvl = document.getElementById('inv-level-display');
+    if (elLvl) elLvl.innerText = "Level " + ((data.stats && data.stats.currentLevel) || 1);
 
     // 2. SET-BONUS
     const setMsg = document.getElementById('set-bonus-msg');
@@ -51,11 +151,14 @@ function renderInventoryUI() {
     }
 
     // 3. AVATAR & WAFFEN-MAPPING
-    const baseImg = (typeof getCreatureSprite === 'function') ? getCreatureSprite(data, verifiedID === BROADCASTER_ID) : 'Ei.png';
-    document.getElementById('avatar-base').src = baseImg;
+    const elAvatar = document.getElementById('avatar-base');
+    if (elAvatar) {
+        const baseImg = (typeof getCreatureSprite === 'function') ? getCreatureSprite(data, verifiedID === BROADCASTER_ID) : 'Ei.png';
+        elAvatar.src = baseImg;
+    }
 
     const weaponLayer = document.getElementById('weapon-layer');
-    weaponLayer.innerHTML = ''; 
+    if (weaponLayer) weaponLayer.innerHTML = ''; 
 
     // 4. SLOT-VISUALISIERUNG & ANKER
     for (let slotKey in data.equipment) {
@@ -64,7 +167,7 @@ function renderInventoryUI() {
 
         const itemName = data.equipment[slotKey];
         if (itemName) {
-            const itemData = (window.allItems && allItems[itemName]) || (window.items && items[itemName]);
+            const itemData = getItemById(itemName);
             if (itemData) {
                 // EMOJI-FIRST LOGIK FÜR SLOTS
                 slotEl.innerHTML = getItemMarkup(itemData, "cursor:pointer; max-width:100%; max-height:100%;");
@@ -73,7 +176,7 @@ function renderInventoryUI() {
                 slotEl.onmouseleave = hideTooltip;
 
                 // Visuelles Mapping auf dem Avatar (Weapon/Offhand)
-                if (slotKey === 'weapon' || slotKey === 'offhand') {
+                if (weaponLayer && (slotKey === 'weapon' || slotKey === 'offhand')) {
                     const offsets = getWeaponOffsets(data.stats.className, itemName);
                     const visualWrap = document.createElement('div');
                     visualWrap.style.position = 'absolute';
@@ -96,13 +199,16 @@ function renderInventoryUI() {
 
     // 5. RUCKSACK RENDERING
     const grid = document.getElementById('backpack-slots');
-    let itemCount = 0;
+    if (!grid) return;
     
+    let itemCount = 0;
     if (data.inventar) {
         Object.keys(data.inventar).forEach(id => {
             const count = data.inventar[id];
             if (count > 0) {
-                const item = (window.allItems && allItems[id]) || (window.items && items[id]) || { name: id };
+                let item = getItemById(id) || { name: id };
+                const meta = (window.data && window.data.inventarMeta) ? window.data.inventarMeta[id] : null;
+                if (meta && !item.emoji) item = { ...item, emoji: meta.emoji, name: meta.name || item.name };
                 grid.appendChild(createItemSlot(id, item, count));
                 itemCount++;
             }
@@ -115,7 +221,8 @@ function renderInventoryUI() {
         grid.appendChild(empty);
     }
     
-    document.getElementById('bag-count').innerText = itemCount;
+    const elBagCount = document.getElementById('bag-count');
+    if (elBagCount) elBagCount.innerText = itemCount;
 }
 
 /**
@@ -134,7 +241,26 @@ function createItemSlot(id, item, count) {
     div.innerHTML = `${visual}<span style="position:absolute; bottom:2px; right:4px; font-size:10px; pointer-events:none; background:rgba(0,0,0,0.6); padding:0 2px; border-radius:3px;">${count}</span>`;
     
     div.onclick = () => {
-        if (item.slot && typeof equipItem === 'function') equipItem(id);
+        if (item.id === 'item_nest_feder' && typeof window.FPWald !== 'undefined' && typeof window.FPWald.teleport === 'function') {
+            window.FPWald.teleport();
+            // Schließe Overlay nach Teleport
+            const overlay = document.getElementById('fpInventoryOverlay');
+            if (overlay) overlay.style.display = 'none';
+            return;
+        }
+        
+        // Auto-Equip Logik: Alles was Waffe, Rüstung oder Schild ist, versuchen wir auszurüsten
+        const isEquippable = item.slot || 
+                           item.type === 'Waffe' || 
+                           item.type === 'Rüstung' || 
+                           item.type === 'Schild' ||
+                           id.startsWith('w_') || 
+                           id.startsWith('s_') || 
+                           id.startsWith('a_');
+
+        if (isEquippable && typeof equipItem === 'function') {
+            equipItem(id);
+        }
     };
     
     div.onmouseenter = (e) => showTooltip(e, item);
@@ -145,10 +271,44 @@ function createItemSlot(id, item, count) {
 // --- RESTLICHE FUNKTIONEN (UNBERÜHRT) ---
 
 window.equipItem = function(itemId) {
-    const itemData = (window.allItems && allItems[itemId]) || (window.items && items[itemId]);
-    if (!itemData || !itemData.slot) return;
+    const itemData = getItemById(itemId);
+    if (!itemData) return;
 
-    const slot = itemData.slot;
+    // --- AUTOMATISCHE SLOT-ERKENNUNG (Falls nicht im Item definiert) ---
+    let slot = itemData.slot;
+    if (!slot) {
+        if (itemId.startsWith('w_')) slot = 'weapon';
+        else if (itemId.startsWith('s_')) slot = 'offhand';
+        else if (itemId.includes('_head_')) slot = 'head';
+        else if (itemId.includes('_chest_')) slot = 'chest';
+        else if (itemId.includes('_legs_')) slot = 'legs';
+        else if (itemId.includes('_feet_')) slot = 'feet';
+        // Spezialfall: Lederkappe (kann verschiedene IDs haben)
+        else if (itemData.name && itemData.name.toLowerCase().includes('lederhaube')) slot = 'head';
+        else if (itemData.name && itemData.name.toLowerCase().includes('leder-kappe')) slot = 'head';
+        else if (itemData.name && itemData.name.toLowerCase().includes('lederkappe')) slot = 'head';
+    }
+
+    if (!slot) {
+        console.log("Kein Slot für Item gefunden:", itemId);
+        return;
+    }
+
+    // Initialisierung von equipment, falls nicht vorhanden
+    if (!data.equipment) data.equipment = {};
+
+    // 1. ANFORDERUNGS-CHECK
+    const playerLevel = (data.stats && data.stats.currentLevel) || 1;
+    const playerEvo = (data.stats && data.stats.totalEvoLevel) || 0;
+
+    if (itemData.levelReq && playerLevel < itemData.levelReq) {
+        alert(`Benötigt Level ${itemData.levelReq}!`);
+        return;
+    }
+    if (itemData.evoReq != null && playerEvo < itemData.evoReq) {
+        alert(`Benötigt eine höhere Evolutionsstufe!`);
+        return;
+    }
 
     // Wenn Slot bereits belegt: unequip
     if (data.equipment[slot]) {
@@ -165,6 +325,9 @@ window.equipItem = function(itemId) {
     }
 
     renderInventoryUI();
+    if (window.EventHub) {
+        EventHub.emit('equipment:update');
+    }
     if (typeof save === "function") save();
 };
 
@@ -177,7 +340,7 @@ window.getEquipmentStats = function() {
         const itemId = data.equipment[slot];
         if (!itemId) continue;
 
-        const itemData = (window.allItems && allItems[itemId]) || (window.items && items[itemId]);
+        const itemData = getItemById(itemId);
         if (itemData && itemData.stats) {
             if (itemData.stats.atk) totals.atk += itemData.stats.atk;
             if (itemData.stats.def) totals.def += itemData.stats.def;
@@ -189,37 +352,15 @@ window.getEquipmentStats = function() {
     return totals;
 };
 
-window.getWeaponOffsets = function(className, itemName) {
-    const fallback = { x: 0, y: 0, rotation: 0 };
-    if (!className) return fallback;
-
-    // Konvertiere className zu Key-Format (Leerzeichen -> Unterstrich, Umlaute ersetzen)
-    const key = className
-        .replace(/ /g, '_')
-        .replace(/ä/g, 'ae')
-        .replace(/ö/g, 'oe')
-        .replace(/ü/g, 'ue')
-        .replace(/Ä/g, 'Ae')
-        .replace(/Ö/g, 'Oe')
-        .replace(/Ü/g, 'Ue')
-        .replace(/ß/g, 'ss');
-
-    const anchorData = window.AvatarAnchors ? window.AvatarAnchors[key] : null;
-    if (!anchorData) return fallback;
-
-    // Prüfen ob es eine Waffe oder ein Schild ist
-    const itemData = (window.allItems && allItems[itemName]) || (window.items && items[itemName]);
-    const isShield = itemData && itemData.slot === 'offhand';
-
-    return isShield ? (anchorData.shield || fallback) : (anchorData.weapon || fallback);
-};
-
 window.unequipItem = function(slot) {
-    if (data.equipment[slot]) {
+    if (data.equipment && data.equipment[slot]) {
         const itemName = data.equipment[slot];
         data.inventar[itemName] = (data.inventar[itemName] || 0) + 1;
         data.equipment[slot] = null;
         renderInventoryUI();
+        if (window.EventHub) {
+            EventHub.emit('equipment:update');
+        }
         if (typeof save === "function") save();
     }
 };
@@ -237,4 +378,14 @@ function showTooltip(e, item) {
 function hideTooltip() {
     const tt = document.getElementById('item-tooltip');
     if (tt) tt.style.display = 'none';
+}
+
+window.openInventory = openInventory;
+window.renderInventoryUI = renderInventoryUI;
+
+// — Event-Integration: UI-Aktualisierung bei Inventar-Änderungen
+if (window.EventHub) {
+    EventHub.on(EventHub.EVENTS.INVENTORY_ADD, () => {
+        renderInventoryUI();
+    });
 }
