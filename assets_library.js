@@ -239,6 +239,22 @@ const AssetsLibrary = (() => {
                 RANGER_FEMALE: 'Female_Ranger.gltf',
                 RANGER_MALE: 'Male_Ranger.gltf'
             }
+        },
+
+        // NEU: Gelände-Assets (Modelle & Texturen)
+        TERRAIN: {
+            PATH: 'Terrain/',
+            MODELS: {
+                GRASS_MODEL: 'Grass.glb'
+            },
+            TEXTURE_PATH: 'Nature/Textures/',
+            TEXTURES: {
+                GRASS: 'Grass.png',
+                ROCKS: 'Rocks_Diffuse.png',
+                ROCKS_DESERT: 'Rocks_Desert_Diffuse.png',
+                LEAVES: 'Leaves_TwistedTree.png',
+                FLOWERS: 'Flowers.png'
+            }
         }
     };
 
@@ -277,12 +293,22 @@ const AssetsLibrary = (() => {
             }
 
             const cat = ASSETS[category];
+
+            // Wenn subKey eine Liste (Array) ist, gib das Array zurück
+            if (Array.isArray(cat[subKey])) {
+                return cat[subKey];
+            }
+
             let fileName = '';
 
             // Suche in verschiedenen Unterstrukturen
             if (cat.BUILDINGS && cat.BUILDINGS[subKey]) fileName = cat.BUILDINGS[subKey];
             else if (cat.MODELS && cat.MODELS[subKey]) fileName = cat.MODELS[subKey];
             else if (cat.LIST && cat.LIST[subKey]) fileName = cat.LIST[subKey];
+            else if (cat.TEXTURES && cat.TEXTURES[subKey]) {
+                fileName = cat.TEXTURES[subKey];
+                return encodePath(BASE_URL + (cat.TEXTURE_PATH || cat.PATH || "") + fileName);
+            }
             else if (cat.ANIMATIONS && cat.ANIMATIONS[subKey]) {
                 return encodePath(BASE_URL + cat.ANIMATIONS.PATH + cat.ANIMATIONS[subKey]);
             }
@@ -295,7 +321,7 @@ const AssetsLibrary = (() => {
             }
             else fileName = subKey; // Falls der subKey direkt der Dateiname ist
 
-            return encodePath(BASE_URL + cat.PATH + fileName);
+            return encodePath(BASE_URL + (cat.PATH || "") + fileName);
         },
 
         /**
