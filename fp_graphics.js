@@ -1926,55 +1926,9 @@
         const midH = getGPUHeight(midX, midZ);
         const biome = getBiomeData(midX, midZ, midH);
         
-        // --- ASSET ANCHOR: Spezielle Logik für "Lila Ei" oder wichtige NPCs ---
-        let hasEgg = false;
-        if (rng() > 0.95) { // Seltene Chance auf ein "Lila Ei" in dieser Zelle
-            const ex = x0 + rng() * DECORATION_CELL_SIZE;
-            const ez = z0 + rng() * DECORATION_CELL_SIZE;
-            const eh = getRaycastHeight(ex, ez, getGPUHeight(ex, ez));
-            
-            if (eh > 2.5) { // Über Wasser
-                hasEgg = true;
-                const texEi = new THREE.TextureLoader().load('Ei.png');
-                const mat = new THREE.SpriteMaterial({ 
-                    map: texEi, 
-                    color: 0xa855f7,
-                    transparent: true,
-                    opacity: 0.9
-                });
-                const sprite = new THREE.Sprite(mat);
-                sprite.position.set(ex, eh + 4.0, ez);
-                sprite.scale.set(10, 10, 1);
-                sprite.userData = { type: 'LilaEi', aura: true };
-                group.add(sprite);
-
-                // Magisches Licht am Ei
-                const eggLight = new THREE.PointLight(0xa855f7, 2, 50);
-                eggLight.position.set(ex, eh + 5.0, ez);
-                group.add(eggLight);
-
-                // Aura-Effekt (zweiter Sprite, größer und pulsierend)
-                const auraMat = new THREE.SpriteMaterial({
-                    map: texEi,
-                    color: 0xda70d6,
-                    transparent: true,
-                    opacity: 0.3,
-                    blending: THREE.AdditiveBlending
-                });
-                const aura = new THREE.Sprite(auraMat);
-                aura.position.copy(sprite.position);
-                aura.scale.set(20, 20, 1);
-                aura.userData = { type: 'Aura', pulse: true };
-                group.add(aura);
-            }
-        }
-        
         // 1. Große Vegetation (Individuelle Meshes für Komplexität)
         // PERFORMANCE-GESETZ: Glocken-Prinzip (Culling)
-        // Wir reduzieren die Dichte drastisch, wenn kein Ei in der Nähe ist (Radius 500)
-        // Da wir in Zellen arbeiten, prüfen wir einfach, ob diese Zelle ein Ei hat 
-        // oder ob wir uns in einem "fruchtbaren" Biom befinden.
-        let densityMult = hasEgg ? 1.5 : 0.4; // Eier beleben die Umgebung
+        let densityMult = 0.8; // Standard-Dichte für die Vegetation
         
         let treeCount = 0;
         if (biome.name === 'jungle') treeCount = (15 + Math.floor(rng() * 12)) * densityMult;
