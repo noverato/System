@@ -836,8 +836,12 @@
             // Culling anwenden (außer das Hauptdorf-Gras selbst)
             applyWorldCulling(instancedMesh.material, true);
 
-            scene.add(instancedMesh);
-            console.log(`✅ Hauptdorf-Wiese mit ${count} Instanzen erstellt.`);
+            if (mainScene) {
+                mainScene.add(instancedMesh);
+                console.log(`✅ Hauptdorf-Wiese mit ${count} Instanzen erstellt.`);
+            } else {
+                console.warn("⚠️ Hauptdorf-Wiese konnte nicht hinzugefügt werden: mainScene ist nicht definiert.");
+            }
 
         } catch (err) {
             console.error("❌ Fehler beim Erstellen der Hauptdorf-Wiese:", err);
