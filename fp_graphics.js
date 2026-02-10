@@ -492,10 +492,19 @@
                 }
 
                 vec3 getBiomeColor(vec3 pos, float h, vec3 normal) {
-                    // TEST-FIX: Erzwinge Dunkelgrün (#228B22) um Shader-Fehler auszuschließen
-                    return vec3(0.133, 0.545, 0.133); 
+            // --- TEXTUR-MIXING & ALPHA-LAYER (Konzeptuell) ---
+            // Wir mischen die Test-Farbe mit einer Detail-Textur
+            vec2 detailUv = pos.xz * 0.1;
+            float detailNoise = noise(detailUv);
+            vec3 baseCol = vec3(0.133, 0.545, 0.133); // #228B22
+            
+            // Simulierter Alpha-Layer: Gras-Strukturen über der Basis
+            float grassPattern = smoothstep(0.4, 0.6, detailNoise);
+            vec3 finalCol = mix(baseCol * 0.8, baseCol * 1.2, grassPattern);
+            
+            return finalCol; 
 
-                    // Biome-Noise
+                    // Biome-Noise (Original-Logik folgt hier, falls reaktiviert)
                     float scale = 0.0002; 
                     float temp = noise(pos.xz * scale) * 2.0 - 1.0;
                     float humidity = noise(pos.xz * scale + vec2(100.0)) * 2.0 - 1.0;
@@ -673,6 +682,16 @@
             globalWater.traverse(child => {
                 if (child.isMesh) {
                     applyWorldCulling(child.material, true);
+                    
+                    // WASSER-TRANSPARENZ & FARBE ERZWINGEN (Fix für Weiß-Problem)
+                    if (child.material) {
+                        child.material.transparent = true;
+                        child.material.opacity = 0.7;
+                        child.material.color.set(0x4fa3e1); // Schönes Blau
+                        child.material.roughness = 0.1;
+                        child.material.metalness = 0.5;
+                        child.material.depthWrite = false; // Verhindert Z-Buffer Probleme bei Transparenz
+                    }
                 }
             });
             
@@ -1832,19 +1851,23 @@
                 } else {
                     const rand = rng();
                     if (rand > 0.4) {
-                        // Hauptgras deaktiviert, da Terrain_Grass.glb die Basis ist
-                    } else if (rand > 0.15) {
-                        // Grass_Large/Small deaktiviert auf Wunsch des Users
+                        // Hauptgras (Grass.glb)
+                        assetPath = AssetsLibrary.get('TERRAIN', 'GRASS');
+                        scale = 1.0 + rng() * 0.5;
+                    } else if (rand > 0.1) {
+                        // Grass_Large oder Grass_Small
+                        assetPath = rng() > 0.5 
+                            ? AssetsLibrary.get('TERRAIN', 'GRASS_LARGE') 
+                            : AssetsLibrary.get('TERRAIN', 'GRASS_SMALL');
+                        scale = 0.8 + rng() * 0.4;
                     } else {
-                        // Blumen ebenfalls deaktiviert, um 404-Fehler zu vermeiden
-                        /*
+                        // Blumen reaktivieren
                         const flowerList = AssetsLibrary.get('TREES', 'FLOWERS');
                         if (Array.isArray(flowerList) && flowerList.length > 0) {
                             const flower = flowerList[Math.floor(rng() * flowerList.length)];
                             assetPath = AssetsLibrary.encode('baeume/glTF/' + flower);
                             scale = 1.0 + rng() * 1.5;
                         }
-                        */
                     }
                 }
 
