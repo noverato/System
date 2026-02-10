@@ -1022,6 +1022,25 @@
         applyCamera();
         startSync(); // Sync starten
         
+        // --- GLOBALE TELEPORT-FUNKTION ---
+        window.teleportTo = (x, z) => {
+            console.log(`🚀 Teleportiere zu: ${x}, ${z}`);
+            currentPos.x = targetPos.x = x;
+            currentPos.z = targetPos.z = z;
+            currentPos.y = targetPos.y = -100; // Boden-Validierung erzwingen
+            if (avatar) {
+                avatar.position.set(x, -100, z);
+            }
+            // Grid-Koordinaten aktualisieren
+            gridX = Math.round(x / GRID);
+            gridY = Math.round(z / GRID);
+            
+            // Sofort Kamera anpassen
+            applyCamera();
+        };
+
+        window.resetPosition = () => window.teleportTo(0, 0);
+        
         // Pointer Lock für Maussteuerung
         const canvas = renderer.domElement;
         

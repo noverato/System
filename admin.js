@@ -24,6 +24,19 @@ const AdminConsole = {
         return items;
     },
 
+    resetToSpawn: function() {
+        if (typeof window.resetPosition === 'function') {
+            window.resetPosition();
+            this.sync("GÖTTER-RÜCKKEHR: Position auf (0,0) zurückgesetzt.");
+        } else {
+            // Fallback falls die Funktion in fp_wald noch nicht geladen ist
+            if (window.avatar) {
+                window.avatar.position.set(0, 0, 0);
+                this.sync("Avatar-Objekt manuell auf (0,0) gesetzt.");
+            }
+        }
+    },
+
     // 2. GÖTTER-BEFEHLE
     giveLXP: function(amount) {
         if (typeof data !== 'undefined') {
@@ -264,6 +277,23 @@ function openAdminPanel() {
             <h1 style="text-shadow: 0 0 10px red; border-bottom: 2px solid gold; margin-bottom: 5px;">🛠 GÖTTER-KONSOLE</h1>
             <div id="admin-feedback" style="height: 20px; color: #4ade80; font-size: 12px; font-weight: bold; text-align: center;"></div>
             
+            <div style="background: rgba(0,0,0,0.5); padding: 5px; border: 1px solid #555; margin-bottom: 10px; font-size: 12px; color: #4ade80;">
+                📍 Aktuelle Position: <span id="admin-coords">X: 0 | Z: 0</span>
+            </div>
+            
+            <script>
+                // Live-Update für Koordinaten im Admin-Panel
+                if (window._coordInterval) clearInterval(window._coordInterval);
+                window._coordInterval = setInterval(() => {
+                    const span = document.getElementById('admin-coords');
+                    if (span && window.avatar) {
+                        span.innerText = \`X: \${Math.round(window.avatar.position.x)} | Z: \${Math.round(window.avatar.position.z)}\`;
+                    } else if (!span) {
+                        clearInterval(window._coordInterval);
+                    }
+                }, 200);
+            </script>
+
             <div style="margin-bottom: 15px;">
                 <h3 style="margin-bottom: 8px; font-size: 14px;">⚔️ ADMIN-POWER-LEVEL</h3>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
@@ -278,6 +308,7 @@ function openAdminPanel() {
                 <button class="btn-action" data-action="adminAction" data-args='["giveLXP", 5000]'>+5000 LXP</button>
                 <button class="btn-action" data-action="adminAction" data-args='["setLevel", 30]'>+30 LEVEL</button>
                 <button class="btn-action" id="btnEditToggle" data-action="adminAction" data-args='["toggleEditMode"]'>EDIT-MODUS: AUS</button>
+                <button class="btn-action" style="background: #8b0000;" data-action="adminAction" data-args='["resetToSpawn"]'>📍 RESET ZU 0,0</button>
                 <button class="btn-action" style="background: #444;" data-action="adminAction" data-args='["sync", "Manueller Cloud-Sync"]'>☁ CLOUD SAVE</button>
             </div>
 
