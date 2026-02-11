@@ -453,14 +453,15 @@
         clipmapGroup = new THREE.Group();
         scene.add(clipmapGroup);
 
-        // Wir erstellen das Material VOR dem Mesh
+        // WICHTIG: Wir nutzen nur das Clipmap-Mesh für das Terrain.
+        // Redundante Base-Planes oder statische Grids werden hier nicht hinzugefügt.
         clipmapMaterial = new THREE.MeshStandardMaterial({
             vertexColors: false,
             flatShading: false,
             roughness: 0.9,
             metalness: 0.0,
             transparent: false,
-            side: THREE.FrontSide,
+            side: THREE.FrontSide, // Normalen zeigen nach OBEN
             depthWrite: true,
             depthTest: true,
             polygonOffset: false

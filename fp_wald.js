@@ -1038,7 +1038,7 @@
             currentPos.z = targetPos.z = 0;
         }
 
-        currentPos.y = targetPos.y = 20.0; // Startet leicht erhöht, wartet auf Ground-Validation
+        currentPos.y = targetPos.y = 40.0; // Startet weit oberhalb, um auf das Mesh zu fallen
         
         // Anti-Stuck Check: Wenn wir in einem Gebäude spawnen -> Dorfplatz
         if (checkCollision(currentPos.x, currentPos.z)) {
@@ -1292,8 +1292,8 @@
                 if ((testH !== undefined && !isNaN(testH)) || currentPos.y > -50) {
                     console.log("[FPWald] Boden-Höhe erkannt:", testH, "Setze groundValidated = true");
                     groundValidated = true;
-                    // Spawn-Fix: Setze Spieler 2m ÜBER den Boden beim ersten Spawn
-                    targetPos.y = currentPos.y = testH + 2.0; 
+                    // Spawn-Fix: Setze Spieler 40m ÜBER den Boden beim ersten Spawn
+                    targetPos.y = currentPos.y = testH + 40.0; 
                 }
             } else {
                 console.error("[FPWald] FPGraphics fehlt bei Ground-Validation!");
