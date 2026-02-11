@@ -29,6 +29,31 @@
         time: { value: 0 }
     };
 
+    // NEU: Persistente Uniforms für das Terrain-System (verhindert Start-Up Lag/Fehler)
+    const terrainUniforms = {
+        heightMap: { value: null },
+        grassTex: { value: null },
+        stoneTex: { value: null },
+        desertTex: { value: null },
+        leavesTex: { value: null },
+        flowersTex: { value: null },
+        worldOffset: { value: new THREE.Vector2(0, 0) },
+        meshOffset: { value: new THREE.Vector2(0, 0) },
+        playerPos: { value: new THREE.Vector2(0, 0) },
+        gpuWorldSize: { value: GPU_WORLD_SIZE },
+        clipRadius: { value: CLIPMAP_RADIUS },
+        aoiRadius: { value: AOI_RADIUS },
+        plainsColor: { value: new THREE.Color(0x6ba15a) },
+        desertColor: { value: new THREE.Color(0xf4dcb3) },
+        snowColor: { value: new THREE.Color(0xffffff) },
+        jungleColor: { value: new THREE.Color(0x3d6629) },
+        swampColor: { value: new THREE.Color(0x3e4521) },
+        stoneColor: { value: new THREE.Color(0x999999) },
+        pathColor: { value: new THREE.Color(0xb08d6a) },
+        oceanColor: { value: new THREE.Color(0x1a4a8a) },
+        forestColor: { value: new THREE.Color(0x2d5a27) }
+    };
+
     /**
      * Wendet das radiale Culling (Glocken-Prinzip) auf ein Material an.
      * Dies stellt sicher, dass alle Objekte (auch InstancedMeshes) am Horizont verschwinden.
@@ -350,13 +375,12 @@
                 h = mix(h, -150.0, depthFactor);
             }
             
-            // 6. STARTPUNKT (Sicher bei X: -31, Z: -1183)
-            // Wir machen den Bereich um den Startpunkt zu einer absolut flachen Ebene bei Y=0
-            vec2 startPos = vec2(-31.0, -1183.0);
+            // 6. STARTPUNKT (0,0) - Ebene für das Dorf
+            vec2 startPos = vec2(0.0, 0.0);
             float distToStart = length(pos - startPos);
             if (distToStart < 1500.0) {
                 float startFactor = smoothstep(500.0, 1500.0, distToStart);
-                h = mix(0.0, h, startFactor); // Plateau auf 0.0 fixiert
+                h = mix(10.0, h, startFactor); // Plateau auf 10.0m erhöht
             }
 
             // Dorf-Positionen (Grob-Check im Shader)
@@ -473,7 +497,7 @@
         
         clipmapMesh = new THREE.Mesh(geo, clipmapMaterial);
         clipmapMesh.rotation.x = -Math.PI / 2;
-        clipmapMesh.position.y = 0; // Fix: Bodenhöhe auf 0 festgesetzt
+        clipmapMesh.position.y = -0.1; // Fix: Mesh leicht unter 0, damit Spieler nicht "gefressen" wird
         clipmapMesh.receiveShadow = true;
         clipmapMesh.frustumCulled = false; 
 
@@ -501,32 +525,23 @@
         const leavesTex = loadTex(AssetsLibrary.get('TERRAIN', 'LEAVES')); 
         const flowersTex = loadTex(AssetsLibrary.get('TERRAIN', 'FLOWERS'));
 
+        // Persistente Uniforms initialisieren
+        terrainUniforms.grassTex.value = grassTex;
+        terrainUniforms.stoneTex.value = stoneTex;
+        terrainUniforms.desertTex.value = desertTex;
+        terrainUniforms.leavesTex.value = leavesTex;
+        terrainUniforms.flowersTex.value = flowersTex;
+
         console.log("🎨 Terrain-Texturen geladen:", { grass: grassTex.image?.src, stone: stoneTex.image?.src });
 
         // Custom Shader Injection für Displacement und Biome-Farben
         clipmapMaterial.onBeforeCompile = (shader) => {
             clipmapMaterial.userData.shader = shader; // Shader-Referenz speichern
-            shader.uniforms.heightMap = { value: null };
-            shader.uniforms.grassTex = { value: grassTex };
-            shader.uniforms.stoneTex = { value: stoneTex };
-            shader.uniforms.desertTex = { value: desertTex };
-            shader.uniforms.leavesTex = { value: leavesTex };
-            shader.uniforms.flowersTex = { value: flowersTex };
-            shader.uniforms.worldOffset = { value: new THREE.Vector2(0, 0) };
-            shader.uniforms.meshOffset = { value: new THREE.Vector2(0, 0) };
-            shader.uniforms.playerPos = { value: new THREE.Vector2(0, 0) }; // Actual player pos for vDist
-            shader.uniforms.gpuWorldSize = { value: GPU_WORLD_SIZE };
-            shader.uniforms.clipRadius = { value: CLIPMAP_RADIUS };
-            shader.uniforms.aoiRadius = { value: AOI_RADIUS };
-            shader.uniforms.plainsColor = { value: new THREE.Color(0x6ba15a) }; // Helleres Gras
-            shader.uniforms.desertColor = { value: new THREE.Color(0xf4dcb3) };
-            shader.uniforms.snowColor = { value: new THREE.Color(0xffffff) };
-            shader.uniforms.jungleColor = { value: new THREE.Color(0x3d6629) };
-            shader.uniforms.swampColor = { value: new THREE.Color(0x3e4521) };
-            shader.uniforms.stoneColor = { value: new THREE.Color(0x999999) };
-            shader.uniforms.pathColor = { value: new THREE.Color(0xb08d6a) };
-            shader.uniforms.oceanColor = { value: new THREE.Color(0x1a4a8a) }; // Tiefblau
-            shader.uniforms.forestColor = { value: new THREE.Color(0x2d5a27) }; // Waldgrün
+            
+            // Verknüpfe persistente Uniforms
+            Object.keys(terrainUniforms).forEach(key => {
+                shader.uniforms[key] = terrainUniforms[key];
+            });
 
             shader.vertexShader = `
                 uniform sampler2D heightMap;
@@ -564,9 +579,6 @@
                 #include <begin_vertex>
                 
                 // UV-Koordinaten für die Heightmap berechnen
-                // worldOffset ist das GPGPU-Zentrum (sx, sz)
-                // meshOffset ist die Weltposition des Mesh-Zentrums (px, pz)
-                // Da das Mesh um -PI/2 rotiert ist, entspricht local Y dem negativen World Z.
                 vec2 worldXZ = vec2(position.x, -position.y) + meshOffset;
                 
                 // hUV Berechnung: (WeltPos - GPGPU Zentrum + halbe Größe) / Größe
@@ -576,12 +588,10 @@
                 float h = getSmoothHeight(hUV);
                 vHeight = h;
                 
-                // VERTEX DISPLACEMENT: Da das Mesh um -PI/2 rotiert ist, 
-                // ist die lokale Z-Achse die Welt-Y-Achse (Höhe).
+                // VERTEX DISPLACEMENT
                 transformed.z = h; 
                 
                 vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
-                // vWorldPos.y = h; // Durch transformed.z = h und Rotation bereits korrekt
                 vDist = length(vWorldPos.xz - playerPos);
                 `
             );
@@ -632,37 +642,37 @@
                 vec3 slopeNormal = normalize(cross(dFdx(vWorldPos), dFdy(vWorldPos)));
                 float slope = 1.0 - slopeNormal.y;
                 
-                // BIOM-VERTEILUNG (Noise-basiert)
+                // BIOM-VERTEILUNG (7 Biome)
                 float humNoise = noise(vWorldPos.xz * 0.0004 + vec2(100.0));
+                float tempNoise = noise(vWorldPos.xz * 0.0003 - vec2(50.0));
                 
                 vec3 bioColor = plainsColor;
                 
-                // 1. OZEAN / WASSERKANTE
+                // 1. OZEAN
                 if (vHeight < 4.0) {
                     bioColor = mix(oceanColor, plainsColor, smoothstep(1.5, 4.0, vHeight));
                 } 
-                // 2. SÜMPFE (Tiefliegend, hohe Feuchtigkeit, Interaktion mit Wasser)
-                else if (vHeight < 12.0 && humNoise > 0.6) {
-                    float swampWeight = smoothstep(0.6, 0.8, humNoise);
-                    bioColor = mix(plainsColor, swampColor, swampWeight);
-                    
-                    // "Wetness" Effekt: Dunkler und etwas bläulicher, wenn nah am Wasserlevel (2.0)
-                    float waterDist = abs(vHeight - 2.0);
-                    float wetness = smoothstep(4.0, 0.0, waterDist) * swampWeight;
-                    bioColor = mix(bioColor, bioColor * 0.5 + vec3(0.0, 0.05, 0.1), wetness);
+                // 2. WÜSTE (Niedrige Feuchtigkeit)
+                else if (humNoise < 0.25) {
+                    bioColor = mix(desertColor, plainsColor, smoothstep(0.15, 0.25, humNoise));
                 }
-                // 3. WÜSTE / TROCKEN (Niedrige Feuchtigkeit)
-                else if (humNoise < 0.3) {
-                    bioColor = mix(desertColor, plainsColor, smoothstep(0.2, 0.3, humNoise));
-                }
-                // 4. WÄLDER (Mittel-hoch, hohe Feuchtigkeit)
-                else if (humNoise > 0.7 && vHeight > 15.0) {
-                    bioColor = mix(plainsColor, forestColor, smoothstep(0.7, 0.9, humNoise));
-                }
-                // 5. SCHNEE (Sehr hoch)
-                if (vHeight > 350.0) {
+                // 3. SCHNEE (Sehr hoch)
+                else if (vHeight > 350.0) {
                     bioColor = mix(bioColor, snowColor, smoothstep(350.0, 550.0, vHeight));
                 }
+                // 4. DSCHUNGEL (Heiß & Feucht)
+                else if (humNoise > 0.75 && tempNoise > 0.6) {
+                    bioColor = mix(forestColor, jungleColor, smoothstep(0.75, 0.9, humNoise));
+                }
+                // 5. SUMPF (Feucht & Tief)
+                else if (humNoise > 0.7 && vHeight < 15.0) {
+                    bioColor = mix(plainsColor, swampColor, smoothstep(0.7, 0.85, humNoise));
+                }
+                // 6. WALD (Feucht)
+                else if (humNoise > 0.5) {
+                    bioColor = mix(plainsColor, forestColor, smoothstep(0.5, 0.7, humNoise));
+                }
+                // 7. EBENEN (Default)
                 
                 // SLOPE DETECTION (Fels bei Steigung)
                 float rockFactor = smoothstep(0.2, 0.4, slope + (texStone.r - 0.5) * 0.1);
@@ -674,7 +684,7 @@
                 vec3 finalBase = mix(bioColor, stoneColor, rockFactor);
                 vec3 finalColor = finalBase * groundTex;
                 
-                // Saftigkeit anpassen
+                // Licht-Anpassung
                 finalColor *= 1.15;
                 
                 diffuseColor.rgb = finalColor;
@@ -818,14 +828,11 @@
         worldCullingUniforms.time.value = Date.now() * 0.001;
 
         // --- TEXEL-SNAP FÜR DIE TEXTUR (Wellen-Fix) ---
-        // Die GPGPU-Textur springt nur in Texel-Schritten, um Fließen zu verhindern.
         const texelSize = GPU_WORLD_SIZE / GPU_TERRAIN_SIZE; 
         const sx = Math.floor(px / texelSize) * texelSize;
         const sz = Math.floor(pz / texelSize) * texelSize;
         
         // --- KEIN SNAP FÜR DAS MESH (Jitter-Fix) ---
-        // Das Mesh folgt der Kamera mit voller Präzision.
-        // Der Sub-Texel-Versatz wird im Shader durch (wPos - worldOffset) korrigiert.
         clipmapGroup.position.set(px, 0, pz);
 
         // GPGPU Update (Synchron mit dem Texel-Snap)
@@ -834,27 +841,14 @@
         // Globale Culling-Uniforms aktualisieren
         worldCullingUniforms.playerPos.value.set(px, pz);
 
-        // Uniforms im Shader aktualisieren
-        const shader = clipmapMaterial.userData.shader;
-        if (shader) {
-            const target = gpuCompute.getCurrentRenderTarget(smoothVariable);
-            if (target && target.texture) {
-                shader.uniforms.heightMap.value = target.texture;
-            }
-            
-            // worldOffset ist das Zentrum der GPGPU Textur (sx, sz)
-            if (shader.uniforms.worldOffset) {
-                shader.uniforms.worldOffset.value.set(sx, sz);
-            }
-            // meshOffset für die manuelle Weltposition im Shader (px, pz)
-            if (shader.uniforms.meshOffset) {
-                shader.uniforms.meshOffset.value.set(px, pz);
-            }
-            // playerPos für radiale Effekte
-            if (shader.uniforms.playerPos) {
-                shader.uniforms.playerPos.value.set(px, pz);
-            }
+        // Persistente Terrain-Uniforms aktualisieren
+        const target = gpuCompute.getCurrentRenderTarget(smoothVariable);
+        if (target && target.texture) {
+            terrainUniforms.heightMap.value = target.texture;
         }
+        terrainUniforms.worldOffset.value.set(sx, sz);
+        terrainUniforms.meshOffset.value.set(px, pz);
+        terrainUniforms.playerPos.value.set(px, pz);
 
         // Dekorationen aktualisieren
         updateClipmapDecorations(px, pz, mainScene);
@@ -1334,12 +1328,12 @@
     }
 
     function getCPUHeight(x, z) {
-        const distToStart = Math.hypot(x - (-31.0), z - (-1183.0));
+        const distToStart = Math.hypot(x - 0.0, z - 0.0);
         
-        // 1. Startpunkt (-31, -1183) Plateau
+        // 1. Startpunkt (0,0) Plateau
         if (distToStart < 1500.0) {
             const t = Math.max(0, Math.min(1, (distToStart - 500.0) / (1500.0 - 500.0)));
-            const startH = 25.0; // Plateau-Höhe
+            const startH = 10.0; // Plateau-Höhe auf 10m (über Wasser)
             if (t === 0) return startH;
             
             // Wir mischen das Plateau mit der restlichen Noise-Logik
