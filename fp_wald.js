@@ -34,7 +34,7 @@
     
     // --- PHYSIK & JUMPING ---
     let velocityY = 0;
-    let isGrounded = true;
+    let isGrounded = false; // Initial auf false, um Gravitation zu triggern
     const GRAVITY = -0.015;
     const JUMP_FORCE = 0.6; // Stärkerer Sprung für Berge
     let lastTime = performance.now();
@@ -1037,11 +1037,13 @@
             gridX = Math.round(currentPos.x / GRID);
             gridY = Math.round(currentPos.z / GRID);
         } else {
-            // Standard-Startpunkt bei -31, -1183 (Plateau in Graphics)
-            gridX = Math.round(-31 / GRID); 
-            gridY = Math.round(-1183 / GRID);
-            currentPos.x = targetPos.x = -31.0;
-            currentPos.z = targetPos.z = -1183.0;
+            // --- TRANSFORM-RESET (Emergency Fix) ---
+            // Setze Player-Position (Spawn) sofort auf Z = 0 (Zentrum)
+            gridX = 0; 
+            gridY = 0;
+            currentPos.x = targetPos.x = 0.0;
+            currentPos.z = targetPos.z = 0.0;
+            console.log("🚀 Transform-Reset: Player auf (0, 0) gesetzt.");
         }
 
         currentPos.y = targetPos.y = 100.0; // Radikal: Wir starten bei 100m Höhe, um den Ladevorgang der GPGPU abzuwarten
@@ -1301,8 +1303,10 @@
                 if (testH !== null && !isNaN(testH)) {
                     console.log("[FPWald] Boden-Höhe erkannt:", testH, "Setze groundValidated = true");
                     groundValidated = true;
-                    // Spawn-Fix: Setze Spieler 40m ÜBER den Boden beim ersten Spawn
-                    targetPos.y = currentPos.y = testH + 40.0; 
+                    // Spawn-Fix: Setze Spieler 10m ÜBER den Boden beim ersten Spawn, um Gravitation zu starten
+                    targetPos.y = currentPos.y = testH + 10.0; 
+                    isGrounded = false;
+                    velocityY = 0;
                 }
             } else {
                 console.error("[FPWald] FPGraphics fehlt bei Ground-Validation!");

@@ -624,6 +624,10 @@
                 // Welt-basierte UVs für Kachelung
                 vec2 wUV = vWorldPos.xz * 0.15; 
                 
+                // --- FIX: TEXTURE-CORRUPTION (Blaue Streifen / UV-Reset) ---
+                // Wir stellen sicher, dass wUV immer im positiven Bereich bleibt für Textur-Mapping
+                wUV = abs(wUV); 
+
                 // Texturen laden
                 vec3 texGrass = texture2D(grassTex, wUV).rgb;
                 vec3 texStone = texture2D(stoneTex, wUV * 0.5).rgb;
@@ -688,6 +692,11 @@
         clipmapMesh.frustumCulled = false; // Wir bewegen das Mesh mit dem Spieler
         clipmapMesh.layers.enable(0); // Standard-Layer
         clipmapMesh.layers.enable(1); // Mesh-Layer
+        
+        // --- ASSET-ANCHOR INITIAL FIX ---
+        // Erzwinge sofortiges Update der Welt-Matrix für das Terrain
+        clipmapMesh.updateMatrixWorld(true);
+        
         clipmapGroup.add(clipmapMesh);
     }
 
