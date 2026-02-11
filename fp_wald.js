@@ -1247,10 +1247,11 @@
             // Steile Wände (Slope-Check): Wenn der Boden am Zielpunkt deutlich höher ist als die aktuelle Position
             // Aber nur blockieren, wenn wir uns auf einer ähnlichen Höhe befinden (Grounded-Check)
             // Schwellenwert auf 35.0 erhöht für flüssigere Bergwanderungen
-            if (isGrounded && (h - targetPos.y > 35.0)) return true;
+            // h kann 0 sein (Plateau), daher prüfen wir auf Gültigkeit statt auf !== 0
+            if (h !== null && isGrounded && (h - targetPos.y > 35.0)) return true;
             
             // Wasser-Kollision (Ozean) - Etwas tieferes Wasser erlauben
-            if (h < -30.0) return true; 
+            if (h !== null && h < -30.0) return true; 
         }
 
         // Kollision mit Gebäuden (Exterior)
@@ -1297,7 +1298,7 @@
                 // SOFORT-VALIDIERUNG: Wenn GPGPU Daten bereit hat, validieren wir sofort
                 const testH = FPGraphics.getGPUHeight(currentPos.x, currentPos.z);
                 // Validierung: Wenn wir eine valide Zahl bekommen (auch 0)
-                if ((testH !== undefined && !isNaN(testH)) || currentPos.y > -50) {
+                if (testH !== null && !isNaN(testH)) {
                     console.log("[FPWald] Boden-Höhe erkannt:", testH, "Setze groundValidated = true");
                     groundValidated = true;
                     // Spawn-Fix: Setze Spieler 40m ÜBER den Boden beim ersten Spawn
@@ -1333,7 +1334,8 @@
                 const gpuH = FPGraphics.getGPUHeight(targetPos.x, targetPos.z);
                 
                 // Wir nutzen die GPU-Höhe direkt vom Mesh/GPGPU
-                if (gpuH !== 0 || (Math.abs(targetPos.x) < 10 && Math.abs(targetPos.z) < 10)) {
+                // gpuH === 0 ist valide (Plateau), daher prüfen wir auf Gültigkeit
+                if (gpuH !== null && !isNaN(gpuH)) {
                     groundH = (typeof FPGraphics.getRaycastHeight === 'function') 
                         ? FPGraphics.getRaycastHeight(targetPos.x, targetPos.z, gpuH)
                         : gpuH;
