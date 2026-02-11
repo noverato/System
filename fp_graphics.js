@@ -320,41 +320,29 @@
             // --- TERRAIN GENERATION 10000x10000 (100km²) ---
             
             // 1. Großräumige Kontinente/Ozeane (0 = Ozean, 1 = Land)
-            float continent = snoise(pos * 0.00005) * 0.5 + 0.5;
-            continent = smoothstep(0.3, 0.5, continent); // Schärfere Küstenlinien
+            float continent = snoise(pos * 0.00002) * 0.5 + 0.5;
+            continent = smoothstep(0.3, 0.45, continent); // Breitere Landmassen
             
             // 2. Basis-Höhe (FBM für Hügelketten)
             // Landmasse startet bei y=5.0 (über Wasser y=2.0)
-            float h = 5.0 + fbm(pos * 0.0003) * 80.0;
+            float h = 5.0 + fbm(pos * 0.0002) * 120.0;
             
             // Ozean-Absenkung
-            h = mix(-80.0, h, continent);
+            h = mix(-150.0, h, continent);
             
-            // 3. Biome-Parameter (Unabhängig von Kontinenten)
-            float scale = 0.00012;
-            float temp = snoise(pos * scale) * 0.5 + 0.5;
-            float humidity = snoise(pos * scale + vec2(200.0, 300.0)) * 0.5 + 0.5;
+            // 3. BERGE (Dramatischere Gipfel, nur auf Land)
+            float mountNoise = pow(abs(snoise(pos * 0.0004)), 2.0);
+            float h_mount = fbm(pos * 0.0008) * 1200.0;
+            h += h_mount * smoothstep(0.15, 0.4, mountNoise) * continent;
             
-            // 4. BERGE (Dramatischere Gipfel, nur auf Land)
-            float mountNoise = pow(abs(snoise(pos * 0.0005)), 2.5);
-            float h_mount = fbm(pos * 0.001) * 850.0;
-            h += h_mount * smoothstep(0.2, 0.5, mountNoise) * continent;
-            
-            // 5. TÄLER & SCHLUCHTEN (Erosion-Look)
-            // Wir erzeugen Täler, die bis unter den Meeresspiegel (y=2.0) reichen können
-            float valleyNoise = snoise(pos * 0.0008 + vec2(1000.0));
-            if (valleyNoise > 0.6) {
-                float vFactor = smoothstep(0.6, 0.9, valleyNoise);
-                h -= vFactor * 400.0;
-                
-                // Zusätzliche Flussbetten in den Tälern
-                float riverBed = abs(snoise(pos * 0.0025 + vec2(500.0)));
-                if (riverBed < 0.12) {
-                    h -= (1.0 - smoothstep(0.0, 0.12, riverBed)) * 60.0;
-                }
+            // 4. TÄLER & SCHLUCHTEN (Erosion-Look)
+            float valleyNoise = snoise(pos * 0.0006 + vec2(1000.0));
+            if (valleyNoise > 0.55) {
+                float vFactor = smoothstep(0.55, 0.9, valleyNoise);
+                h -= vFactor * 500.0;
             }
-
-            // 6. OZEAN / WASSER GLÄTTUNG
+            
+            // 5. OZEAN / WASSER GLÄTTUNG
             float waterLevel = 2.0;
             if (h < waterLevel) {
                 // Sanfter Übergang in die Tiefe für Seen und Ozeane
@@ -362,11 +350,13 @@
                 h = mix(h, -100.0, depthFactor);
             }
             
-            // 7. STARTPUNKT & DÖRFER (Ebene Flächen, immer über Wasser)
-            float distToStart = length(pos);
-            if (distToStart < 1500.0) {
-                float startFactor = smoothstep(600.0, 1500.0, distToStart);
-                h = mix(15.0, h, startFactor); 
+            // 6. STARTPUNKT (Erhöht & Sicher bei X: -31, Z: -1183)
+            // Wir machen den Bereich um den Startpunkt zu einer sicheren Hochebene
+            vec2 startPos = vec2(-31.0, -1183.0);
+            float distToStart = length(pos - startPos);
+            if (distToStart < 800.0) {
+                float startFactor = smoothstep(300.0, 800.0, distToStart);
+                h = mix(25.0, h, startFactor); 
             }
 
             // Dorf-Positionen (Grob-Check im Shader)
@@ -559,10 +549,11 @@
                 #include <begin_vertex>
                 
                 // UV-Koordinaten für die Heightmap berechnen
-                // Da PlaneGeometry in XY liegt: x -> worldX, y -> worldZ
+                // worldOffset ist das GPGPU-Zentrum (sx, sz)
                 vec2 worldXZ = vec2(position.x + meshOffset.x, position.y + meshOffset.y);
                 
                 // hUV Berechnung: (WeltPos - GPGPU Zentrum + halbe Größe) / Größe
+                // Wir nutzen hier direkt worldXZ und worldOffset
                 vec2 hUV = (worldXZ - worldOffset + (gpuWorldSize * 0.5)) / gpuWorldSize;
                 hUV = clamp(hUV, 0.0, 1.0);
                 
@@ -856,10 +847,12 @@
         if (!gpuCompute || !heightVariable || !heightVariable.material) return;
         
         // Offset so setzen, dass der Spieler in der Mitte der Textur ist
+        // Wir korrigieren den Offset um die halbe Weltgröße, damit der Spieler bei (px, pz) im Zentrum von (0,0) bis (1,1) UV liegt.
         const ox = px - GPU_WORLD_SIZE / 2;
         const oz = pz - GPU_WORLD_SIZE / 2;
         
         // Zentrum im Container speichern für CPU-Abfragen (Raycasting)
+        // WICHTIG: Das Zentrum der Textur muss EXAKT mit dem Mesh-Zentrum übereinstimmen
         GPGPU_Container.centerPos.set(px, pz);
         
         if (heightVariable.material.uniforms.offset) {
