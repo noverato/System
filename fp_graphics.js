@@ -12,7 +12,7 @@
     const CLIPMAP_RADIUS = 4000; // Erhöht auf 4000 für User-Anforderung (4km Radius)
     const AOI_RADIUS = 15;      // Aktiver Simulationsradius (Bubble) - Auf 15m gesetzt
     const DORMANT_RADIUS = 20;  // Radius, ab dem Assets komplett einfrieren
-    const GRASS_LOD_DIST = 15;  // Grenze zwischen 3D und 2D Gras
+    const GRASS_LOD_DIST = 40;  // Grenze zwischen 3D und 2D Gras (Erhöht für bessere Optik)
     const GRASS_MAX_DIST = 4000; // Maximale Sichtweite für 2D Gras (Synchronisiert mit Clipmap)
     const GRASS_PNG_PATH = 'https://raw.githubusercontent.com/noverato/System/main/animation/baeume/Grass_large.png';
     const CLIPMAP_SEGMENTS = 128; // Reduziert für Stabilität
@@ -215,11 +215,12 @@
         heightData: new Float32Array(GPU_TERRAIN_SIZE * GPU_TERRAIN_SIZE * 4),
         lastUpdate: 0,
         updateThreshold: 100, // Update alle 100ms für CPU-Daten
+        centerPos: new THREE.Vector2(0, 0), // Das Welt-Zentrum der aktuellen Heightmap-Daten
         
         getHeight: function(x, z) {
-            // Weltkoordinaten in Texture-UV umrechnen
-            const u = (x + GPU_WORLD_SIZE / 2) / GPU_WORLD_SIZE;
-            const v = (z + GPU_WORLD_SIZE / 2) / GPU_WORLD_SIZE;
+            // Weltkoordinaten relativ zum aktuellen Zentrum umrechnen
+            const u = (x - this.centerPos.x) / GPU_WORLD_SIZE + 0.5;
+            const v = (z - this.centerPos.y) / GPU_WORLD_SIZE + 0.5;
             
             if (u < 0 || u > 1 || v < 0 || v > 1) return 0;
             
@@ -232,13 +233,15 @@
         
         // Bilineare Filterung für glatte Übergänge (Hügel-Validierung)
         getSmoothHeight: function(x, z) {
-            const u = (x + GPU_WORLD_SIZE / 2) / GPU_WORLD_SIZE * (GPU_TERRAIN_SIZE - 1);
-            const v = (z + GPU_WORLD_SIZE / 2) / GPU_WORLD_SIZE * (GPU_TERRAIN_SIZE - 1);
+            const u = ((x - this.centerPos.x) / GPU_WORLD_SIZE + 0.5) * (GPU_TERRAIN_SIZE - 1);
+            const v = ((z - this.centerPos.y) / GPU_WORLD_SIZE + 0.5) * (GPU_TERRAIN_SIZE - 1);
             
+            if (u < 0 || u >= GPU_TERRAIN_SIZE - 1 || v < 0 || v >= GPU_TERRAIN_SIZE - 1) return 0;
+
             const x0 = Math.floor(u);
-            const x1 = Math.min(x0 + 1, GPU_TERRAIN_SIZE - 1);
+            const x1 = x0 + 1;
             const y0 = Math.floor(v);
-            const y1 = Math.min(y0 + 1, GPU_TERRAIN_SIZE - 1);
+            const y1 = y0 + 1;
             
             const fX = u - x0;
             const fY = v - y0;
@@ -555,19 +558,20 @@
                 `
                 #include <begin_vertex>
                 
-                // UV-Koordinaten für die Heightmap berechnen (Mapping von Welt- auf Textur-Koordinaten)
-                vec2 worldXZ = (position.xz + meshOffset);
-                vec2 hUV = (worldXZ - worldOffset + (gpuWorldSize * 0.5)) / gpuWorldSize;
+                // UV-Koordinaten für die Heightmap berechnen
+                // Da PlaneGeometry in XY liegt: x -> worldX, y -> worldZ
+                vec2 worldXZ = vec2(position.x + meshOffset.x, position.y + meshOffset.y);
                 
-                // Rand-Verhalten (Kacheln verhindern)
+                // hUV Berechnung: (WeltPos - GPGPU Zentrum + halbe Größe) / Größe
+                vec2 hUV = (worldXZ - worldOffset + (gpuWorldSize * 0.5)) / gpuWorldSize;
                 hUV = clamp(hUV, 0.0, 1.0);
                 
                 float h = getSmoothHeight(hUV);
                 vHeight = h;
                 
-                // VERTEX DISPLACEMENT FIX: h ist die absolute Höhe aus der GPGPU-Map
-                // Da das Mesh statisch bei y=0 liegt, setzen wir transformed.y direkt auf h
-                transformed.y = h; 
+                // VERTEX DISPLACEMENT: Da das Mesh um -PI/2 rotiert ist, 
+                // ist die lokale Z-Achse die Welt-Y-Achse (Höhe).
+                transformed.z = h; 
                 
                 vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
                 vDist = length(vWorldPos.xz - playerPos);
@@ -592,48 +596,79 @@
                 varying vec3 vWorldPos;
                 varying float vHeight;
                 varying float vDist;
+
+                // Noise-Hilfsfunktion für Biome
+                float hash(vec2 p) {
+                    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+                }
+                float noise(vec2 p) {
+                    vec2 i = floor(p); vec2 f = fract(p);
+                    f = f*f*(3.0-2.0*f);
+                    return mix(mix(hash(i), hash(i+vec2(1.0,0.0)), f.x),
+                               mix(hash(i+vec2(0.0,1.0)), hash(i+vec2(1.0,1.0)), f.x), f.y);
+                }
             ` + shader.fragmentShader.replace(
                 '#include <map_fragment>',
                 `
                 #include <map_fragment>
                 
                 // Welt-basierte UVs für Kachelung
-                vec2 wUV = vWorldPos.xz * 0.125; 
+                vec2 wUV = vWorldPos.xz * 0.15; 
                 
-                // Texturen mischen
+                // Texturen laden
                 vec3 texGrass = texture2D(grassTex, wUV).rgb;
-                vec3 texStone = texture2D(stoneTex, wUV * 0.43).rgb;
-                vec3 texDesert = texture2D(desertTex, wUV * 0.87).rgb;
+                vec3 texStone = texture2D(stoneTex, wUV * 0.5).rgb;
+                vec3 texDesert = texture2D(desertTex, wUV * 0.8).rgb;
                 
-                // Steigungs-Check für Felsen (Normale berechnen)
-                vec3 dX = dFdx(vWorldPos);
-                vec3 dZ = dFdy(vWorldPos);
-                vec3 terrainNormal = normalize(cross(dX, dZ));
-                float slope = 1.0 - terrainNormal.y;
+                // Normale und Slope berechnen
+                vec3 normal = normalize(cross(dFdx(vWorldPos), dFdy(vWorldPos)));
+                float slope = 1.0 - normal.y;
                 
-                // Biome-Logik basierend auf Höhe
+                // BIOM-VERTEILUNG (Noise-basiert)
+                float humNoise = noise(vWorldPos.xz * 0.0004 + vec2(100.0));
+                
                 vec3 bioColor = plainsColor;
                 
-                // Fix für das flache Blau/Streifen-Muster:
-                // Wir nutzen smoothstep für weichere Übergänge und mischen Biome-Farben stärker mit Texturen
-                float distortedHeight = vHeight + (texGrass.r - 0.5) * 5.0; 
-
-                if (distortedHeight < 4.0) {
-                    bioColor = mix(oceanColor, plainsColor, smoothstep(1.0, 4.0, distortedHeight));
-                } else if (distortedHeight > 350.0) {
-                    bioColor = mix(plainsColor, snowColor, smoothstep(350.0, 600.0, distortedHeight));
-                } else {
-                    // Sattes Grün für das Haupt-Biom
-                    bioColor = plainsColor;
+                // 1. OZEAN / WASSERKANTE
+                if (vHeight < 4.0) {
+                    bioColor = mix(oceanColor, plainsColor, smoothstep(1.5, 4.0, vHeight));
+                } 
+                // 2. SÜMPFE (Tiefliegend, hohe Feuchtigkeit, Interaktion mit Wasser)
+                else if (vHeight < 12.0 && humNoise > 0.6) {
+                    float swampWeight = smoothstep(0.6, 0.8, humNoise);
+                    bioColor = mix(plainsColor, swampColor, swampWeight);
+                    
+                    // "Wetness" Effekt: Dunkler und etwas bläulicher, wenn nah am Wasserlevel (2.0)
+                    float waterDist = abs(vHeight - 2.0);
+                    float wetness = smoothstep(4.0, 0.0, waterDist) * swampWeight;
+                    bioColor = mix(bioColor, bioColor * 0.5 + vec3(0.0, 0.05, 0.1), wetness);
+                }
+                // 3. WÜSTE / TROCKEN (Niedrige Feuchtigkeit)
+                else if (humNoise < 0.3) {
+                    bioColor = mix(desertColor, plainsColor, smoothstep(0.2, 0.3, humNoise));
+                }
+                // 4. WÄLDER (Mittel-hoch, hohe Feuchtigkeit)
+                else if (humNoise > 0.7 && vHeight > 15.0) {
+                    bioColor = mix(plainsColor, forestColor, smoothstep(0.7, 0.9, humNoise));
+                }
+                // 5. SCHNEE (Sehr hoch)
+                if (vHeight > 350.0) {
+                    bioColor = mix(bioColor, snowColor, smoothstep(350.0, 550.0, vHeight));
                 }
                 
-                // Fels-Splatting bei Steigung
-                float rockFactor = smoothstep(0.25, 0.5, slope);
-                vec3 baseColor = mix(bioColor, stoneColor, rockFactor);
-                vec3 finalColor = baseColor * mix(texGrass, texStone, rockFactor);
+                // SLOPE DETECTION (Fels bei Steigung)
+                float rockFactor = smoothstep(0.2, 0.4, slope + (texStone.r - 0.5) * 0.1);
                 
-                // Sättigung und Helligkeit anpassen für saftiges Grün
-                finalColor *= 1.2; 
+                // Finale Farbmischung
+                vec3 groundTex = mix(texGrass, texStone, rockFactor);
+                if (humNoise < 0.25) groundTex = mix(texDesert, texStone, rockFactor);
+                
+                vec3 finalBase = mix(bioColor, stoneColor, rockFactor);
+                vec3 finalColor = finalBase * groundTex;
+                
+                // Saftigkeit anpassen
+                finalColor *= 1.15;
+                
                 diffuseColor.rgb = finalColor;
                 `
             );
@@ -823,6 +858,9 @@
         // Offset so setzen, dass der Spieler in der Mitte der Textur ist
         const ox = px - GPU_WORLD_SIZE / 2;
         const oz = pz - GPU_WORLD_SIZE / 2;
+        
+        // Zentrum im Container speichern für CPU-Abfragen (Raycasting)
+        GPGPU_Container.centerPos.set(px, pz);
         
         if (heightVariable.material.uniforms.offset) {
             heightVariable.material.uniforms.offset.value.set(ox, oz);
@@ -2186,11 +2224,14 @@
         for (let i = 0; i < clutterCount; i++) {
             const sx = x0 + rng() * DECORATION_CELL_SIZE;
             const sz = z0 + rng() * DECORATION_CELL_SIZE;
-            const sh = getGPUHeight(sx, sz);
+            const gpuH = getGPUHeight(sx, sz);
             
-            if (sh > 2.2) {
+            if (gpuH > 2.2 || (biome.name === 'swamp' && gpuH > -1.5)) {
                 let assetPath = null;
                 let scale = 1.0;
+
+                // Präzises Raycasting für Clutter (Steine/Gras)
+                const sh = getRaycastHeight(sx, sz, gpuH);
 
                 // Zufällige Auswahl basierend auf Biome
                 const r = rng();
@@ -2220,9 +2261,9 @@
                     const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
                     if (!instancedData.has(finalPath)) instancedData.set(finalPath, []);
                     
-                    // OFFSET FIX: Wir heben das Clutter (Steine/Gras) deutlich an (+0.3).
+                    // OFFSET FIX: Leicht in den Boden stecken (-0.05), nicht anheben!
                     instancedData.get(finalPath).push({
-                        pos: [sx, sh + 0.3, sz],
+                        pos: [sx, sh - 0.05, sz],
                         scale: scale,
                         rot: rng() * Math.PI * 2
                     });
@@ -2440,12 +2481,14 @@
             if (dist > CLIPMAP_RADIUS + 100) continue;
             
             // WICHTIG: RaycastHeight für präzise Platzierung auf dem Clipmap-Terrain
-            const h = getRaycastHeight(x, z, getGPUHeight(x, z));
+            const gpuH = getGPUHeight(x, z);
+            const h = getRaycastHeight(x, z, gpuH);
             if (h < 5.0 || h > 300.0) continue; // Nur in moderaten Höhen spawnen
             
             const type = rng() > 0.5 ? 'pine' : 'oak';
             const tree = type === 'pine' ? createPine(rng) : createOak(rng);
-            tree.position.set(x, h, z);
+            // OFFSET FIX: Leicht in den Boden stecken (-0.05)
+            tree.position.set(x, h - 0.05, z);
             
             // AOI Check: Dormant state falls zu weit weg
             // Jedes Material des Baums einzeln cullen
@@ -2486,10 +2529,12 @@
             const dist = Math.hypot(x - playerPos.x, z - playerPos.z);
             if (dist > GRASS_LOD_DIST * 2.0) continue; 
 
-            const h = getRaycastHeight(x, z, getGPUHeight(x, z));
+            const gpuH = getGPUHeight(x, z);
+            const h = getRaycastHeight(x, z, gpuH);
             if (h < 5.0 || h > 200.0) continue;
             
-            dummy.position.set(x, h, z);
+            // OFFSET FIX: Leicht in den Boden stecken (-0.05)
+            dummy.position.set(x, h - 0.05, z);
             dummy.rotation.y = rng() * Math.PI;
             dummy.scale.set(2, 2, 2);
             dummy.updateMatrix();
@@ -2530,10 +2575,12 @@
             const dist = Math.hypot(x - playerPos.x, z - playerPos.z);
             if (dist < GRASS_LOD_DIST * 0.5) continue; 
 
-            const h = getRaycastHeight(x, z, getGPUHeight(x, z));
+            const gpuH = getGPUHeight(x, z);
+            const h = getRaycastHeight(x, z, gpuH);
             if (h < 5.0 || h > 200.0) continue;
             
-            dummy.position.set(x, h, z);
+            // OFFSET FIX: Leicht in den Boden stecken (-0.05)
+            dummy.position.set(x, h - 0.05, z);
             dummy.rotation.y = rng() * Math.PI;
             dummy.scale.set(1.0 + rng(), 1.0 + rng(), 1.0 + rng());
             dummy.updateMatrix();
