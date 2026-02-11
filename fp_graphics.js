@@ -10,8 +10,8 @@
     };
 
     const CLIPMAP_RADIUS = 2000; // Größere Sichtweite für 8000x8000 Map
-    const AOI_RADIUS = 10;      // Aktiver Simulationsradius (Bubble)
-    const DORMANT_RADIUS = 15;  // Radius, ab dem Assets komplett einfrieren
+    const AOI_RADIUS = 15;      // Aktiver Simulationsradius (Bubble) - Auf 15m gesetzt
+    const DORMANT_RADIUS = 20;  // Radius, ab dem Assets komplett einfrieren
     const GRASS_LOD_DIST = 15;  // Grenze zwischen 3D und 2D Gras
     const GRASS_MAX_DIST = 1500; // Maximale Sichtweite für 2D Gras
     const GRASS_PNG_PATH = 'https://raw.githubusercontent.com/noverato/System/main/animation/baeume/Grass_large.png';
@@ -493,8 +493,9 @@
                 #include <begin_vertex>
                 
                 // UV-Koordinaten für die Heightmap berechnen (Mapping von Welt- auf Textur-Koordinaten)
-                vec2 worldXZ = (position.xz + meshOffset) + worldOffset;
-                vec2 hUV = (worldXZ + (gpuWorldSize * 0.5)) / gpuWorldSize;
+                // worldOffset ist das Zentrum der GPGPU-Textur
+                vec2 worldXZ = (position.xz + meshOffset);
+                vec2 hUV = (worldXZ - worldOffset + (gpuWorldSize * 0.5)) / gpuWorldSize;
                 
                 // Rand-Verhalten (Kacheln verhindern)
                 hUV = clamp(hUV, 0.0, 1.0);
@@ -596,22 +597,35 @@
             });
             if (!grassMesh) return;
 
-            // 2. 2D Gras Billboard vorbereiten
+            // 2. 2D Gras Billboard vorbereiten (Xenoblade-Style Cross-Planes)
             const billboardTex = new THREE.TextureLoader().load(GRASS_PNG_PATH);
             billboardTex.anisotropy = 16;
             billboardTex.encoding = THREE.sRGBEncoding;
             billboardTex.minFilter = THREE.LinearMipmapLinearFilter;
             
-            const billboardGeo = new THREE.PlaneGeometry(2, 2);
-            billboardGeo.translate(0, 1, 0); // An die Basis binden
-            const billboardMat = new THREE.MeshBasicMaterial({ map: billboardTex });
+            // Xenoblade-Style: Zwei gekreuzte Ebenen für Volumen aus allen Richtungen
+            const plane1 = new THREE.PlaneGeometry(3, 3);
+            plane1.translate(0, 1.5, 0);
+            const plane2 = plane1.clone();
+            plane2.rotateY(Math.PI / 2);
+            
+            const billboardGeo = THREE.BufferGeometryUtils ? 
+                THREE.BufferGeometryUtils.mergeBufferGeometries([plane1, plane2]) : 
+                plane1; // Fallback falls BufferGeometryUtils fehlt
+            
+            const billboardMat = new THREE.MeshBasicMaterial({ 
+                map: billboardTex, 
+                transparent: true, 
+                alphaTest: 0.5, 
+                side: THREE.DoubleSide 
+            });
             applyGrassShader(billboardMat, false);
             applyGrassShader(grassMesh.material, true);
 
-            const radius = 1500; 
-            const step = 0.8; 
-            const jitter = 0.15; 
-            const waterLevel = 2.2; 
+            const radius = 2000; // Radius erhöht
+            const step = 0.6;    // Dichteres Gras
+            const jitter = 0.3; 
+            const waterLevel = 2.5; 
             const validPositions = [];
             const rng = mulberry32(42);
 
@@ -619,14 +633,20 @@
                 for (let z = -radius; z <= radius; z += step) {
                     const d2 = x * x + z * z;
                     if (d2 > radius * radius) continue;
+                    
+                    // Wir spawnen Gras nur in bestimmten Clustern (Noise-basiert)
+                    const noiseVal = simpleNoise(x * 0.05, z * 0.05);
+                    if (noiseVal < 0) continue; 
+
                     const h = typeof getGPUHeight === 'function' ? getGPUHeight(x, z) : 2.5;
                     if (h < waterLevel) continue;
+                    
                     validPositions.push({ 
                         x: x + (rng() - 0.5) * jitter, 
                         y: h, 
                         z: z + (rng() - 0.5) * jitter,
                         rot: rng() * Math.PI * 2,
-                        scale: 2.5 + rng() * 2.0
+                        scale: 1.5 + rng() * 2.5
                     });
                 }
             }
@@ -1573,7 +1593,15 @@
         return g;
     }
 
-   // Deterministischer Zufall für Chunks
+    // --- HELPERS ---
+    function mix(a, b, t) {
+        return a * (1 - t) + b * t;
+    }
+
+    function clamp(val, min, max) {
+        return Math.max(min, Math.min(max, val));
+    }
+
     function mulberry32(a) {
         return function() {
             let t = a += 0x6D2B79F5;
@@ -1581,6 +1609,85 @@
             t ^= t + Math.imul(t ^ t >>> 7, t | 61);
             return ((t ^ t >>> 14) >>> 0) / 4294967296;
         }
+    }
+
+    function rndSeed(s) {
+        return mulberry32(s);
+    }
+
+
+    // --- PROCEDURAL MODELS ---
+    function createDetailedTree(x, z, h, rng, color = 0x2d5a27, scale = 1.0) {
+        const group = new THREE.Group();
+        const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4b2d15, flatShading: true });
+        const leavesMat = new THREE.MeshStandardMaterial({ color: color, flatShading: true });
+        
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.8, 8, 6), trunkMat);
+        trunk.position.y = 4;
+        group.add(trunk);
+        
+        const leaves = new THREE.Mesh(new THREE.IcosahedronGeometry(4, 0), leavesMat);
+        leaves.position.y = 8;
+        group.add(leaves);
+        
+        group.position.set(x, h, z);
+        group.scale.set(scale, scale, scale);
+        return group;
+    }
+
+    function createLegacyCactus(rng) {
+        const group = new THREE.Group();
+        const mat = new THREE.MeshStandardMaterial({ color: 0x2d5a27, flatShading: true });
+        const body = new THREE.Mesh(new THREE.BoxGeometry(2, 8 + rng() * 6, 2), mat);
+        body.position.y = 4;
+        group.add(body);
+        return group;
+    }
+
+    function createPalm(rng) {
+        const g = new THREE.Group();
+        const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8b4513, flatShading: true });
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(1, 1.5, 15, 6), trunkMat);
+        trunk.position.y = 7.5;
+        g.add(trunk);
+        return g;
+    }
+
+    // --- PROCEDURAL MODELS ---
+    function createDetailedTree(x, z, h, rng, color = 0x2d5a27, scale = 1.0) {
+        const group = new THREE.Group();
+        const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4b2d15, flatShading: true });
+        const leavesMat = new THREE.MeshStandardMaterial({ color: color, flatShading: true });
+        
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.8, 8, 6), trunkMat);
+        trunk.position.y = 4;
+        group.add(trunk);
+        
+        const leaves = new THREE.Mesh(new THREE.IcosahedronGeometry(4, 0), leavesMat);
+        leaves.position.y = 8;
+        group.add(leaves);
+        
+        group.position.set(x, h, z);
+        group.scale.set(scale, scale, scale);
+        return group;
+    }
+
+    function createLegacyCactus(rng) {
+        const group = new THREE.Group();
+        const mat = new THREE.MeshStandardMaterial({ color: 0x2d5a27, flatShading: true });
+        const body = new THREE.Mesh(new THREE.BoxGeometry(2, 8 + rng() * 6, 2), mat);
+        body.position.y = 4;
+        group.add(body);
+        return group;
+    }
+
+    function createPalm(rng) {
+        const g = new THREE.Group();
+        const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8b4513, flatShading: true });
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(1, 1.5, 15, 6), trunkMat);
+        trunk.position.y = 7.5;
+        g.add(trunk);
+        return g;
     }
 
     const instanceCache = new Map(); // Cache für InstancedMesh-Vorlagen (Geometry/Material)
@@ -1859,12 +1966,12 @@
     const rayDir = new THREE.Vector3(0, -1, 0);
 
     function getRaycastHeight(x, z, fallbackHeight) {
-        if (!FPGraphics.terrainMesh) return fallbackHeight;
+        if (!clipmapMesh) return fallbackHeight;
         
-        rayOrigin.set(x, 2000, z); // Starte über dem höchsten Berg (max 1500)
+        rayOrigin.set(x, 2000, z); // Starte über dem höchsten Berg
         decorationRaycaster.set(rayOrigin, rayDir);
         
-        const intersects = decorationRaycaster.intersectObject(FPGraphics.terrainMesh);
+        const intersects = decorationRaycaster.intersectObject(clipmapMesh);
         if (intersects.length > 0) {
             return intersects[0].point.y;
         }
@@ -2260,7 +2367,7 @@
             const x = (cx + rng()) * DECORATION_CELL_SIZE;
             const z = (cz + rng()) * DECORATION_CELL_SIZE;
             
-            const h = getGPUHeight(x, z);
+            const h = getRaycastHeight(x, z, getGPUHeight(x, z));
             if (h < 5.0 || h > 300.0) continue; // Nur in moderaten Höhen spawnen
             
             const type = rng() > 0.5 ? 'pine' : 'oak';
@@ -2292,7 +2399,7 @@
         for (let i = 0; i < count3D; i++) {
             const x = (cx + rng()) * GRASS_CELL_SIZE;
             const z = (cz + rng()) * GRASS_CELL_SIZE;
-            const h = getGPUHeight(x, z);
+            const h = getRaycastHeight(x, z, getGPUHeight(x, z));
             if (h < 5.0 || h > 200.0) continue;
             
             dummy.position.set(x, h + 0.5, z);
@@ -2314,7 +2421,7 @@
         for (let i = 0; i < count2D; i++) {
             const x = (cx + rng()) * GRASS_CELL_SIZE;
             const z = (cz + rng()) * GRASS_CELL_SIZE;
-            const h = getGPUHeight(x, z);
+            const h = getRaycastHeight(x, z, getGPUHeight(x, z));
             if (h < 5.0 || h > 200.0) continue;
             
             dummy.position.set(x, h + 4.0, z);
@@ -2415,15 +2522,12 @@
         });
     }
 
-    function rndSeed(s) {
-        let x = s;
-        return () => (x = (x * 1103515245 + 12345) % 2147483648) / 2147483648;
-    }
-
     // --- MODULAR HOUSE SYSTEM ---
 
     async function createModularHouse(type = 'small', seedX = 0, seedZ = 0) {
         const group = new THREE.Group();
+        group.userData.seedX = seedX;
+        group.userData.seedZ = seedZ;
         
         // Spezialfall: Neues House_1.glb Modell
         if (type === 'house1' || (type === 'calibration' && calibrationParams.houseModel === 'house1')) {
@@ -2580,7 +2684,8 @@
             
             // Initialer Render-Pass für die Heightmap
             gpuCompute.compute();
-            renderer.readRenderTargetPixels(gpuCompute.getCurrentRenderTarget(heightVariable), 0, 0, GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, gpuHeightData);
+            // WICHTIG: Von smoothVariable lesen, da dies die finalen geglätteten Werte sind
+            renderer.readRenderTargetPixels(gpuCompute.getCurrentRenderTarget(smoothVariable), 0, 0, GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, gpuHeightData);
         },
         update: (renderer, playerPos, time) => {
             if (!gpuCompute) return;
@@ -2591,24 +2696,36 @@
             
             // Gelegentliches Auslesen der Heightmap für CPU-Kollision (nicht jeden Frame für Performance)
             if (Math.floor(time * 60) % 10 === 0) {
-                renderer.readRenderTargetPixels(gpuCompute.getCurrentRenderTarget(heightVariable), 0, 0, GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, gpuHeightData);
+                // WICHTIG: Von smoothVariable lesen
+                renderer.readRenderTargetPixels(gpuCompute.getCurrentRenderTarget(smoothVariable), 0, 0, GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, gpuHeightData);
             }
             
-            // 2. Clipmap Update
-            if (clipmapMesh) {
-                // Das Mesh folgt dem Spieler in 10m Schritten (verhindert Jittering durch Gleitkommafehler)
-                const snap = 10;
-                const snapX = Math.floor(playerPos.x / snap) * snap;
-                const snapZ = Math.floor(playerPos.z / snap) * snap;
-                
-                clipmapMesh.position.set(snapX, 0, snapZ);
-                if (clipmapMaterial.userData.shader) {
-                    const shader = clipmapMaterial.userData.shader;
-                    if (shader.uniforms.heightMap) shader.uniforms.heightMap.value = gpuCompute.getCurrentRenderTarget(smoothVariable).texture;
-                    if (shader.uniforms.meshOffset) shader.uniforms.meshOffset.value.set(snapX, snapZ);
-                    if (shader.uniforms.playerPos) shader.uniforms.playerPos.value.set(playerPos.x, playerPos.z);
-                }
+        // 2. Clipmap Update
+        if (clipmapMesh) {
+            // Das Mesh folgt dem Spieler in 10m Schritten (verhindert Jittering durch Gleitkommafehler)
+            const snap = 10;
+            const snapX = Math.floor(playerPos.x / snap) * snap;
+            const snapZ = Math.floor(playerPos.z / snap) * snap;
+            
+            clipmapMesh.position.set(snapX, 0, snapZ);
+            clipmapMesh.updateMatrixWorld(); // Wichtig für präzises Raycasting
+            
+            if (clipmapMaterial.userData.shader) {
+                const shader = clipmapMaterial.userData.shader;
+                if (shader.uniforms.heightMap) shader.uniforms.heightMap.value = gpuCompute.getCurrentRenderTarget(smoothVariable).texture;
+                if (shader.uniforms.meshOffset) shader.uniforms.meshOffset.value.set(snapX, snapZ);
+                if (shader.uniforms.playerPos) shader.uniforms.playerPos.value.set(playerPos.x, playerPos.z);
             }
+
+            // Gebäude-Höhen im Nahbereich validieren (Asset-Anchoring)
+            fpVillageBuildings.forEach(b => {
+                const dist = Math.hypot(b.position.x - playerPos.x, b.position.z - playerPos.z);
+                if (dist < 100) { // Nur im Nahbereich für Performance
+                    const h = getRaycastHeight(b.userData.seedX || b.position.x, b.userData.seedZ || b.position.z, b.position.y);
+                    b.position.y = h;
+                }
+            });
+        }
             
             // 3. Dekorationen
             updateDecorations(playerPos);
@@ -2625,11 +2742,13 @@
         addOverlayCloseButton,
         createNameTag,
         getGPUHeight,
+        getRaycastHeight,
         createModularHouse,
         createClouds,
         initInteriors,
         initRain,
         initWorld,
+        initHauptdorfMeadow,
         villageBuildings: fpVillageBuildings,
         CLIPMAP_RADIUS,
         cleanup: () => {

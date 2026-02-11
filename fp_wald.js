@@ -339,8 +339,8 @@
     }
 
     // --- AOI & DORMANT SETTINGS ---
-    const AOI_RADIUS = 10;
-    const DORMANT_RADIUS = 15;
+    const AOI_RADIUS = 15;
+    const DORMANT_RADIUS = 20;
     let eiActive = false;
     let groundValidated = false;
     // ------------------------------
@@ -354,9 +354,10 @@
         // --- EI HEIGHT VALIDATION (Spawn Fix) ---
         if (!groundValidated) {
             console.log("[FPWald] Starte initiale Höhen-Validierung...");
-            // Wir nutzen getGPUHeight, um die initiale Höhe zu bestimmen.
-            // Falls GPGPU noch nicht bereit ist, wird automatisch die CPU-Höhe (15m am Start) genommen.
-            const h = (window.FPGraphics ? FPGraphics.getGPUHeight(avatar.position.x, avatar.position.z) : 0);
+            // Wir nutzen getRaycastHeight für maximale Präzision am Startpunkt
+            const h = (window.FPGraphics && typeof FPGraphics.getRaycastHeight === 'function') 
+                ? FPGraphics.getRaycastHeight(avatar.position.x, avatar.position.z, 15)
+                : (window.FPGraphics ? FPGraphics.getGPUHeight(avatar.position.x, avatar.position.z) : 15);
             
             avatar.position.y = h + 4;
             targetPos.y = h + 4;
