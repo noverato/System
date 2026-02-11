@@ -2350,6 +2350,61 @@
         return g;
     }
 
+    /**
+     * Erstellt einfache prozedurale Wolken.
+     */
+    function createClouds(scene) {
+        const cloudGroup = new THREE.Group();
+        const cloudCount = 20;
+        const mat = new THREE.MeshStandardMaterial({ 
+            color: 0xffffff, 
+            transparent: true, 
+            opacity: 0.8,
+            flatShading: true
+        });
+
+        for (let i = 0; i < cloudCount; i++) {
+            const cluster = new THREE.Group();
+            const partCount = 3 + Math.floor(Math.random() * 4);
+            
+            for (let j = 0; j < partCount; j++) {
+                const size = 10 + Math.random() * 20;
+                const geo = new THREE.IcosahedronGeometry(size, 1);
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.set(
+                    (Math.random() - 0.5) * size * 1.5,
+                    (Math.random() - 0.5) * size * 0.5,
+                    (Math.random() - 0.5) * size * 1.5
+                );
+                cluster.add(mesh);
+            }
+            
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 500 + Math.random() * 1000;
+            cluster.position.set(
+                Math.cos(angle) * dist,
+                150 + Math.random() * 100,
+                Math.sin(angle) * dist
+            );
+            cloudGroup.add(cluster);
+        }
+        scene.add(cloudGroup);
+    }
+
+    /**
+     * Dummy-Funktion für Innenräume (Interiors).
+     */
+    function initInteriors(scene) {
+        console.log("[FPGraphics] initInteriors (Placeholder)");
+    }
+
+    /**
+     * Dummy-Funktion für Regen (Rain).
+     */
+    function initRain(scene) {
+        console.log("[FPGraphics] initRain (Placeholder)");
+    }
+
     function disposeGroup(group) {
         group.traverse(child => {
             if (child.geometry) child.geometry.dispose();
@@ -2526,7 +2581,12 @@
         createNameTag,
         getGPUHeight,
         createModularHouse,
+        createClouds,
+        initInteriors,
+        initRain,
+        initWorld,
         villageBuildings: fpVillageBuildings,
+        CLIPMAP_RADIUS,
         cleanup: () => {
             decorationGrids.forEach(disposeGroup);
             grassGrids.forEach(disposeGroup);
