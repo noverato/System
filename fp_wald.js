@@ -370,6 +370,7 @@
             groundValidated = true;
             eiActive = true;
             console.log("🥚 Ei-Position validiert auf Höhe:", h, "an X:", ax, "Z:", az);
+            console.log("[FPWald] Ground-Validation ERFOLGREICH abgeschlossen.");
         }
         // ----------------------------------------
 

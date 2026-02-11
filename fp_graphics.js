@@ -568,13 +568,17 @@
                 // Biome-Logik basierend auf Höhe
                 vec3 bioColor = plainsColor;
                 
-                if (vHeight < 3.0) bioColor = oceanColor; // Tiefer Ozean
-                else if (vHeight < 8.0) bioColor = mix(oceanColor, plainsColor, smoothstep(3.0, 8.0, vHeight)); // Küste
-                else if (vHeight > 400.0) bioColor = mix(plainsColor, snowColor, smoothstep(400.0, 700.0, vHeight)); // Schnee
+                // Streifen-Fix: Wir nutzen smoothstep für weichere Übergänge und mischen Biome-Farben stärker mit Texturen
+                if (vHeight < 3.0) bioColor = oceanColor;
+                else if (vHeight < 12.0) bioColor = mix(oceanColor, plainsColor, smoothstep(3.0, 12.0, vHeight));
+                else if (vHeight > 350.0) bioColor = mix(plainsColor, snowColor, smoothstep(350.0, 600.0, vHeight));
                 
                 // Fels-Splatting bei Steigung
-                float rockFactor = smoothstep(0.3, 0.6, slope);
+                float rockFactor = smoothstep(0.2, 0.5, slope);
                 vec3 finalColor = mix(bioColor * texGrass, stoneColor * texStone, rockFactor);
+                
+                // Sättigung und Helligkeit leicht anpassen für saftiges Grün
+                finalColor *= 1.1; 
                 
                 diffuseColor.rgb = finalColor;
                 `
@@ -686,7 +690,7 @@
 
             for (let i = 0; i < count; i++) {
                 const pos = validPositions[i];
-                position.set(pos.x, pos.y + 0.01, pos.z);
+                position.set(pos.x, pos.y - 1.2, pos.z); // Offset Y korrigiert (tiefer in den Boden)
                 euler.set(0, pos.rot, 0);
                 quaternion.setFromEuler(euler);
                 scaleVec.set(pos.scale, pos.scale, pos.scale);
