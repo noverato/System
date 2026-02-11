@@ -512,8 +512,10 @@
         clipmapMesh = new THREE.Mesh(geo, clipmapMaterial);
         clipmapMesh.rotation.x = -Math.PI / 2;
         clipmapMesh.position.y = 0; // Zurück auf 0 für saubere mathematische Referenz
-        clipmapMesh.receiveShadow = true;
-        clipmapMesh.frustumCulled = false; 
+        // Layer 0: Default
+        // Layer 1: Collision/Physics (Falls benötigt)
+        clipmapMesh.layers.set(0); 
+        clipmapMesh.layers.enable(1); // Kollisionsebene aktivieren
 
         // DEBUG: Physics-Wireframe (Deaktiviert, da Kollision bestätigt)
         const debugPhysics = false; 
