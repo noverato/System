@@ -825,7 +825,7 @@
         
         const renderTarget = gpuCompute.getCurrentRenderTarget(smoothVariable);
         if (renderTarget) {
-            renderer.readRenderTargetPixels(renderTarget, 0, 0, GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, gpuHeightData);
+            renderer.readRenderTargetPixels(renderTarget, 0, 0, GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, GPGPU_Container.heightData);
         }
     }
     
@@ -2041,6 +2041,11 @@
         const midH = getGPUHeight(midX, midZ);
         const biome = getBiomeData(midX, midZ, midH);
         
+        // --- GPGPU HEIGHT VALIDATION ---
+        // Sicherstellen, dass die Zelle korrekt auf dem Terrain liegt
+        const groundH = getGPUHeight(midX, midZ);
+        group.position.y = 0; // Gruppe bleibt auf 0, Kinder werden individuell positioniert
+
         // 1. Große Vegetation (Individuelle Meshes für Komplexität)
         // PERFORMANCE-GESETZ: Glocken-Prinzip (Culling)
         let densityMult = 0.8; // Standard-Dichte für die Vegetation
@@ -2414,7 +2419,7 @@
         });
     }
 
-    function createDecorationCell(cx, cz) {
+    function createDecorationCell(cx, cz, playerPos) {
         const group = new THREE.Group();
         const seed = cx * 1337 + cz * 42;
         const rng = rndSeed(seed);
@@ -2423,6 +2428,10 @@
         for (let i = 0; i < count; i++) {
             const x = (cx + rng()) * DECORATION_CELL_SIZE;
             const z = (cz + rng()) * DECORATION_CELL_SIZE;
+
+            // Performance: Pre-Culling für Bäume (nur innerhalb des Sichtradius)
+            const dist = Math.hypot(x - playerPos.x, z - playerPos.z);
+            if (dist > CLIPMAP_RADIUS + 100) continue;
             
             // WICHTIG: RaycastHeight für präzise Platzierung auf dem Clipmap-Terrain
             const h = getRaycastHeight(x, z, getGPUHeight(x, z));
