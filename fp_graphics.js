@@ -117,6 +117,7 @@
                     varying float vDist;
                     varying float vWind;
                     varying vec2 vUV;
+                    #define IS_3D ${is3D ? 'true' : 'false'}
                 ` + shader.vertexShader;
 
                 shader.vertexShader = shader.vertexShader.replace(
@@ -132,7 +133,7 @@
                     vec4 worldPos = modelMatrix * instanceMatrix * vec4(position, 1.0);
                     
                     // Nur die Spitzen des Grases bewegen (y > 0.1)
-                    float strength = pow(clamp(uv.y, 0.0, 1.0), 2.0) * (is3D ? 1.5 : 4.0);
+                    float strength = pow(clamp(uv.y, 0.0, 1.0), 2.0) * (IS_3D ? 1.5 : 4.0);
                     
                     // Sinus-Wellen für Wind (Kombiniert für organisches Gefühl)
                     float wind = sin(worldPos.x * windScale + time * windSpeed) * 
@@ -167,7 +168,11 @@
                     `
                     #include <project_vertex>
                     bool hide = false;
-                    ${is3D ? 'if (vDist > lodDist) hide = true;' : 'if (vDist < lodDist || vDist > maxDist) hide = true;'}
+                    if (IS_3D) {
+                        if (vDist > lodDist) hide = true;
+                    } else {
+                        if (vDist < lodDist || vDist > maxDist) hide = true;
+                    }
                     if (hide) {
                         gl_Position.z = gl_Position.w * 2.0;
                     }
@@ -579,6 +584,8 @@
         clipmapMesh = new THREE.Mesh(geo, clipmapMaterial);
         clipmapMesh.rotation.x = -Math.PI / 2;
         clipmapMesh.frustumCulled = false; // Wir bewegen das Mesh mit dem Spieler
+        clipmapMesh.layers.enable(0); // Standard-Layer
+        clipmapMesh.layers.enable(1); // Mesh-Layer
         clipmapGroup.add(clipmapMesh);
     }
 
@@ -592,6 +599,8 @@
         const water = new THREE.Mesh(waterGeo, waterMat);
         water.rotation.x = -Math.PI / 2;
         water.position.y = 2.0;
+        water.layers.enable(0);
+        water.layers.enable(2); // Wasser-Layer
         scene.add(water);
     }
 
@@ -690,6 +699,8 @@
             [mesh3D, mesh2D].forEach(m => {
                 m.instanceMatrix.needsUpdate = true;
                 m.frustumCulled = true;
+                m.layers.enable(0);
+                m.layers.enable(3); // Grass-Layer
                 if (mainScene) mainScene.add(m);
             });
 
@@ -2196,6 +2207,8 @@
                 if (!data) return;
                 
                 const instancedMesh = new THREE.InstancedMesh(data.geo, data.mat, instances.length);
+                instancedMesh.layers.enable(0);
+                instancedMesh.layers.enable(3); // Grass-Layer (für Clutter-Gras)
                 const matrix = new THREE.Matrix4();
                 const position = new THREE.Vector3();
                 const rotation = new THREE.Euler();
@@ -2421,6 +2434,8 @@
         applyGrassShader(grassMat3D, true);
         
         const mesh3D = new THREE.InstancedMesh(grassGeo, grassMat3D, count3D);
+        mesh3D.layers.enable(0);
+        mesh3D.layers.enable(3); // Grass-Layer
         const dummy = new THREE.Object3D();
         
         for (let i = 0; i < count3D; i++) {
@@ -2445,6 +2460,8 @@
         applyGrassShader(grassMat2D, false);
         
         const mesh2D = new THREE.InstancedMesh(grassGeo, grassMat2D, count2D);
+        mesh2D.layers.enable(0);
+        mesh2D.layers.enable(3); // Grass-Layer
         for (let i = 0; i < count2D; i++) {
             const x = (cx + rng()) * GRASS_CELL_SIZE;
             const z = (cz + rng()) * GRASS_CELL_SIZE;
