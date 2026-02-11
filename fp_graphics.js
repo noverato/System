@@ -511,7 +511,7 @@
         
         clipmapMesh = new THREE.Mesh(geo, clipmapMaterial);
         clipmapMesh.rotation.x = -Math.PI / 2;
-        clipmapMesh.position.y = -0.1; // Fix: Mesh leicht unter 0, damit Spieler nicht "gefressen" wird
+        clipmapMesh.position.y = 0; // Zurück auf 0 für saubere mathematische Referenz
         clipmapMesh.receiveShadow = true;
         clipmapMesh.frustumCulled = false; 
 

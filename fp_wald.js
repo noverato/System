@@ -1000,6 +1000,10 @@
             const sm = new THREE.SpriteMaterial({ map: tex });
             const sprite = new THREE.Sprite(sm);
             sprite.scale.set(8, 8, 1);
+            // VISUELLER FIX: Das Sprite muss vertikal verschoben werden, 
+            // damit der "Boden" des Sprites (die Füße des Eis) auf dem Pivot-Punkt liegen.
+            // Da das Sprite 8 Einheiten hoch ist, schieben wir es um +4 nach oben.
+            sprite.position.y = 4;
             
             avatar = new THREE.Group();
             window.avatar = avatar;
@@ -1352,8 +1356,8 @@
         // COLLISION FIX: Spieler MUSS ÜBER dem Boden bleiben
         // Wir setzen die minimale Höhe auf -250 (GPGPU Untergrenze)
         // Aber im Dorf/Startplateau sollte groundH 0 sein.
-        // VISUELLER FIX: Wir setzen groundH leicht höher (+0.2), damit das Ei nicht im Mesh versinkt
-        const finalGroundH = Math.max(groundH + 0.2, -250.0);
+        // VISUELLER FIX: Wir setzen groundH deutlich höher (+0.5), damit das Ei-Sprite sicher auf dem Mesh steht
+        const finalGroundH = Math.max(groundH + 0.5, -250.0);
 
         // Radikaler Fix: Wenn die Position unter der Bodenhöhe liegt, sofort nach oben setzen
         if (targetPos.y < finalGroundH) { 
@@ -1568,8 +1572,9 @@
         if (avatar) {
             // Avatar (Lila Ei) Positionierung
             // px, py, pz ist die Spielerposition (Bodenhöhe)
-            // Wir setzen das Ei leicht über py (+0.5), damit es sicher über dem Boden-Mesh schwebt
-            avatar.position.set(px, py + 0.5, pz);
+            // Das Sprite wurde bereits intern um +4 angehoben, 
+            // also setzen wir den Pivot direkt auf die berechnete Physik-Höhe (py)
+            avatar.position.set(px, py, pz);
             avatar.rotation.y = heading;
         }
         if (avatarNameTag) {
