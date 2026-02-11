@@ -477,9 +477,8 @@
         clipmapMesh.receiveShadow = true;
         clipmapMesh.frustumCulled = false; 
 
-        // DEBUG: Physics-Wireframe (Trimesh-Ersatz)
-        // Setze true, um die physikalische Form des Geländes zu sehen
-        const debugPhysics = true; 
+        // DEBUG: Physics-Wireframe (Deaktiviert, da Kollision bestätigt)
+        const debugPhysics = false; 
         if (debugPhysics) {
             clipmapMaterial.wireframe = true;
             console.log("🛠️ Physics Debug aktiviert: Terrain-Wireframe sichtbar.");
