@@ -377,7 +377,7 @@
             }
             
             // Schutz vor Extremen
-            h = clamp(h, -250.0, 1500.0);
+            h = clamp(h, -250.0, 1800.0);
 
             gl_FragColor = vec4(h, 0.0, 0.0, 1.0);
         }
@@ -1335,7 +1335,8 @@
             
             // Wir mischen das Plateau mit der restlichen Noise-Logik
             const baseH = 15.0 + getOctaveNoise(x * 0.0002, z * 0.0002, 6) * 120.0;
-            return startH * (1 - t) + baseH * t;
+            const h_val = startH * (1 - t) + baseH * t;
+            return Math.min(1800.0, Math.max(-250.0, h_val));
         }
 
         // 2. Dorf-Bereiche flach halten
@@ -1366,7 +1367,7 @@
             h -= vFactor * 800.0;
         }
 
-        return h * villageFactor;
+        return Math.min(1800.0, Math.max(-250.0, h * villageFactor));
     }
 
     function getBiomeData(x, z, h) {

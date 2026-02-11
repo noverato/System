@@ -1344,11 +1344,13 @@
         const minHeight = -50.0; // Sicherheitsuntergrenze (Ozeanboden)
         const finalGroundH = Math.max(groundH, minHeight);
 
-        if (targetPos.y < finalGroundH) {
-            targetPos.y = finalGroundH;
+        // DEBUG: console.log("[FPWald] Y:", targetPos.y.toFixed(2), "GroundH:", finalGroundH.toFixed(2));
+
+        if (targetPos.y < finalGroundH + 1.6) { // 1.6m Spielerhöhe
+            targetPos.y = finalGroundH + 1.6;
             velocityY = 0;
             isGrounded = true;
-        } else if (targetPos.y > finalGroundH + 0.5) { // Kleiner Puffer für Boden-Check
+        } else if (targetPos.y > finalGroundH + 1.8) { // Kleiner Puffer für Boden-Check
             isGrounded = false;
         }
     } else {
