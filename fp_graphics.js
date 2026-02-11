@@ -485,9 +485,9 @@
                     
                     return mix(mix(h00, h10, f.x), mix(h01, h11, f.x), f.y);
                 }
+            ` + shader.vertexShader;
 
-                void main() {
-            ` + shader.vertexShader.replace(
+            shader.vertexShader = shader.vertexShader.replace(
                 '#include <begin_vertex>',
                 `
                 #include <begin_vertex>
@@ -542,8 +542,8 @@
                 // Steigungs-Check für Felsen (Normale berechnen)
                 vec3 dX = dFdx(vWorldPos);
                 vec3 dZ = dFdy(vWorldPos);
-                vec3 normal = normalize(cross(dX, dZ));
-                float slope = 1.0 - normal.y;
+                vec3 terrainNormal = normalize(cross(dX, dZ));
+                float slope = 1.0 - terrainNormal.y;
                 
                 // Biome-Logik basierend auf Höhe
                 vec3 bioColor = plainsColor;
@@ -2532,8 +2532,47 @@
         return sprite;
     }
 
+    /**
+     * Platzhalter für Regen-Update.
+     */
+    function updateRain(avatar) {
+        // console.log("[FPGraphics] updateRain (Placeholder)");
+    }
+
+    /**
+     * Platzhalter für Fluss-Update.
+     */
+    function updateRiver() {
+        // console.log("[FPGraphics] updateRiver (Placeholder)");
+    }
+
+    /**
+     * Platzhalter für Feuer-Update.
+     */
+    function updateFire(delta, now) {
+        // console.log("[FPGraphics] updateFire (Placeholder)");
+    }
+
+    /**
+     * Platzhalter für Haus-Eintritt.
+     */
+    function enterHouse(type, targetPos, avatar, scene, camera, callback) {
+        console.log("[FPGraphics] enterHouse (Placeholder)", type);
+        if (callback) callback(true);
+    }
+
+    /**
+     * Platzhalter für Overlay-Button.
+     */
+    function addOverlayCloseButton(overlay) {
+        console.log("[FPGraphics] addOverlayCloseButton (Placeholder)");
+    }
+
     // --- PUBLIC API ---
     window.FPGraphics = {
+        isInterior: false,
+        currentInterior: null,
+        currentInteriorMesh: null,
         init: (renderer, scene) => {
             initGPGPU(renderer);
             initClipmap(scene);
@@ -2563,21 +2602,27 @@
                 const snapZ = Math.floor(playerPos.z / snap) * snap;
                 
                 clipmapMesh.position.set(snapX, 0, snapZ);
-                clipmapMaterial.onBeforeCompile = (shader) => {
-                    if (shader.uniforms.heightMap) shader.uniforms.heightMap.value = gpuCompute.getCurrentRenderTarget(heightVariable).texture;
+                if (clipmapMaterial.userData.shader) {
+                    const shader = clipmapMaterial.userData.shader;
+                    if (shader.uniforms.heightMap) shader.uniforms.heightMap.value = gpuCompute.getCurrentRenderTarget(smoothVariable).texture;
                     if (shader.uniforms.meshOffset) shader.uniforms.meshOffset.value.set(snapX, snapZ);
                     if (shader.uniforms.playerPos) shader.uniforms.playerPos.value.set(playerPos.x, playerPos.z);
-                };
+                }
             }
             
             // 3. Dekorationen
             updateDecorations(playerPos);
             
             // 4. Uniforms für Global Culling
-            worldCullingUniforms.playerPos.set(playerPos.x, playerPos.z);
+            worldCullingUniforms.playerPos.value.set(playerPos.x, playerPos.z);
             worldCullingUniforms.time.value = time;
         },
         updateClipmap,
+        updateRain,
+        updateRiver,
+        updateFire,
+        enterHouse,
+        addOverlayCloseButton,
         createNameTag,
         getGPUHeight,
         createModularHouse,
