@@ -353,7 +353,8 @@
 
         void main() {
             vec2 uv = gl_FragCoord.xy / max(resolution.xy, vec2(1.0));
-            vec2 pos = uv * worldSize + offset;
+            // Zentrierung: uv 0.5 entspricht der Weltposition 'offset'
+            vec2 pos = (uv - 0.5) * worldSize + offset;
             
             // --- TERRAIN GENERATION 10000x10000 (100km²) ---
             
@@ -2060,23 +2061,16 @@
     const rayDir = new THREE.Vector3(0, -1, 0);
 
     function getRaycastHeight(x, z, fallbackHeight) {
-        if (!clipmapMesh) return fallbackHeight;
+        // WICHTIG: Wir nutzen NICHT mehr das Raycasting auf das clipmapMesh, 
+        // da dieses auf der CPU flach ist (Displacement passiert im Shader).
+        // Stattdessen nutzen wir die GPGPU-Daten (getGPUHeight).
         
-        // Strahl von weit oben nach unten schießen
-        rayOrigin.set(x, 2000, z); 
-        decorationRaycaster.set(rayOrigin, rayDir);
-        
-        // Matrix-Update erzwingen für präzises Raycasting
-        clipmapMesh.updateMatrixWorld();
-        
-        const intersects = decorationRaycaster.intersectObject(clipmapMesh);
-        if (intersects.length > 0) {
-            // console.log("[FPGraphics] Raycast Hit at:", intersects[0].point.y, "for X:", x, "Z:", z);
-            return intersects[0].point.y;
+        const gpuH = getGPUHeight(x, z);
+        if (gpuH !== 0 || (x === 0 && z === 0)) {
+            return gpuH;
         }
         
-        // Falls kein Hit, GPU Height als Fallback
-        return getGPUHeight(x, z) || fallbackHeight;
+        return fallbackHeight;
     }
 
     async function spawnDecorationsInCell(cx, cz, group) {
@@ -2856,7 +2850,14 @@
             if (!gpuCompute) return;
             
             // 1. GPGPU Update
+            // Das GPGPU-Zentrum folgt dem Spieler in groben Schritten (100m), um die Heightmap aktuell zu halten
+            const gpgpuSnap = 100;
+            const centerX = Math.floor(playerPos.x / gpgpuSnap) * gpgpuSnap;
+            const centerZ = Math.floor(playerPos.z / gpgpuSnap) * gpgpuSnap;
+            
             heightVariable.material.uniforms.time.value = time;
+            heightVariable.material.uniforms.offset.value.set(centerX, centerZ);
+            
             gpuCompute.compute();
             
             // Gelegentliches Auslesen der Heightmap für CPU-Kollision (Container-Prinzip)
@@ -2864,6 +2865,7 @@
             if (now - GPGPU_Container.lastUpdate > GPGPU_Container.updateThreshold) {
                 renderer.readRenderTargetPixels(gpuCompute.getCurrentRenderTarget(smoothVariable), 0, 0, GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, GPGPU_Container.heightData);
                 GPGPU_Container.heightTexture = gpuCompute.getCurrentRenderTarget(smoothVariable).texture;
+                GPGPU_Container.centerPos.set(centerX, centerZ); // WICHTIG: Zentrum für CPU-Abfrage synchronisieren
                 GPGPU_Container.lastUpdate = now;
             }
             
@@ -2880,6 +2882,7 @@
             if (clipmapMaterial.userData.shader) {
                 const shader = clipmapMaterial.userData.shader;
                 if (GPGPU_Container.heightTexture) shader.uniforms.heightMap.value = GPGPU_Container.heightTexture;
+                if (shader.uniforms.worldOffset) shader.uniforms.worldOffset.value.set(centerX, centerZ); // GPGPU-Zentrum an Shader geben
                 if (shader.uniforms.meshOffset) shader.uniforms.meshOffset.value.set(snapX, snapZ);
                 if (shader.uniforms.playerPos) shader.uniforms.playerPos.value.set(playerPos.x, playerPos.z);
             }

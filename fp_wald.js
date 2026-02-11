@@ -1323,15 +1323,13 @@
             targetPos.y += velocityY * delta;
             
             // PHYSIK: Nutze die reale Terrain-Höhe (Hybrid: Raycast für Präzision im Nahbereich, GPGPU als Fallback)
-            let groundH = -1000; // Startwert extrem tief
+            let groundH = targetPos.y; // Standard: Aktuelle Höhe halten (Sicherheits-Lock)
             if (window.FPGraphics) {
                 const gpuH = FPGraphics.getGPUHeight(targetPos.x, targetPos.z);
                 
-                // CRITICAL FIX: Wenn gpuH exakt 0 ist (Start-Lag), halten wir den Spieler in der Luft
-                // außer wir sind wirklich bei 0,0. Das Plateau liegt aber bei -1183.
-                if (gpuH === 0 && Math.abs(targetPos.z) > 100) {
-                    groundH = targetPos.y; // Halten
-                } else {
+                // Wir nutzen die GPU-Höhe nur, wenn sie nicht 0 ist 
+                // ODER wenn wir uns wirklich im Zentrum (0,0) befinden.
+                if (gpuH !== 0 || (Math.abs(targetPos.x) < 10 && Math.abs(targetPos.z) < 10)) {
                     groundH = (typeof FPGraphics.getRaycastHeight === 'function') 
                         ? FPGraphics.getRaycastHeight(targetPos.x, targetPos.z, gpuH)
                         : gpuH;
