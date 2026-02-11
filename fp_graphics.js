@@ -551,13 +551,13 @@
                 `
                 #include <map_fragment>
                 
-                // Welt-basierte UVs für Kachelung
-                vec2 wUV = vWorldPos.xz * 0.05;
+                // Welt-basierte UVs für Kachelung (Streifen-Fix: Höhere Frequenz & Rausch-Mischung)
+                vec2 wUV = vWorldPos.xz * 0.125; // Erhöhte Frequenz für feineres Detail
                 
                 // Texturen mischen
                 vec3 texGrass = texture2D(grassTex, wUV).rgb;
-                vec3 texStone = texture2D(stoneTex, wUV * 0.5).rgb;
-                vec3 texDesert = texture2D(desertTex, wUV).rgb;
+                vec3 texStone = texture2D(stoneTex, wUV * 0.43).rgb; // Primzahl-Skalierung gegen Muster
+                vec3 texDesert = texture2D(desertTex, wUV * 0.87).rgb;
                 
                 // Steigungs-Check für Felsen (Normale berechnen)
                 vec3 dX = dFdx(vWorldPos);
@@ -569,12 +569,16 @@
                 vec3 bioColor = plainsColor;
                 
                 // Streifen-Fix: Wir nutzen smoothstep für weichere Übergänge und mischen Biome-Farben stärker mit Texturen
-                if (vHeight < 3.0) bioColor = oceanColor;
-                else if (vHeight < 12.0) bioColor = mix(oceanColor, plainsColor, smoothstep(3.0, 12.0, vHeight));
-                else if (vHeight > 350.0) bioColor = mix(plainsColor, snowColor, smoothstep(350.0, 600.0, vHeight));
+                // Wir fügen einen leichten Noise-Offset zur Höhe hinzu, um "Banding" (Streifen) zu brechen
+                float heightNoise = (texGrass.r - 0.5) * 2.0; 
+                float distortedHeight = vHeight + heightNoise;
+
+                if (distortedHeight < 3.0) bioColor = oceanColor;
+                else if (distortedHeight < 12.0) bioColor = mix(oceanColor, plainsColor, smoothstep(3.0, 12.0, distortedHeight));
+                else if (distortedHeight > 350.0) bioColor = mix(plainsColor, snowColor, smoothstep(350.0, 600.0, distortedHeight));
                 
                 // Fels-Splatting bei Steigung
-                float rockFactor = smoothstep(0.2, 0.5, slope);
+                float rockFactor = smoothstep(0.2, 0.45, slope + heightNoise * 0.05);
                 vec3 finalColor = mix(bioColor * texGrass, stoneColor * texStone, rockFactor);
                 
                 // Sättigung und Helligkeit leicht anpassen für saftiges Grün
@@ -2434,6 +2438,7 @@
         // 1. 3D GRAS (Nahbereich)
         const count3D = 40;
         const grassGeo = new THREE.PlaneGeometry(1, 1);
+        grassGeo.translate(0, 0.5, 0); // Ursprung an die Basis setzen
         const grassMat3D = new THREE.MeshBasicMaterial({ color: 0x44aa44, side: THREE.DoubleSide, alphaTest: 0.5 });
         applyGrassShader(grassMat3D, true);
         
@@ -2448,7 +2453,7 @@
             const h = getRaycastHeight(x, z, getGPUHeight(x, z));
             if (h < 5.0 || h > 200.0) continue;
             
-            dummy.position.set(x, h + 0.5, z);
+            dummy.position.set(x, h, z);
             dummy.rotation.y = rng() * Math.PI;
             dummy.scale.set(2, 2, 2);
             dummy.updateMatrix();
@@ -2456,14 +2461,34 @@
         }
         group.add(mesh3D);
         
-        // 2. 2D GRAS (Fernbereich)
-        // Nutzt Sprite-Textur für Performance
+        // 2. 2D GRAS (Fernbereich - Xenoblade Style Cross-Planes)
+        // Nutzt Sprite-Textur auf gekreuzten Planes für Volumen aus jeder Sicht
         const count2D = 15;
         const grassTex2D = new THREE.TextureLoader().load(GRASS_PNG_PATH);
-        const grassMat2D = new THREE.MeshBasicMaterial({ map: grassTex2D, transparent: true, alphaTest: 0.5 });
+        const grassMat2D = new THREE.MeshBasicMaterial({ map: grassTex2D, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide });
         applyGrassShader(grassMat2D, false);
         
-        const mesh2D = new THREE.InstancedMesh(grassGeo, grassMat2D, count2D);
+        // Xenoblade-Logik: Erstelle gekreuzte Planes für 2D Gras
+        const plane1 = new THREE.PlaneBufferGeometry(1, 1);
+        plane1.translate(0, 0.5, 0); // Ursprung an die Basis setzen
+        const plane2 = plane1.clone();
+        plane2.rotateY(Math.PI / 2);
+        
+        // Wir nutzen BufferGeometryUtils falls vorhanden, sonst manuell oder einfach plane1 als Fallback
+        let billboardGeo = plane1;
+        if (typeof THREE.BufferGeometryUtils !== 'undefined') {
+            billboardGeo = THREE.BufferGeometryUtils.mergeBufferGeometries([plane1, plane2]);
+        } else {
+            // Manuelles Mergen falls Utils fehlen
+            const merged = new THREE.Geometry();
+            merged.fromBufferGeometry(plane1);
+            const g2 = new THREE.Geometry();
+            g2.fromBufferGeometry(plane2);
+            merged.merge(g2);
+            billboardGeo = new THREE.BufferGeometry().fromGeometry(merged);
+        }
+
+        const mesh2D = new THREE.InstancedMesh(billboardGeo, grassMat2D, count2D);
         mesh2D.layers.enable(0);
         mesh2D.layers.enable(3); // Grass-Layer
         for (let i = 0; i < count2D; i++) {
@@ -2472,8 +2497,10 @@
             const h = getRaycastHeight(x, z, getGPUHeight(x, z));
             if (h < 5.0 || h > 200.0) continue;
             
-            dummy.position.set(x, h + 4.0, z);
-            dummy.scale.set(12, 12, 12);
+            // Korrektur: h statt h + 4.0, Skalierung angepasst für Cross-Planes
+            dummy.position.set(x, h, z);
+            dummy.rotation.y = rng() * Math.PI;
+            dummy.scale.set(8, 8, 8);
             dummy.updateMatrix();
             mesh2D.setMatrix(i, dummy.matrix);
         }
