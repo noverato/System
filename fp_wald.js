@@ -1256,9 +1256,13 @@
             return true;
         }
         
-        // Wasser-Kollision (Ozean)
-        if (h !== null && h < -30.0) {
-             console.log("[Collision] Blockiert durch Wasser:", h);
+        // --- FIX: WASSER-KOLLISION (Ozean) ---
+        // Problem: h < -30.0 hat oft fälschlicherweise blockiert, wenn die GPGPU noch nicht bereit war.
+        // Wir setzen den Schwellenwert tiefer (-100.0) oder ignorieren ihn temporär, 
+        // wenn wir uns im Dorfbereich (0,0) befinden.
+        const distToCenter = Math.hypot(nx, nz);
+        if (h !== null && h < -100.0 && distToCenter > 500) {
+             console.log("[Collision] Blockiert durch Wasser (Ozean):", h);
              return true; 
         }
     }
@@ -1369,9 +1373,9 @@
         // COLLISION FIX: Spieler MUSS ÜBER dem Boden bleiben
         // Wir setzen die minimale Höhe auf -250 (GPGPU Untergrenze)
         // Aber im Dorf/Startplateau sollte groundH 0 sein.
-        // VISUELLER FIX: Wir setzen groundH massiv höher (+2.0), damit das Ei-Sprite sicher auf dem Mesh steht
+        // VISUELLER FIX: Wir setzen groundH massiv höher (+3.5), damit das Ei-Sprite sicher auf dem Mesh steht
         // Ein T-Modell (oder Sprite) braucht diesen Puffer, um nicht "einzusinken"
-        const finalGroundH = Math.max(groundH + 2.0, -250.0);
+        const finalGroundH = Math.max(groundH + 3.5, -250.0);
 
         // Radikaler Fix: Wenn die Position unter der Bodenhöhe liegt, sofort nach oben setzen
         if (targetPos.y < finalGroundH) { 
