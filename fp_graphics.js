@@ -882,10 +882,15 @@
             return noFallback ? null : getCPUHeight(x, z);
         }
         
+        // Falls GPGPU noch nie geupdated wurde (Buffer sind leer), nutzen wir den CPU Fallback
+        if (GPGPU_Container.lastUpdate === 0) {
+            if (noFallback) return null;
+            return getCPUHeight(x, z);
+        }
+
         const h = GPGPU_Container.getSmoothHeight(x, z);
         
-        // h === 0 ist am Anfang oft ein Zeichen für "noch nicht bereit"
-        if (h === 0 || h === undefined || isNaN(h)) {
+        if (h === undefined || isNaN(h)) {
             if (noFallback) return null;
             return getCPUHeight(x, z);
         }
@@ -1327,50 +1332,49 @@
         return getCPUHeight(x, z);
     }
 
+    // --- MATHEMATISCHE HELFER ---
+    function smoothstep(edge0, edge1, x) {
+        const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+        return t * t * (3 - 2 * t);
+    }
+
     function getCPUHeight(x, z) {
         const distToStart = Math.hypot(x - 0.0, z - 0.0);
         
-        // 1. Startpunkt (0,0) Plateau
-        if (distToStart < 1500.0) {
-            const t = Math.max(0, Math.min(1, (distToStart - 500.0) / (1500.0 - 500.0)));
-            const startH = 10.0; // Plateau-Höhe auf 10m (über Wasser)
-            if (t === 0) return startH;
-            
-            // Wir mischen das Plateau mit der restlichen Noise-Logik
-            const baseH = 15.0 + getOctaveNoise(x * 0.0002, z * 0.0002, 6) * 120.0;
-            const h_val = startH * (1 - t) + baseH * t;
-            return Math.min(1800.0, Math.max(-250.0, h_val));
-        }
-
-        // 2. Dorf-Bereiche flach halten
-        let villageFactor = 1.0;
-        for (const loc of VILLAGE_LOCATIONS) {
-            const d = Math.hypot(x - loc.x, z - loc.z);
-            if (d < loc.radius) {
-                const f = Math.max(0, (d - loc.radius * 0.4) / (loc.radius * 0.6));
-                villageFactor = Math.min(villageFactor, Math.pow(f, 2));
-            }
-        }
-        
-        // 3. Basis-Höhe (FBM Nachbau)
+        // Basis-Höhe (FBM Nachbau)
         let h = 15.0 + getOctaveNoise(x * 0.0002, z * 0.0002, 6) * 120.0;
         
-        // 4. Berge (Dramatisch)
+        // Berge (Dramatisch)
         const mountNoise = Math.pow(Math.abs(getOctaveNoise(x * 0.0004, z * 0.0004, 1)), 2.0);
         if (mountNoise > 0.1) {
             const h_mount = getOctaveNoise(x * 0.0008, z * 0.0008, 4) * 1800.0;
-            const mountFactor = Math.max(0, (mountNoise - 0.1) / 0.3); // smoothstep(0.1, 0.4)
-            h += h_mount * Math.min(1.0, mountFactor);
+            const mountFactor = smoothstep(0.1, 0.4, mountNoise);
+            h += h_mount * mountFactor;
         }
 
-        // 5. Täler
+        // Täler
         const valleyNoise = getOctaveNoise(x * 0.0006 + 1000.0, z * 0.0006 + 1000.0, 1);
         if (valleyNoise > 0.5) {
-            const vFactor = Math.max(0, (valleyNoise - 0.5) / 0.4); // smoothstep(0.5, 0.9)
+            const vFactor = smoothstep(0.5, 0.9, valleyNoise);
             h -= vFactor * 800.0;
         }
 
-        return Math.min(1800.0, Math.max(-250.0, h * villageFactor));
+        // 1. Startpunkt (0,0) Plateau - Synchron mit Shader
+        if (distToStart < 1500.0) {
+            const startFactor = smoothstep(500.0, 1500.0, distToStart);
+            h = 10.0 * (1.0 - startFactor) + h * startFactor;
+        }
+
+        // 2. Dorf-Bereiche - Synchron mit Shader
+        for (const loc of VILLAGE_LOCATIONS) {
+            const d = Math.hypot(x - loc.x, z - loc.z);
+            if (d < 400.0) {
+                const f = smoothstep(150.0, 400.0, d);
+                h = 10.0 * (1.0 - f) + h * f;
+            }
+        }
+        
+        return Math.min(1800.0, Math.max(-250.0, h));
     }
 
     function getBiomeData(x, z, h) {
@@ -1931,10 +1935,9 @@
         // Ocean/Water check
         if (midH < 2.0) return;
 
-        // Hauptdorf Check (Radius 1500)
-        // Wenn wir uns im Hauptdorf befinden, lassen wir die statische initHauptdorfMeadow das Gras regeln
-        const distToCenter = Math.sqrt(midX * midX + midZ * midZ);
-        if (distToCenter < 1500) return;
+        // Hauptdorf Check (Radius 1500) - ENTFERNT um Gras überall zu erlauben
+        // const distToCenter = Math.sqrt(midX * midX + midZ * midZ);
+        // if (distToCenter < 1500) return;
 
         // Dichte basierend auf Biome
         let density = 20; // Default
@@ -1985,7 +1988,7 @@
                     if (!instancedData.has(finalPath)) instancedData.set(finalPath, []);
                     
                     instancedData.get(finalPath).push({
-                        pos: [sx, sh + 0.5, sz],
+                        pos: [sx, sh + 0.1, sz], // Gras näher am Boden (Floating Fix)
                         scale: scale,
                         rot: rng() * Math.PI * 2
                     });
@@ -2182,9 +2185,9 @@
                     const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
                     loadModel(finalPath).then(model => {
                         if (!model) return;
-                        // Bäume und große Objekte leicht in den Boden stecken für besseren Übergang,
-                        // aber weniger tief als zuvor (-0.2 -> -0.05).
-                        model.position.set(tx, th - 0.05, tz); 
+                        // Bäume und große Objekte leicht in den Boden stecken für besseren Übergang.
+                        // Wir nutzen -0.4m um sicherzustellen, dass keine Wurzeln schweben (Floating Trees Fix).
+                        model.position.set(tx, th - 0.4, tz); 
                         model.scale.set(plantScale, plantScale, plantScale);
                         model.rotation.y = rng() * Math.PI * 2;
                         // Bäume werfen Schatten
@@ -2198,7 +2201,7 @@
                     }).catch(e => {});
                 } else if (plant) {
                     // Auch generierte Pflanzen leicht anpassen
-                    plant.position.set(tx, th - 0.05, tz); 
+                    plant.position.set(tx, th - 0.4, tz); 
                     plant.rotation.y = rng() * Math.PI * 2;
                     plant.castShadow = true;
                     plant.receiveShadow = true;
