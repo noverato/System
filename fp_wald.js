@@ -1027,21 +1027,17 @@
             avatarNameTag = (window.FPGraphics ? FPGraphics.createNameTag(twitchName) : new THREE.Group());
             scene.add(avatarNameTag);
         }
-        if (window.data) {
-            gridX = Math.round((window.data.x || 0) / GRID);
-            gridY = Math.round((window.data.y || 0) / GRID);
-            
-            // Wenn der Spieler das erste Mal spawnt oder keine Koordinaten hat -> Dorfplatz (0,0)
-            if (window.data.x === undefined || window.data.y === undefined) {
-                gridX = 0; gridY = 0;
-            }
+        if (window.data && window.data.x !== undefined && window.data.y !== undefined) {
+            currentPos.x = targetPos.x = window.data.x;
+            currentPos.z = targetPos.z = window.data.y;
+            gridX = Math.round(currentPos.x / GRID);
+            gridY = Math.round(currentPos.z / GRID);
         } else {
             gridX = 0; gridY = 0;
+            currentPos.x = targetPos.x = 0;
+            currentPos.z = targetPos.z = 0;
         }
 
-        // Initiale Position setzen
-        currentPos.x = targetPos.x = gridX * GRID;
-        currentPos.z = targetPos.z = gridY * GRID;
         currentPos.y = targetPos.y = -100; // Wartet auf Ground-Validation
         
         // Anti-Stuck Check: Wenn wir in einem Gebäude spawnen -> Dorfplatz
@@ -1289,6 +1285,15 @@
             // Zuerst Clipmap aktualisieren, damit GPGPU Daten für die Validierung bereitstellt
             if (window.FPGraphics) {
                 FPGraphics.updateClipmap(currentPos.x, currentPos.z, renderer);
+                
+                // SOFORT-VALIDIERUNG: Wenn GPGPU Daten bereit hat, validieren wir sofort
+                const testH = FPGraphics.getGPUHeight(currentPos.x, currentPos.z);
+                // Validierung: Wenn wir eine valide Zahl bekommen (auch 0)
+                if ((testH !== undefined && !isNaN(testH)) || currentPos.y > -50) {
+                    console.log("[FPWald] Boden-Höhe erkannt:", testH, "Setze groundValidated = true");
+                    groundValidated = true;
+                    targetPos.y = currentPos.y = testH;
+                }
             } else {
                 console.error("[FPWald] FPGraphics fehlt bei Ground-Validation!");
             }

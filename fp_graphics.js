@@ -324,38 +324,38 @@
             continent = smoothstep(0.3, 0.45, continent); // Breitere Landmassen
             
             // 2. Basis-Höhe (FBM für Hügelketten)
-            // Landmasse startet bei y=5.0 (über Wasser y=2.0)
-            float h = 5.0 + fbm(pos * 0.0002) * 120.0;
+            // Landmasse startet bei y=15.0 (über Wasser y=2.0)
+            float h = 15.0 + fbm(pos * 0.0002) * 120.0;
             
             // Ozean-Absenkung
-            h = mix(-150.0, h, continent);
+            h = mix(-200.0, h, continent); // Tieferer Ozean
             
             // 3. BERGE (Dramatischere Gipfel, nur auf Land)
             float mountNoise = pow(abs(snoise(pos * 0.0004)), 2.0);
-            float h_mount = fbm(pos * 0.0008) * 1200.0;
-            h += h_mount * smoothstep(0.15, 0.4, mountNoise) * continent;
+            float h_mount = fbm(pos * 0.0008) * 1800.0; // Noch dramatischer: 1800m
+            h += h_mount * smoothstep(0.1, 0.4, mountNoise) * continent;
             
             // 4. TÄLER & SCHLUCHTEN (Erosion-Look)
             float valleyNoise = snoise(pos * 0.0006 + vec2(1000.0));
-            if (valleyNoise > 0.55) {
-                float vFactor = smoothstep(0.55, 0.9, valleyNoise);
-                h -= vFactor * 500.0;
+            if (valleyNoise > 0.5) {
+                float vFactor = smoothstep(0.5, 0.9, valleyNoise);
+                h -= vFactor * 800.0; // Tiefere Täler
             }
             
             // 5. OZEAN / WASSER GLÄTTUNG
             float waterLevel = 2.0;
             if (h < waterLevel) {
                 // Sanfter Übergang in die Tiefe für Seen und Ozeane
-                float depthFactor = smoothstep(waterLevel, waterLevel - 20.0, h);
-                h = mix(h, -100.0, depthFactor);
+                float depthFactor = smoothstep(waterLevel, waterLevel - 50.0, h);
+                h = mix(h, -150.0, depthFactor);
             }
             
             // 6. STARTPUNKT (Erhöht & Sicher bei X: -31, Z: -1183)
             // Wir machen den Bereich um den Startpunkt zu einer sicheren Hochebene
             vec2 startPos = vec2(-31.0, -1183.0);
             float distToStart = length(pos - startPos);
-            if (distToStart < 800.0) {
-                float startFactor = smoothstep(300.0, 800.0, distToStart);
+            if (distToStart < 1500.0) {
+                float startFactor = smoothstep(500.0, 1500.0, distToStart);
                 h = mix(25.0, h, startFactor); 
             }
 
@@ -453,11 +453,7 @@
         clipmapGroup = new THREE.Group();
         scene.add(clipmapGroup);
 
-        // Quadratisches Gitter für gleichmäßige Vertex-Verteilung (verhindert Stretching)
-        // CLIPMAP_RADIUS * 2 für die Größe, Segmente für Detaildichte
-        const geo = new THREE.PlaneGeometry(CLIPMAP_RADIUS * 2, CLIPMAP_RADIUS * 2, 256, 256);
-        
-        // Wir verwenden einen Standard-Shader und passen ihn an
+        // Wir erstellen das Material VOR dem Mesh
         clipmapMaterial = new THREE.MeshStandardMaterial({
             vertexColors: false,
             flatShading: false,
@@ -467,9 +463,18 @@
             side: THREE.FrontSide,
             depthWrite: true,
             depthTest: true,
-            // polygonOffset deaktiviert, um Jitter-Verdacht zu prüfen
             polygonOffset: false
         });
+
+        // Quadratisches Gitter für gleichmäßige Vertex-Verteilung (verhindert Stretching)
+        // CLIPMAP_RADIUS * 2 für die Größe, Segmente für Detaildichte
+        const geo = new THREE.PlaneGeometry(CLIPMAP_RADIUS * 2, CLIPMAP_RADIUS * 2, 256, 256);
+        
+        clipmapMesh = new THREE.Mesh(geo, clipmapMaterial);
+        clipmapMesh.rotation.x = -Math.PI / 2;
+        clipmapMesh.receiveShadow = true;
+        clipmapMesh.frustumCulled = false; // Wichtig, da Displacement außerhalb der Bounding Box sein kann
+        clipmapGroup.add(clipmapMesh);
 
         // Texturen laden (Nutze AssetsLibrary für korrekte Pfade)
         const texLoader = new THREE.TextureLoader();
@@ -491,6 +496,7 @@
 
         // Custom Shader Injection für Displacement und Biome-Farben
         clipmapMaterial.onBeforeCompile = (shader) => {
+            clipmapMaterial.userData.shader = shader; // Shader-Referenz speichern
             shader.uniforms.heightMap = { value: null };
             shader.uniforms.grassTex = { value: grassTex };
             shader.uniforms.stoneTex = { value: stoneTex };
@@ -550,10 +556,11 @@
                 
                 // UV-Koordinaten für die Heightmap berechnen
                 // worldOffset ist das GPGPU-Zentrum (sx, sz)
-                vec2 worldXZ = vec2(position.x + meshOffset.x, position.y + meshOffset.y);
+                // meshOffset ist die Weltposition des Mesh-Zentrums (px, pz)
+                // Da das Mesh um -PI/2 rotiert ist, entspricht local Y dem negativen World Z.
+                vec2 worldXZ = vec2(position.x, -position.y) + meshOffset;
                 
                 // hUV Berechnung: (WeltPos - GPGPU Zentrum + halbe Größe) / Größe
-                // Wir nutzen hier direkt worldXZ und worldOffset
                 vec2 hUV = (worldXZ - worldOffset + (gpuWorldSize * 0.5)) / gpuWorldSize;
                 hUV = clamp(hUV, 0.0, 1.0);
                 
@@ -565,6 +572,7 @@
                 transformed.z = h; 
                 
                 vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+                // vWorldPos.y = h; // Durch transformed.z = h und Rotation bereits korrekt
                 vDist = length(vWorldPos.xz - playerPos);
                 `
             );
@@ -818,8 +826,8 @@
         worldCullingUniforms.playerPos.value.set(px, pz);
 
         // Uniforms im Shader aktualisieren
-        if (clipmapMaterial.userData.shader) {
-            const shader = clipmapMaterial.userData.shader;
+        const shader = clipmapMaterial.userData.shader;
+        if (shader) {
             const target = gpuCompute.getCurrentRenderTarget(smoothVariable);
             if (target && target.texture) {
                 shader.uniforms.heightMap.value = target.texture;
@@ -874,7 +882,7 @@
         const h = GPGPU_Container.getSmoothHeight(x, z);
         
         // h === 0 ist am Anfang oft ein Zeichen für "noch nicht bereit"
-        if (h === 0) {
+        if (h === 0 || h === undefined || isNaN(h)) {
             if (noFallback) return null;
             return getCPUHeight(x, z);
         }
@@ -1317,9 +1325,20 @@
     }
 
     function getCPUHeight(x, z) {
-        const distToCenter = Math.hypot(x, z);
+        const distToStart = Math.hypot(x - (-31.0), z - (-1183.0));
         
-        // 1. Village Zone (Dorf-Bereiche flach halten)
+        // 1. Startpunkt (-31, -1183) Plateau
+        if (distToStart < 1500.0) {
+            const t = Math.max(0, Math.min(1, (distToStart - 500.0) / (1500.0 - 500.0)));
+            const startH = 25.0; // Plateau-Höhe
+            if (t === 0) return startH;
+            
+            // Wir mischen das Plateau mit der restlichen Noise-Logik
+            const baseH = 15.0 + getOctaveNoise(x * 0.0002, z * 0.0002, 6) * 120.0;
+            return startH * (1 - t) + baseH * t;
+        }
+
+        // 2. Dorf-Bereiche flach halten
         let villageFactor = 1.0;
         for (const loc of VILLAGE_LOCATIONS) {
             const d = Math.hypot(x - loc.x, z - loc.z);
@@ -1329,47 +1348,25 @@
             }
         }
         
-        // Zusätzliche Glättung am Startpunkt (0,0) für CPU
-        if (distToCenter < 1000.0) {
-            const t = Math.max(0, Math.min(1, (distToCenter - 400.0) / (1000.0 - 400.0)));
-            villageFactor *= t * t * (3 - 2 * t);
+        // 3. Basis-Höhe (FBM Nachbau)
+        let h = 15.0 + getOctaveNoise(x * 0.0002, z * 0.0002, 6) * 120.0;
+        
+        // 4. Berge (Dramatisch)
+        const mountNoise = Math.pow(Math.abs(getOctaveNoise(x * 0.0004, z * 0.0004, 1)), 2.0);
+        if (mountNoise > 0.1) {
+            const h_mount = getOctaveNoise(x * 0.0008, z * 0.0008, 4) * 1800.0;
+            const mountFactor = Math.max(0, (mountNoise - 0.1) / 0.3); // smoothstep(0.1, 0.4)
+            h += h_mount * Math.min(1.0, mountFactor);
         }
 
-        // 2. Basis-Höhe durch Biome bestimmt
-        const biome = getBiomeData(x, z);
-        let h = 0;
-
-        // Biome-spezifische Höhenprofile
-        const h_plains = getOctaveNoise(x * 0.005, z * 0.005, 3) * 15;
-        const h_desert = getOctaveNoise(x * 0.002, z * 0.002, 2) * 8;
-        const h_mountains = getOctaveNoise(x * 0.001, z * 0.001, 5) * 350;
-        const h_snow = getOctaveNoise(x * 0.003, z * 0.003, 4) * 180;
-        const h_jungle = getOctaveNoise(x * 0.008, z * 0.008, 4) * 45;
-        const h_swamp = -15 + getOctaveNoise(x * 0.006, z * 0.006, 2) * 12;
-        const h_forest = getOctaveNoise(x * 0.005, z * 0.005, 3) * 35;
-
-        // Blending der Höhen basierend auf Biome-Gewichten
-        h += h_plains * biome.weights.plains;
-        h += h_desert * biome.weights.desert;
-        h += h_snow * biome.weights.snow;
-        h += h_jungle * biome.weights.jungle;
-        h += h_swamp * biome.weights.swamp;
-        h += h_forest * biome.weights.forest;
-        h += h_mountains * biome.weights.mountains;
-
-        h += 0.0; // Basis-Höhe (auf 0.0 gesetzt)
-
-        // 3. Start point (0,0) override
-        if (distToCenter < 1500.0) {
-            const t = Math.max(0, Math.min(1, (distToCenter - 500.0) / (1500.0 - 500.0)));
-            const startH = 15.0; // Start auf 15m Höhe (synchron mit GPGPU Shader)
-            h = h * t + startH * (1 - t);
+        // 5. Täler
+        const valleyNoise = getOctaveNoise(x * 0.0006 + 1000.0, z * 0.0006 + 1000.0, 1);
+        if (valleyNoise > 0.5) {
+            const vFactor = Math.max(0, (valleyNoise - 0.5) / 0.4); // smoothstep(0.5, 0.9)
+            h -= vFactor * 800.0;
         }
 
-        // 4. Village factor should only flatten the noise, not force it to 0 height
-        // We apply it after the start point override but ensure it doesn't kill the base height
-        const baseH = (distToCenter < 1500.0) ? 15.0 : 0.0;
-        return baseH + (h - baseH) * villageFactor;
+        return h * villageFactor;
     }
 
     function getBiomeData(x, z, h) {
@@ -2524,7 +2521,7 @@
 
             const gpuH = getGPUHeight(x, z);
             const h = getRaycastHeight(x, z, gpuH);
-            if (h < 5.0 || h > 200.0) continue;
+            // if (h < 5.0 || h > 200.0) continue; // Entfernt für Debugging: Alles spawnen
             
             // OFFSET FIX: Leicht in den Boden stecken (-0.05)
             dummy.position.set(x, h - 0.05, z);
