@@ -29,6 +29,9 @@
         time: { value: 0 }
     };
 
+    const GPU_WORLD_SIZE = 10000; // Erhöht auf 10km x 10km (100km²) für die 86km² Anforderung
+    const GPU_TERRAIN_SIZE = 1024; // Texturauflösung der Heightmap (1024x1024)
+
     // NEU: Persistente Uniforms für das Terrain-System (verhindert Start-Up Lag/Fehler)
     const terrainUniforms = {
         heightMap: { value: null },
@@ -231,9 +234,6 @@
     }
     
     // --- GPGPU TERRAIN SETTINGS ---
-    const GPU_TERRAIN_SIZE = 512; 
-    const GPU_WORLD_SIZE = 10000; // Erhöht auf 10km x 10km (100km²) für die 86km² Anforderung
-    
     // Zentraler GPGPU-Daten-Container (Kommunikations-Layer)
     const GPGPU_Container = {
         heightTexture: null,
