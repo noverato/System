@@ -621,8 +621,8 @@
                 vec3 texDesert = texture2D(desertTex, wUV * 0.8).rgb;
                 
                 // Normale und Slope berechnen
-                vec3 normal = normalize(cross(dFdx(vWorldPos), dFdy(vWorldPos)));
-                float slope = 1.0 - normal.y;
+                vec3 slopeNormal = normalize(cross(dFdx(vWorldPos), dFdy(vWorldPos)));
+                float slope = 1.0 - slopeNormal.y;
                 
                 // BIOM-VERTEILUNG (Noise-basiert)
                 float humNoise = noise(vWorldPos.xz * 0.0004 + vec2(100.0));
