@@ -1033,9 +1033,11 @@
             gridX = Math.round(currentPos.x / GRID);
             gridY = Math.round(currentPos.z / GRID);
         } else {
-            gridX = 0; gridY = 0;
-            currentPos.x = targetPos.x = 0;
-            currentPos.z = targetPos.z = 0;
+            // Standard-Startpunkt bei -31, -1183 (Plateau in Graphics)
+            gridX = Math.round(-31 / GRID); 
+            gridY = Math.round(-1183 / GRID);
+            currentPos.x = targetPos.x = -31.0;
+            currentPos.z = targetPos.z = -1183.0;
         }
 
         currentPos.y = targetPos.y = 40.0; // Startet weit oberhalb, um auf das Mesh zu fallen
@@ -1342,7 +1344,9 @@
             }
         
         // COLLISION FIX: Spieler MUSS ÜBER dem Boden bleiben
-        const finalGroundH = Math.max(groundH, -250.0); // Abgleich mit GPGPU-Min-Height
+        // Wir setzen die minimale Höhe auf -250 (GPGPU Untergrenze)
+        // Aber im Dorf/Startplateau sollte groundH 0 sein.
+        const finalGroundH = Math.max(groundH, -250.0);
 
         // Radikaler Fix: Wenn die Position unter der Bodenhöhe liegt, sofort nach oben setzen
         if (targetPos.y < finalGroundH) { 
@@ -1351,6 +1355,11 @@
             isGrounded = true;
         } else if (targetPos.y > finalGroundH + 0.1) {
             isGrounded = false;
+        }
+
+        // --- POSITIONSMELDUNG FÜR DEBUGGING ---
+        if (Date.now() % 1000 < 50) {
+            // console.log(`[Physics] pos: ${targetPos.y.toFixed(2)}, ground: ${finalGroundH.toFixed(2)}, diff: ${(targetPos.y - finalGroundH).toFixed(2)}`);
         }
     } else {
         targetPos.y = 0;

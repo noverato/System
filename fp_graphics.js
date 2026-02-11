@@ -350,13 +350,13 @@
                 h = mix(h, -150.0, depthFactor);
             }
             
-            // 6. STARTPUNKT (Erhöht & Sicher bei X: -31, Z: -1183)
-            // Wir machen den Bereich um den Startpunkt zu einer sicheren Hochebene
+            // 6. STARTPUNKT (Sicher bei X: -31, Z: -1183)
+            // Wir machen den Bereich um den Startpunkt zu einer absolut flachen Ebene bei Y=0
             vec2 startPos = vec2(-31.0, -1183.0);
             float distToStart = length(pos - startPos);
             if (distToStart < 1500.0) {
                 float startFactor = smoothstep(500.0, 1500.0, distToStart);
-                h = mix(25.0, h, startFactor); 
+                h = mix(0.0, h, startFactor); // Plateau auf 0.0 fixiert
             }
 
             // Dorf-Positionen (Grob-Check im Shader)
