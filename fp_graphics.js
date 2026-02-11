@@ -385,7 +385,7 @@
             float distToStart = length(pos - startPos);
             if (distToStart < 1500.0) {
                 float startFactor = smoothstep(500.0, 1500.0, distToStart);
-                h = mix(10.0, h, startFactor); // Plateau auf 10.0m erhöht
+                h = mix(15.0, h, startFactor); // Plateau auf 15.0m erhöht (Nutzerwunsch: Mesh anheben)
             }
 
             // Dorf-Positionen (Grob-Check im Shader)
@@ -1362,7 +1362,7 @@
         // 1. Startpunkt (0,0) Plateau - Synchron mit Shader
         if (distToStart < 1500.0) {
             const startFactor = smoothstep(500.0, 1500.0, distToStart);
-            h = 10.0 * (1.0 - startFactor) + h * startFactor;
+            h = 15.0 * (1.0 - startFactor) + h * startFactor; // Plateau auf 15.0m erhöht
         }
 
         // 2. Dorf-Bereiche - Synchron mit Shader

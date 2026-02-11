@@ -364,9 +364,9 @@
                 ? FPGraphics.getRaycastHeight(ax, az, 15)
                 : (window.FPGraphics ? FPGraphics.getGPUHeight(ax, az) : 15);
             
-            avatar.position.y = h + 4;
-            targetPos.y = h + 4;
-            currentPos.y = h + 4;
+            avatar.position.y = h + 0.5;
+            targetPos.y = h + 0.5;
+            currentPos.y = h + 0.5;
             groundValidated = true;
             eiActive = true;
             console.log("🥚 Ei-Position validiert auf Höhe:", h, "an X:", ax, "Z:", az);
@@ -1002,8 +1002,8 @@
             sprite.scale.set(8, 8, 1);
             // VISUELLER FIX: Das Sprite muss vertikal verschoben werden, 
             // damit der "Boden" des Sprites (die Füße des Eis) auf dem Pivot-Punkt liegen.
-            // Da das Sprite 8 Einheiten hoch ist, schieben wir es um +8 nach oben (Vollständig über Pivot)
-            sprite.position.y = 8;
+            // Da das Sprite 8 Einheiten hoch ist, schieben wir es um +4 nach oben (Vollständig über Pivot)
+            sprite.position.y = 4;
             
             avatar = new THREE.Group();
             window.avatar = avatar;
@@ -1372,10 +1372,9 @@
         
         // COLLISION FIX: Spieler MUSS ÜBER dem Boden bleiben
         // Wir setzen die minimale Höhe auf -250 (GPGPU Untergrenze)
-        // Aber im Dorf/Startplateau sollte groundH 0 sein.
-        // VISUELLER FIX: Wir setzen groundH massiv höher (+3.5), damit das Ei-Sprite sicher auf dem Mesh steht
-        // Ein T-Modell (oder Sprite) braucht diesen Puffer, um nicht "einzusinken"
-        const finalGroundH = Math.max(groundH + 3.5, -250.0);
+        // Aber im Dorf/Startplateau sollte groundH 15 sein.
+        // VISUELLER FIX: Wir setzen groundH minimal höher (+0.5), damit das Ei-Sprite sicher auf dem Mesh steht
+        const finalGroundH = Math.max(groundH + 0.5, -250.0);
 
         // Radikaler Fix: Wenn die Position unter der Bodenhöhe liegt, sofort nach oben setzen
         if (targetPos.y < finalGroundH) { 
