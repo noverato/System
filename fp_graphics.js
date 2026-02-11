@@ -472,8 +472,17 @@
         
         clipmapMesh = new THREE.Mesh(geo, clipmapMaterial);
         clipmapMesh.rotation.x = -Math.PI / 2;
+        clipmapMesh.position.y = 0; // Fix: Bodenhöhe auf 0 festgesetzt
         clipmapMesh.receiveShadow = true;
-        clipmapMesh.frustumCulled = false; // Wichtig, da Displacement außerhalb der Bounding Box sein kann
+        clipmapMesh.frustumCulled = false; 
+
+        // DEBUG: Physics-Wireframe (Trimesh-Ersatz)
+        // Setze true, um die physikalische Form des Geländes zu sehen
+        const debugPhysics = true; 
+        if (debugPhysics) {
+            clipmapMaterial.wireframe = true;
+            console.log("🛠️ Physics Debug aktiviert: Terrain-Wireframe sichtbar.");
+        }
         clipmapGroup.add(clipmapMesh);
 
         // Texturen laden (Nutze AssetsLibrary für korrekte Pfade)
