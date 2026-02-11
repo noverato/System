@@ -1242,19 +1242,26 @@
             return false;
         }
 
-        // --- CLIPMAP KOLLISION (Wasser/Berge/Steigung) ---
-        if (window.FPGraphics) {
-            const h = FPGraphics.getGPUHeight(nx, nz);
-            
-            // Steile Wände (Slope-Check): Wenn der Boden am Zielpunkt deutlich höher ist als die aktuelle Position
-            // Aber nur blockieren, wenn wir uns auf einer ähnlichen Höhe befinden (Grounded-Check)
-            // Schwellenwert auf 35.0 erhöht für flüssigere Bergwanderungen
-            // h kann 0 sein (Plateau), daher prüfen wir auf Gültigkeit statt auf !== 0
-            if (h !== null && isGrounded && (h - targetPos.y > 35.0)) return true;
-            
-            // Wasser-Kollision (Ozean) - Etwas tieferes Wasser erlauben
-            if (h !== null && h < -30.0) return true; 
+    // --- CLIPMAP KOLLISION (Wasser/Berge/Steigung) ---
+    if (window.FPGraphics) {
+        const h = FPGraphics.getGPUHeight(nx, nz);
+        
+        // --- EMERGENCY FIX: COLLISION OVERRIDE ---
+        // Wenn wir extrem tief im Boden stecken, erlauben wir Bewegung, um herauszukommen
+        if (targetPos.y < -240) return false;
+
+        // Steile Wände (Slope-Check)
+        if (h !== null && isGrounded && (h - targetPos.y > 35.0)) {
+            console.log("[Collision] Blockiert durch Steigung:", h - targetPos.y);
+            return true;
         }
+        
+        // Wasser-Kollision (Ozean)
+        if (h !== null && h < -30.0) {
+             console.log("[Collision] Blockiert durch Wasser:", h);
+             return true; 
+        }
+    }
 
         // Kollision mit Gebäuden (Exterior)
 
@@ -1398,10 +1405,10 @@
     // Geschwindigkeit: MOVE_SPEED (0.22) * delta * speedMult (GRID entfernt für korrekte Skalierung)
     const speed = MOVE_SPEED * delta * speedMult;
     
-    if (keys['w']) { nextX += forwardVector.x * speed; nextZ += forwardVector.z * speed; moved = true; }
-    if (keys['s']) { nextX -= forwardVector.x * speed; nextZ -= forwardVector.z * speed; moved = true; }
-    if (keys['a']) { nextX -= rightVector.x * speed; nextZ -= rightVector.z * speed; moved = true; }
-    if (keys['d']) { nextX += rightVector.x * speed; nextZ += rightVector.z * speed; moved = true; }
+    if (keys['w'] || keys['W']) { nextX += forwardVector.x * speed; nextZ += forwardVector.z * speed; moved = true; }
+    if (keys['s'] || keys['S']) { nextX -= forwardVector.x * speed; nextZ -= forwardVector.z * speed; moved = true; }
+    if (keys['a'] || keys['A']) { nextX -= rightVector.x * speed; nextZ -= rightVector.z * speed; moved = true; }
+    if (keys['d'] || keys['D']) { nextX += rightVector.x * speed; nextZ += rightVector.z * speed; moved = true; }
 
     // --- DUCKEN-EFFEKT (Kamera-Höhe) ---
     // Wir ändern nicht targetPos.y (den Boden-Punkt), sondern das Offset der Kamera
@@ -1411,18 +1418,23 @@
     }
     window._cameraHeightOffset = cameraHeightOffset;
 
-        if (moved) {
-            if (!checkCollision(nextX, nextZ)) { 
-                targetPos.x = nextX;
-                targetPos.z = nextZ;
-                if (Date.now() - lastStepAt > STEP_MS) {
-                    gridX = Math.round(targetPos.x / GRID);
-                    gridY = Math.round(targetPos.z / GRID);
-                    saveStep();
-                    lastStepAt = Date.now();
+            // --- EMERGENCY FIX: POINTER LOCK VALIDATION ---
+            // Wir stellen sicher, dass die Bewegung auch ohne Pointer Lock funktioniert, 
+            // falls das System den Fokus verliert, aber die Tasten gedrückt werden.
+            if (moved) {
+                if (!checkCollision(nextX, nextZ)) { 
+                    targetPos.x = nextX;
+                    targetPos.z = nextZ;
+                    if (Date.now() - lastStepAt > STEP_MS) {
+                        gridX = Math.round(targetPos.x / GRID);
+                        gridY = Math.round(targetPos.z / GRID);
+                        saveStep();
+                        lastStepAt = Date.now();
+                    }
+                } else {
+                    // console.log("[Movement] Kollision verhindert Bewegung zu:", nextX, nextZ);
                 }
             }
-        }
 
         // --- KAMERA AKTUALISIEREN ---
         // Dies berechnet die aktuelle geglättete currentPos
