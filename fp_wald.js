@@ -1346,7 +1346,8 @@
         // COLLISION FIX: Spieler MUSS ÜBER dem Boden bleiben
         // Wir setzen die minimale Höhe auf -250 (GPGPU Untergrenze)
         // Aber im Dorf/Startplateau sollte groundH 0 sein.
-        const finalGroundH = Math.max(groundH, -250.0);
+        // VISUELLER FIX: Wir setzen groundH leicht höher (+0.2), damit das Ei nicht im Mesh versinkt
+        const finalGroundH = Math.max(groundH + 0.2, -250.0);
 
         // Radikaler Fix: Wenn die Position unter der Bodenhöhe liegt, sofort nach oben setzen
         if (targetPos.y < finalGroundH) { 
@@ -1561,8 +1562,8 @@
         if (avatar) {
             // Avatar (Lila Ei) Positionierung
             // px, py, pz ist die Spielerposition (Bodenhöhe)
-            // Wir setzen das Ei direkt auf py, damit es nicht schwebt und nicht im Boden steckt
-            avatar.position.set(px, py, pz);
+            // Wir setzen das Ei leicht über py (+0.5), damit es sicher über dem Boden-Mesh schwebt
+            avatar.position.set(px, py + 0.5, pz);
             avatar.rotation.y = heading;
         }
         if (avatarNameTag) {
