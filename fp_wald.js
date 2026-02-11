@@ -1327,12 +1327,12 @@
             targetPos.y += velocityY * delta;
             
             // PHYSIK: Nutze die reale Terrain-Höhe (Hybrid: Raycast für Präzision im Nahbereich, GPGPU als Fallback)
-            let groundH = targetPos.y; // Standard: Aktuelle Höhe halten (Sicherheits-Lock)
+            // WICHTIG: Das Clipmap-Mesh ist der einzige Boden.
+            let groundH = targetPos.y; 
             if (window.FPGraphics) {
                 const gpuH = FPGraphics.getGPUHeight(targetPos.x, targetPos.z);
                 
-                // Wir nutzen die GPU-Höhe nur, wenn sie nicht 0 ist 
-                // ODER wenn wir uns wirklich im Zentrum (0,0) befinden.
+                // Wir nutzen die GPU-Höhe direkt vom Mesh/GPGPU
                 if (gpuH !== 0 || (Math.abs(targetPos.x) < 10 && Math.abs(targetPos.z) < 10)) {
                     groundH = (typeof FPGraphics.getRaycastHeight === 'function') 
                         ? FPGraphics.getRaycastHeight(targetPos.x, targetPos.z, gpuH)

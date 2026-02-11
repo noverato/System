@@ -2332,16 +2332,7 @@
 
         console.log("[FPGraphics] Biome gefunden:", Object.keys(env.biomes));
 
-        // Große Basis-Ebene für den Hintergrund (verhindert das "blaue Nichts")
-        // const baseGeo = new THREE.PlaneGeometry(5000, 5000);
-        // const baseMat = new THREE.MeshStandardMaterial({ 
-        //     color: 0x3d4f35, // Dunkles Grün/Erde
-        //     roughness: 1.0,
-        //     metalness: 0.0
-        // });
-        // const basePlane = new THREE.Mesh(baseGeo, baseMat);
-        // basePlane.rotation.x = -Math.PI / 2;
-        // basePlane.position.y = -5; // Tief genug unter dem eigentlichen Terrain
+        // Große Basis-Ebene für den Hintergrund ENTFERNT (User-Wunsch: Nur Mesh als Boden)
         // scene.add(basePlane);
 
         // // initMountains(scene); // Deaktiviert für nackte Map-Struktur Test // Entfernt, da Berge jetzt Teil des Terrains sind
