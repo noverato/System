@@ -354,17 +354,22 @@
         // --- EI HEIGHT VALIDATION (Spawn Fix) ---
         if (!groundValidated) {
             console.log("[FPWald] Starte initiale Höhen-Validierung...");
+            
+            // Avatar-Position anpassen
+            const ax = avatar.position.x;
+            const az = avatar.position.z;
+            
             // Wir nutzen getRaycastHeight für maximale Präzision am Startpunkt
             const h = (window.FPGraphics && typeof FPGraphics.getRaycastHeight === 'function') 
-                ? FPGraphics.getRaycastHeight(avatar.position.x, avatar.position.z, 15)
-                : (window.FPGraphics ? FPGraphics.getGPUHeight(avatar.position.x, avatar.position.z) : 15);
+                ? FPGraphics.getRaycastHeight(ax, az, 15)
+                : (window.FPGraphics ? FPGraphics.getGPUHeight(ax, az) : 15);
             
             avatar.position.y = h + 4;
             targetPos.y = h + 4;
             currentPos.y = h + 4;
             groundValidated = true;
             eiActive = true;
-            console.log("🥚 Ei-Position validiert auf Höhe:", h);
+            console.log("🥚 Ei-Position validiert auf Höhe:", h, "an X:", ax, "Z:", az);
         }
         // ----------------------------------------
 
@@ -410,8 +415,11 @@
                 m.position.z += vz;
             }
 
-            // Höhe anpassen (An das Terrain binden)
-            const groundH = (window.FPGraphics ? FPGraphics.getGPUHeight(m.position.x, m.position.z) : 0);
+            // Höhe anpassen (An das Terrain binden via Raycast für Präzision)
+            const gpuH = (window.FPGraphics ? FPGraphics.getGPUHeight(m.position.x, m.position.z) : 0);
+            const groundH = (window.FPGraphics && typeof FPGraphics.getRaycastHeight === 'function')
+                ? FPGraphics.getRaycastHeight(m.position.x, m.position.z, gpuH)
+                : gpuH;
             m.position.y = groundH + 4;
 
             // Kampf-Trigger bei Berührung
@@ -1303,8 +1311,15 @@
             velocityY += GRAVITY * delta;
             targetPos.y += velocityY * delta;
             
-            // PHYSIK: Nutze die reale Terrain-Höhe (GPGPU)
-            let groundH = (window.FPGraphics ? FPGraphics.getGPUHeight(targetPos.x, targetPos.z) : 0);
+            // PHYSIK: Nutze die reale Terrain-Höhe (Hybrid: Raycast für Präzision im Nahbereich, GPGPU als Fallback)
+            let groundH = 0;
+            if (window.FPGraphics) {
+                const gpuH = FPGraphics.getGPUHeight(targetPos.x, targetPos.z);
+                // Raycasting nur für das Avatar-Anchoring nutzen, wenn wir uns auf dem Terrain befinden
+                groundH = (typeof FPGraphics.getRaycastHeight === 'function') 
+                    ? FPGraphics.getRaycastHeight(targetPos.x, targetPos.z, gpuH)
+                    : gpuH;
+            }
             
             // --- INTERIOR-KOLLISION VALIDIERUNG ---
             // Raycasting nur noch für Gebäude/Innenräume, da Terrain über GPGPU präziser ist

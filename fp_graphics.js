@@ -115,29 +115,42 @@
                     uniform float lodDist;
                     uniform float maxDist;
                     varying float vDist;
+                    varying float vWind;
                     varying vec2 vUV;
                 ` + shader.vertexShader;
 
-                // Wind-Animation für 3D-Gras
-                if (is3D) {
-                    shader.vertexShader = shader.vertexShader.replace(
-                        '#include <begin_vertex>',
-                        `
-                        #include <begin_vertex>
-                        // Wind-Animation (Vertex Displacement)
-                        // Nutze die Instanz-Position für koordinierte Wellenbewegung
-                        float windStrength = 0.4;
-                        float windSpeed = 2.5;
-                        
-                        // Wir holen uns die Welt-Position der Instanz aus der instanceMatrix
-                        vec3 wPos = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
-                        
-                        float wave = sin(time * windSpeed + wPos.x * 0.1 + wPos.z * 0.1) * (position.y * 0.3);
-                        transformed.x += wave * windStrength;
-                        transformed.z += wave * windStrength * 0.5;
-                        `
-                    );
-                }
+                shader.vertexShader = shader.vertexShader.replace(
+                    '#include <begin_vertex>',
+                    `
+                    #include <begin_vertex>
+                    
+                    // Wind-Logik (Vertex Displacement)
+                    float windScale = 0.05;
+                    float windSpeed = 1.5;
+                    
+                    // Weltposition berechnen (unterstützt InstancedMesh)
+                    vec4 worldPos = modelMatrix * instanceMatrix * vec4(position, 1.0);
+                    
+                    // Nur die Spitzen des Grases bewegen (y > 0.1)
+                    float strength = pow(clamp(uv.y, 0.0, 1.0), 2.0) * (is3D ? 1.5 : 4.0);
+                    
+                    // Sinus-Wellen für Wind (Kombiniert für organisches Gefühl)
+                    float wind = sin(worldPos.x * windScale + time * windSpeed) * 
+                                 cos(worldPos.z * windScale * 0.8 + time * windSpeed * 1.2) +
+                                 sin(worldPos.x * 0.1 + time * 3.0) * 0.2; // Schnellere, kleine Böen
+                    
+                    // Spieler-Interaktion (Biegen wenn Spieler nah ist)
+                    float distToPlayer = length(worldPos.xz - playerPos);
+                    float bend = smoothstep(6.0, 0.0, distToPlayer) * 3.0; // Etwas stärkerer Effekt
+                    
+                    // Biegerichtung vom Spieler weg
+                    vec2 dir = normalize(worldPos.xz - playerPos + 0.001);
+                    transformed.x += (wind * strength) + (dir.x * bend * strength);
+                    transformed.z += (wind * strength * 0.5) + (dir.y * bend * strength);
+                    
+                    vWind = wind;
+                    `
+                );
 
                 shader.vertexShader = shader.vertexShader.replace(
                     '#include <worldpos_vertex>',
@@ -165,6 +178,7 @@
                     uniform float lodDist;
                     uniform float maxDist;
                     varying float vDist;
+                    varying float vWind;
                     varying vec2 vUV;
                 ` + shader.fragmentShader;
 
@@ -1968,14 +1982,21 @@
     function getRaycastHeight(x, z, fallbackHeight) {
         if (!clipmapMesh) return fallbackHeight;
         
-        rayOrigin.set(x, 2000, z); // Starte über dem höchsten Berg
+        // Strahl von weit oben nach unten schießen
+        rayOrigin.set(x, 2000, z); 
         decorationRaycaster.set(rayOrigin, rayDir);
+        
+        // Matrix-Update erzwingen für präzises Raycasting
+        clipmapMesh.updateMatrixWorld();
         
         const intersects = decorationRaycaster.intersectObject(clipmapMesh);
         if (intersects.length > 0) {
+            // console.log("[FPGraphics] Raycast Hit at:", intersects[0].point.y, "for X:", x, "Z:", z);
             return intersects[0].point.y;
         }
-        return fallbackHeight;
+        
+        // Falls kein Hit, GPU Height als Fallback
+        return getGPUHeight(x, z) || fallbackHeight;
     }
 
     async function spawnDecorationsInCell(cx, cz, group) {
@@ -2367,6 +2388,7 @@
             const x = (cx + rng()) * DECORATION_CELL_SIZE;
             const z = (cz + rng()) * DECORATION_CELL_SIZE;
             
+            // WICHTIG: RaycastHeight für präzise Platzierung auf dem Clipmap-Terrain
             const h = getRaycastHeight(x, z, getGPUHeight(x, z));
             if (h < 5.0 || h > 300.0) continue; // Nur in moderaten Höhen spawnen
             
@@ -2375,7 +2397,12 @@
             tree.position.set(x, h, z);
             
             // AOI Check: Dormant state falls zu weit weg
-            applyWorldCulling(tree.material);
+            // Jedes Material des Baums einzeln cullen
+            tree.traverse(child => {
+                if (child.isMesh) {
+                    applyWorldCulling(child.material);
+                }
+            });
             
             group.add(tree);
         }
@@ -2639,7 +2666,7 @@
     /**
      * Platzhalter für Regen-Update.
      */
-    function updateRain(avatar) {
+    function updateRain(delta, now) {
         // console.log("[FPGraphics] updateRain (Placeholder)");
     }
 
@@ -2722,7 +2749,9 @@
                 const dist = Math.hypot(b.position.x - playerPos.x, b.position.z - playerPos.z);
                 if (dist < 100) { // Nur im Nahbereich für Performance
                     const h = getRaycastHeight(b.userData.seedX || b.position.x, b.userData.seedZ || b.position.z, b.position.y);
+                    // Wir setzen y auf h, aber lassen eine winzige Toleranz gegen Z-Fighting
                     b.position.y = h;
+                    b.updateMatrixWorld();
                 }
             });
         }
@@ -2736,6 +2765,7 @@
         },
         updateClipmap,
         updateRain,
+        applyGrassShader,
         updateRiver,
         updateFire,
         enterHouse,
