@@ -9,18 +9,18 @@
         trunk: 0x3d2b1f
     };
 
-    const CLIPMAP_RADIUS = 2000; // Größere Sichtweite für 8000x8000 Map
+    const CLIPMAP_RADIUS = 4000; // Erhöht auf 4000 für User-Anforderung (4km Radius)
     const AOI_RADIUS = 15;      // Aktiver Simulationsradius (Bubble) - Auf 15m gesetzt
     const DORMANT_RADIUS = 20;  // Radius, ab dem Assets komplett einfrieren
     const GRASS_LOD_DIST = 15;  // Grenze zwischen 3D und 2D Gras
-    const GRASS_MAX_DIST = 1500; // Maximale Sichtweite für 2D Gras
+    const GRASS_MAX_DIST = 4000; // Maximale Sichtweite für 2D Gras (Synchronisiert mit Clipmap)
     const GRASS_PNG_PATH = 'https://raw.githubusercontent.com/noverato/System/main/animation/baeume/Grass_large.png';
     const CLIPMAP_SEGMENTS = 128; // Reduziert für Stabilität
     
-    const DECORATION_CELL_SIZE = 256; 
-    const DECORATION_RANGE = 4; 
-    const GRASS_CELL_SIZE = 64;   // Kleinere Zellen für Gras-Chunks (feineres Culling)
-    const GRASS_RANGE = 6;        // Radius der geladenen Gras-Zellen
+    const DECORATION_CELL_SIZE = 512; // Größere Zellen für 4km Radius Performance
+    const DECORATION_RANGE = 8;       // Erhöhter Range (8 * 512 = 4096m)
+    const GRASS_CELL_SIZE = 128;      // Größere Zellen für Gras-Chunks
+    const GRASS_RANGE = 32;           // Erhöhter Range (32 * 128 = 4096m)
 
     // Globale Uniforms für das Culling-System (Bubble-Prinzip / Glocke)
     const worldCullingUniforms = {
@@ -209,12 +209,56 @@
     const GPU_TERRAIN_SIZE = 512; 
     const GPU_WORLD_SIZE = 10000; // Erhöht auf 10km x 10km (100km²) für die 86km² Anforderung
     
-    // --- LOD SETTINGS entfernt für Clipmap ---
+    // Zentraler GPGPU-Daten-Container (Kommunikations-Layer)
+    const GPGPU_Container = {
+        heightTexture: null,
+        heightData: new Float32Array(GPU_TERRAIN_SIZE * GPU_TERRAIN_SIZE * 4),
+        lastUpdate: 0,
+        updateThreshold: 100, // Update alle 100ms für CPU-Daten
+        
+        getHeight: function(x, z) {
+            // Weltkoordinaten in Texture-UV umrechnen
+            const u = (x + GPU_WORLD_SIZE / 2) / GPU_WORLD_SIZE;
+            const v = (z + GPU_WORLD_SIZE / 2) / GPU_WORLD_SIZE;
+            
+            if (u < 0 || u > 1 || v < 0 || v > 1) return 0;
+            
+            const tx = Math.floor(u * (GPU_TERRAIN_SIZE - 1));
+            const ty = Math.floor(v * (GPU_TERRAIN_SIZE - 1));
+            const idx = (ty * GPU_TERRAIN_SIZE + tx) * 4;
+            
+            return this.heightData[idx];
+        },
+        
+        // Bilineare Filterung für glatte Übergänge (Hügel-Validierung)
+        getSmoothHeight: function(x, z) {
+            const u = (x + GPU_WORLD_SIZE / 2) / GPU_WORLD_SIZE * (GPU_TERRAIN_SIZE - 1);
+            const v = (z + GPU_WORLD_SIZE / 2) / GPU_WORLD_SIZE * (GPU_TERRAIN_SIZE - 1);
+            
+            const x0 = Math.floor(u);
+            const x1 = Math.min(x0 + 1, GPU_TERRAIN_SIZE - 1);
+            const y0 = Math.floor(v);
+            const y1 = Math.min(y0 + 1, GPU_TERRAIN_SIZE - 1);
+            
+            const fX = u - x0;
+            const fY = v - y0;
+            
+            const h00 = this.heightData[(y0 * GPU_TERRAIN_SIZE + x0) * 4];
+            const h10 = this.heightData[(y0 * GPU_TERRAIN_SIZE + x1) * 4];
+            const h01 = this.heightData[(y1 * GPU_TERRAIN_SIZE + x0) * 4];
+            const h11 = this.heightData[(y1 * GPU_TERRAIN_SIZE + x1) * 4];
+            
+            const h0 = h00 * (1 - fX) + h10 * fX;
+            const h1 = h01 * (1 - fX) + h11 * fX;
+            
+            return h0 * (1 - fY) + h1 * fY;
+        }
+    };
     
     let gpuCompute;
     let heightVariable;
     let smoothVariable;
-    let gpuHeightData = new Float32Array(GPU_TERRAIN_SIZE * GPU_TERRAIN_SIZE * 4);
+    // let gpuHeightData = new Float32Array(GPU_TERRAIN_SIZE * GPU_TERRAIN_SIZE * 4); // Entfernt, jetzt in GPGPU_Container
     
     let clipmapMesh;
     let clipmapMaterial;
@@ -604,12 +648,12 @@
             transparent: true,
             opacity: 0.6,
         });
-        const water = new THREE.Mesh(waterGeo, waterMat);
-        water.rotation.x = -Math.PI / 2;
-        water.position.y = 2.0;
-        water.layers.enable(0);
-        water.layers.enable(2); // Wasser-Layer
-        scene.add(water);
+        globalWater = new THREE.Mesh(waterGeo, waterMat);
+        globalWater.rotation.x = -Math.PI / 2;
+        globalWater.position.y = 2.0;
+        globalWater.layers.enable(0);
+        globalWater.layers.enable(2); // Wasser-Layer
+        scene.add(globalWater);
     }
 
     /**
@@ -786,48 +830,14 @@
     }
     
     function getGPUHeight(x, z, noFallback = false) {
-        if (!gpuCompute || !heightVariable || !heightVariable.material) {
-            if (noFallback) return null;
-            return getCPUHeight(x, z);
-        }
-        
-        const ox = heightVariable.material.uniforms.offset.value.x;
-        const oz = heightVariable.material.uniforms.offset.value.y;
-        
-        // Relative Position in UV umrechnen (0 bis 1)
-        const u = (x - ox) / GPU_WORLD_SIZE;
-        const v = (z - oz) / GPU_WORLD_SIZE;
-        
-        if (u < 0 || u > 1 || v < 0 || v > 1) {
+        if (!gpuCompute || !GPGPU_Container.heightData || GPGPU_Container.heightData.length === 0) {
             return noFallback ? null : getCPUHeight(x, z);
         }
-
-        // Bilineare Interpolation für glatteres Terrain
-        const fx = u * (GPU_TERRAIN_SIZE - 1);
-        const fz = v * (GPU_TERRAIN_SIZE - 1);
-        const ix = Math.floor(fx);
-        const iz = Math.floor(fz);
-        const tx = fx - ix;
-        const tz = fz - iz;
-
-        const getH = (x, z) => {
-            const idx = (z * GPU_TERRAIN_SIZE + x) * 4;
-            return gpuHeightData[idx];
-        };
-
-        const h00 = getH(ix, iz);
-        const h10 = getH(Math.min(ix + 1, GPU_TERRAIN_SIZE - 1), iz);
-        const h01 = getH(ix, Math.min(iz + 1, GPU_TERRAIN_SIZE - 1));
-        const h11 = getH(Math.min(ix + 1, GPU_TERRAIN_SIZE - 1), Math.min(iz + 1, GPU_TERRAIN_SIZE - 1));
-
-        const h = (h00 * (1 - tx) + h10 * tx) * (1 - tz) +
-                  (h01 * (1 - tx) + h11 * tx) * tz;
         
-        // Fallback wenn GPGPU noch keine Daten hat oder noch initialisiert
+        const h = GPGPU_Container.getSmoothHeight(x, z);
+        
         // h === 0 ist am Anfang oft ein Zeichen für "noch nicht bereit"
         if (h === 0) {
-            // Wenn wir am Startpunkt (0,0) sind, wissen wir, dass die Höhe eigentlich ~15 sein sollte.
-            // Wenn wir 0 erhalten, ist die GPGPU also noch nicht bereit.
             if (noFallback) return null;
             return getCPUHeight(x, z);
         }
@@ -1262,7 +1272,7 @@
     function getTerrainHeight(x, z) {
         // --- GPGPU SAMPLING BEVORZUGT ---
         // Wenn GPGPU-Daten vorhanden sind, nutzen wir diese für 100% Übereinstimmung mit dem Mesh
-        if (gpuCompute && gpuHeightData && gpuHeightData.length > 0) {
+        if (gpuCompute && GPGPU_Container.heightData && GPGPU_Container.heightData.length > 0) {
             const gh = getGPUHeight(x, z, true); // true = noFallback
             if (gh !== null) return gh;
         }
@@ -2345,9 +2355,14 @@
     // --- DEKORATIONSSYSTEM (Bäume, Felsen, Gras) ---
     const decorationGrids = new Map(); // Map<string, Group>
     const grassGrids = new Map();       // Map<string, Group>
+    let lastUpdatePos = new THREE.Vector2(Infinity, Infinity);
 
     function updateDecorations(playerPos) {
         if (!mainScene) return;
+        
+        // Optimierung: Nur updaten wenn Spieler sich mehr als 10m bewegt hat
+        if (lastUpdatePos.distanceTo(new THREE.Vector2(playerPos.x, playerPos.z)) < 10) return;
+        lastUpdatePos.set(playerPos.x, playerPos.z);
         
         const cellX = Math.floor(playerPos.x / DECORATION_CELL_SIZE);
         const cellZ = Math.floor(playerPos.z / DECORATION_CELL_SIZE);
@@ -2357,7 +2372,7 @@
             for (let z = cellZ - DECORATION_RANGE; z <= cellZ + DECORATION_RANGE; z++) {
                 const key = `${x}_${z}`;
                 if (!decorationGrids.has(key)) {
-                    const group = createDecorationCell(x, z);
+                    const group = createDecorationCell(x, z, playerPos);
                     decorationGrids.set(key, group);
                     mainScene.add(group);
                 }
@@ -2382,7 +2397,7 @@
             for (let z = gCellZ - GRASS_RANGE; z <= gCellZ + GRASS_RANGE; z++) {
                 const key = `${x}_${z}`;
                 if (!grassGrids.has(key)) {
-                    const group = createGrassCell(x, z);
+                    const group = createGrassCell(x, z, playerPos);
                     grassGrids.set(key, group);
                     mainScene.add(group);
                 }
@@ -2430,13 +2445,13 @@
         return group;
     }
 
-    function createGrassCell(cx, cz) {
+    function createGrassCell(cx, cz, playerPos) {
         const group = new THREE.Group();
         const seed = cx * 999 + cz * 123;
         const rng = rndSeed(seed);
         
         // 1. 3D GRAS (Nahbereich)
-        const count3D = 40;
+        const count3D = 60; // Erhöht für bessere Dichte bei größeren Zellen
         const grassGeo = new THREE.PlaneGeometry(1, 1);
         grassGeo.translate(0, 0.5, 0); // Ursprung an die Basis setzen
         const grassMat3D = new THREE.MeshBasicMaterial({ color: 0x44aa44, side: THREE.DoubleSide, alphaTest: 0.5 });
@@ -2450,6 +2465,12 @@
         for (let i = 0; i < count3D; i++) {
             const x = (cx + rng()) * GRASS_CELL_SIZE;
             const z = (cz + rng()) * GRASS_CELL_SIZE;
+            
+            // Nur 3D Gras in unmittelbarer Nähe des Spielers spawnen (Performance)
+            // Dies ist ein pre-check, der Shader macht das finale Culling
+            const dist = Math.hypot(x - playerPos.x, z - playerPos.z);
+            if (dist > GRASS_LOD_DIST * 2.0) continue; 
+
             const h = getRaycastHeight(x, z, getGPUHeight(x, z));
             if (h < 5.0 || h > 200.0) continue;
             
@@ -2463,7 +2484,7 @@
         
         // 2. 2D GRAS (Fernbereich - Xenoblade Style Cross-Planes)
         // Nutzt Sprite-Textur auf gekreuzten Planes für Volumen aus jeder Sicht
-        const count2D = 15;
+        const count2D = 25; // Erhöht für bessere Fernwirkung
         const grassTex2D = new THREE.TextureLoader().load(GRASS_PNG_PATH);
         const grassMat2D = new THREE.MeshBasicMaterial({ map: grassTex2D, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide });
         applyGrassShader(grassMat2D, false);
@@ -2760,7 +2781,8 @@
             // Initialer Render-Pass für die Heightmap
             gpuCompute.compute();
             // WICHTIG: Von smoothVariable lesen, da dies die finalen geglätteten Werte sind
-            renderer.readRenderTargetPixels(gpuCompute.getCurrentRenderTarget(smoothVariable), 0, 0, GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, gpuHeightData);
+            renderer.readRenderTargetPixels(gpuCompute.getCurrentRenderTarget(smoothVariable), 0, 0, GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, GPGPU_Container.heightData);
+            GPGPU_Container.heightTexture = gpuCompute.getCurrentRenderTarget(smoothVariable).texture;
         },
         update: (renderer, playerPos, time) => {
             if (!gpuCompute) return;
@@ -2769,10 +2791,12 @@
             heightVariable.material.uniforms.time.value = time;
             gpuCompute.compute();
             
-            // Gelegentliches Auslesen der Heightmap für CPU-Kollision (nicht jeden Frame für Performance)
-            if (Math.floor(time * 60) % 10 === 0) {
-                // WICHTIG: Von smoothVariable lesen
-                renderer.readRenderTargetPixels(gpuCompute.getCurrentRenderTarget(smoothVariable), 0, 0, GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, gpuHeightData);
+            // Gelegentliches Auslesen der Heightmap für CPU-Kollision (Container-Prinzip)
+            const now = performance.now();
+            if (now - GPGPU_Container.lastUpdate > GPGPU_Container.updateThreshold) {
+                renderer.readRenderTargetPixels(gpuCompute.getCurrentRenderTarget(smoothVariable), 0, 0, GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, GPGPU_Container.heightData);
+                GPGPU_Container.heightTexture = gpuCompute.getCurrentRenderTarget(smoothVariable).texture;
+                GPGPU_Container.lastUpdate = now;
             }
             
         // 2. Clipmap Update
@@ -2787,7 +2811,7 @@
             
             if (clipmapMaterial.userData.shader) {
                 const shader = clipmapMaterial.userData.shader;
-                if (shader.uniforms.heightMap) shader.uniforms.heightMap.value = gpuCompute.getCurrentRenderTarget(smoothVariable).texture;
+                if (GPGPU_Container.heightTexture) shader.uniforms.heightMap.value = GPGPU_Container.heightTexture;
                 if (shader.uniforms.meshOffset) shader.uniforms.meshOffset.value.set(snapX, snapZ);
                 if (shader.uniforms.playerPos) shader.uniforms.playerPos.value.set(playerPos.x, playerPos.z);
             }
@@ -2804,10 +2828,16 @@
             });
         }
             
-            // 3. Dekorationen
+            // 3. Wasser Update
+            if (globalWater) {
+                globalWater.position.x = playerPos.x;
+                globalWater.position.z = playerPos.z;
+            }
+
+            // 4. Dekorationen
             updateDecorations(playerPos);
             
-            // 4. Uniforms für Global Culling
+            // 5. Uniforms für Global Culling
             worldCullingUniforms.playerPos.value.set(playerPos.x, playerPos.z);
             worldCullingUniforms.time.value = time;
         },
