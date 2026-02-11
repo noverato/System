@@ -239,11 +239,12 @@
         heightTexture: null,
         heightData: new Float32Array(GPU_TERRAIN_SIZE * GPU_TERRAIN_SIZE * 4),
         lastUpdate: 0,
-        updateThreshold: 100, // Update alle 100ms für CPU-Daten
+        updateThreshold: 50, // Öfter updaten für bessere initiale Synchronisation
         centerPos: new THREE.Vector2(0, 0), // Das Welt-Zentrum der aktuellen Heightmap-Daten
         
         getHeight: function(x, z) {
             // Weltkoordinaten relativ zum aktuellen Zentrum umrechnen
+            // WICHTIG: Die Skalierung muss exakt zum Shader passen (worldSize)
             const u = (x - this.centerPos.x) / GPU_WORLD_SIZE + 0.5;
             const v = (z - this.centerPos.y) / GPU_WORLD_SIZE + 0.5;
             
@@ -253,7 +254,9 @@
             const ty = Math.floor(v * (GPU_TERRAIN_SIZE - 1));
             const idx = (ty * GPU_TERRAIN_SIZE + tx) * 4;
             
-            return this.heightData[idx];
+            // Debug: Falls h exakt 0 ist am Start, könnte es ein noch nicht geladener Buffer sein
+            const h = this.heightData[idx];
+            return h;
         },
         
         // Bilineare Filterung für glatte Übergänge (Hügel-Validierung)
@@ -276,12 +279,22 @@
             const h01 = this.heightData[(y1 * GPU_TERRAIN_SIZE + x0) * 4];
             const h11 = this.heightData[(y1 * GPU_TERRAIN_SIZE + x1) * 4];
             
+            // Interpolation
             const h0 = h00 * (1 - fX) + h10 * fX;
             const h1 = h01 * (1 - fX) + h11 * fX;
             
             return h0 * (1 - fY) + h1 * fY;
         }
     };
+
+    /**
+     * Zentraler Punkt für Höhenabfragen (CPU-Side)
+     * Kombiniert GPGPU-Daten mit einem Sicherheits-Fallback
+     */
+    function getGPUHeight(x, z) {
+        if (!GPGPU_Container.heightData) return 0;
+        return GPGPU_Container.getSmoothHeight(x, z);
+    }
     
     let gpuCompute;
     let heightVariable;

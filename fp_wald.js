@@ -1040,7 +1040,9 @@
             currentPos.z = targetPos.z = -1183.0;
         }
 
-        currentPos.y = targetPos.y = 40.0; // Startet weit oberhalb, um auf das Mesh zu fallen
+        currentPos.y = targetPos.y = 100.0; // Radikal: Wir starten bei 100m Höhe, um den Ladevorgang der GPGPU abzuwarten
+        velocityY = 0; // Keine Fallgeschwindigkeit am Start
+        isGrounded = false;
         
         // Anti-Stuck Check: Wenn wir in einem Gebäude spawnen -> Dorfplatz
         if (checkCollision(currentPos.x, currentPos.z)) {
@@ -1321,13 +1323,19 @@
             targetPos.y += velocityY * delta;
             
             // PHYSIK: Nutze die reale Terrain-Höhe (Hybrid: Raycast für Präzision im Nahbereich, GPGPU als Fallback)
-            let groundH = 0;
+            let groundH = -1000; // Startwert extrem tief
             if (window.FPGraphics) {
                 const gpuH = FPGraphics.getGPUHeight(targetPos.x, targetPos.z);
-                // Raycasting nur für das Avatar-Anchoring nutzen, wenn wir uns auf dem Terrain befinden
-                groundH = (typeof FPGraphics.getRaycastHeight === 'function') 
-                    ? FPGraphics.getRaycastHeight(targetPos.x, targetPos.z, gpuH)
-                    : gpuH;
+                
+                // CRITICAL FIX: Wenn gpuH exakt 0 ist (Start-Lag), halten wir den Spieler in der Luft
+                // außer wir sind wirklich bei 0,0. Das Plateau liegt aber bei -1183.
+                if (gpuH === 0 && Math.abs(targetPos.z) > 100) {
+                    groundH = targetPos.y; // Halten
+                } else {
+                    groundH = (typeof FPGraphics.getRaycastHeight === 'function') 
+                        ? FPGraphics.getRaycastHeight(targetPos.x, targetPos.z, gpuH)
+                        : gpuH;
+                }
             }
             
             // --- INTERIOR-KOLLISION VALIDIERUNG ---
