@@ -1346,11 +1346,11 @@
 
         // DEBUG: console.log("[FPWald] Y:", targetPos.y.toFixed(2), "GroundH:", finalGroundH.toFixed(2));
 
-        if (targetPos.y < finalGroundH + 1.6) { // 1.6m Spielerhöhe
-            targetPos.y = finalGroundH + 1.6;
+        if (targetPos.y < finalGroundH) { 
+            targetPos.y = finalGroundH;
             velocityY = 0;
             isGrounded = true;
-        } else if (targetPos.y > finalGroundH + 1.8) { // Kleiner Puffer für Boden-Check
+        } else if (targetPos.y > finalGroundH + 0.2) { // Kleiner Puffer für Boden-Check
             isGrounded = false;
         }
     } else {
@@ -1552,31 +1552,32 @@
 
         if (avatar) {
             // Avatar-Position inkl. Sprung-Höhe (Leicht erhöht, um Clipping zu vermeiden)
-            avatar.position.set(px, py + 4.2, pz);
+            // Lila Ei Fix: py ist die Bodenhöhe, wir setzen den Avatar direkt darauf oder leicht darüber
+            avatar.position.set(px, py, pz);
             avatar.rotation.y = heading;
         }
         if (avatarNameTag) {
-            avatarNameTag.position.set(px, py + 10, pz);
+            avatarNameTag.position.set(px, py + 2.5, pz); // Name über dem Ei
         }
         
         if (thirdPerson) {
-            const back = 38;
+            const back = 15; // Näher ran für das Ei
             const ox = Math.sin(heading) * back;
             const oz = Math.cos(heading) * back;
-            let camY = py + (window._cameraHeightOffset || 1.6) * 10.0; // Skaliert auf Spielwelt
+            let camY = py + (window._cameraHeightOffset || 1.6) * 3.0; // Tiefer für Ei-Perspektive
             
             // Kamera-Clipping-Schutz: Kamera darf nicht unter das Terrain sinken
             const camTerrainH = (window.FPGraphics ? FPGraphics.getGPUHeight(px - ox, pz - oz) : 0);
-            if (camY < camTerrainH + 5.0) camY = camTerrainH + 5.0;
+            if (camY < camTerrainH + 1.0) camY = camTerrainH + 1.0;
 
             camera.position.set(px - ox, camY, pz - oz);
-            camera.lookAt(new THREE.Vector3(px, py + (window._cameraHeightOffset || 1.6) * 2.5, pz));
+            camera.lookAt(new THREE.Vector3(px, py + 1.0, pz));
         } else {
-            let camY = py + (window._cameraHeightOffset || 1.6) * 5.0; // Skaliert auf Augenhöhe
+            let camY = py + (window._cameraHeightOffset || 1.6) * 1.5; // Tiefer für First-Person Ei-Sicht
             
             // Auch in First Person sicherstellen, dass wir über dem Boden sind
             const camTerrainH = (window.FPGraphics ? FPGraphics.getGPUHeight(px, pz) : 0);
-            if (camY < camTerrainH + 2.0) camY = camTerrainH + 2.0;
+            if (camY < camTerrainH + 0.5) camY = camTerrainH + 0.5;
 
             camera.position.set(px, camY, pz);
             const lookX = px + Math.sin(heading) * 10;
