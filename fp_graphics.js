@@ -665,15 +665,11 @@
                 
                 // --- STABILISIERTE WELTPOSITION (Jitter-Fix) ---
                 // Wir nutzen die relative Position im Mesh (position.xy)
-                // Das Mesh ist zentriert am Spieler (meshOffset).
-                // Die GPGPU-Daten sind zentriert am gesnappten worldOffset.
-                
-                // worldXZ ist die flüssige Welt-Position des Vertex
-                vec2 worldXZ = vec2(position.x, -position.y) + meshOffset;
+                // Das Mesh ist am Spieler zentriert, aber intern um -fineOffset verschoben.
+                // worldXZ ist die STABILE Welt-Position des Vertex (auf GPGPU-Texel ausgerichtet)
+                vec2 worldXZ = vec2(position.x, -position.y) + worldOffset;
                 
                 // hUV Berechnung: (WeltPos - GPGPU Zentrum + halbe Größe) / Größe
-                // Wir nutzen hier worldOffset (gesnappt), damit die Textur-Koordinaten 
-                // nur springen, wenn die GPGPU-Daten neu berechnet werden.
                 vec2 hUV = (worldXZ - worldOffset + (gpuWorldSize * 0.5)) / gpuWorldSize;
                 hUV = clamp(hUV, 0.0, 1.0);
                 
@@ -942,7 +938,14 @@
         const fz = pz - sz;
         
         // Das Mesh folgt dem Spieler absolut flüssig (kein Snapping)
+        // Wir setzen die Position des Gruppen-Containers auf die Spielerposition.
         clipmapGroup.position.set(px, 0, pz);
+        
+        // WICHTIG: Das Mesh selbst muss um -fineOffset verschoben werden,
+        // damit die Vertices exakt auf den GPGPU-Texeln bleiben!
+        if (clipmapMesh) {
+            clipmapMesh.position.set(-fx, 0, -fz);
+        }
 
         // GPGPU Update nur wenn das Snapping-Zentrum sich geändert hat
         updateGPGPU(sx, sz, renderer);
@@ -991,12 +994,9 @@
         
         const renderTarget = gpuCompute.getCurrentRenderTarget(smoothVariable);
         if (renderTarget) {
-            // OPTIMIERUNG: Nur alle 5 Frames die CPU-Daten lesen (Performance)
-            if (GPGPU_Container.frameCount === undefined) GPGPU_Container.frameCount = 0;
-            if (GPGPU_Container.frameCount % 5 === 0) {
-                renderer.readRenderTargetPixels(renderTarget, 0, 0, GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, GPGPU_Container.heightData);
-            }
-            GPGPU_Container.frameCount++;
+            // WICHTIG: Sofort lesen, wenn wir eine stabile Position wollen!
+            // Das "Hüpfen" kommt oft durch verzögerte CPU-Daten.
+            renderer.readRenderTargetPixels(renderTarget, 0, 0, GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, GPGPU_Container.heightData);
         }
     }
     
@@ -1522,10 +1522,6 @@
         // --- SYNC MIT GPGPU-ZENTRUM (Jitter-Fix) ---
         // Um Jitter zwischen CPU und GPU zu vermeiden, berechnen wir die Höhe 
         // basierend auf der Position, die die GPU sieht.
-        const snapSize = 2.0;
-        const sx = Math.floor(x / snapSize) * snapSize;
-        const sz = Math.floor(z / snapSize) * snapSize;
-        
         const distToStart = Math.hypot(x, z);
         const s = WORLD_SEED % 10000;
         
