@@ -359,10 +359,8 @@
             const ax = avatar.position.x;
             const az = avatar.position.z;
             
-            // Wir nutzen getRaycastHeight für maximale Präzision am Startpunkt
-            const h = (window.FPGraphics && typeof FPGraphics.getRaycastHeight === 'function') 
-                ? FPGraphics.getRaycastHeight(ax, az, 15)
-                : (window.FPGraphics ? FPGraphics.getGPUHeight(ax, az) : 15);
+            // Radikaler Reset: Wir starten bei 0.0
+            const h = 0.0;
             
             avatar.position.y = h;
             targetPos.y = h;
@@ -1046,7 +1044,7 @@
             console.log("🚀 Transform-Reset: Player auf (0, 0) gesetzt.");
         }
 
-        currentPos.y = targetPos.y = 100.0; // Radikal: Wir starten bei 100m Höhe, um den Ladevorgang der GPGPU abzuwarten
+        currentPos.y = targetPos.y = 0.0; // Radikaler Reset: Start bei 0.0m
         velocityY = 0; // Keine Fallgeschwindigkeit am Start
         isGrounded = false;
         

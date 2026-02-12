@@ -344,70 +344,21 @@
 
         void main() {
             vec2 uv = gl_FragCoord.xy / max(resolution.xy, vec2(1.0));
-            // Zentrierung: uv 0.5 entspricht der Weltposition 'offset'
             vec2 pos = (uv - 0.5) * worldSize + offset;
             
-            // --- TERRAIN GENERATION 10000x10000 (100km²) ---
+            // --- RADIKALER RESET ---
+            // Wir fangen bei 0 an. Ein minimales Rauschen bleibt für den Topografie-Zwang,
+            // aber die Basis ist flach bei 0.0.
+            float h = fbm(pos * 0.0001) * 10.0; 
             
-            // 1. Großräumige Kontinente/Ozeane (0 = Ozean, 1 = Land)
-            float continent = snoise(pos * 0.00002) * 0.5 + 0.5;
-            continent = smoothstep(0.3, 0.45, continent); // Breitere Landmassen
-            
-            // 2. Basis-Höhe (FBM für Hügelketten)
-            // Landmasse startet bei y=15.0 (über Wasser y=2.0)
-            float h = 15.0 + fbm(pos * 0.0002) * 120.0;
-            
-            // Ozean-Absenkung
-            h = mix(-200.0, h, continent); // Tieferer Ozean
-            
-            // 3. BERGE (Dramatischere Gipfel, nur auf Land)
-            float mountNoise = pow(abs(snoise(pos * 0.0004)), 2.0);
-            float h_mount = fbm(pos * 0.0008) * 1800.0; // Noch dramatischer: 1800m
-            h += h_mount * smoothstep(0.1, 0.4, mountNoise) * continent;
-            
-            // 4. TÄLER & SCHLUCHTEN (Erosion-Look)
-            float valleyNoise = snoise(pos * 0.0006 + vec2(1000.0));
-            if (valleyNoise > 0.5) {
-                float vFactor = smoothstep(0.5, 0.9, valleyNoise);
-                h -= vFactor * 800.0; // Tiefere Täler
-            }
-            
-            // 5. OZEAN / WASSER GLÄTTUNG
-            float waterLevel = 2.0;
-            if (h < waterLevel) {
-                // Sanfter Übergang in die Tiefe für Seen und Ozeane
-                float depthFactor = smoothstep(waterLevel, waterLevel - 50.0, h);
-                h = mix(h, -150.0, depthFactor);
-            }
-            
-            // 6. STARTPUNKT (0,0) - Ebene für das Dorf
-            vec2 startPos = vec2(0.0, 0.0);
-            float distToStart = length(pos - startPos);
+            // Startbereich ist absolut 0.0
+            float distToStart = length(pos);
             if (distToStart < 1500.0) {
-                float startFactor = smoothstep(500.0, 1500.0, distToStart);
-                h = mix(0.0, h, startFactor); // Plateau auf 0.0m gesetzt (Nutzerwunsch)
-            }
-
-            // Dorf-Positionen (Grob-Check im Shader)
-            vec2 v1 = vec2(1200.0, 0.0);
-            vec2 v2 = vec2(-1200.0, 0.0);
-            vec2 v3 = vec2(0.0, 1200.0);
-            vec2 v4 = vec2(0.0, -1200.0);
-            
-            float d1 = length(pos - v1);
-            float d2 = length(pos - v2);
-            float d3 = length(pos - v3);
-            float d4 = length(pos - v4);
-            
-            float minDist = min(min(d1, d2), min(d3, d4));
-            if (minDist < 400.0) {
-                float f = smoothstep(150.0, 400.0, minDist);
-                h = mix(10.0, h, f);
+                float f = smoothstep(500.0, 1500.0, distToStart);
+                h = mix(0.0, h, f);
             }
             
-            // Schutz vor Extremen
             h = clamp(h, -250.0, 1800.0);
-
             gl_FragColor = vec4(h, 0.0, 0.0, 1.0);
         }
     `;
@@ -850,8 +801,8 @@
         terrainUniforms.meshOffset.value.set(px, pz);
         terrainUniforms.playerPos.value.set(px, pz);
 
-        // Dekorationen aktualisieren
-        updateClipmapDecorations(px, pz, mainScene);
+        // Dekorationen deaktiviert (Radikaler Reset)
+        // updateClipmapDecorations(px, pz, mainScene);
     }
 
     function updateGPGPU(px, pz, renderer) {
@@ -1339,39 +1290,16 @@
     }
 
     function getCPUHeight(x, z) {
-        const distToStart = Math.hypot(x - 0.0, z - 0.0);
+        const distToStart = Math.hypot(x, z);
         
-        // Basis-Höhe (FBM Nachbau)
-        let h = 15.0 + getOctaveNoise(x * 0.0002, z * 0.0002, 6) * 120.0;
+        // --- RADIKALER RESET (CPU) ---
+        // Minimaler Noise-Anteil (wie im Shader)
+        let h = getOctaveNoise(x * 0.0001, z * 0.0001, 6) * 10.0;
         
-        // Berge (Dramatisch)
-        const mountNoise = Math.pow(Math.abs(getOctaveNoise(x * 0.0004, z * 0.0004, 1)), 2.0);
-        if (mountNoise > 0.1) {
-            const h_mount = getOctaveNoise(x * 0.0008, z * 0.0008, 4) * 1800.0;
-            const mountFactor = smoothstep(0.1, 0.4, mountNoise);
-            h += h_mount * mountFactor;
-        }
-
-        // Täler
-        const valleyNoise = getOctaveNoise(x * 0.0006 + 1000.0, z * 0.0006 + 1000.0, 1);
-        if (valleyNoise > 0.5) {
-            const vFactor = smoothstep(0.5, 0.9, valleyNoise);
-            h -= vFactor * 800.0;
-        }
-
-        // 1. Startpunkt (0,0) Plateau - Synchron mit Shader
+        // Startpunkt absolut 0.0
         if (distToStart < 1500.0) {
-            const startFactor = smoothstep(500.0, 1500.0, distToStart);
-            h = 0.0 * (1.0 - startFactor) + h * startFactor; // Plateau auf 0.0m gesetzt
-        }
-
-        // 2. Dorf-Bereiche - Synchron mit Shader
-        for (const loc of VILLAGE_LOCATIONS) {
-            const d = Math.hypot(x - loc.x, z - loc.z);
-            if (d < 400.0) {
-                const f = smoothstep(150.0, 400.0, d);
-                h = 10.0 * (1.0 - f) + h * f;
-            }
+            const f = smoothstep(500.0, 1500.0, distToStart);
+            h = 0.0 * (1.0 - f) + h * f;
         }
         
         return Math.min(1800.0, Math.max(-250.0, h));
