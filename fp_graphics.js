@@ -643,9 +643,9 @@
                     float texSize = 1024.0; // Synchronisiert mit GPU_TERRAIN_SIZE
                     vec2 texelSize = vec2(1.0 / texSize);
                     
-                    // Wir nutzen texture2D mit expliziter Filterung, falls LinearFilter nicht greift
-                    vec2 f = fract(uv * texSize);
-                    vec2 t00 = floor(uv * texSize) / texSize;
+                    // Wir nutzen texture2D mit expliziter Filterung für maximale Glätte
+                    vec2 f = fract(uv * texSize - 0.5);
+                    vec2 t00 = (floor(uv * texSize - 0.5) + 0.5) / texSize;
                     
                     float h00 = texture2D(heightMap, t00).r;
                     float h10 = texture2D(heightMap, t00 + vec2(texelSize.x, 0.0)).r;
@@ -922,15 +922,16 @@
         worldCullingUniforms.time.value = Date.now() * 0.001;
 
         // --- SUB-TEXEL SMOOTHING (Jitter-Fix) ---
-        // Das GPGPU-Zentrum (worldOffset) snappt auf Texel-Größe
-        const texelSize = GPU_WORLD_SIZE / GPU_TERRAIN_SIZE; 
-        const sx = Math.floor(px / texelSize) * texelSize;
-        const sz = Math.floor(pz / texelSize) * texelSize;
+        // Das GPGPU-Zentrum (worldOffset) snappt auf eine größere Einheit (z.B. 1m oder 2m),
+        // um zu häufige GPGPU-Recomputes und Textur-Updates zu vermeiden, die Jitter verursachen.
+        const snapSize = 2.0; 
+        const sx = Math.floor(px / snapSize) * snapSize;
+        const sz = Math.floor(pz / snapSize) * snapSize;
         
         // Das Mesh folgt dem Spieler absolut flüssig (kein Snapping)
         clipmapGroup.position.set(px, 0, pz);
 
-        // GPGPU Update (Synchron mit dem Texel-Snap)
+        // GPGPU Update nur wenn das Snapping-Zentrum sich geändert hat
         updateGPGPU(sx, sz, renderer);
 
         // Globale Culling-Uniforms aktualisieren
@@ -940,10 +941,16 @@
         const target = gpuCompute.getCurrentRenderTarget(smoothVariable);
         if (target && target.texture) {
             terrainUniforms.heightMap.value = target.texture;
-            // Wir müssen die Textur-Filterung auf Linear stellen für flüssige Übergänge
-            target.texture.magFilter = THREE.LinearFilter;
-            target.texture.minFilter = THREE.LinearFilter;
+            // Wir stellen sicher, dass die Textur-Filterung auf Linear steht
+            if (target.texture.magFilter !== THREE.LinearFilter) {
+                target.texture.magFilter = THREE.LinearFilter;
+                target.texture.minFilter = THREE.LinearFilter;
+                target.texture.needsUpdate = true;
+            }
         }
+        
+        // WICHTIG: worldOffset ist das GPGPU-Zentrum (gesnappt)
+        // meshOffset ist die aktuelle Spielerposition (flüssig)
         terrainUniforms.worldOffset.value.set(sx, sz);
         terrainUniforms.meshOffset.value.set(px, pz);
         terrainUniforms.playerPos.value.set(px, pz);
@@ -969,7 +976,12 @@
         
         const renderTarget = gpuCompute.getCurrentRenderTarget(smoothVariable);
         if (renderTarget) {
-            renderer.readRenderTargetPixels(renderTarget, 0, 0, GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, GPGPU_Container.heightData);
+            // OPTIMIERUNG: Nur alle 5 Frames die CPU-Daten lesen (Performance)
+            if (GPGPU_Container.frameCount === undefined) GPGPU_Container.frameCount = 0;
+            if (GPGPU_Container.frameCount % 5 === 0) {
+                renderer.readRenderTargetPixels(renderTarget, 0, 0, GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, GPGPU_Container.heightData);
+            }
+            GPGPU_Container.frameCount++;
         }
     }
     
