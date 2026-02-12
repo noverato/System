@@ -1290,20 +1290,27 @@
     }
 
     function getCPUHeight(x, z) {
+        // --- ABSOLUTE BASIS 0.0 ---
+        // Dies ist der "Anker" für die Kollision. 
+        // Er muss exakt mit dem NOISE_SHADER übereinstimmen.
+        
         const distToStart = Math.hypot(x, z);
         
-        // --- RADIKALER RESET (CPU) ---
-        // Minimaler Noise-Anteil (wie im Shader)
+        // Minimaler Noise (identisch zum Shader)
         let h = getOctaveNoise(x * 0.0001, z * 0.0001, 6) * 10.0;
         
-        // Startpunkt absolut 0.0
+        // Startpunkt absolut flach bei 0.0
         if (distToStart < 1500.0) {
             const f = smoothstep(500.0, 1500.0, distToStart);
             h = 0.0 * (1.0 - f) + h * f;
         }
         
+        // Sicherheits-Clamp
         return Math.min(1800.0, Math.max(-250.0, h));
     }
+
+    // --- GLOBALER EXPORT FÜR PHYSIK ---
+    window.FPGraphics_getCPUHeight = getCPUHeight;
 
     function getBiomeData(x, z, h) {
         // Diese Logik MUSS mit dem Clipmap-Shader in initClipmap übereinstimmen!

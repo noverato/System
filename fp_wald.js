@@ -1340,23 +1340,35 @@
             velocityY += GRAVITY * delta;
             targetPos.y += velocityY * delta;
             
-            // PHYSIK: Nutze die reale Terrain-Höhe (Hybrid: Raycast für Präzision im Nahbereich, GPGPU als Fallback)
-            // WICHTIG: Das Clipmap-Mesh ist der einzige Boden.
-            let groundH = targetPos.y; 
-            if (window.FPGraphics) {
-                const gpuH = FPGraphics.getGPUHeight(targetPos.x, targetPos.z);
-                
-                // Wir nutzen die GPU-Höhe direkt vom Mesh/GPGPU
-                // gpuH === 0 ist valide (Plateau), daher prüfen wir auf Gültigkeit
-                if (gpuH !== null && !isNaN(gpuH)) {
-                    groundH = (typeof FPGraphics.getRaycastHeight === 'function') 
-                        ? FPGraphics.getRaycastHeight(targetPos.x, targetPos.z, gpuH)
-                        : gpuH;
-                }
-            }
+            // PHYSIK: Radikaler Boden-Fix
+             // Wir nutzen ein hybrides System: CPU-Höhe als Sicherheitsanker, GPGPU für Details
+             let groundH = 0.0; 
+             
+             if (window.FPGraphics) {
+                 // 1. Hole die CPU-Höhe (immer verfügbar via globalem Export)
+                 const cpuH = (typeof window.FPGraphics_getCPUHeight === 'function') 
+                    ? window.FPGraphics_getCPUHeight(targetPos.x, targetPos.z) 
+                    : (FPGraphics.getCPUHeight ? FPGraphics.getCPUHeight(targetPos.x, targetPos.z) : 0.0);
+                 
+                 // 2. Hole die GPU-Höhe (für das sichtbare Mesh)
+                 const gpuH = FPGraphics.getGPUHeight(targetPos.x, targetPos.z);
+                 
+                 // 3. Wähle die sicherste Höhe: GPGPU falls verfügbar, sonst CPU.
+                 // Wir nehmen das Maximum, um Durchfallen bei Lücken zu verhindern.
+                 if (gpuH !== null && !isNaN(gpuH)) {
+                     groundH = Math.max(cpuH, gpuH);
+                 } else {
+                     groundH = cpuH;
+                 }
+
+                 // 4. Raycast-Präzision (optional, falls vorhanden)
+                 if (typeof FPGraphics.getRaycastHeight === 'function') {
+                     groundH = FPGraphics.getRaycastHeight(targetPos.x, targetPos.z, groundH);
+                 }
+             }
             
             // --- INTERIOR-KOLLISION VALIDIERUNG ---
-            // Raycasting nur noch für Gebäude/Innenräume, da Terrain über GPGPU präziser ist
+            // Bleibt bestehen für Gebäude
             if (collisionRaycaster && window.FPGraphics && FPGraphics.isInterior && FPGraphics.currentInteriorMesh) {
                 const rayOrigin = new THREE.Vector3(targetPos.x, targetPos.y + 50, targetPos.z);
                 const rayDir = new THREE.Vector3(0, -1, 0);
@@ -1368,18 +1380,15 @@
                 }
             }
         
-        // COLLISION FIX: Spieler MUSS ÜBER dem Boden bleiben
-        // Wir setzen die minimale Höhe auf -250 (GPGPU Untergrenze)
-        // Aber im Dorf/Startplateau sollte groundH 0 sein.
-        // VISUELLER FIX: Offset auf 0.0 gesetzt (Nutzerwunsch)
-        const finalGroundH = Math.max(groundH, -250.0);
+        // ABSOLUTE UNTERGRENZE: Kein Spieler darf tiefer als die berechnete groundH fallen.
+        const finalGroundH = groundH;
 
-        // Radikaler Fix: Wenn die Position unter der Bodenhöhe liegt, sofort nach oben setzen
-        if (targetPos.y < finalGroundH) { 
+        // Hard-Constraint: Sofortige Korrektur bei Bodenkontakt oder Durchfall-Versuch
+        if (targetPos.y <= finalGroundH + 0.01) { 
             targetPos.y = finalGroundH;
             velocityY = 0;
             isGrounded = true;
-        } else if (targetPos.y > finalGroundH + 0.1) {
+        } else {
             isGrounded = false;
         }
 
