@@ -32,6 +32,17 @@
     const GPU_WORLD_SIZE = 10000; // Erhöht auf 10km x 10km (100km²) für die 86km² Anforderung
     const GPU_TERRAIN_SIZE = 1024; // Texturauflösung der Heightmap (1024x1024)
 
+    // --- WORLD SEED LOGIC ---
+    let WORLD_SEED = localStorage.getItem('nest_world_seed');
+    if (!WORLD_SEED) {
+        WORLD_SEED = Math.floor(Math.random() * 1000000);
+        localStorage.setItem('nest_world_seed', WORLD_SEED);
+        console.log("🌍 Neuer Welt-Seed generiert:", WORLD_SEED);
+    } else {
+        WORLD_SEED = parseInt(WORLD_SEED);
+        console.log("🌍 Welt-Seed geladen:", WORLD_SEED);
+    }
+
     // NEU: Persistente Uniforms für das Terrain-System (verhindert Start-Up Lag/Fehler)
     const terrainUniforms = {
         heightMap: { value: null },
@@ -46,6 +57,7 @@
         gpuWorldSize: { value: GPU_WORLD_SIZE },
         clipRadius: { value: CLIPMAP_RADIUS },
         aoiRadius: { value: AOI_RADIUS },
+        worldSeed: { value: WORLD_SEED }, // Seed für prozedurale Generierung
         plainsColor: { value: new THREE.Color(0x6ba15a) },
         desertColor: { value: new THREE.Color(0xf4dcb3) },
         snowColor: { value: new THREE.Color(0xffffff) },
@@ -303,10 +315,12 @@
         uniform float time;
         uniform vec2 offset; // Welt-Position der Textur-Ecke (unten-links)
         uniform float worldSize;
+        uniform float seed;
         
         // Simplex 2D noise
         vec3 permute(vec3 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
         float snoise(vec2 v) {
+            v += vec2(seed * 0.123, seed * 0.456); // Seed-Offset für die Welt
             const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
             vec2 i  = floor(v + dot(v, C.yy) );
             vec2 x0 = v -   i + dot(i, C.xx);
@@ -472,6 +486,7 @@
             heightVariable.material.uniforms.time = { value: 0 };
             heightVariable.material.uniforms.offset = { value: new THREE.Vector2(0, 0) };
             heightVariable.material.uniforms.worldSize = { value: GPU_WORLD_SIZE };
+            heightVariable.material.uniforms.seed = { value: WORLD_SEED };
         }
     }
 
@@ -548,7 +563,7 @@
 
                 // Manuelle bilineare Filterung für den Vertex-Shader
                 float getSmoothHeight(vec2 uv) {
-                    float texSize = 512.0; // GPU_TERRAIN_SIZE
+                    float texSize = 1024.0; // Synchronisiert mit GPU_TERRAIN_SIZE
                     vec2 f = fract(uv * texSize);
                     vec2 t00 = floor(uv * texSize) / texSize;
                     vec2 t10 = (floor(uv * texSize) + vec2(1.0, 0.0)) / texSize;
@@ -602,12 +617,14 @@
                 uniform vec3 stoneColor;
                 uniform vec3 oceanColor;
                 uniform vec3 forestColor;
+                uniform float worldSeed;
                 varying vec3 vWorldPos;
                 varying float vHeight;
                 varying float vDist;
 
                 // Noise-Hilfsfunktion für Biome
                 float hash(vec2 p) {
+                    p += worldSeed * 0.01; // Seed-Offset für Biome
                     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
                 }
                 float noise(vec2 p) {
@@ -1319,6 +1336,7 @@
     // --- VERBESSERTE NOISE-FUNKTION (Multi-Octave) ---
     // --- 100% SYNC NOISE (MATCHES SHADER) ---
     function snoise(v) {
+        v = [v[0] + WORLD_SEED * 0.123, v[1] + WORLD_SEED * 0.456]; // Seed-Offset für die Welt
         const C = [0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439];
         let i = [Math.floor(v[0] + (v[0] + v[1]) * C[1]), Math.floor(v[1] + (v[0] + v[1]) * C[1])];
         let x0 = [v[0] - i[0] + (i[0] + i[1]) * C[0], v[1] - i[1] + (i[0] + i[1]) * C[0]];
@@ -1423,6 +1441,8 @@
         
         // Einfacher 2D Value-Noise Nachbau für CPU (wie im Shader)
         const noise2D = (nx, nz) => {
+            nx += WORLD_SEED * 0.01;
+            nz += WORLD_SEED * 0.02;
             const hash = (p) => {
                 const s = Math.sin(p[0] * 127.1 + p[1] * 311.7) * 43758.5453123;
                 return s - Math.floor(s);
