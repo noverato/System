@@ -334,7 +334,7 @@
             float a = 0.5;
             vec2 shift = vec2(100);
             mat2 rot = mat2(cos(0.5), sin(0.5), -sin(0.5), cos(0.50));
-            for (int i = 0; i < 6; ++i) {
+            for (int i = 0; i < 8; ++i) { // Erhöht auf 8 Oktaven für mehr Details
                 v += a * snoise(p);
                 p = rot * p * 2.0 + shift;
                 a *= 0.5;
@@ -342,18 +342,51 @@
             return v;
         }
 
+        // Ridged Noise für scharfe Bergkämme
+        float ridge(float n) {
+            return 1.0 - abs(n);
+        }
+
+        float ridgedFBM(vec2 p) {
+            float v = 0.0;
+            float a = 0.5;
+            float f = 1.0;
+            for (int i = 0; i < 6; ++i) {
+                v += ridge(snoise(p * f)) * a;
+                f *= 2.0;
+                a *= 0.5;
+            }
+            return v * v; // Verstärkt die Täler
+        }
+
         void main() {
             vec2 uv = gl_FragCoord.xy / max(resolution.xy, vec2(1.0));
             vec2 pos = (uv - 0.5) * worldSize + offset;
             
-            // --- RADIKALER RESET ---
-            // Wir setzen die Basis auf 1.0 (Differenz -1 zu Wasser 2.0). 
-            // Ein minimales Rauschen bleibt für den Topografie-Zwang,
-            // aber die Basis ist flach bei 1.0.
-            float h = fbm(pos * 0.0001) * 10.0; 
-            
-            // Startbereich ist absolut 1.0 (Um das Ei korrekt zu platzieren)
             float distToStart = length(pos);
+            
+            // --- MAKRO-TERRAIN (Berge & Täler) ---
+            // Großflächige Variationen (Kontinente/Gebirge)
+            float baseNoise = fbm(pos * 0.00005); 
+            
+            // Gebirgs-Maske (Wo entstehen Berge?)
+            float mountainMask = smoothstep(-0.2, 0.6, fbm(pos * 0.0001 + vec2(500.0)));
+            
+            // Scharfe Berge
+            float mountains = ridgedFBM(pos * 0.0003) * 450.0;
+            
+            // Sanfte Hügel
+            float hills = fbm(pos * 0.0002) * 40.0;
+            
+            // Kombiniertes Terrain
+            float h = mix(hills, mountains, mountainMask);
+            
+            // Zufällige Täler (Flüsse/Ebenen)
+            float valleyMask = smoothstep(0.3, 0.0, abs(fbm(pos * 0.00008 + vec2(-1000.0))));
+            h = mix(h, -15.0, valleyMask * 0.7);
+            
+            // --- STARTBEREICH SCHUTZ ---
+            // Startbereich ist absolut 1.0 (Um das Ei korrekt zu platzieren)
             if (distToStart < 1500.0) {
                 float f = smoothstep(500.0, 1500.0, distToStart);
                 h = mix(1.0, h, f);
@@ -367,15 +400,12 @@
             // ID 2.0: Water (Kein Collider)
             float layerID = 0.0; 
             
-            // Wenn h < 4.0 (Ozean-Bereich) -> Layer Wasser
             if (h < 4.0) {
-                layerID = 2.0; 
-            } else if (h >= 4.0 && h < 20.0) {
-                // Flaches Land / Wiesen -> Layer Grass
-                layerID = 1.0;
+                layerID = 2.0; // Wasser
+            } else if (h >= 4.0 && h < 45.0) { // Erhöht für Bergwiesen
+                layerID = 1.0; // Grass
             }
             
-            // R = Höhe, G = LayerID
             gl_FragColor = vec4(h, layerID, 0.0, 1.0);
         }
     `;
@@ -1305,6 +1335,19 @@
         return v;
     }
 
+    function getRidgedNoise(x, z, octaves = 4) {
+        let v = 0;
+        let a = 1.0;
+        let f = 1.0;
+        for (let i = 0; i < octaves; i++) {
+            let n = simpleNoise(x * f, z * f);
+            v += (1.0 - Math.abs(n)) * a;
+            f *= 2.0;
+            a *= 0.5;
+        }
+        return v * v;
+    }
+
     // --- DORF-POSITIONEN (für Terrain-Glättung) ---
     const VILLAGE_LOCATIONS = [
         { x: 0, z: 0, radius: 400 },     // Hauptdorf
@@ -1331,14 +1374,23 @@
     }
 
     function getCPUHeight(x, z) {
-        // --- ABSOLUTE BASIS 1.0 (Differenz -1 zu Wasser) ---
-        // Dies ist der "Anker" für die Kollision. 
-        // Er muss exakt mit dem NOISE_SHADER übereinstimmen.
-        
         const distToStart = Math.hypot(x, z);
         
-        // Minimaler Noise (identisch zum Shader)
-        let h = getOctaveNoise(x * 0.0001, z * 0.0001, 6) * 10.0;
+        // Gebirgs-Maske (CPU Approximation)
+        const mountainMask = smoothstep(-0.2, 0.6, getOctaveNoise(x * 0.0001 + 500, z * 0.0001 + 500, 4));
+        
+        // Scharfe Berge
+        const mountains = getRidgedNoise(x * 0.0003, z * 0.0003, 6) * 450.0;
+        
+        // Sanfte Hügel
+        const hills = getOctaveNoise(x * 0.0002, z * 0.0002, 6) * 40.0;
+        
+        // Kombiniertes Terrain
+        let h = hills * (1.0 - mountainMask) + mountains * mountainMask;
+        
+        // Zufällige Täler (Flüsse/Ebenen)
+        const valleyMask = smoothstep(0.3, 0.0, Math.abs(getOctaveNoise(x * 0.00008 - 1000, z * 0.00008 - 1000, 4)));
+        h = h * (1.0 - valleyMask * 0.7) + (-15.0) * (valleyMask * 0.7);
         
         // Startpunkt absolut flach bei 1.0
         if (distToStart < 1500.0) {
@@ -1346,7 +1398,6 @@
             h = 1.0 * (1.0 - f) + h * f;
         }
         
-        // Sicherheits-Clamp
         return Math.min(1800.0, Math.max(-250.0, h));
     }
 
