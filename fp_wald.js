@@ -1525,7 +1525,7 @@
 
         // --- KAMERA AKTUALISIEREN ---
         // Dies berechnet die aktuelle geglättete currentPos
-        applyCamera(delta);
+        applyCamera(delta, currentLoopGroundH);
         
         // Kamera-Matrix sofort aktualisieren, damit der Shader im nächsten Schritt
         // die exakt gleichen View-Daten hat wie die Kamera-Position (Sync-Fix)
@@ -1638,7 +1638,7 @@
         }
     }
 
-    function applyCamera(delta = 1) {
+    function applyCamera(delta = 1, groundH = 0) {
         if (!camera) return;
         
         // Schnelleres Lerping für die Rotation (direkteres Gefühl)
@@ -1677,7 +1677,7 @@
 
         // --- HARD GROUND SNAP (RENDER-LEVEL) ---
         // Wir holen die aktuellste Bodenhöhe für diesen Frame
-        let currentGroundH = currentLoopGroundH;
+        let currentGroundH = groundH;
         if (window.FPGraphics) {
             const gpuH = FPGraphics.getGPUHeight(px, pz);
             if (gpuH !== null && !isNaN(gpuH)) {
