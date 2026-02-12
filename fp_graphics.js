@@ -1373,6 +1373,11 @@
         return v;
     }
 
+    function smoothstep(edge0, edge1, x) {
+        const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+        return t * t * (3 - 2 * t);
+    }
+
     function ridge(n) { return 1.0 - Math.abs(n); }
     function ridgedFBM(p, octaves = 6) {
         let v = 0.0;
