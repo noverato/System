@@ -998,10 +998,12 @@
             const sm = new THREE.SpriteMaterial({ map: tex });
             const sprite = new THREE.Sprite(sm);
             sprite.scale.set(8, 8, 1);
-            // VISUELLER FIX: Das Sprite muss vertikal verschoben werden, 
-            // damit der "Boden" des Sprites (die Füße des Eis) auf dem Pivot-Punkt liegen.
-            // Da das Sprite 8 Einheiten hoch ist, schieben wir es um +4 nach oben (Vollständig über Pivot)
-            sprite.position.y = 4;
+            
+            // --- PIVOT-FIX (Das Ei auf dem Boden) ---
+            // Wir setzen den Center auf (0.5, 0.0), damit der Pivot-Punkt des Sprites 
+            // genau an der Unterkante liegt. So steht das Ei exakt AUF dem Mesh-Y.
+            sprite.center.set(0.5, 0.0);
+            sprite.position.y = 0; // Kein Offset mehr nötig
             
             avatar = new THREE.Group();
             window.avatar = avatar;
@@ -1044,16 +1046,19 @@
             console.log("🚀 Transform-Reset: Player auf (0, 0) gesetzt.");
         }
 
-        // --- SPAWN-POSITION (3m über Boden) ---
-        // Wir holen die exakte Bodenhöhe am Spawn-Punkt
-        const spawnX = targetPos.x;
-        const spawnZ = targetPos.z;
-        const spawnGroundH = (window.FPGraphics_getCPUHeight) ? window.FPGraphics_getCPUHeight(spawnX, spawnZ) : 0.0;
+        // --- INITIALER SPAWN-STATE ---
+        // Wir setzen den Avatar initial weit unter die Erde und unsichtbar.
+        // Die echte Positionierung erfolgt erst in der Loop, sobald der Boden (Mesh) validiert wurde.
+        if (avatar) {
+            avatar.visible = false;
+            avatar.position.y = -500;
+        }
+        currentPos.y = targetPos.y = -500;
+        groundValidated = false; 
+        velocityY = 0;
+        isGrounded = false;
 
-        currentPos.y = targetPos.y = spawnGroundH + 3.0; // Startet 3m ÜBER dem Mesh
-        velocityY = 0; // Keine initiale Geschwindigkeit, er fällt durch Gravitation
-        isGrounded = false; // Er ist in der Luft
-        console.log(`🚀 Spawn: Avatar bei y=${targetPos.y.toFixed(2)} (Boden: ${spawnGroundH.toFixed(2)})`);
+        console.log("🚀 Initialisierung: Warte auf Mesh-Validierung...");
         
         // Anti-Stuck Check: Wenn wir in einem Gebäude spawnen -> Dorfplatz
         if (checkCollision(currentPos.x, currentPos.z)) {
@@ -1319,10 +1324,17 @@
                 if (testH !== null && !isNaN(testH)) {
                     console.log("[FPWald] Boden-Höhe erkannt:", testH, "Setze groundValidated = true");
                     groundValidated = true;
-                    // Spawn-Fix: Setze Spieler 10m ÜBER den Boden beim ersten Spawn, um Gravitation zu starten
+                    
+                    // Spawn-Fix: Setze Spieler 10m ÜBER den Boden beim ersten Spawn
                     targetPos.y = currentPos.y = testH + 10.0; 
                     isGrounded = false;
                     velocityY = 0;
+                    
+                    // Avatar sichtbar machen und positionieren
+                    if (avatar) {
+                        avatar.visible = true;
+                        avatar.position.y = currentPos.y;
+                    }
                 }
             } else {
                 console.error("[FPWald] FPGraphics fehlt bei Ground-Validation!");
