@@ -1343,13 +1343,14 @@
         }
 
         // --- PHYSIK & BEWEGUNG ZUERST ---
+        let currentLoopGroundH = 0.0; // Lokale Variable für diesen Frame-Durchlauf
+
         if (!(window.FPGraphics && FPGraphics.isInterior)) {
             velocityY += GRAVITY * delta;
             targetPos.y += velocityY * delta;
             
             // PHYSIK: Radikaler Boden-Fix
              // Wir nutzen ein hybrides System: CPU-Höhe als Sicherheitsanker, GPGPU für Details
-             let groundH = 0.0; 
              
              if (window.FPGraphics) {
                  // 1. Hole die CPU-Höhe (immer verfügbar via globalem Export)
@@ -1363,14 +1364,14 @@
                  // 3. Wähle die sicherste Höhe: GPGPU falls verfügbar, sonst CPU.
                  // Wir nehmen das Maximum, um Durchfallen bei Lücken zu verhindern.
                  if (gpuH !== null && !isNaN(gpuH)) {
-                     groundH = Math.max(cpuH, gpuH);
+                     currentLoopGroundH = Math.max(cpuH, gpuH);
                  } else {
-                     groundH = cpuH;
+                     currentLoopGroundH = cpuH;
                  }
 
                  // 4. Raycast-Präzision (optional, falls vorhanden)
                  if (typeof FPGraphics.getRaycastHeight === 'function') {
-                     groundH = FPGraphics.getRaycastHeight(targetPos.x, targetPos.z, groundH);
+                     currentLoopGroundH = FPGraphics.getRaycastHeight(targetPos.x, targetPos.z, currentLoopGroundH);
                  }
              }
             
@@ -1383,12 +1384,12 @@
                 
                 const intersects = collisionRaycaster.intersectObject(FPGraphics.currentInteriorMesh);
                 if (intersects.length > 0) {
-                    groundH = intersects[0].point.y;
+                    currentLoopGroundH = intersects[0].point.y;
                 }
             }
         
         // ABSOLUTE UNTERGRENZE: Kein Spieler darf tiefer als die berechnete groundH fallen.
-        const finalGroundH = groundH;
+        const finalGroundH = currentLoopGroundH;
 
         // --- MASSIVE BODEN-LOGIK (HARD COLLISION) ---
         // Wir prüfen, ob der Spieler im nächsten Frame unter den Boden sinken würde.
@@ -1423,6 +1424,8 @@
     } else {
         targetPos.y = 0;
         isGrounded = true;
+        // In Innenräumen nutzen wir eine lokale Fallback-Höhe
+        const finalGroundH = 0.0; 
     }
 
     // Bewegung verarbeiten
@@ -1475,11 +1478,14 @@
         applyCamera(delta);
         
         // --- MASSIVE BODEN-LOGIK (VISUAL SYNC) ---
-        // Wir stellen sicher, dass das Avatar-Modell NIEMALS unter finalGroundH gezeichnet wird,
-        // selbst wenn applyCamera noch interpoliert.
-        if (avatar && currentPos.y < finalGroundH) {
-            currentPos.y = finalGroundH;
-            avatar.position.y = finalGroundH;
+        // Wir stellen sicher, dass das Avatar-Modell NIEMALS unter finalGroundH gezeichnet wird.
+        // Falls finalGroundH in diesem Scope nicht definiert ist (z.B. Interior-Logik Pfad), 
+        // nutzen wir die aktuelle currentLoopGroundH oder Fallback 0.
+        const activeGroundH = (typeof finalGroundH !== 'undefined') ? finalGroundH : currentLoopGroundH;
+        
+        if (avatar && currentPos.y < activeGroundH) {
+            currentPos.y = activeGroundH;
+            avatar.position.y = activeGroundH;
         }
         
         // Kamera-Matrix sofort aktualisieren, damit der Shader im nächsten Schritt
