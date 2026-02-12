@@ -360,7 +360,23 @@
             }
             
             h = clamp(h, -250.0, 1800.0);
-            gl_FragColor = vec4(h, 0.0, 0.0, 1.0);
+            
+            // --- LAYER-IDENTIFIKATION ---
+            // ID 0.0: Standard Mesh / Terrain
+            // ID 1.0: Grass / Vegetation (Solid Collider)
+            // ID 2.0: Water (Kein Collider)
+            float layerID = 0.0; 
+            
+            // Wenn h < 4.0 (Ozean-Bereich) -> Layer Wasser
+            if (h < 4.0) {
+                layerID = 2.0; 
+            } else if (h >= 4.0 && h < 20.0) {
+                // Flaches Land / Wiesen -> Layer Grass
+                layerID = 1.0;
+            }
+            
+            // R = Höhe, G = LayerID
+            gl_FragColor = vec4(h, layerID, 0.0, 1.0);
         }
     `;
 
@@ -849,6 +865,30 @@
         
         return h;
     }
+
+    /**
+     * Gibt die Layer-ID an der Position zurück (GPGPU-basiert)
+     * 0 = Mesh, 1 = Grass, 2 = Water
+     */
+    function getGPULayer(x, z) {
+        if (!gpuCompute || !GPGPU_Container.heightData || GPGPU_Container.lastUpdate === 0) return 0;
+        
+        const worldSize = GPU_WORLD_SIZE;
+        const u = (x - GPGPU_Container.center.x + worldSize / 2) / worldSize;
+        const v = (z - GPGPU_Container.center.z + worldSize / 2) / worldSize;
+        
+        if (u < 0 || u > 1 || v < 0 || v > 1) return 0;
+        
+        const size = GPU_TERRAIN_SIZE;
+        const px = Math.floor(u * (size - 1));
+        const py = Math.floor(v * (size - 1));
+        const index = (py * size + px) * 4;
+        
+        if (index >= GPGPU_Container.heightData.length) return 0;
+        
+        // G-Kanal = LayerID
+        return Math.round(GPGPU_Container.heightData[index + 1]);
+    }
     
     // Basis-Pfad für Assets (Lokal vs. GitHub flexibel)
     // Dieser Pfad wird jetzt zentral in AssetsLibrary.js verwaltet.
@@ -1312,6 +1352,7 @@
 
     // --- GLOBALER EXPORT FÜR PHYSIK ---
     window.FPGraphics_getCPUHeight = getCPUHeight;
+    window.FPGraphics_getGPULayer = getGPULayer;
 
     function getBiomeData(x, z, h) {
         // Diese Logik MUSS mit dem Clipmap-Shader in initClipmap übereinstimmen!

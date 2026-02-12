@@ -1369,6 +1369,15 @@
                      currentLoopGroundH = cpuH;
                  }
 
+                 // --- LAYER-CHECK (Wasser-Schutz) ---
+                 // Wenn der aktuelle Punkt im Layer 2.0 (Wasser) liegt, 
+                 // setzen wir die Bodenhöhe extrem tief, damit der Avatar hindurchfällt.
+                 const layerID = (window.FPGraphics_getGPULayer) ? window.FPGraphics_getGPULayer(targetPos.x, targetPos.z) : 0;
+                 if (layerID === 2) {
+                     // Wasser hat keinen Collider -> Boden absenken
+                     currentLoopGroundH = -500.0; 
+                 }
+
                  // 4. Raycast-Präzision (optional, falls vorhanden)
                  if (typeof FPGraphics.getRaycastHeight === 'function') {
                      currentLoopGroundH = FPGraphics.getRaycastHeight(targetPos.x, targetPos.z, currentLoopGroundH);
