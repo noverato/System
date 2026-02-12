@@ -121,6 +121,7 @@
         flowersTex: { value: null },
         worldOffset: { value: new THREE.Vector2(0, 0) },
         meshOffset: { value: new THREE.Vector2(0, 0) },
+        fineOffset: { value: new THREE.Vector2(0, 0) },
         playerPos: { value: new THREE.Vector2(0, 0) },
         gpuWorldSize: { value: GPU_WORLD_SIZE },
         clipRadius: { value: CLIPMAP_RADIUS },
@@ -630,6 +631,7 @@
                 uniform sampler2D heightMap;
                 uniform vec2 worldOffset;
                 uniform vec2 meshOffset;
+                uniform vec2 fineOffset;
                 uniform vec2 playerPos;
                 uniform float gpuWorldSize;
                 uniform float clipRadius;
@@ -661,10 +663,17 @@
                 `
                 #include <begin_vertex>
                 
-                // UV-Koordinaten für die Heightmap berechnen
+                // --- STABILISIERTE WELTPOSITION (Jitter-Fix) ---
+                // Wir nutzen die relative Position im Mesh (position.xy)
+                // Das Mesh ist zentriert am Spieler (meshOffset).
+                // Die GPGPU-Daten sind zentriert am gesnappten worldOffset.
+                
+                // worldXZ ist die flüssige Welt-Position des Vertex
                 vec2 worldXZ = vec2(position.x, -position.y) + meshOffset;
                 
                 // hUV Berechnung: (WeltPos - GPGPU Zentrum + halbe Größe) / Größe
+                // Wir nutzen hier worldOffset (gesnappt), damit die Textur-Koordinaten 
+                // nur springen, wenn die GPGPU-Daten neu berechnet werden.
                 vec2 hUV = (worldXZ - worldOffset + (gpuWorldSize * 0.5)) / gpuWorldSize;
                 hUV = clamp(hUV, 0.0, 1.0);
                 
@@ -928,6 +937,10 @@
         const sx = Math.floor(px / snapSize) * snapSize;
         const sz = Math.floor(pz / snapSize) * snapSize;
         
+        // NEU: fineOffset für shader-basierte Stabilisierung (Jitter-Fix)
+        const fx = px - sx;
+        const fz = pz - sz;
+        
         // Das Mesh folgt dem Spieler absolut flüssig (kein Snapping)
         clipmapGroup.position.set(px, 0, pz);
 
@@ -951,8 +964,10 @@
         
         // WICHTIG: worldOffset ist das GPGPU-Zentrum (gesnappt)
         // meshOffset ist die aktuelle Spielerposition (flüssig)
+        // fineOffset ist der Versatz innerhalb des Snap-Gitters
         terrainUniforms.worldOffset.value.set(sx, sz);
         terrainUniforms.meshOffset.value.set(px, pz);
+        terrainUniforms.fineOffset.value.set(fx, fz);
         terrainUniforms.playerPos.value.set(px, pz);
 
         // Dekorationen deaktiviert (Radikaler Reset)
@@ -1504,6 +1519,13 @@
     }
 
     function getCPUHeight(x, z) {
+        // --- SYNC MIT GPGPU-ZENTRUM (Jitter-Fix) ---
+        // Um Jitter zwischen CPU und GPU zu vermeiden, berechnen wir die Höhe 
+        // basierend auf der Position, die die GPU sieht.
+        const snapSize = 2.0;
+        const sx = Math.floor(x / snapSize) * snapSize;
+        const sz = Math.floor(z / snapSize) * snapSize;
+        
         const distToStart = Math.hypot(x, z);
         const s = WORLD_SEED % 10000;
         
