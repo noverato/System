@@ -347,15 +347,16 @@
             vec2 pos = (uv - 0.5) * worldSize + offset;
             
             // --- RADIKALER RESET ---
-            // Wir fangen bei 0 an. Ein minimales Rauschen bleibt für den Topografie-Zwang,
-            // aber die Basis ist flach bei 0.0.
+            // Wir fangen bei 2.0 an (Höhe der Wasser-Plane). 
+            // Ein minimales Rauschen bleibt für den Topografie-Zwang,
+            // aber die Basis ist flach bei 2.0.
             float h = fbm(pos * 0.0001) * 10.0; 
             
-            // Startbereich ist absolut 0.0
+            // Startbereich ist absolut 2.0 (Synchron mit Wasser-Plane)
             float distToStart = length(pos);
             if (distToStart < 1500.0) {
                 float f = smoothstep(500.0, 1500.0, distToStart);
-                h = mix(0.0, h, f);
+                h = mix(2.0, h, f);
             }
             
             h = clamp(h, -250.0, 1800.0);
@@ -1290,7 +1291,7 @@
     }
 
     function getCPUHeight(x, z) {
-        // --- ABSOLUTE BASIS 0.0 ---
+        // --- ABSOLUTE BASIS 2.0 (Wasser-Plane) ---
         // Dies ist der "Anker" für die Kollision. 
         // Er muss exakt mit dem NOISE_SHADER übereinstimmen.
         
@@ -1299,10 +1300,10 @@
         // Minimaler Noise (identisch zum Shader)
         let h = getOctaveNoise(x * 0.0001, z * 0.0001, 6) * 10.0;
         
-        // Startpunkt absolut flach bei 0.0
+        // Startpunkt absolut flach bei 2.0 (Synchron mit Wasser)
         if (distToStart < 1500.0) {
             const f = smoothstep(500.0, 1500.0, distToStart);
-            h = 0.0 * (1.0 - f) + h * f;
+            h = 2.0 * (1.0 - f) + h * f;
         }
         
         // Sicherheits-Clamp
