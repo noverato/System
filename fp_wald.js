@@ -1383,13 +1383,30 @@
         // ABSOLUTE UNTERGRENZE: Kein Spieler darf tiefer als die berechnete groundH fallen.
         const finalGroundH = groundH;
 
-        // Hard-Constraint: Sofortige Korrektur bei Bodenkontakt oder Durchfall-Versuch
-        if (targetPos.y <= finalGroundH + 0.01) { 
+        // --- MASSIVE BODEN-LOGIK (HARD COLLISION) ---
+        // Wir prüfen, ob der Spieler im nächsten Frame unter den Boden sinken würde.
+        if (targetPos.y <= finalGroundH + 0.05) { 
+            // 1. Position fixieren: Der Boden ist eine feste Masse.
             targetPos.y = finalGroundH;
+            
+            // 2. Geschwindigkeit resetten: Keine Akkumulation von Fallgeschwindigkeit im Boden
             velocityY = 0;
             isGrounded = true;
+            
+            // 3. Sicherheits-Check für currentPos (Render-Sync)
+            // Wenn die geglättete currentPos noch unter dem Boden hängt, ziehen wir sie sofort hoch.
+            if (currentPos.y < finalGroundH) {
+                currentPos.y = finalGroundH;
+            }
         } else {
             isGrounded = false;
+        }
+
+        // --- FALL-SCHUTZ (VOLL-REDUNDANT) ---
+        // Falls durch einen Rechenfehler targetPos.y jemals NaN oder extrem wird
+        if (isNaN(targetPos.y) || targetPos.y < -300) {
+            targetPos.y = finalGroundH;
+            velocityY = 0;
         }
 
         // --- POSITIONSMELDUNG FÜR DEBUGGING ---
@@ -1449,6 +1466,14 @@
         // --- KAMERA AKTUALISIEREN ---
         // Dies berechnet die aktuelle geglättete currentPos
         applyCamera(delta);
+        
+        // --- MASSIVE BODEN-LOGIK (VISUAL SYNC) ---
+        // Wir stellen sicher, dass das Avatar-Modell NIEMALS unter finalGroundH gezeichnet wird,
+        // selbst wenn applyCamera noch interpoliert.
+        if (avatar && currentPos.y < finalGroundH) {
+            currentPos.y = finalGroundH;
+            avatar.position.y = finalGroundH;
+        }
         
         // Kamera-Matrix sofort aktualisieren, damit der Shader im nächsten Schritt
         // die exakt gleichen View-Daten hat wie die Kamera-Position (Sync-Fix)
