@@ -56,9 +56,10 @@
         seedRef.on('value', (snapshot) => {
             const fbSeed = snapshot.val();
             if (fbSeed !== null) {
-                if (fbSeed !== WORLD_SEED) {
-                    console.log("📡 Welt-Seed von Firebase empfangen:", fbSeed);
-                    WORLD_SEED = parseInt(fbSeed);
+                const parsedSeed = parseInt(fbSeed);
+                if (!isNaN(parsedSeed) && parsedSeed !== WORLD_SEED) {
+                    console.log("📡 Welt-Seed von Firebase empfangen:", parsedSeed);
+                    WORLD_SEED = parsedSeed;
                     localStorage.setItem('nest_world_seed', WORLD_SEED);
                     updateSeededUniforms();
                 }
@@ -387,7 +388,10 @@
         // Simplex 2D noise
         vec3 permute(vec3 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
         float snoise(vec2 v) {
-            v += vec2(seed * 0.123, seed * 0.456); // Seed-Offset für die Welt
+            // Seed-Offset stabil anwenden (verhindert Precision-Loss bei extrem hohen Werten)
+            float s = mod(seed, 10000.0);
+            v += vec2(s * 0.123, s * 0.456); 
+            
             const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
             vec2 i  = floor(v + dot(v, C.yy) );
             vec2 x0 = v -   i + dot(i, C.xx);
@@ -415,7 +419,7 @@
             float a = 0.5;
             vec2 shift = vec2(100);
             mat2 rot = mat2(cos(0.5), sin(0.5), -sin(0.5), cos(0.50));
-            for (int i = 0; i < 8; ++i) { // Erhöht auf 8 Oktaven für mehr Details
+            for (int i = 0; i < 8; ++i) { 
                 v += a * snoise(p);
                 p = rot * p * 2.0 + shift;
                 a *= 0.5;
@@ -437,7 +441,7 @@
                 f *= 2.0;
                 a *= 0.5;
             }
-            return v * v; // Verstärkt die Täler
+            return v * v; 
         }
 
         void main() {
@@ -446,45 +450,51 @@
             
             float distToStart = length(pos);
             
-            // --- MAKRO-TERRAIN (Berge & Täler) ---
-            // Großflächige Variationen (Kontinente/Gebirge)
-            float baseNoise = fbm(pos * 0.00005); 
+            // --- TOPOGRAFIE-ZWANG (Rule Compliance) ---
+            // Wir nutzen unterschiedliche Frequenzen für maximale Varianz
             
-            // Gebirgs-Maske (Wo entstehen Berge?)
-            float mountainMask = smoothstep(-0.2, 0.6, fbm(pos * 0.0001 + vec2(500.0)));
+            // 1. Großflächige Kontinente
+            float continent = fbm(pos * 0.00008); 
             
-            // Scharfe Berge
-            float mountains = ridgedFBM(pos * 0.0003) * 450.0;
+            // 2. Gebirgs-Maske (Bestimmt, wo Gebirge sind)
+            float mountainMask = smoothstep(-0.1, 0.5, fbm(pos * 0.00015 + vec2(1000.0)));
             
-            // Sanfte Hügel
-            float hills = fbm(pos * 0.0002) * 40.0;
+            // 3. Hochgebirge (Jagged Peaks)
+            float peaks = ridgedFBM(pos * 0.0006) * 600.0;
             
-            // Kombiniertes Terrain
-            float h = mix(hills, mountains, mountainMask);
+            // 4. Sanfte Hügelketten
+            float hills = fbm(pos * 0.0004) * 60.0;
             
-            // Zufällige Täler (Flüsse/Ebenen)
-            float valleyMask = smoothstep(0.3, 0.0, abs(fbm(pos * 0.00008 + vec2(-1000.0))));
-            h = mix(h, -15.0, valleyMask * 0.7);
+            // 5. Ebenen-Varianz (Verhindert Flat Planes)
+            float flatVariance = snoise(pos * 0.002) * 2.5;
             
-            // --- STARTBEREICH SCHUTZ ---
-            // Startbereich ist absolut 1.0 (Um das Ei korrekt zu platzieren)
-            if (distToStart < 1500.0) {
-                float f = smoothstep(500.0, 1500.0, distToStart);
+            // Kombination
+            float h = mix(hills, peaks, mountainMask);
+            h += continent * 20.0; // Großflächige Hebung/Senkung
+            h += flatVariance;     // Mikro-Varianz gegen Flachheit
+            
+            // 6. Täler & Seen (Canyons)
+            float valleyNoise = fbm(pos * 0.00012 - vec2(500.0));
+            float valleyMask = smoothstep(0.4, 0.0, abs(valleyNoise));
+            h = mix(h, -25.0 + flatVariance, valleyMask * 0.85);
+            
+            // --- STARTBEREICH SCHUTZ (Ei-Sicherheit) ---
+            // Reduziert auf 400m Radius für schnellere Varianz-Sichtbarkeit
+            if (distToStart < 400.0) {
+                float f = smoothstep(100.0, 400.0, distToStart);
                 h = mix(1.0, h, f);
             }
             
-            h = clamp(h, -250.0, 1800.0);
+            // Hard Clamping für Performance & Gameplay
+            h = clamp(h, -300.0, 2500.0);
             
             // --- LAYER-IDENTIFIKATION ---
-            // ID 0.0: Standard Mesh / Terrain
-            // ID 1.0: Grass / Vegetation (Solid Collider)
-            // ID 2.0: Water (Kein Collider)
-            float layerID = 0.0; 
+            float layerID = 0.0; // Default: Stein/Mesh
             
             if (h < 4.0) {
-                layerID = 2.0; // Wasser
-            } else if (h >= 4.0 && h < 45.0) { // Erhöht für Bergwiesen
-                layerID = 1.0; // Grass
+                layerID = 2.0; // Wasser (Kein Collider)
+            } else if (h >= 4.0 && h < 60.0) {
+                layerID = 1.0; // Gras/Wiese (Solid Collider)
             }
             
             gl_FragColor = vec4(h, layerID, 0.0, 1.0);
@@ -1479,23 +1489,43 @@
 
     function getCPUHeight(x, z) {
         const distToStart = Math.hypot(x, z);
+        const s = WORLD_SEED % 10000;
+        
+        // Hilfsfunktion für konsistente Offsets
+        const pos = [x, z];
         
         // 1:1 Kopie der NOISE_SHADER Logik
-        const mountainMask = smoothstep(-0.2, 0.6, fbm([x * 0.0001 + 500, z * 0.0001 + 500], 4));
-        const mountains = ridgedFBM([x * 0.0003, z * 0.0003], 6) * 450.0;
-        const hills = fbm([x * 0.0002, z * 0.0002], 8) * 40.0;
+        // 1. Großflächige Kontinente
+        const continent = fbm([pos[0] * 0.00008 + s * 0.123, pos[1] * 0.00008 + s * 0.456], 8);
         
-        let h = hills * (1.0 - mountainMask) + mountains * mountainMask;
+        // 2. Gebirgs-Maske
+        const mountainMask = smoothstep(-0.1, 0.5, fbm([pos[0] * 0.00015 + 1000 + s * 0.123, pos[1] * 0.00015 + 1000 + s * 0.456], 4));
         
-        const valleyMask = smoothstep(0.3, 0.0, Math.abs(fbm([x * 0.00008 - 1000, z * 0.00008 - 1000], 4)));
-        h = h * (1.0 - valleyMask * 0.7) + (-15.0) * (valleyMask * 0.7);
+        // 3. Hochgebirge
+        const peaks = ridgedFBM([pos[0] * 0.0006 + s * 0.123, pos[1] * 0.0006 + s * 0.456], 6) * 600.0;
         
-        if (distToStart < 1500.0) {
-            const f = smoothstep(500.0, 1500.0, distToStart);
+        // 4. Sanfte Hügelketten
+        const hills = fbm([pos[0] * 0.0004 + s * 0.123, pos[1] * 0.0004 + s * 0.456], 8) * 60.0;
+        
+        // 5. Ebenen-Varianz
+        const flatVariance = snoise([pos[0] * 0.002 + s * 0.123, pos[1] * 0.002 + s * 0.456]) * 2.5;
+        
+        let h = hills * (1.0 - mountainMask) + peaks * mountainMask;
+        h += continent * 20.0;
+        h += flatVariance;
+        
+        // 6. Täler & Seen
+        const valleyNoise = fbm([pos[0] * 0.00012 - 500 + s * 0.123, pos[1] * 0.00012 - 500 + s * 0.456], 4);
+        const valleyMask = smoothstep(0.4, 0.0, Math.abs(valleyNoise));
+        h = h * (1.0 - valleyMask * 0.85) + (-25.0 + flatVariance) * (valleyMask * 0.85);
+        
+        // --- STARTBEREICH SCHUTZ ---
+        if (distToStart < 400.0) {
+            const f = smoothstep(100.0, 400.0, distToStart);
             h = 1.0 * (1.0 - f) + h * f;
         }
         
-        return Math.min(1800.0, Math.max(-250.0, h));
+        return Math.min(2500.0, Math.max(-300.0, h));
     }
 
     // --- GLOBALER EXPORT FÜR PHYSIK ---
