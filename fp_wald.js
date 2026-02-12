@@ -364,9 +364,9 @@
                 ? FPGraphics.getRaycastHeight(ax, az, 15)
                 : (window.FPGraphics ? FPGraphics.getGPUHeight(ax, az) : 15);
             
-            avatar.position.y = h + 0.5;
-            targetPos.y = h + 0.5;
-            currentPos.y = h + 0.5;
+            avatar.position.y = h;
+            targetPos.y = h;
+            currentPos.y = h;
             groundValidated = true;
             eiActive = true;
             console.log("🥚 Ei-Position validiert auf Höhe:", h, "an X:", ax, "Z:", az);
@@ -1372,9 +1372,9 @@
         
         // COLLISION FIX: Spieler MUSS ÜBER dem Boden bleiben
         // Wir setzen die minimale Höhe auf -250 (GPGPU Untergrenze)
-        // Aber im Dorf/Startplateau sollte groundH 15 sein.
-        // VISUELLER FIX: Wir setzen groundH minimal höher (+0.5), damit das Ei-Sprite sicher auf dem Mesh steht
-        const finalGroundH = Math.max(groundH + 0.5, -250.0);
+        // Aber im Dorf/Startplateau sollte groundH 0 sein.
+        // VISUELLER FIX: Offset auf 0.0 gesetzt (Nutzerwunsch)
+        const finalGroundH = Math.max(groundH, -250.0);
 
         // Radikaler Fix: Wenn die Position unter der Bodenhöhe liegt, sofort nach oben setzen
         if (targetPos.y < finalGroundH) { 

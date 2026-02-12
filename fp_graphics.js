@@ -385,7 +385,7 @@
             float distToStart = length(pos - startPos);
             if (distToStart < 1500.0) {
                 float startFactor = smoothstep(500.0, 1500.0, distToStart);
-                h = mix(15.0, h, startFactor); // Plateau auf 15.0m erhöht (Nutzerwunsch: Mesh anheben)
+                h = mix(0.0, h, startFactor); // Plateau auf 0.0m gesetzt (Nutzerwunsch)
             }
 
             // Dorf-Positionen (Grob-Check im Shader)
@@ -1362,7 +1362,7 @@
         // 1. Startpunkt (0,0) Plateau - Synchron mit Shader
         if (distToStart < 1500.0) {
             const startFactor = smoothstep(500.0, 1500.0, distToStart);
-            h = 15.0 * (1.0 - startFactor) + h * startFactor; // Plateau auf 15.0m erhöht
+            h = 0.0 * (1.0 - startFactor) + h * startFactor; // Plateau auf 0.0m gesetzt
         }
 
         // 2. Dorf-Bereiche - Synchron mit Shader
@@ -2185,9 +2185,8 @@
                     const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
                     loadModel(finalPath).then(model => {
                         if (!model) return;
-                        // Bäume und große Objekte leicht in den Boden stecken für besseren Übergang.
-                        // Wir nutzen -0.4m um sicherzustellen, dass keine Wurzeln schweben (Floating Trees Fix).
-                        model.position.set(tx, th - 0.4, tz); 
+                        // Bäume und große Objekte exakt auf den Boden setzen (0.0)
+            model.position.set(tx, th, tz); 
                         model.scale.set(plantScale, plantScale, plantScale);
                         model.rotation.y = rng() * Math.PI * 2;
                         // Bäume werfen Schatten
@@ -2517,8 +2516,8 @@
             const h = getRaycastHeight(x, z, gpuH);
             // if (h < 5.0 || h > 200.0) continue; // Entfernt für Debugging: Alles spawnen
             
-            // OFFSET FIX: Leicht in den Boden stecken (-0.05)
-            dummy.position.set(x, h - 0.05, z);
+            // OFFSET FIX: Exakt auf den Boden setzen (0.0)
+            dummy.position.set(x, h, z);
             dummy.rotation.y = rng() * Math.PI;
             dummy.scale.set(2, 2, 2);
             dummy.updateMatrix();
@@ -2563,8 +2562,8 @@
             const h = getRaycastHeight(x, z, gpuH);
             if (h < 5.0 || h > 200.0) continue;
             
-            // OFFSET FIX: Leicht in den Boden stecken (-0.05)
-            dummy.position.set(x, h - 0.05, z);
+            // OFFSET FIX: Exakt auf den Boden setzen (0.0)
+            dummy.position.set(x, h, z);
             dummy.rotation.y = rng() * Math.PI;
             dummy.scale.set(1.0 + rng(), 1.0 + rng(), 1.0 + rng());
             dummy.updateMatrix();
