@@ -1044,9 +1044,16 @@
             console.log("🚀 Transform-Reset: Player auf (0, 0) gesetzt.");
         }
 
-        currentPos.y = targetPos.y = 0.0; // Radikaler Reset: Start bei 0.0m
-        velocityY = 0; // Keine Fallgeschwindigkeit am Start
-        isGrounded = false;
+        // --- SPAWN-POSITION (3m über Boden) ---
+        // Wir holen die exakte Bodenhöhe am Spawn-Punkt
+        const spawnX = targetPos.x;
+        const spawnZ = targetPos.z;
+        const spawnGroundH = (window.FPGraphics_getCPUHeight) ? window.FPGraphics_getCPUHeight(spawnX, spawnZ) : 0.0;
+
+        currentPos.y = targetPos.y = spawnGroundH + 3.0; // Startet 3m ÜBER dem Mesh
+        velocityY = 0; // Keine initiale Geschwindigkeit, er fällt durch Gravitation
+        isGrounded = false; // Er ist in der Luft
+        console.log(`🚀 Spawn: Avatar bei y=${targetPos.y.toFixed(2)} (Boden: ${spawnGroundH.toFixed(2)})`);
         
         // Anti-Stuck Check: Wenn wir in einem Gebäude spawnen -> Dorfplatz
         if (checkCollision(currentPos.x, currentPos.z)) {
@@ -1385,8 +1392,8 @@
 
         // --- MASSIVE BODEN-LOGIK (HARD COLLISION) ---
         // Wir prüfen, ob der Spieler im nächsten Frame unter den Boden sinken würde.
-        if (targetPos.y <= finalGroundH + 0.05) { 
-            // 1. Position fixieren: Der Boden ist eine feste Masse.
+        if (targetPos.y <= finalGroundH) { 
+            // 1. Position fixieren: Der Avatar wird exakt auf das Mesh gesetzt.
             targetPos.y = finalGroundH;
             
             // 2. Geschwindigkeit resetten: Keine Akkumulation von Fallgeschwindigkeit im Boden
@@ -1394,7 +1401,7 @@
             isGrounded = true;
             
             // 3. Sicherheits-Check für currentPos (Render-Sync)
-            // Wenn die geglättete currentPos noch unter dem Boden hängt, ziehen wir sie sofort hoch.
+            // Wir ziehen den Avatar sofort auf die Mesh-Höhe, kein Millimeter tiefer.
             if (currentPos.y < finalGroundH) {
                 currentPos.y = finalGroundH;
             }
