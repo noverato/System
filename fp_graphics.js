@@ -901,11 +901,11 @@
      * 0 = Mesh, 1 = Grass, 2 = Water
      */
     function getGPULayer(x, z) {
-        if (!gpuCompute || !GPGPU_Container.heightData || GPGPU_Container.lastUpdate === 0) return 0;
+        if (!gpuCompute || !GPGPU_Container || !GPGPU_Container.heightData || GPGPU_Container.lastUpdate === 0) return 0;
         
         const worldSize = GPU_WORLD_SIZE;
-        const u = (x - GPGPU_Container.center.x + worldSize / 2) / worldSize;
-        const v = (z - GPGPU_Container.center.z + worldSize / 2) / worldSize;
+        const u = (x - GPGPU_Container.centerPos.x) / worldSize + 0.5;
+        const v = (z - GPGPU_Container.centerPos.y) / worldSize + 0.5;
         
         if (u < 0 || u > 1 || v < 0 || v > 1) return 0;
         
