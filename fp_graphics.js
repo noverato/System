@@ -37,10 +37,77 @@
     if (!WORLD_SEED) {
         WORLD_SEED = Math.floor(Math.random() * 1000000);
         localStorage.setItem('nest_world_seed', WORLD_SEED);
-        console.log("🌍 Neuer Welt-Seed generiert:", WORLD_SEED);
+        console.log("🌍 Lokaler Welt-Seed generiert:", WORLD_SEED);
     } else {
         WORLD_SEED = parseInt(WORLD_SEED);
-        console.log("🌍 Welt-Seed geladen:", WORLD_SEED);
+        console.log("🌍 Lokaler Welt-Seed geladen:", WORLD_SEED);
+    }
+
+    /**
+     * Synchronisiert den Seed mit Firebase, damit alle Spieler dieselbe Welt sehen.
+     */
+    function syncWorldSeedFromFirebase() {
+        if (!window.db) {
+            console.warn("⚠️ Firebase (db) nicht bereit für Seed-Sync. Nutze lokalen Fallback.");
+            return;
+        }
+
+        const seedRef = window.db.ref('world/seed');
+        seedRef.on('value', (snapshot) => {
+            const fbSeed = snapshot.val();
+            if (fbSeed !== null) {
+                if (fbSeed !== WORLD_SEED) {
+                    console.log("📡 Welt-Seed von Firebase empfangen:", fbSeed);
+                    WORLD_SEED = parseInt(fbSeed);
+                    localStorage.setItem('nest_world_seed', WORLD_SEED);
+                    updateSeededUniforms();
+                }
+            } else if (window.isAdmin) {
+                // Nur Admins dürfen den initialen Seed in Firebase setzen
+                console.log("👑 Admin: Setze initialen Welt-Seed in Firebase...");
+                seedRef.set(WORLD_SEED);
+            }
+        });
+    }
+
+    /**
+     * Setzt einen neuen globalen Welt-Seed (Nur für Admins über Konsole/UI).
+     */
+    window.setGlobalWorldSeed = function(newSeed) {
+        if (!window.isAdmin) {
+            console.error("🚫 Nur Overlords dürfen den Welt-Seed ändern!");
+            return;
+        }
+        if (!window.db) return;
+        
+        const seed = parseInt(newSeed);
+        if (isNaN(seed)) return;
+
+        window.db.ref('world/seed').set(seed)
+            .then(() => console.log("✅ Globaler Welt-Seed erfolgreich auf " + seed + " gesetzt."))
+            .catch(e => console.error("❌ Fehler beim Setzen des Welt-Seeds:", e));
+    };
+
+    /**
+     * Aktualisiert alle Shader-Uniforms, wenn sich der Seed ändert.
+     */
+    function updateSeededUniforms() {
+        // 1. GPGPU Uniforms
+        if (heightVariable && heightVariable.material) {
+            heightVariable.material.uniforms.seed.value = WORLD_SEED;
+            console.log("🧬 GPGPU Seed aktualisiert:", WORLD_SEED);
+        }
+        
+        // 2. Terrain/Clipmap Uniforms
+        if (terrainUniforms.worldSeed) {
+            terrainUniforms.worldSeed.value = WORLD_SEED;
+            console.log("🏞️ Terrain Seed aktualisiert:", WORLD_SEED);
+        }
+
+        // 3. Reset GPGPU Update Flagge, damit das Terrain neu berechnet wird
+        if (GPGPU_Container) {
+            GPGPU_Container.lastUpdate = 0; // Erzwingt Refresh im nächsten Frame
+        }
     }
 
     // NEU: Persistente Uniforms für das Terrain-System (verhindert Start-Up Lag/Fehler)
@@ -2878,6 +2945,7 @@
         currentInterior: null,
         currentInteriorMesh: null,
         init: (renderer, scene) => {
+            syncWorldSeedFromFirebase(); // Firebase-Synchronisation starten
             initGPGPU(renderer);
             initClipmap(scene);
             initWater(scene);
