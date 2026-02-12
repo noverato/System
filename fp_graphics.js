@@ -641,16 +641,16 @@
                 // Manuelle bilineare Filterung für den Vertex-Shader
                 float getSmoothHeight(vec2 uv) {
                     float texSize = 1024.0; // Synchronisiert mit GPU_TERRAIN_SIZE
+                    vec2 texelSize = vec2(1.0 / texSize);
+                    
+                    // Wir nutzen texture2D mit expliziter Filterung, falls LinearFilter nicht greift
                     vec2 f = fract(uv * texSize);
                     vec2 t00 = floor(uv * texSize) / texSize;
-                    vec2 t10 = (floor(uv * texSize) + vec2(1.0, 0.0)) / texSize;
-                    vec2 t01 = (floor(uv * texSize) + vec2(0.0, 1.0)) / texSize;
-                    vec2 t11 = (floor(uv * texSize) + vec2(1.0, 1.0)) / texSize;
                     
                     float h00 = texture2D(heightMap, t00).r;
-                    float h10 = texture2D(heightMap, t10).r;
-                    float h01 = texture2D(heightMap, t01).r;
-                    float h11 = texture2D(heightMap, t11).r;
+                    float h10 = texture2D(heightMap, t00 + vec2(texelSize.x, 0.0)).r;
+                    float h01 = texture2D(heightMap, t00 + vec2(0.0, texelSize.y)).r;
+                    float h11 = texture2D(heightMap, t00 + texelSize).r;
                     
                     return mix(mix(h00, h10, f.x), mix(h01, h11, f.x), f.y);
                 }
@@ -921,12 +921,13 @@
         // Zeit für Wind-Animation aktualisieren
         worldCullingUniforms.time.value = Date.now() * 0.001;
 
-        // --- TEXEL-SNAP FÜR DIE TEXTUR (Wellen-Fix) ---
+        // --- SUB-TEXEL SMOOTHING (Jitter-Fix) ---
+        // Das GPGPU-Zentrum (worldOffset) snappt auf Texel-Größe
         const texelSize = GPU_WORLD_SIZE / GPU_TERRAIN_SIZE; 
         const sx = Math.floor(px / texelSize) * texelSize;
         const sz = Math.floor(pz / texelSize) * texelSize;
         
-        // --- KEIN SNAP FÜR DAS MESH (Jitter-Fix) ---
+        // Das Mesh folgt dem Spieler absolut flüssig (kein Snapping)
         clipmapGroup.position.set(px, 0, pz);
 
         // GPGPU Update (Synchron mit dem Texel-Snap)
@@ -939,6 +940,9 @@
         const target = gpuCompute.getCurrentRenderTarget(smoothVariable);
         if (target && target.texture) {
             terrainUniforms.heightMap.value = target.texture;
+            // Wir müssen die Textur-Filterung auf Linear stellen für flüssige Übergänge
+            target.texture.magFilter = THREE.LinearFilter;
+            target.texture.minFilter = THREE.LinearFilter;
         }
         terrainUniforms.worldOffset.value.set(sx, sz);
         terrainUniforms.meshOffset.value.set(px, pz);
@@ -2989,55 +2993,18 @@
         update: (renderer, playerPos, time) => {
             if (!gpuCompute) return;
             
-            // 1. GPGPU Update
-            // Das GPGPU-Zentrum folgt dem Spieler in groben Schritten (100m), um die Heightmap aktuell zu halten
-            const gpgpuSnap = 100;
-            const centerX = Math.floor(playerPos.x / gpgpuSnap) * gpgpuSnap;
-            const centerZ = Math.floor(playerPos.z / gpgpuSnap) * gpgpuSnap;
-            
-            heightVariable.material.uniforms.time.value = time;
-            heightVariable.material.uniforms.offset.value.set(centerX, centerZ);
-            
-            gpuCompute.compute();
-            
-            // Gelegentliches Auslesen der Heightmap für CPU-Kollision (Container-Prinzip)
-            const now = performance.now();
-            if (now - GPGPU_Container.lastUpdate > GPGPU_Container.updateThreshold) {
-                renderer.readRenderTargetPixels(gpuCompute.getCurrentRenderTarget(smoothVariable), 0, 0, GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, GPGPU_Container.heightData);
-                GPGPU_Container.heightTexture = gpuCompute.getCurrentRenderTarget(smoothVariable).texture;
-                GPGPU_Container.centerPos.set(centerX, centerZ); // WICHTIG: Zentrum für CPU-Abfrage synchronisieren
-                GPGPU_Container.lastUpdate = now;
-            }
-            
-        // 2. Clipmap Update
-        if (clipmapMesh) {
-            // Das Mesh folgt dem Spieler in 10m Schritten (verhindert Jittering durch Gleitkommafehler)
-            const snap = 10;
-            const snapX = Math.floor(playerPos.x / snap) * snap;
-            const snapZ = Math.floor(playerPos.z / snap) * snap;
-            
-            clipmapMesh.position.set(snapX, 0, snapZ);
-            clipmapMesh.updateMatrixWorld(); // Wichtig für präzises Raycasting
-            
-            if (clipmapMaterial.userData.shader) {
-                const shader = clipmapMaterial.userData.shader;
-                if (GPGPU_Container.heightTexture) shader.uniforms.heightMap.value = GPGPU_Container.heightTexture;
-                if (shader.uniforms.worldOffset) shader.uniforms.worldOffset.value.set(centerX, centerZ); // GPGPU-Zentrum an Shader geben
-                if (shader.uniforms.meshOffset) shader.uniforms.meshOffset.value.set(snapX, snapZ);
-                if (shader.uniforms.playerPos) shader.uniforms.playerPos.value.set(playerPos.x, playerPos.z);
-            }
+            // 1. Clipmap Update (JETZT ZUERST)
+            updateClipmap(playerPos.x, playerPos.z, renderer);
 
-            // Gebäude-Höhen im Nahbereich validieren (Asset-Anchoring)
+            // 2. Gebäude-Höhen im Nahbereich validieren (Asset-Anchoring)
             fpVillageBuildings.forEach(b => {
                 const dist = Math.hypot(b.position.x - playerPos.x, b.position.z - playerPos.z);
-                if (dist < 100) { // Nur im Nahbereich für Performance
+                if (dist < 100) { 
                     const h = getRaycastHeight(b.userData.seedX || b.position.x, b.userData.seedZ || b.position.z, b.position.y);
-                    // Wir setzen y auf h, aber lassen eine winzige Toleranz gegen Z-Fighting
                     b.position.y = h;
                     b.updateMatrixWorld();
                 }
             });
-        }
             
             // 3. Wasser Update
             if (globalWater) {
