@@ -415,7 +415,7 @@
             vec2 uv = gl_FragCoord.xy / max(resolution.xy, vec2(1.0));
             vec2 texelSize = 1.0 / max(resolution.xy, vec2(1.0));
             
-            float h = 0.0;
+            vec2 hLayer = vec2(0.0);
             float weightSum = 0.0;
             
             for(int y = -2; y <= 2; y++) {
@@ -423,11 +423,13 @@
                     float dist = length(vec2(float(x), float(y)));
                     float weight = exp(-dist * dist * 0.5); // Gauß-Blur
                     
-                    h += texture2D(textureHeight, uv + vec2(float(x), float(y)) * texelSize).r * weight;
+                    vec4 data = texture2D(textureHeight, uv + vec2(float(x), float(y)) * texelSize);
+                    hLayer.x += data.r * weight;
+                    hLayer.y = data.g; // Layer-ID nicht glätten, sondern übernehmen (vom Zentrum des Kernels)
                     weightSum += weight;
                 }
             }
-            gl_FragColor = vec4(h / max(weightSum, 0.0001), 0.0, 0.0, 1.0);
+            gl_FragColor = vec4(hLayer.x / max(weightSum, 0.0001), hLayer.y, 0.0, 1.0);
         }
     `;
 
@@ -855,18 +857,16 @@
     function updateGPGPU(px, pz, renderer) {
         if (!gpuCompute || !heightVariable || !heightVariable.material) return;
         
-        // Offset so setzen, dass der Spieler in der Mitte der Textur ist
-        // Wir korrigieren den Offset um die halbe Weltgröße, damit der Spieler bei (px, pz) im Zentrum von (0,0) bis (1,1) UV liegt.
-        const ox = px - GPU_WORLD_SIZE / 2;
-        const oz = pz - GPU_WORLD_SIZE / 2;
-        
-        // Zentrum im Container speichern für CPU-Abfragen (Raycasting)
-        // WICHTIG: Das Zentrum der Textur muss EXAKT mit dem Mesh-Zentrum übereinstimmen
+        // Zentrum im Container speichern für CPU-Abfragen
         GPGPU_Container.centerPos.set(px, pz);
+        GPGPU_Container.lastUpdate = Date.now();
         
+        // Wir übergeben das ZENTRUM (px, pz) an den Shader.
+        // Der Shader berechnet daraus die Welt-Position für jedes Texel.
         if (heightVariable.material.uniforms.offset) {
-            heightVariable.material.uniforms.offset.value.set(ox, oz);
+            heightVariable.material.uniforms.offset.value.set(px, pz);
         }
+        
         gpuCompute.compute();
         
         const renderTarget = gpuCompute.getCurrentRenderTarget(smoothVariable);
@@ -1317,82 +1317,88 @@
     }
 
     // --- VERBESSERTE NOISE-FUNKTION (Multi-Octave) ---
-    function simpleNoise(x, z) {
-        let n = Math.sin(x * 0.0123 + z * 0.0456) + Math.cos(x * 0.0789 - z * 0.0123);
-        n += Math.sin(x * 0.0234 - z * 0.0567) * 0.5;
-        return n * 0.5;
+    // --- 100% SYNC NOISE (MATCHES SHADER) ---
+    function snoise(v) {
+        const C = [0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439];
+        let i = [Math.floor(v[0] + (v[0] + v[1]) * C[1]), Math.floor(v[1] + (v[0] + v[1]) * C[1])];
+        let x0 = [v[0] - i[0] + (i[0] + i[1]) * C[0], v[1] - i[1] + (i[0] + i[1]) * C[0]];
+        let i1 = (x0[0] > x0[1]) ? [1.0, 0.0] : [0.0, 1.0];
+        let x12 = [x0[0] - i1[0] + C[0], x0[1] - i1[1] + C[0], x0[0] + C[2], x0[1] + C[2]];
+        
+        let i_mod = [i[0] % 289.0, i[1] % 289.0];
+        if (i_mod[0] < 0) i_mod[0] += 289.0;
+        if (i_mod[1] < 0) i_mod[1] += 289.0;
+
+        const permute = (x) => {
+            return x.map(v => ((v * 34.0) + 1.0) * v % 289.0);
+        };
+
+        let p = permute(permute([i_mod[1], i_mod[1] + i1[1], i_mod[1] + 1.0]).map((v, j) => v + i_mod[0] + [0.0, i1[0], 1.0][j]));
+        let m = [
+            Math.max(0.5 - (x0[0] * x0[0] + x0[1] * x0[1]), 0.0),
+            Math.max(0.5 - (x12[0] * x12[0] + x12[1] * x12[1]), 0.0),
+            Math.max(0.5 - (x12[2] * x12[2] + x12[3] * x12[3]), 0.0)
+        ];
+        m = m.map(v => v * v * v * v);
+        
+        let x_vec = p.map(v => (2.0 * (v * C[3] % 1.0) - 1.0));
+        let h_vec = x_vec.map(v => Math.abs(v) - 0.5);
+        let a0 = x_vec.map(v => v - Math.floor(v + 0.5));
+        
+        let g = [
+            a0[0] * x0[0] + h_vec[0] * x0[1],
+            a0[1] * x12[0] + h_vec[1] * x12[1],
+            a0[2] * x12[2] + h_vec[2] * x12[3]
+        ];
+        
+        return 130.0 * (m[0] * g[0] + m[1] * g[1] + m[2] * g[2]);
     }
 
-    function getOctaveNoise(x, z, octaves = 4) {
-        let v = 0;
-        let a = 1.0;
-        let f = 1.0;
-        for (let i = 0; i < octaves; i++) {
-            v += simpleNoise(x * f, z * f) * a;
-            f *= 2.0;
+    function fbm(p, octaves = 8) {
+        let v = 0.0;
+        let a = 0.5;
+        let shift = [100.0, 100.0];
+        let rot_c = Math.cos(0.5);
+        let rot_s = Math.sin(0.5);
+        let pos = [p[0], p[1]];
+        for (let i = 0; i < octaves; ++i) {
+            v += a * snoise(pos);
+            let p_new = [
+                rot_c * pos[0] * 2.0 + rot_s * pos[1] * 2.0 + shift[0],
+                -rot_s * pos[0] * 2.0 + rot_c * pos[1] * 2.0 + shift[1]
+            ];
+            pos = p_new;
             a *= 0.5;
         }
         return v;
     }
 
-    function getRidgedNoise(x, z, octaves = 4) {
-        let v = 0;
-        let a = 1.0;
+    function ridge(n) { return 1.0 - Math.abs(n); }
+    function ridgedFBM(p, octaves = 6) {
+        let v = 0.0;
+        let a = 0.5;
         let f = 1.0;
-        for (let i = 0; i < octaves; i++) {
-            let n = simpleNoise(x * f, z * f);
-            v += (1.0 - Math.abs(n)) * a;
+        for (let i = 0; i < octaves; ++i) {
+            v += ridge(snoise([p[0] * f, p[1] * f])) * a;
             f *= 2.0;
             a *= 0.5;
         }
         return v * v;
     }
 
-    // --- DORF-POSITIONEN (für Terrain-Glättung) ---
-    const VILLAGE_LOCATIONS = [
-        { x: 0, z: 0, radius: 400 },     // Hauptdorf
-        { x: 1200, z: 0, radius: 300 },   // Biome Dorf 1
-        { x: -1200, z: 0, radius: 300 },  // Biome Dorf 2
-        { x: 0, z: 1200, radius: 300 },   // Biome Dorf 3
-        { x: 0, z: -1200, radius: 300 }   // Biome Dorf 4
-    ];
-
-    function getTerrainHeight(x, z) {
-        // --- GPGPU SAMPLING BEVORZUGT ---
-        // Wenn GPGPU-Daten vorhanden sind, nutzen wir diese für 100% Übereinstimmung mit dem Mesh
-        if (gpuCompute && GPGPU_Container.heightData && GPGPU_Container.heightData.length > 0) {
-            const gh = getGPUHeight(x, z, true); // true = noFallback
-            if (gh !== null) return gh;
-        }
-        return getCPUHeight(x, z);
-    }
-
-    // --- MATHEMATISCHE HELFER ---
-    function smoothstep(edge0, edge1, x) {
-        const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
-        return t * t * (3 - 2 * t);
-    }
-
     function getCPUHeight(x, z) {
         const distToStart = Math.hypot(x, z);
         
-        // Gebirgs-Maske (CPU Approximation)
-        const mountainMask = smoothstep(-0.2, 0.6, getOctaveNoise(x * 0.0001 + 500, z * 0.0001 + 500, 4));
+        // 1:1 Kopie der NOISE_SHADER Logik
+        const mountainMask = smoothstep(-0.2, 0.6, fbm([x * 0.0001 + 500, z * 0.0001 + 500], 4));
+        const mountains = ridgedFBM([x * 0.0003, z * 0.0003], 6) * 450.0;
+        const hills = fbm([x * 0.0002, z * 0.0002], 8) * 40.0;
         
-        // Scharfe Berge
-        const mountains = getRidgedNoise(x * 0.0003, z * 0.0003, 6) * 450.0;
-        
-        // Sanfte Hügel
-        const hills = getOctaveNoise(x * 0.0002, z * 0.0002, 6) * 40.0;
-        
-        // Kombiniertes Terrain
         let h = hills * (1.0 - mountainMask) + mountains * mountainMask;
         
-        // Zufällige Täler (Flüsse/Ebenen)
-        const valleyMask = smoothstep(0.3, 0.0, Math.abs(getOctaveNoise(x * 0.00008 - 1000, z * 0.00008 - 1000, 4)));
+        const valleyMask = smoothstep(0.3, 0.0, Math.abs(fbm([x * 0.00008 - 1000, z * 0.00008 - 1000], 4)));
         h = h * (1.0 - valleyMask * 0.7) + (-15.0) * (valleyMask * 0.7);
         
-        // Startpunkt absolut flach bei 1.0
         if (distToStart < 1500.0) {
             const f = smoothstep(500.0, 1500.0, distToStart);
             h = 1.0 * (1.0 - f) + h * f;

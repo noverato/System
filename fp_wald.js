@@ -1675,16 +1675,25 @@
         const py = currentPos.y;
         const pz = currentPos.z;
 
+        // --- HARD GROUND SNAP (RENDER-LEVEL) ---
+        // Wir holen die aktuellste Bodenhöhe für diesen Frame
+        let currentGroundH = currentLoopGroundH;
+        if (window.FPGraphics) {
+            const gpuH = FPGraphics.getGPUHeight(px, pz);
+            if (gpuH !== null && !isNaN(gpuH)) {
+                currentGroundH = Math.max(currentGroundH, gpuH);
+            }
+        }
+        
+        // Finale Positionierung: NIEMALS unter dem Boden
+        const finalY = Math.max(py, currentGroundH);
+
         if (avatar) {
-            // Avatar (Lila Ei) Positionierung
-            // px, py, pz ist die Spielerposition (Bodenhöhe)
-            // Das Sprite wurde bereits intern um +4 angehoben, 
-            // also setzen wir den Pivot direkt auf die berechnete Physik-Höhe (py)
-            avatar.position.set(px, py, pz);
+            avatar.position.set(px, finalY, pz);
             avatar.rotation.y = heading;
         }
         if (avatarNameTag) {
-            avatarNameTag.position.set(px, py + 2.5, pz); 
+            avatarNameTag.position.set(px, finalY + 2.5, pz); 
         }
         
         if (thirdPerson) {
