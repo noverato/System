@@ -1424,8 +1424,10 @@
             
             // 3. Sicherheits-Check für currentPos (Render-Sync)
             // Wir ziehen den Avatar sofort auf die Mesh-Höhe, kein Millimeter tiefer.
+            // Besonders wichtig beim Bergaufgehen, um Sinken während des Lerps zu verhindern.
             if (currentPos.y < finalGroundH) {
                 currentPos.y = finalGroundH;
+                if (avatar) avatar.position.y = finalGroundH;
             }
         } else {
             isGrounded = false;
@@ -1480,34 +1482,50 @@
             // Wir stellen sicher, dass die Bewegung auch ohne Pointer Lock funktioniert, 
             // falls das System den Fokus verliert, aber die Tasten gedrückt werden.
             if (moved) {
+                // --- SLOPE-AWARE MOVEMENT ---
+                // Wir prüfen die Höhe am Zielpunkt, BEVOR wir uns bewegen.
+                // Wenn der Zielpunkt höher liegt, heben wir den Avatar sofort an (Bergauf gehen).
+                let nextGroundH = currentLoopGroundH;
+                if (window.FPGraphics) {
+                    const nextCpuH = (typeof window.FPGraphics_getCPUHeight === 'function') 
+                        ? window.FPGraphics_getCPUHeight(nextX, nextZ) 
+                        : (FPGraphics.getCPUHeight ? FPGraphics.getCPUHeight(nextX, nextZ) : 0.0);
+                    const nextGpuH = FPGraphics.getGPUHeight(nextX, nextZ);
+                    
+                    if (nextGpuH !== null && !isNaN(nextGpuH)) {
+                        nextGroundH = Math.max(nextCpuH, nextGpuH);
+                    } else {
+                        nextGroundH = nextCpuH;
+                    }
+                    
+                    // Layer-Check für das Ziel (Wasser-Schutz)
+                    const nextLayerID = (window.FPGraphics_getGPULayer) ? window.FPGraphics_getGPULayer(nextX, nextZ) : 0;
+                    if (nextLayerID === 2) nextGroundH = -500.0;
+                }
+
                 if (!checkCollision(nextX, nextZ)) { 
                     targetPos.x = nextX;
                     targetPos.z = nextZ;
+                    
+                    // Wenn wir bergauf gehen (nextGroundH > currentPos.y),
+                    // ziehen wir targetPos.y sofort mit hoch, um Clipping zu verhindern.
+                    if (nextGroundH > targetPos.y) {
+                        targetPos.y = nextGroundH;
+                        velocityY = 0; // Stoppe Fallgeschwindigkeit beim Bergaufgehen
+                    }
+
                     if (Date.now() - lastStepAt > STEP_MS) {
                         gridX = Math.round(targetPos.x / GRID);
                         gridY = Math.round(targetPos.z / GRID);
                         saveStep();
                         lastStepAt = Date.now();
                     }
-                } else {
-                    // console.log("[Movement] Kollision verhindert Bewegung zu:", nextX, nextZ);
                 }
             }
 
         // --- KAMERA AKTUALISIEREN ---
         // Dies berechnet die aktuelle geglättete currentPos
         applyCamera(delta);
-        
-        // --- MASSIVE BODEN-LOGIK (VISUAL SYNC) ---
-        // Wir stellen sicher, dass das Avatar-Modell NIEMALS unter finalGroundH gezeichnet wird.
-        // Falls finalGroundH in diesem Scope nicht definiert ist (z.B. Interior-Logik Pfad), 
-        // nutzen wir die aktuelle currentLoopGroundH oder Fallback 0.
-        const activeGroundH = (typeof finalGroundH !== 'undefined') ? finalGroundH : currentLoopGroundH;
-        
-        if (avatar && currentPos.y < activeGroundH) {
-            currentPos.y = activeGroundH;
-            avatar.position.y = activeGroundH;
-        }
         
         // Kamera-Matrix sofort aktualisieren, damit der Shader im nächsten Schritt
         // die exakt gleichen View-Daten hat wie die Kamera-Position (Sync-Fix)
