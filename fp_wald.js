@@ -1354,8 +1354,16 @@
         let currentLoopGroundH = 0.0;
 
         if (!(window.FPGraphics && FPGraphics.isInterior)) {
-            velocityY += GRAVITY * delta;
-            targetPos.y += velocityY * delta;
+            // Optimierung: Wenn wir am Boden sind, reduzieren wir die Gravitations-Wirkung,
+            // um Mikro-Zittern durch ständiges Fallen und Snappen zu vermeiden.
+            if (!isGrounded || velocityY > 0) {
+                velocityY += GRAVITY * delta;
+                targetPos.y += velocityY * delta;
+            } else {
+                // Am Boden: Nur eine minimale Kraft nach unten, um Bodenkontakt zu halten
+                velocityY = GRAVITY * 0.1; 
+                targetPos.y += velocityY * delta;
+            }
             
             // --- GPU-FIRST PHYSIK ---
             // Wir nutzen die GPU-Höhe für das Snapping.
@@ -1402,8 +1410,9 @@
             velocityY = 0;
             isGrounded = true;
             
-            // Sofortiges Snapping für currentPos, um "Hüpfen" durch Lerp-Lag zu vermeiden
-            if (Math.abs(currentPos.y - finalGroundH) < 0.5) {
+            // Sanftes Snapping für currentPos, um "Hüpfen" durch Lerp-Lag zu minimieren.
+            // Wir reduzieren den Schwellenwert auf 0.1m für weniger spürbare Sprünge.
+            if (Math.abs(currentPos.y - finalGroundH) < 0.1) {
                 currentPos.y = finalGroundH;
             }
         } else {
@@ -1456,11 +1465,14 @@
             targetPos.z = nextZ;
             
             // --- SMOOTH STEP UP (Gegen Hüpfen) ---
-            // Wir heben targetPos.y nur an, wenn der Unterschied signifikant ist (>2cm),
+            // Wir heben targetPos.y nur an, wenn der Unterschied signifikant ist (>5cm),
             // um Mikro-Zittern der GPU-Daten zu ignorieren.
-            if (nextGroundH > targetPos.y + 0.02) {
+            if (nextGroundH > targetPos.y + 0.05) {
                 targetPos.y = nextGroundH;
                 velocityY = 0;
+            } else if (isGrounded && Math.abs(nextGroundH - targetPos.y) < 0.2) {
+                // Sanftes "Kleben" am Boden bei kleinen Unebenheiten nach unten
+                targetPos.y = nextGroundH;
             }
             
             if (Date.now() - lastStepAt > STEP_MS) {
@@ -1580,7 +1592,7 @@
     function updatePlayerPos(delta = 1) {
         // Schnelleres Lerping für die Rotation (direkteres Gefühl)
         const ROT_LERP = Math.min(LERP_FACTOR * delta * 4.0, 1.0);
-        const POS_LERP = Math.min(LERP_FACTOR * delta * 3.0, 1.0);
+        const POS_LERP = Math.min(LERP_FACTOR * delta * 4.0, 1.0);
         
         // Winkel-Interpolation
         let diff = targetHeading - heading;
@@ -1630,11 +1642,17 @@
         
         // Der Avatar befindet sich an der Physik-Position (py),
         // darf aber NIEMALS unter den Boden sinken (Visual Snap).
-        let renderY = Math.max(py, currentGroundH); 
+        // Wir nutzen py direkt, da py bereits in der Physik-Schleife am Boden ausgerichtet wurde.
+        let renderY = py; 
 
+        // Sicherheits-Check: Falls py aus irgendeinem Grund unter dem Boden liegt, sanft anheben
+        if (renderY < currentGroundH) {
+            renderY = currentGroundH;
+        }
         // Glättung für renderY, um Mikro-Zittern der GPU-Daten für die Kamera zu dämpfen
+        // Wir erhöhen den Faktor auf 0.8 für schnellere Reaktion bei Bewegung.
         if (lastRenderY === 0) lastRenderY = renderY;
-        renderY = lastRenderY + (renderY - lastRenderY) * Math.min(delta * 0.5, 1.0);
+        renderY = lastRenderY + (renderY - lastRenderY) * Math.min(delta * 0.8, 1.0);
         lastRenderY = renderY;
 
         if (avatar) {
