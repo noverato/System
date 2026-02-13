@@ -1214,6 +1214,10 @@
 
     async function loadModel(path) {
         if (modelCache.has(path)) return modelCache.get(path).clone();
+        
+        // Debugging für Lade-Pfade
+        console.log(`[Loader] Lade Modell: ${path}`);
+        
         if (!loader) {
             console.warn("Loader nicht verfügbar für:", path);
             throw new Error("Loader not initialized");
@@ -1993,6 +1997,7 @@
         });
 
         if (mesh) {
+            console.log(`[InstanceCache] Mesh gefunden für: ${path}`);
             const isTerrain = path.includes('/Terrain/') || path.includes('Terrain_Grass') || path.includes('ocean.glb');
             const isGrass = path.toLowerCase().includes('grass');
 
@@ -2163,6 +2168,8 @@
 
             if (assetPath) {
                 const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
+                console.log(`[Decoration] Versuche Modell zu laden: ${finalPath} für Biome: ${bName}`);
+                
                 if (!decorationData.has(finalPath)) decorationData.set(finalPath, []);
                 decorationData.get(finalPath).push({
                     pos: [x, th - 0.05, z],
@@ -2238,7 +2245,10 @@
                 }
                 mesh.instanceMatrix.needsUpdate = true;
                 group.add(mesh);
-            }).catch(e => {});
+                console.log(`[Decoration] ${instances.length} Instanzen hinzugefügt für: ${path}`);
+            }).catch(e => {
+                console.error(`[Decoration] Fehler beim Erstellen der Instanzen für: ${path}`, e);
+            });
         }
 
         return group;
