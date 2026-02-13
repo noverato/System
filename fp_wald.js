@@ -1309,6 +1309,11 @@
         anim = requestAnimationFrame(loop);
         if (!renderer || !scene || !camera) return;
 
+        // --- PERFORMANCE: STAGGERED CREATION ---
+        if (window.FPGraphics) {
+            FPGraphics.processCreationQueue();
+        }
+
         if (!collisionRaycaster && window.THREE) {
             collisionRaycaster = new THREE.Raycaster();
         }

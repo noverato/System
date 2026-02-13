@@ -20,9 +20,10 @@
     const CLIPMAP_SEGMENTS = 512; // Erhöht für bessere Detaildichte und Texel-Alignment
     
     const DECORATION_CELL_SIZE = 128; 
-    const DECORATION_RANGE = 12;       
+    const DECORATION_RANGE = 8;       // Reduziert von 12 auf 8 für besseren Initial-Load
+    const TREE_LOD_DIST = 500;        // Ab hier werden Bäume zu Billboards (Glocken-Prinzip)
     const GRASS_CELL_SIZE = 64;      
-    const GRASS_RANGE = 24;           
+    const GRASS_RANGE = 16;           // Reduziert von 24 auf 16
 
     // Globale Uniforms für das Culling-System (Bubble-Prinzip / Glocke)
     const worldCullingUniforms = {
@@ -1987,6 +1988,30 @@
     let globalBillboardMat = null;
     let globalBillboardGeo = null;
 
+    function getTreeBillboardData() {
+        if (!globalBillboardGeo) {
+            // Einfaches Kreuz-Billboard (2 Planes)
+            const g1 = new THREE.PlaneGeometry(1, 1.5);
+            g1.translate(0, 0.75, 0);
+            const g2 = g1.clone().rotateY(Math.PI / 2);
+            
+            // @ts-ignore
+            if (typeof THREE.BufferGeometryUtils !== 'undefined') {
+                globalBillboardGeo = THREE.BufferGeometryUtils.mergeBufferGeometries([g1, g2]);
+            } else {
+                globalBillboardGeo = g1; // Fallback
+            }
+            
+            globalBillboardMat = new THREE.MeshStandardMaterial({
+                color: 0x2d5a27,
+                flatShading: true,
+                side: THREE.DoubleSide
+            });
+            applyWorldCulling(globalBillboardMat);
+        }
+        return { geo: globalBillboardGeo, mat: globalBillboardMat };
+    }
+
     async function getModelInstanceData(path) {
         if (instanceCache.has(path)) return instanceCache.get(path);
         
@@ -2018,28 +2043,45 @@
     const decorationGrids = new Map(); // Map<string, Group>
     const grassGrids = new Map();       // Map<string, Group>
     let lastUpdatePos = new THREE.Vector2(Infinity, Infinity);
+    const creationQueue = [];           // Warteschlange für das verzögerte Laden von Zellen
+    const MAX_CREATIONS_PER_FRAME = 1;  // Nur eine Zelle pro Frame erstellen (verhindert Browser-Freeze)
 
     function getRaycastHeight(x, z, fallbackHeight = 0) {
-        // WICHTIG: Wir nutzen NICHT mehr das Raycasting auf das clipmapMesh, 
-        // da dieses auf der CPU flach ist (Displacement passiert im Shader).
-        // Stattdessen nutzen wir die GPGPU-Daten (getGPUHeight).
-        
         const gpuH = getGPUHeight(x, z);
-        
-        // h === 0 ist valide (Plateau), aber h === undefined/NaN wäre ein Fehler.
-        // getGPUHeight liefert bereits getCPUHeight als Fallback.
-        if (gpuH !== undefined && !isNaN(gpuH)) {
-            return gpuH;
-        }
-        
+        if (gpuH !== undefined && !isNaN(gpuH)) return gpuH;
         return fallbackHeight;
+    }
+
+    function processCreationQueue() {
+        if (creationQueue.length === 0) return;
+        
+        // Verarbeite nur eine begrenzte Anzahl pro Frame
+        for (let i = 0; i < MAX_CREATIONS_PER_FRAME && creationQueue.length > 0; i++) {
+            const task = creationQueue.shift();
+            if (task.type === 'decoration') {
+                if (!decorationGrids.has(task.key)) {
+                    const group = createDecorationCell(task.x, task.z, task.playerPos);
+                    decorationGrids.set(task.key, group);
+                    mainScene.add(group);
+                }
+            } else if (task.type === 'grass') {
+                if (!grassGrids.has(task.key)) {
+                    const group = createGrassCell(task.x, task.z, task.playerPos);
+                    grassGrids.set(task.key, group);
+                    mainScene.add(group);
+                }
+            }
+        }
     }
 
     function updateDecorations(playerPos) {
         if (!mainScene) return;
         
-        // Optimierung: Nur updaten wenn Spieler sich mehr als 10m bewegt hat
-        if (lastUpdatePos.distanceTo(new THREE.Vector2(playerPos.x, playerPos.z)) < 10) return;
+        // Queue verarbeiten
+        processCreationQueue();
+        
+        // Optimierung: Nur neue Aufgaben in die Queue legen, wenn Spieler sich bewegt hat
+        if (lastUpdatePos.distanceTo(new THREE.Vector2(playerPos.x, playerPos.z)) < 5) return;
         lastUpdatePos.set(playerPos.x, playerPos.z);
         
         const cellX = Math.floor(playerPos.x / DECORATION_CELL_SIZE);
@@ -2050,9 +2092,10 @@
             for (let z = cellZ - DECORATION_RANGE; z <= cellZ + DECORATION_RANGE; z++) {
                 const key = `${x}_${z}`;
                 if (!decorationGrids.has(key)) {
-                    const group = createDecorationCell(x, z, playerPos);
-                    decorationGrids.set(key, group);
-                    mainScene.add(group);
+                    // Prüfen, ob bereits in Queue
+                    if (!creationQueue.find(t => t.key === key && t.type === 'decoration')) {
+                        creationQueue.push({ type: 'decoration', x, z, key, playerPos: playerPos.clone() });
+                    }
                 }
             }
         }
@@ -2060,7 +2103,7 @@
         // Cleanup ferner Zellen
         decorationGrids.forEach((group, key) => {
             const [x, z] = key.split('_').map(Number);
-            if (Math.abs(x - cellX) > DECORATION_RANGE + 1 || Math.abs(z - cellZ) > DECORATION_RANGE + 1) {
+            if (Math.abs(x - cellX) > DECORATION_RANGE + 2 || Math.abs(z - cellZ) > DECORATION_RANGE + 2) {
                 mainScene.remove(group);
                 disposeGroup(group);
                 decorationGrids.delete(key);
@@ -2075,9 +2118,9 @@
             for (let z = gCellZ - GRASS_RANGE; z <= gCellZ + GRASS_RANGE; z++) {
                 const key = `${x}_${z}`;
                 if (!grassGrids.has(key)) {
-                    const group = createGrassCell(x, z, playerPos);
-                    grassGrids.set(key, group);
-                    mainScene.add(group);
+                    if (!creationQueue.find(t => t.key === key && t.type === 'grass')) {
+                        creationQueue.push({ type: 'grass', x, z, key, playerPos: playerPos.clone() });
+                    }
                 }
             }
         }
@@ -2103,7 +2146,15 @@
         const midH = getGPUHeight(midX, midZ);
         const biome = getBiomeData(midX, midZ, midH);
 
-        let densityMult = 0.8;
+        const distToPlayer = Math.hypot(midX - playerPos.x, midZ - playerPos.z);
+        // AOI / Glocken-Prinzip: Assets außerhalb des 500m Radius werden gar nicht erst in die Queue gelegt
+        // (Wird bereits in updateDecorations durch DECORATION_RANGE gesteuert, 
+        // aber hier erzwingen wir den harten Cut-Off für die Details)
+        if (distToPlayer > 550) return group; // Sicherheitsmarge
+
+        const isFar = distToPlayer > TREE_LOD_DIST;
+        
+        let densityMult = isFar ? 0.3 : 0.8; // Reduzierte Dichte in der Ferne (LOD)
         let treeCount = 0;
         
         if (!biome || !biome.name || biome.name === 'none') {
@@ -2118,13 +2169,12 @@
         else treeCount = (6 + Math.floor(rng() * 6)) * densityMult;
 
         const decorationData = new Map(); // path -> Array of {pos, scale, rot}
+        const billboardInstances = [];    // Für LOD-Bäume
 
         // 1. BÄUME (Große Vegetation)
         for (let i = 0; i < treeCount; i++) {
             const x = (cx + rng()) * DECORATION_CELL_SIZE;
             const z = (cz + rng()) * DECORATION_CELL_SIZE;
-            const dist = Math.hypot(x - playerPos.x, z - playerPos.z);
-            if (dist > CLIPMAP_RADIUS + 50) continue;
             
             const gpuH = getGPUHeight(x, z);
             const waterLevel = 2.0; 
@@ -2137,6 +2187,16 @@
             let assetPath = null;
             let plantScale = 1.0;
             const bName = biome ? biome.name : 'plains';
+
+            // LOD Logik: In der Ferne nutzen wir Billboards
+            if (isFar) {
+                billboardInstances.push({
+                    pos: [x, th - 0.05, z],
+                    scale: 15 + rng() * 10,
+                    rot: rng() * Math.PI * 2
+                });
+                continue;
+            }
 
             if (bName === 'jungle') {
                 assetPath = AssetsLibrary.encode('Nature/glTF/CommonTree_1.gltf'); 
@@ -2167,7 +2227,7 @@
             }
 
             if (assetPath) {
-                const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
+                const finalPath = assetPath;
                 console.log(`[Decoration] Versuche Modell zu laden: ${finalPath} für Biome: ${bName}`);
                 
                 if (!decorationData.has(finalPath)) decorationData.set(finalPath, []);
@@ -2179,48 +2239,76 @@
             }
         }
 
-        // 2. CLUTTER (Steine, Farne, Kleinkram)
-        const clutterCount = (10 + Math.floor(rng() * 15)) * densityMult;
-        for (let i = 0; i < clutterCount; i++) {
-            const x = (cx + rng()) * DECORATION_CELL_SIZE;
-            const z = (cz + rng()) * DECORATION_CELL_SIZE;
-            const gpuH = getGPUHeight(x, z);
-            if (gpuH < 2.2 && (!biome || biome.name !== 'swamp')) continue;
+        // 2. CLUTTER (Steine, Farne, Kleinkram) - Nur in der Nähe
+        if (!isFar) {
+            const clutterCount = (10 + Math.floor(rng() * 15)) * densityMult;
+            for (let i = 0; i < clutterCount; i++) {
+                const x = (cx + rng()) * DECORATION_CELL_SIZE;
+                const z = (cz + rng()) * DECORATION_CELL_SIZE;
+                const gpuH = getGPUHeight(x, z);
+                if (gpuH < 2.2 && (!biome || biome.name !== 'swamp')) continue;
 
-            const sh = getRaycastHeight(x, z, gpuH);
-            const r = rng();
-            let assetPath = null;
-            let scale = 1.0;
+                const sh = getRaycastHeight(x, z, gpuH);
+                const r = rng();
+                let assetPath = null;
+                let scale = 1.0;
 
-            if (r > 0.8) { // Steine
-                const rockList = AssetsLibrary.get('NATURE', 'ROCKS');
-                if (rockList && rockList.length > 0) {
-                    assetPath = AssetsLibrary.encode('Nature/glTF/' + rockList[Math.floor(rng() * rockList.length)]);
-                    scale = 0.5 + rng() * 2.0;
+                if (r > 0.8) { // Steine
+                    const rockList = AssetsLibrary.get('NATURE', 'ROCKS');
+                    if (rockList && rockList.length > 0) {
+                        assetPath = AssetsLibrary.encode('Nature/glTF/' + rockList[Math.floor(rng() * rockList.length)]);
+                        scale = 0.5 + rng() * 2.0;
+                    }
+                } else if (r > 0.2) { // Farne / Gras-Assets
+                    let list = [];
+                    if (biome && biome.name === 'jungle') list = AssetsLibrary.get('NATURE', 'FERNS') || [];
+                    else list = AssetsLibrary.get('NATURE', 'GRASS') || [];
+                    
+                    if (list.length > 0) {
+                        assetPath = AssetsLibrary.encode('Nature/glTF/' + list[Math.floor(rng() * list.length)]);
+                        scale = 1.0 + rng() * 1.5;
+                    }
                 }
-            } else if (r > 0.2) { // Farne / Gras-Assets
-                let list = [];
-                if (biome && biome.name === 'jungle') list = AssetsLibrary.get('NATURE', 'FERNS') || [];
-                else list = AssetsLibrary.get('NATURE', 'GRASS') || [];
-                
-                if (list.length > 0) {
-                    assetPath = AssetsLibrary.encode('Nature/glTF/' + list[Math.floor(rng() * list.length)]);
-                    scale = 1.0 + rng() * 1.5;
-                }
-            }
 
-            if (assetPath) {
-                const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
-                if (!decorationData.has(finalPath)) decorationData.set(finalPath, []);
-                decorationData.get(finalPath).push({
-                    pos: [x, sh - 0.1, z],
-                    scale: scale,
-                    rot: rng() * Math.PI * 2
-                });
+                if (assetPath) {
+                    const finalPath = assetPath;
+                    if (!decorationData.has(finalPath)) decorationData.set(finalPath, []);
+                    decorationData.get(finalPath).push({
+                        pos: [x, sh - 0.1, z],
+                        scale: scale,
+                        rot: rng() * Math.PI * 2
+                    });
+                }
             }
         }
 
         // 3. INSTANZEN ERSTELLEN
+        
+        // 3a. Billboards für LOD (Schneller Load)
+        if (billboardInstances.length > 0) {
+            const data = getTreeBillboardData();
+            const mesh = new THREE.InstancedMesh(data.geo, data.mat, billboardInstances.length);
+            const matrix = new THREE.Matrix4();
+            const position = new THREE.Vector3();
+            const rotation = new THREE.Euler();
+            const quaternion = new THREE.Quaternion();
+            const scaleVec = new THREE.Vector3();
+
+            for (let i = 0; i < billboardInstances.length; i++) {
+                const inst = billboardInstances[i];
+                position.set(inst.pos[0], inst.pos[1], inst.pos[2]);
+                rotation.set(0, inst.rot, 0);
+                quaternion.setFromEuler(rotation);
+                scaleVec.set(inst.scale, inst.scale, inst.scale);
+                matrix.compose(position, quaternion, scaleVec);
+                mesh.setMatrixAt(i, matrix);
+            }
+            mesh.instanceMatrix.needsUpdate = true;
+            group.add(mesh);
+            console.log(`[LOD] ${billboardInstances.length} Billboards erstellt (Far-LOD > ${TREE_LOD_DIST}m)`);
+        }
+
+        // 3b. GLTF Modelle für Nahbereich (Async Load)
         for (const [path, instances] of decorationData.entries()) {
             getModelInstanceData(path).then(data => {
                 if (!data) return;
