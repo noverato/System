@@ -2610,12 +2610,21 @@
             // WICHTIG: RaycastHeight für präzise Platzierung auf dem Clipmap-Terrain
             const gpuH = getGPUHeight(x, z);
             
+            // Debug-Log für Wasserlevel-Check
+            if (i === 0) console.log(`[FPGraphics] Spawning Check: x=${x.toFixed(1)}, z=${z.toFixed(1)}, gpuH=${gpuH.toFixed(2)}, biome=${biome.name}`);
+
             // Nur spawnen wenn über Wasserlevel (außer Swamp)
             const waterLevel = 2.0; 
-            if (gpuH < waterLevel + 0.5 && biome.name !== 'swamp') continue;
-            if (biome.name === 'swamp' && gpuH < -2.0) continue;
+            if (gpuH < waterLevel + 0.1 && biome.name !== 'swamp') continue;
+            if (biome.name === 'swamp' && gpuH < -3.0) continue;
 
             const th = getRaycastHeight(x, z, gpuH);
+            
+            // Validierung der Raycast-Höhe
+            if (th < -10.0 || th > 2000.0) {
+                console.warn("[FPGraphics] Ungültige Raycast-Höhe für Baum:", th, "bei", x, z);
+                continue;
+            }
             
             let assetPath = null;
             let plantScale = 1.0;
@@ -2649,9 +2658,15 @@
             }
 
             if (assetPath) {
-                const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
+                // Asset-Pfad Validierung und Korrektur (Sicherstellen, dass BASE_URL nicht doppelt ist)
+                const finalPath = assetPath; 
+                console.log("[FPGraphics] Lade Baum-Asset:", finalPath, "für Biome:", biome.name);
+
                 loadModel(finalPath).then(model => {
-                    if (!model) return;
+                    if (!model) {
+                        console.warn("[FPGraphics] Modell konnte nicht geladen werden:", finalPath);
+                        return;
+                    }
                     // Asset-Anchor: Exakt auf den Boden setzen mit minimalem Offset gegen Z-Fighting
                     model.position.set(x, th - 0.02, z); 
                     model.scale.set(plantScale, plantScale, plantScale);
@@ -2665,7 +2680,7 @@
                         }
                     });
                     group.add(model);
-                }).catch(e => console.warn("[FPGraphics] Fehler beim Laden von Baum:", finalPath, e));
+                }).catch(e => console.error("[FPGraphics] Schwerwiegender Fehler beim Laden von Baum:", finalPath, e));
             }
         }
         return group;
