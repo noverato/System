@@ -37,6 +37,7 @@
     let isGrounded = false; // Initial auf false, um Gravitation zu triggern
     const GRAVITY = -0.015;
     const JUMP_FORCE = 0.6; // Stärkerer Sprung für Berge
+    const GROUND_OFFSET = 0.01; // 1cm Schwebemodus gegen Boden-Zittern
     let lastTime = performance.now();
     // ------------------------
     
@@ -1403,7 +1404,7 @@
         }
         
         // --- GEMEINSAME BODEN-LOGIK ---
-        const finalGroundH = currentLoopGroundH;
+        const finalGroundH = currentLoopGroundH + GROUND_OFFSET;
 
         if (targetPos.y <= finalGroundH) { 
             targetPos.y = finalGroundH;
@@ -1643,11 +1644,12 @@
         // Der Avatar befindet sich an der Physik-Position (py),
         // darf aber NIEMALS unter den Boden sinken (Visual Snap).
         // Wir nutzen py direkt, da py bereits in der Physik-Schleife am Boden ausgerichtet wurde.
+        // Wir fügen den GROUND_OFFSET hinzu, um den Schwebemodus zu garantieren.
         let renderY = py; 
 
         // Sicherheits-Check: Falls py aus irgendeinem Grund unter dem Boden liegt, sanft anheben
-        if (renderY < currentGroundH) {
-            renderY = currentGroundH;
+        if (renderY < currentGroundH + GROUND_OFFSET) {
+            renderY = currentGroundH + GROUND_OFFSET;
         }
         // Glättung für renderY, um Mikro-Zittern der GPU-Daten für die Kamera zu dämpfen
         // Wir erhöhen den Faktor auf 0.8 für schnellere Reaktion bei Bewegung.
