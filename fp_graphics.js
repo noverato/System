@@ -2286,101 +2286,53 @@
                 const th = getRaycastHeight(tx, tz, gpuH);
                 
                 let assetPath = null;
-                let plant = null;
                 let plantScale = 1.0;
 
                 if (biome.name === 'jungle') {
-                    try {
-                        const palm = AssetsLibrary.get('NATURE', 'PALM_TREE') || 'PalmTree_1.gltf';
-                        assetPath = AssetsLibrary.encode('Nature/glTF/' + palm);
-                        plantScale = 8 + rng() * 10;
-                    } catch(e) { plant = createPalm(rng); }
+                    assetPath = AssetsLibrary.encode('Nature/glTF/PalmTree_1.gltf');
+                    plantScale = 8 + rng() * 10;
                 } else if (biome.name === 'desert') {
                     if (rng() > 0.4) {
-                        try {
-                            const cactus = AssetsLibrary.get('NATURE', 'CACTUS') || 'Cactus_1.gltf';
-                            assetPath = AssetsLibrary.encode('Nature/glTF/' + cactus);
-                            plantScale = 5 + rng() * 6;
-                        } catch(e) { plant = createCactus(rng); }
-                    } else {
-                        plant = createDesertRock(rng);
+                        assetPath = AssetsLibrary.encode('Nature/glTF/Cactus_1.gltf');
+                        plantScale = 5 + rng() * 6;
                     }
                 } else if (biome.name === 'snow') {
-                    if (rng() > 0.3) {
-                        try {
-                            const trees = AssetsLibrary.get('NATURE', 'TREES');
-                            const pineList = Array.isArray(trees) ? trees.filter(t => t.includes('Pine')) : [];
-                            if (pineList.length > 0) {
-                                const pine = pineList[Math.floor(rng() * pineList.length)];
-                                assetPath = AssetsLibrary.encode('Nature/glTF/' + pine);
-                                plantScale = 6 + rng() * 8;
-                            } else {
-                                plant = createDetailedTree(tx, tz, th, rng, 0xffffff, 0.8);
-                            }
-                        } catch(e) { plant = createDetailedTree(tx, tz, th, rng, 0xffffff, 0.8); }
-                    } else {
-                        plant = createDeadTree(rng);
-                    }
+                    const pineList = ['Pine_1.gltf', 'Pine_2.gltf', 'Pine_3.gltf', 'Pine_4.gltf', 'Pine_5.gltf'];
+                    assetPath = AssetsLibrary.encode('Nature/glTF/' + pineList[Math.floor(rng() * pineList.length)]);
+                    plantScale = 6 + rng() * 8;
                 } else if (biome.name === 'swamp') {
-                    if (rng() > 0.4) {
-                        try {
-                            const trees = AssetsLibrary.get('NATURE', 'TREES');
-                            const twistedList = Array.isArray(trees) ? trees.filter(t => t.includes('Twisted')) : [];
-                            if (twistedList.length > 0) {
-                                const tree = twistedList[Math.floor(rng() * twistedList.length)];
-                                assetPath = AssetsLibrary.encode('Nature/glTF/' + tree);
-                                plantScale = 7 + rng() * 7;
-                            } else {
-                                plant = createDetailedTree(tx, tz, th, rng, 0x2f351e, 1.2);
-                            }
-                        } catch(e) { plant = createDetailedTree(tx, tz, th, rng, 0x2f351e, 1.2); }
-                    } else {
-                        plant = createDeadTree(rng);
-                    }
+                    const twistedList = ['TwistedTree_1.gltf', 'TwistedTree_2.gltf', 'TwistedTree_3.gltf', 'TwistedTree_4.gltf', 'TwistedTree_5.gltf'];
+                    assetPath = AssetsLibrary.encode('Nature/glTF/' + twistedList[Math.floor(rng() * twistedList.length)]);
+                    plantScale = 7 + rng() * 7;
                 } else {
                     // Forest / Plains / Mountains
-                    try {
-                        const isBirch = rng() > 0.6;
-                        const treeList = AssetsLibrary.get('TREES', 'LIST');
-                        const list = Array.isArray(treeList) ? (isBirch ? 
-                            treeList.filter(t => t.includes('Birch')) :
-                            treeList.filter(t => t.includes('Maple'))) : [];
-                        
-                        if (list.length > 0) {
-                            const tree = list[Math.floor(rng() * list.length)];
-                            assetPath = AssetsLibrary.encode('baeume/glTF/' + tree);
-                            plantScale = 8 + rng() * 10;
-                        } else {
-                            plant = createDetailedTree(tx, tz, th, rng);
-                        }
-                    } catch(e) { plant = createDetailedTree(tx, tz, th, rng); }
+                    const isBirch = rng() > 0.6;
+                    const list = isBirch ? 
+                        ['BirchTree_1.gltf', 'BirchTree_2.gltf', 'BirchTree_3.gltf', 'BirchTree_4.gltf', 'BirchTree_5.gltf'] :
+                        ['MapleTree_1.gltf', 'MapleTree_2.gltf', 'MapleTree_3.gltf', 'MapleTree_4.gltf', 'MapleTree_5.gltf'];
+                    
+                    assetPath = AssetsLibrary.encode('baeume/glTF/' + list[Math.floor(rng() * list.length)]);
+                    plantScale = 8 + rng() * 10;
                 }
                 
                 if (assetPath) {
-                    // Sicherstellen, dass der Pfad mit animation/ beginnt
                     const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
                     loadModel(finalPath).then(model => {
                         if (!model) return;
-                        // Bäume und große Objekte exakt auf den Boden setzen (0.0)
-            model.position.set(tx, th, tz); 
+                        // Asset-Anchor: Exakt auf den Boden setzen
+                        model.position.set(tx, th, tz); 
                         model.scale.set(plantScale, plantScale, plantScale);
                         model.rotation.y = rng() * Math.PI * 2;
-                        // Bäume werfen Schatten
+                        
                         model.traverse(child => {
                             if (child.isMesh) {
                                 child.castShadow = true;
                                 child.receiveShadow = true;
+                                applyWorldCulling(child.material); // Glocken-Prinzip
                             }
                         });
                         group.add(model);
-                    }).catch(e => {});
-                } else if (plant) {
-                    // Auch generierte Pflanzen leicht anpassen
-                    plant.position.set(tx, th - 0.4, tz); 
-                    plant.rotation.y = rng() * Math.PI * 2;
-                    plant.castShadow = true;
-                    plant.receiveShadow = true;
-                    group.add(plant);
+                    }).catch(e => console.warn("[FPGraphics] Fehler beim Laden von Baum:", finalPath, e));
                 }
             }
         }
@@ -2630,34 +2582,91 @@
         const seed = cx * 1337 + cz * 42;
         const rng = rndSeed(seed);
         
-        const count = 12; // Weniger Bäume für Performance
-        for (let i = 0; i < count; i++) {
+        // Bestimme Biome für diese Zelle
+        const midX = (cx + 0.5) * DECORATION_CELL_SIZE;
+        const midZ = (cz + 0.5) * DECORATION_CELL_SIZE;
+        const midH = getGPUHeight(midX, midZ);
+        const biome = getBiomeData(midX, midZ, midH);
+
+        // Biome-abhängige Dichte (Dichte-Regelung für Performance)
+        let densityMult = 0.6;
+        let treeCount = 0;
+        if (biome.name === 'jungle') treeCount = (10 + Math.floor(rng() * 8)) * densityMult;
+        else if (biome.name === 'plains') treeCount = (2 + Math.floor(rng() * 3)) * densityMult;
+        else if (biome.name === 'swamp') treeCount = (8 + Math.floor(rng() * 6)) * densityMult;
+        else if (biome.name === 'snow') treeCount = (3 + Math.floor(rng() * 3)) * densityMult;
+        else if (biome.name === 'desert') treeCount = (1 + Math.floor(rng() * 2)) * densityMult;
+        else if (biome.name === 'forest') treeCount = (12 + Math.floor(rng() * 10)) * densityMult;
+        else treeCount = (4 + Math.floor(rng() * 4)) * densityMult;
+
+        for (let i = 0; i < treeCount; i++) {
             const x = (cx + rng()) * DECORATION_CELL_SIZE;
             const z = (cz + rng()) * DECORATION_CELL_SIZE;
 
             // Performance: Pre-Culling für Bäume (nur innerhalb des Sichtradius)
             const dist = Math.hypot(x - playerPos.x, z - playerPos.z);
-            if (dist > CLIPMAP_RADIUS + 100) continue;
+            if (dist > CLIPMAP_RADIUS + 50) continue;
             
             // WICHTIG: RaycastHeight für präzise Platzierung auf dem Clipmap-Terrain
             const gpuH = getGPUHeight(x, z);
-            const h = getRaycastHeight(x, z, gpuH);
-            if (h < 5.0 || h > 300.0) continue; // Nur in moderaten Höhen spawnen
             
-            const type = rng() > 0.5 ? 'pine' : 'oak';
-            const tree = type === 'pine' ? createPine(rng) : createOak(rng);
-            // OFFSET FIX: Leicht in den Boden stecken (-0.05)
-            tree.position.set(x, h - 0.05, z);
+            // Nur spawnen wenn über Wasserlevel (außer Swamp)
+            const waterLevel = 2.0; 
+            if (gpuH < waterLevel + 0.5 && biome.name !== 'swamp') continue;
+            if (biome.name === 'swamp' && gpuH < -2.0) continue;
+
+            const th = getRaycastHeight(x, z, gpuH);
             
-            // AOI Check: Dormant state falls zu weit weg
-            // Jedes Material des Baums einzeln cullen
-            tree.traverse(child => {
-                if (child.isMesh) {
-                    applyWorldCulling(child.material);
+            let assetPath = null;
+            let plantScale = 1.0;
+
+            // Biome-Logik für Baum-Assets
+            if (biome.name === 'jungle') {
+                assetPath = AssetsLibrary.encode('Nature/glTF/PalmTree_1.gltf');
+                plantScale = 8 + rng() * 10;
+            } else if (biome.name === 'desert') {
+                if (rng() > 0.4) {
+                    assetPath = AssetsLibrary.encode('Nature/glTF/Cactus_1.gltf');
+                    plantScale = 5 + rng() * 6;
                 }
-            });
-            
-            group.add(tree);
+            } else if (biome.name === 'snow') {
+                const pineList = ['Pine_1.gltf', 'Pine_2.gltf', 'Pine_3.gltf', 'Pine_4.gltf', 'Pine_5.gltf'];
+                assetPath = AssetsLibrary.encode('Nature/glTF/' + pineList[Math.floor(rng() * pineList.length)]);
+                plantScale = 6 + rng() * 8;
+            } else if (biome.name === 'swamp') {
+                const twistedList = ['TwistedTree_1.gltf', 'TwistedTree_2.gltf', 'TwistedTree_3.gltf', 'TwistedTree_4.gltf', 'TwistedTree_5.gltf'];
+                assetPath = AssetsLibrary.encode('Nature/glTF/' + twistedList[Math.floor(rng() * twistedList.length)]);
+                plantScale = 7 + rng() * 7;
+            } else {
+                // Forest / Plains / Mountains
+                const isBirch = rng() > 0.6;
+                const list = isBirch ? 
+                    ['BirchTree_1.gltf', 'BirchTree_2.gltf', 'BirchTree_3.gltf', 'BirchTree_4.gltf', 'BirchTree_5.gltf'] :
+                    ['MapleTree_1.gltf', 'MapleTree_2.gltf', 'MapleTree_3.gltf', 'MapleTree_4.gltf', 'MapleTree_5.gltf'];
+                
+                assetPath = AssetsLibrary.encode('baeume/glTF/' + list[Math.floor(rng() * list.length)]);
+                plantScale = 8 + rng() * 10;
+            }
+
+            if (assetPath) {
+                const finalPath = assetPath.startsWith('animation/') ? assetPath : 'animation/' + assetPath;
+                loadModel(finalPath).then(model => {
+                    if (!model) return;
+                    // Asset-Anchor: Exakt auf den Boden setzen mit minimalem Offset gegen Z-Fighting
+                    model.position.set(x, th - 0.02, z); 
+                    model.scale.set(plantScale, plantScale, plantScale);
+                    model.rotation.y = rng() * Math.PI * 2;
+                    
+                    model.traverse(child => {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                            applyWorldCulling(child.material); // Glocken-Prinzip
+                        }
+                    });
+                    group.add(model);
+                }).catch(e => console.warn("[FPGraphics] Fehler beim Laden von Baum:", finalPath, e));
+            }
         }
         return group;
     }
@@ -2750,28 +2759,11 @@
         return group;
     }
 
-    // --- PRIMITIVE ASSET CREATION ---
-    function createPine(rng) {
-        const g = new THREE.Group();
-        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 4), new THREE.MeshStandardMaterial({ color: PALETTE.trunk }));
-        trunk.position.y = 2;
-        const leaves = new THREE.Mesh(new THREE.ConeGeometry(3, 8, 8), new THREE.MeshStandardMaterial({ color: 0x2d4c1e }));
-        leaves.position.y = 6;
-        g.add(trunk, leaves);
-        g.scale.setScalar(1 + rng() * 0.5);
-        return g;
-    }
-
-    function createOak(rng) {
-        const g = new THREE.Group();
-        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.8, 3), new THREE.MeshStandardMaterial({ color: PALETTE.trunk }));
-        trunk.position.y = 1.5;
-        const leaves = new THREE.Mesh(new THREE.SphereGeometry(3, 8, 8), new THREE.MeshStandardMaterial({ color: 0x3a5f2a }));
-        leaves.position.y = 5;
-        g.add(trunk, leaves);
-        g.scale.setScalar(1 + rng() * 0.5);
-        return g;
-    }
+    // --- PRIMITIVE ASSET CREATION (REDUNDANT - ENTFERNT) ---
+    /*
+    function createPine(rng) { ... }
+    function createOak(rng) { ... }
+    */
 
     /**
      * Erstellt einfache prozedurale Wolken.
