@@ -1310,95 +1310,81 @@
 
         updateEnvironment();
         
-        // --- AOI & SPAWN VALIDATION ---
-        // Wenn der Boden noch nicht validiert ist, überspringen wir die Physik/Bewegung
+        // --- 1. POSITION UPDATE ZUERST (Sync-Fix) ---
+        // Wir berechnen erst die neue Position (Interpolation), damit 
+        // die Clipmap und die Kamera im GLEICHEN Frame darauf reagieren können.
+        updatePlayerPos(delta);
+
+        // --- 2. TERRAIN & SHADER SYNC ---
+        // Jetzt synchronisieren wir das Terrain-Mesh und die GPGPU auf die NEUE Position.
+        if (window.FPGraphics) {
+            FPGraphics.updateClipmap(currentPos.x, currentPos.z, renderer);
+            FPGraphics.updateRain(avatar);
+            FPGraphics.updateRiver();
+            FPGraphics.updateFire(delta, now);
+        }
+
+        // --- 3. AOI & SPAWN VALIDATION ---
         if (!groundValidated) {
             console.log("[FPWald] Boden noch nicht validiert. Prüfe Ground...");
-            // Zuerst Clipmap aktualisieren, damit GPGPU Daten für die Validierung bereitstellt
             if (window.FPGraphics) {
-                FPGraphics.updateClipmap(currentPos.x, currentPos.z, renderer);
-                
-                // SOFORT-VALIDIERUNG: Wenn GPGPU Daten bereit hat, validieren wir sofort
+                // SOFORT-VALIDIERUNG: Da Clipmap oben aktualisiert wurde, haben wir jetzt Daten
                 const testH = FPGraphics.getGPUHeight(currentPos.x, currentPos.z);
-                // Validierung: Wenn wir eine valide Zahl bekommen (auch 0)
                 if (testH !== null && !isNaN(testH)) {
                     console.log("[FPWald] Boden-Höhe erkannt:", testH, "Setze groundValidated = true");
                     groundValidated = true;
-                    
-                    // Spawn-Fix: Setze Spieler 10m ÜBER den Boden beim ersten Spawn
                     targetPos.y = currentPos.y = testH + 10.0; 
                     isGrounded = false;
                     velocityY = 0;
-                    
-                    // Avatar sichtbar machen und positionieren
                     if (avatar) {
                         avatar.visible = true;
                         avatar.position.y = currentPos.y;
                     }
                 }
-            } else {
-                console.error("[FPWald] FPGraphics fehlt bei Ground-Validation!");
             }
-
-            // Jetzt Validierung durchführen
             updateMonsters();
-            
-            // Kamera aktualisieren
             applyCamera(delta);
-
             if (renderer && scene && camera) {
                 renderer.render(scene, camera);
-            } else {
-                console.error("[FPWald] Render-Fehler bei Ground-Validation:", { renderer: !!renderer, scene: !!scene, camera: !!camera });
             }
             return;
         }
 
-        // --- PHYSIK & BEWEGUNG ZUERST ---
-        let currentLoopGroundH = 0.0; // Lokale Variable für diesen Frame-Durchlauf
+        // --- 3. PHYSIK & HÖHEN-BERECHNUNG ---
+        let currentLoopGroundH = 0.0;
 
         if (!(window.FPGraphics && FPGraphics.isInterior)) {
             velocityY += GRAVITY * delta;
             targetPos.y += velocityY * delta;
             
-            // PHYSIK: Radikaler Boden-Fix
-             // Wir nutzen ein hybrides System: CPU-Höhe als Sicherheitsanker, GPGPU für Details
-             
-             if (window.FPGraphics) {
-                 // 1. Hole die CPU-Höhe (immer verfügbar via globalem Export)
-                 const cpuH = (typeof window.FPGraphics_getCPUHeight === 'function') 
-                    ? window.FPGraphics_getCPUHeight(targetPos.x, targetPos.z) 
-                    : (FPGraphics.getCPUHeight ? FPGraphics.getCPUHeight(targetPos.x, targetPos.z) : 0.0);
-                 
-                 // 2. Hole die GPU-Höhe (für das sichtbare Mesh)
-                 const gpuH = FPGraphics.getGPUHeight(targetPos.x, targetPos.z);
-                 
-                 // 3. Wähle die sicherste Höhe: GPGPU falls verfügbar, sonst CPU.
-                 // Wir nehmen das Maximum, um Durchfallen bei Lücken zu verhindern.
-                 if (gpuH !== null && !isNaN(gpuH)) {
-                     currentLoopGroundH = Math.max(cpuH, gpuH);
-                 } else {
-                     currentLoopGroundH = cpuH;
-                 }
-
-                 // --- LAYER-CHECK (Wasser-Schutz) ---
-                 // Wenn der aktuelle Punkt im Layer 2.0 (Wasser) liegt, 
-                 // setzen wir die Bodenhöhe extrem tief, damit der Avatar hindurchfällt.
-                 const layerID = (window.FPGraphics_getGPULayer) ? window.FPGraphics_getGPULayer(targetPos.x, targetPos.z) : 0;
-                 if (layerID === 2) {
-                     // Wasser hat keinen Collider -> Boden absenken
-                     currentLoopGroundH = -500.0; 
-                 }
-
-                 // 4. Raycast-Präzision (optional, falls vorhanden)
-                 if (typeof FPGraphics.getRaycastHeight === 'function') {
-                     currentLoopGroundH = FPGraphics.getRaycastHeight(targetPos.x, targetPos.z, currentLoopGroundH);
-                 }
-             }
+            // --- GPU-FIRST PHYSIK ---
+            // Wir vertrauen primär der GPU, da diese das sichtbare Mesh generiert.
+            // CPU-Höhe dient nur als Fallback bei Initialisierung oder außerhalb des AOI.
+            const gpuH = FPGraphics.getGPUHeight(currentPos.x, currentPos.z, true);
+            const cpuH = (typeof window.FPGraphics_getCPUHeight === 'function') 
+                ? window.FPGraphics_getCPUHeight(currentPos.x, currentPos.z) 
+                : (FPGraphics.getCPUHeight ? FPGraphics.getCPUHeight(currentPos.x, currentPos.z) : 0.0);
             
-            // --- INTERIOR-KOLLISION VALIDIERUNG ---
-            // Bleibt bestehen für Gebäude
-            if (collisionRaycaster && window.FPGraphics && FPGraphics.isInterior && FPGraphics.currentInteriorMesh) {
+            if (gpuH !== null && !isNaN(gpuH)) {
+                currentLoopGroundH = gpuH; // Mesh-Sync hat Priorität
+            } else {
+                currentLoopGroundH = cpuH;
+            }
+
+            const layerID = (window.FPGraphics_getGPULayer) ? window.FPGraphics_getGPULayer(currentPos.x, currentPos.z) : 0;
+            if (layerID === 2) currentLoopGroundH = -500.0; // Wasser-Schutz
+            
+            if (typeof FPGraphics.getRaycastHeight === 'function') {
+                currentLoopGroundH = FPGraphics.getRaycastHeight(currentPos.x, currentPos.z, currentLoopGroundH);
+            }
+        } else {
+            // --- INTERIOR PHYSIK ---
+            targetPos.y = 0;
+            isGrounded = true;
+            currentLoopGroundH = 0.0; 
+
+            // INTERIOR-KOLLISION VALIDIERUNG
+            if (collisionRaycaster && window.FPGraphics && FPGraphics.currentInteriorMesh) {
                 const rayOrigin = new THREE.Vector3(targetPos.x, targetPos.y + 50, targetPos.z);
                 const rayDir = new THREE.Vector3(0, -1, 0);
                 collisionRaycaster.set(rayOrigin, rayDir);
@@ -1408,11 +1394,11 @@
                     currentLoopGroundH = intersects[0].point.y;
                 }
             }
+        }
         
-        // ABSOLUTE UNTERGRENZE: Kein Spieler darf tiefer als die berechnete groundH fallen.
+        // --- GEMEINSAME BODEN-LOGIK (Snapping & Fall-Schutz) ---
         const finalGroundH = currentLoopGroundH;
 
-        // --- MASSIVE BODEN-LOGIK (HARD COLLISION) ---
         // Wir prüfen, ob der Spieler im nächsten Frame unter den Boden sinken würde.
         if (targetPos.y <= finalGroundH) { 
             // 1. Position fixieren: Der Avatar wird exakt auf das Mesh gesetzt.
@@ -1424,7 +1410,6 @@
             
             // 3. Sicherheits-Check für currentPos (Render-Sync)
             // Wir ziehen den Avatar sofort auf die Mesh-Höhe, kein Millimeter tiefer.
-            // Besonders wichtig beim Bergaufgehen, um Sinken während des Lerps zu verhindern.
             if (currentPos.y < finalGroundH) {
                 currentPos.y = finalGroundH;
                 if (avatar) avatar.position.y = finalGroundH;
@@ -1433,23 +1418,11 @@
             isGrounded = false;
         }
 
-        // --- FALL-SCHUTZ (VOLL-REDUNDANT) ---
-        // Falls durch einen Rechenfehler targetPos.y jemals NaN oder extrem wird
+        // FALL-SCHUTZ
         if (isNaN(targetPos.y) || targetPos.y < -300) {
             targetPos.y = finalGroundH;
             velocityY = 0;
         }
-
-        // --- POSITIONSMELDUNG FÜR DEBUGGING ---
-        if (Date.now() % 1000 < 50) {
-            // console.log(`[Physics] pos: ${targetPos.y.toFixed(2)}, ground: ${finalGroundH.toFixed(2)}, diff: ${(targetPos.y - finalGroundH).toFixed(2)}`);
-        }
-    } else {
-        targetPos.y = 0;
-        isGrounded = true;
-        // In Innenräumen nutzen wir eine lokale Fallback-Höhe
-        const finalGroundH = 0.0; 
-    }
 
     // Bewegung verarbeiten
     let moved = false;
@@ -1487,13 +1460,13 @@
                 // Wenn der Zielpunkt höher liegt, heben wir den Avatar sofort an (Bergauf gehen).
                 let nextGroundH = currentLoopGroundH;
                 if (window.FPGraphics) {
+                    const nextGpuH = FPGraphics.getGPUHeight(nextX, nextZ, true);
                     const nextCpuH = (typeof window.FPGraphics_getCPUHeight === 'function') 
                         ? window.FPGraphics_getCPUHeight(nextX, nextZ) 
                         : (FPGraphics.getCPUHeight ? FPGraphics.getCPUHeight(nextX, nextZ) : 0.0);
-                    const nextGpuH = FPGraphics.getGPUHeight(nextX, nextZ);
                     
                     if (nextGpuH !== null && !isNaN(nextGpuH)) {
-                        nextGroundH = Math.max(nextCpuH, nextGpuH);
+                        nextGroundH = nextGpuH;
                     } else {
                         nextGroundH = nextCpuH;
                     }
@@ -1523,28 +1496,18 @@
                 }
             }
 
-        // --- KAMERA AKTUALISIEREN ---
-        // Dies berechnet die aktuelle geglättete currentPos
+        // --- 4. KAMERA & AVATAR AKTUALISIEREN ---
+        // Jetzt, wo das Terrain an der neuen currentPos ausgerichtet ist,
+        // können wir die Kamera und den Avatar präzise platzieren.
         applyCamera(delta, currentLoopGroundH);
         
-        // Kamera-Matrix sofort aktualisieren, damit der Shader im nächsten Schritt
-        // die exakt gleichen View-Daten hat wie die Kamera-Position (Sync-Fix)
+        // Kamera-Matrix sofort aktualisieren (Sync-Fix)
         camera.updateMatrixWorld();
 
-        // --- TERRAIN AN KAMERA AUSRICHTEN ---
-        // WICHTIG: Nutze currentPos statt targetPos für perfekte Synchronisation
-        if (window.FPGraphics) {
-            FPGraphics.updateClipmap(currentPos.x, currentPos.z, renderer);
-            FPGraphics.updateRain(avatar);
-            FPGraphics.updateRiver();
-            FPGraphics.updateFire(delta, now);
-        }
-
-        // --- AOI UPDATES ---
+        // --- 5. AOI & GAMEPLAY UPDATES ---
         updateMonsters();
         updateCollectibles();
         updateBuildings();
-        
         updateOtherPlayers();
         checkInteractions();
         
@@ -1638,90 +1601,89 @@
         }
     }
 
-    function applyCamera(delta = 1, groundH = 0) {
-        if (!camera) return;
-        
+    function updatePlayerPos(delta = 1) {
         // Schnelleres Lerping für die Rotation (direkteres Gefühl)
         const ROT_LERP = Math.min(LERP_FACTOR * delta * 4.0, 1.0);
         const POS_LERP = Math.min(LERP_FACTOR * delta * 3.0, 1.0);
         
-        // Winkel-Interpolation normalisieren, um "Looping" zu verhindern
+        // Winkel-Interpolation
         let diff = targetHeading - heading;
         while (diff < -Math.PI) diff += Math.PI * 2;
         while (diff > Math.PI) diff -= Math.PI * 2;
         heading += diff * ROT_LERP;
 
-        // Validierung gegen NaN (Sicherheitscheck für Blackscreen-Fix)
+        // Position interpolieren (XZ)
         if (isNaN(currentPos.x)) currentPos.x = targetPos.x || 0;
-        if (isNaN(currentPos.y)) currentPos.y = targetPos.y || 0;
         if (isNaN(currentPos.z)) currentPos.z = targetPos.z || 0;
         
         currentPos.x += (targetPos.x - currentPos.x) * POS_LERP;
-        currentPos.y += (targetPos.y - currentPos.y) * POS_LERP;
         currentPos.z += (targetPos.z - currentPos.z) * POS_LERP;
 
-        // Wenn immer noch NaN, dann auf 0 setzen
-        if (isNaN(currentPos.x)) currentPos.x = 0;
-        if (isNaN(currentPos.y)) currentPos.y = 0;
-        if (isNaN(currentPos.z)) currentPos.z = 0;
+        // --- Y-POSITION SYNCHRONISATION (Jitter-Fix) ---
+        // Wir entfernen das Snapping in updatePlayerPos, da dies vor dem GPGPU-Update passiert.
+        // Die Höhen-Synchronisation erfolgt jetzt ausschließlich in applyCamera, 
+        // nachdem das Terrain (Clipmap) auf die neue Position aktualisiert wurde.
+        if (isNaN(currentPos.y)) currentPos.y = targetPos.y || 0;
+        currentPos.y += (targetPos.y - currentPos.y) * POS_LERP;
 
-        // Werte im Bereich halten
-        if (targetHeading > Math.PI) targetHeading -= Math.PI * 2;
-        if (targetHeading < -Math.PI) targetHeading += Math.PI * 2;
         if (heading > Math.PI) heading -= Math.PI * 2;
         if (heading < -Math.PI) heading += Math.PI * 2;
+    }
 
+    function applyCamera(delta = 1, groundH = 0) {
+        if (!camera) return;
+        
         const px = currentPos.x;
         const py = currentPos.y;
         const pz = currentPos.z;
 
-        // --- HARD GROUND SNAP (RENDER-LEVEL) ---
-        // Wir holen die aktuellste Bodenhöhe für diesen Frame
+        // --- DYNAMISCHE HÖHEN-SYNCHRONISATION ---
+        // Wir nutzen die GPU-Höhe als Referenz für den Boden.
         let currentGroundH = groundH;
         if (window.FPGraphics) {
-            const gpuH = FPGraphics.getGPUHeight(px, pz);
+            const gpuH = FPGraphics.getGPUHeight(px, pz, true);
             if (gpuH !== null && !isNaN(gpuH)) {
-                currentGroundH = Math.max(currentGroundH, gpuH);
+                currentGroundH = gpuH;
             }
         }
         
-        // Finale Positionierung: NIEMALS unter dem Boden
-        const finalY = Math.max(py, currentGroundH);
+        // Der Avatar befindet sich an der interpolierten Physik-Position (py),
+        // darf aber NIEMALS unter den Boden sinken.
+        const renderY = Math.max(py, currentGroundH); 
 
         if (avatar) {
-            avatar.position.set(px, finalY, pz);
+            avatar.position.set(px, renderY, pz);
             avatar.rotation.y = heading;
         }
         if (avatarNameTag) {
-            avatarNameTag.position.set(px, finalY + 2.5, pz); 
+            avatarNameTag.position.set(px, renderY + 2.5, pz); 
         }
         
         if (thirdPerson) {
-            const back = 40; // Xenoblade-Style: Weit weg für Übersicht
+            const back = 40; 
             const ox = Math.sin(heading) * back;
             const oz = Math.cos(heading) * back;
-            let camY = py + 12.0; // Deutlich höher für dramatischen Blickwinkel
+            // Die Kamera orientiert sich an der tatsächlichen Render-Höhe des Avatars
+            let camY = renderY + 12.0; 
             
-            // Kamera-Clipping-Schutz gegen das Terrain
-            const camTerrainH = (window.FPGraphics ? FPGraphics.getGPUHeight(px - ox, pz - oz) : 0);
+            // Kamera-Kollision mit dem Boden
+            const camTerrainH = (window.FPGraphics ? FPGraphics.getGPUHeight(px - ox, pz - oz, true) || 0 : 0);
             if (camY < camTerrainH + 4.0) camY = camTerrainH + 4.0;
 
             camera.position.set(px - ox, camY, pz - oz);
-            // Fokus auf das Ei, aber leicht nach oben versetzt
-            camera.lookAt(new THREE.Vector3(px, py + 1.5, pz));
+            camera.lookAt(new THREE.Vector3(px, renderY + 1.5, pz));
         } else {
-            let camY = py + 2.0; // First Person Augenhöhe für das Ei
-            
-            const camTerrainH = (window.FPGraphics ? FPGraphics.getGPUHeight(px, pz) : 0);
-            if (camY < camTerrainH + 1.0) camY = camTerrainH + 1.0;
-
+            // First Person: Augenhöhe relativ zur Render-Position
+            let camY = renderY + (window._cameraHeightOffset || 1.6); 
             camera.position.set(px, camY, pz);
+            
             const lookX = px + Math.sin(heading) * 10;
             const lookZ = pz + Math.cos(heading) * 10;
+            // LookAt sollte auf die gleiche Höhe schauen wie die Kamera (horizontal), 
+            // es sei denn wir implementieren Vertical Look.
             camera.lookAt(new THREE.Vector3(lookX, camY, lookZ));
         }
         
-        // Interaktions-Check bei jeder Kamera-Aktualisierung (nach Bewegung)
         checkInteractions();
     }
     function saveStep() {
@@ -1845,6 +1807,7 @@
 
     async function open() {
         console.log("[FPWald] Öffne 3D-Wald...");
+        window.FPWald.active = true; // Loop-Synchronisation für main_logic.js
         const modal = document.getElementById('fpModal');
         if (!modal) {
             console.error("[FPWald] fpModal nicht gefunden!");
@@ -1885,6 +1848,7 @@
         }
     }
     function close() {
+        window.FPWald.active = false; // 2D-Loop in main_logic.js wieder freigeben
         unmount();
         const modal = document.getElementById('fpModal');
         if (modal) modal.style.display = 'none';

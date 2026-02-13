@@ -318,53 +318,55 @@
     // Zentraler GPGPU-Daten-Container (Kommunikations-Layer)
     const GPGPU_Container = {
         heightTexture: null,
-        heightData: new Float32Array(GPU_TERRAIN_SIZE * GPU_TERRAIN_SIZE * 4),
+        // Wir lesen nur noch einen kleinen Bereich um den Spieler für die Physik (Performance-Boost)
+        physicsData: new Float32Array(16 * 16 * 4), 
+        physicsSize: 16,
         lastUpdate: 0,
-        updateThreshold: 50, // Öfter updaten für bessere initiale Synchronisation
         centerPos: new THREE.Vector2(0, 0), // Das Welt-Zentrum der aktuellen Heightmap-Daten
         
-        getHeight: function(x, z) {
-            // Weltkoordinaten relativ zum aktuellen Zentrum umrechnen
-            // WICHTIG: Die Skalierung muss exakt zum Shader passen (worldSize)
+        // Hilfsfunktion: Wandelt Weltkoordinaten in Texture-UV um
+        getUV: function(x, z) {
             const u = (x - this.centerPos.x) / GPU_WORLD_SIZE + 0.5;
             const v = (z - this.centerPos.y) / GPU_WORLD_SIZE + 0.5;
-            
-            if (u < 0 || u > 1 || v < 0 || v > 1) return 0;
-            
-            const tx = Math.floor(u * (GPU_TERRAIN_SIZE - 1));
-            const ty = Math.floor(v * (GPU_TERRAIN_SIZE - 1));
-            const idx = (ty * GPU_TERRAIN_SIZE + tx) * 4;
-            
-            // Debug: Falls h exakt 0 ist am Start, könnte es ein noch nicht geladener Buffer sein
-            const h = this.heightData[idx];
-            return h;
+            return { u, v };
         },
-        
-        // Bilineare Filterung für glatte Übergänge (Hügel-Validierung)
-        getSmoothHeight: function(x, z) {
-            const u = ((x - this.centerPos.x) / GPU_WORLD_SIZE + 0.5) * (GPU_TERRAIN_SIZE - 1);
-            const v = ((z - this.centerPos.y) / GPU_WORLD_SIZE + 0.5) * (GPU_TERRAIN_SIZE - 1);
-            
-            if (u < 0 || u >= GPU_TERRAIN_SIZE - 1 || v < 0 || v >= GPU_TERRAIN_SIZE - 1) return 0;
 
-            const x0 = Math.floor(u);
-            const x1 = x0 + 1;
-            const y0 = Math.floor(v);
-            const y1 = y0 + 1;
+        getSmoothHeight: function(x, z) {
+            const { u, v } = this.getUV(x, z);
+            if (u < 0 || u > 1 || v < 0 || v > 1) return 0;
+
+            // Da wir jetzt nur einen 16x16 Bereich um das Zentrum (0.5, 0.5) lesen,
+            // müssen wir prüfen, ob die angefragte Koordinate in diesem Bereich liegt.
+            // 16 Pixel bei 1024 Auflösung entsprechen (16/1024) * 10000m = 156m.
+            // Das reicht locker für Spieler-Physik und Kamera-Kollision.
             
-            const fX = u - x0;
-            const fY = v - y0;
+            const localU = (u - 0.5) * (GPU_TERRAIN_SIZE / this.physicsSize) + 0.5;
+            const localV = (v - 0.5) * (GPU_TERRAIN_SIZE / this.physicsSize) + 0.5;
+
+            if (localU < 0 || localU >= 1 || localV < 0 || localV >= 1) {
+                // Außerhalb des Physik-Buffers -> CPU Fallback
+                return getCPUHeight(x, z);
+            }
+
+            const px = localU * (this.physicsSize - 1);
+            const py = localV * (this.physicsSize - 1);
             
-            const h00 = this.heightData[(y0 * GPU_TERRAIN_SIZE + x0) * 4];
-            const h10 = this.heightData[(y0 * GPU_TERRAIN_SIZE + x1) * 4];
-            const h01 = this.heightData[(y1 * GPU_TERRAIN_SIZE + x0) * 4];
-            const h11 = this.heightData[(y1 * GPU_TERRAIN_SIZE + x1) * 4];
+            const x0 = Math.floor(px);
+            const x1 = Math.min(x0 + 1, this.physicsSize - 1);
+            const y0 = Math.floor(py);
+            const y1 = Math.min(y0 + 1, this.physicsSize - 1);
             
-            // Interpolation
-            const h0 = h00 * (1 - fX) + h10 * fX;
-            const h1 = h01 * (1 - fX) + h11 * fX;
+            const fX = px - x0;
+            const fY = py - y0;
             
-            return h0 * (1 - fY) + h1 * fY;
+            const getVal = (ox, oy) => this.physicsData[(oy * this.physicsSize + ox) * 4];
+            
+            const h00 = getVal(x0, y0);
+            const h10 = getVal(x1, y0);
+            const h01 = getVal(x0, y1);
+            const h11 = getVal(x1, y1);
+            
+            return (h00 * (1 - fX) + h10 * fX) * (1 - fY) + (h01 * (1 - fX) + h11 * fX) * fY;
         }
     };
 
@@ -517,7 +519,7 @@
                     
                     vec4 data = texture2D(textureHeight, uv + vec2(float(x), float(y)) * texelSize);
                     hLayer.x += data.r * weight;
-                    hLayer.y = data.g; // Layer-ID nicht glätten, sondern übernehmen (vom Zentrum des Kernels)
+                    if (x == 0 && y == 0) hLayer.y = data.g; // Layer-ID nur vom Zentrum übernehmen
                     weightSum += weight;
                 }
             }
@@ -591,7 +593,8 @@
 
         // Quadratisches Gitter für gleichmäßige Vertex-Verteilung (verhindert Stretching)
         // CLIPMAP_RADIUS * 2 für die Größe, Segmente für Detaildichte
-        const geo = new THREE.PlaneGeometry(CLIPMAP_RADIUS * 2, CLIPMAP_RADIUS * 2, 256, 256);
+        // Erhöht auf 512 Segmente für bessere Terrain-Definition bei 4km Radius
+        const geo = new THREE.PlaneGeometry(CLIPMAP_RADIUS * 2, CLIPMAP_RADIUS * 2, 512, 512);
         
         // Texturen laden (Nutze AssetsLibrary für korrekte Pfade)
         const texLoader = new THREE.TextureLoader();
@@ -640,21 +643,9 @@
                 varying float vHeight;
                 varying float vDist;
 
-                // Manuelle bilineare Filterung für den Vertex-Shader
+                // Hardware-beschleunigte bilineare Filterung (via LinearFilter in Three.js)
                 float getSmoothHeight(vec2 uv) {
-                    float texSize = 1024.0; // Synchronisiert mit GPU_TERRAIN_SIZE
-                    vec2 texelSize = vec2(1.0 / texSize);
-                    
-                    // Wir nutzen texture2D mit expliziter Filterung für maximale Glätte
-                    vec2 f = fract(uv * texSize - 0.5);
-                    vec2 t00 = (floor(uv * texSize - 0.5) + 0.5) / texSize;
-                    
-                    float h00 = texture2D(heightMap, t00).r;
-                    float h10 = texture2D(heightMap, t00 + vec2(texelSize.x, 0.0)).r;
-                    float h01 = texture2D(heightMap, t00 + vec2(0.0, texelSize.y)).r;
-                    float h11 = texture2D(heightMap, t00 + texelSize).r;
-                    
-                    return mix(mix(h00, h10, f.x), mix(h01, h11, f.x), f.y);
+                    return texture2D(heightMap, uv).r;
                 }
             ` + shader.vertexShader;
 
@@ -663,23 +654,29 @@
                 `
                 #include <begin_vertex>
                 
-                // --- STABILISIERTE WELTPOSITION (Jitter-Fix) ---
-                // Wir nutzen die relative Position im Mesh (position.xy)
-                // Das Mesh ist am Spieler zentriert, aber intern um -fineOffset verschoben.
-                // worldXZ ist die STABILE Welt-Position des Vertex (auf GPGPU-Texel ausgerichtet)
-                vec2 worldXZ = vec2(position.x, -position.y) + worldOffset;
+                // --- GEFRORENE WELTPOSITION (Jitter-Fix) ---
+                // Da das Mesh nun fest auf das Texel-Grid gesnappt ist (sx, sz),
+                // ist snapOffset immer 0. Wir können direkt die lokalen Positionen nutzen.
                 
-                // hUV Berechnung: (WeltPos - GPGPU Zentrum + halbe Größe) / Größe
-                vec2 hUV = (worldXZ - worldOffset + (gpuWorldSize * 0.5)) / gpuWorldSize;
+                // hUV Berechnung: (Lokale Pos + halbe Größe) / Größe
+                // position.x/y sind die lokalen Koordinaten der Plane (-Radius bis +Radius)
+                // WICHTIG: Da die Plane um -PI/2 rotiert ist, entspricht localY direkt dem Welt-Z.
+                // Daher: worldX = meshOffset.x + position.x, worldZ = meshOffset.y + position.y
+                vec2 hUV;
+                hUV.x = (position.x + (gpuWorldSize * 0.5)) / gpuWorldSize;
+                hUV.y = (position.y + (gpuWorldSize * 0.5)) / gpuWorldSize; 
                 hUV = clamp(hUV, 0.0, 1.0);
                 
+                // Wir nutzen hardware-beschleunigte lineare Filterung für butterweiche Übergänge
                 float h = getSmoothHeight(hUV);
                 vHeight = h;
                 
-                // VERTEX DISPLACEMENT
+                // VERTEX DISPLACEMENT: Z-Achse ist bei PlaneGeometry die Höhe (nach Rotation)
                 transformed.z = h; 
                 
-                vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+                // vWorldPos für den Fragment-Shader (Texturierung & Biome)
+                // Diese Position ist absolut synchron mit dem Gitter (sx, sz).
+                vWorldPos = vec3(meshOffset.x + position.x, h, meshOffset.y + position.y);
                 vDist = length(vWorldPos.xz - playerPos);
                 `
             );
@@ -926,38 +923,39 @@
         // Zeit für Wind-Animation aktualisieren
         worldCullingUniforms.time.value = Date.now() * 0.001;
 
-        // --- SUB-TEXEL SMOOTHING (Jitter-Fix) ---
-        // Das GPGPU-Zentrum (worldOffset) snappt auf eine größere Einheit (z.B. 1m oder 2m),
-        // um zu häufige GPGPU-Recomputes und Textur-Updates zu vermeiden, die Jitter verursachen.
-        const snapSize = 2.0; 
+        // --- STABILISIERTE CLIPMAP-LOGIK (Jitter-Fix) ---
+        // Das Mesh UND das GPGPU-Zentrum snappen auf die exakte Texel-Größe.
+        // Das verhindert, dass Vertices über Texel "kriechen", was das Jittern verursacht.
+        const snapSize = GPU_WORLD_SIZE / GPU_TERRAIN_SIZE; // 9.765625m
         const sx = Math.floor(px / snapSize) * snapSize;
         const sz = Math.floor(pz / snapSize) * snapSize;
         
-        // NEU: fineOffset für shader-basierte Stabilisierung (Jitter-Fix)
-        const fx = px - sx;
-        const fz = pz - sz;
+        // --- MESH-SNAPPING (Frozen Coordinates) ---
+        // Das Mesh wird fest an das GPGPU-Grid gebunden.
+        // Dadurch bewegen sich die Vertices nicht mehr flüssig mit dem Spieler, 
+        // sondern bleiben an festen Welt-Koordinaten (solange sx/sz gleich bleiben).
+        // Dies eliminiert das "Wackeln" (WackelPudding) komplett.
+        clipmapGroup.position.set(sx, 0, sz);
         
-        // Das Mesh folgt dem Spieler absolut flüssig (kein Snapping)
-        // Wir setzen die Position des Gruppen-Containers auf die Spielerposition.
-        clipmapGroup.position.set(px, 0, pz);
-        
-        // WICHTIG: Das Mesh selbst muss um -fineOffset verschoben werden,
-        // damit die Vertices exakt auf den GPGPU-Texeln bleiben!
         if (clipmapMesh) {
-            clipmapMesh.position.set(-fx, 0, -fz);
+            clipmapMesh.position.set(0, 0, 0);
         }
 
         // GPGPU Update nur wenn das Snapping-Zentrum sich geändert hat
-        updateGPGPU(sx, sz, renderer);
+        const lastSnapX = GPGPU_Container.centerPos.x;
+        const lastSnapZ = GPGPU_Container.centerPos.y;
+        
+        if (sx !== lastSnapX || sz !== lastSnapZ || GPGPU_Container.lastUpdate === 0) {
+            updateGPGPU(sx, sz, renderer);
+        }
 
-        // Globale Culling-Uniforms aktualisieren
+        // Globale Culling-Uniforms aktualisieren (Spielerpos bleibt flüssig für Culling/Gras)
         worldCullingUniforms.playerPos.value.set(px, pz);
 
         // Persistente Terrain-Uniforms aktualisieren
         const target = gpuCompute.getCurrentRenderTarget(smoothVariable);
         if (target && target.texture) {
             terrainUniforms.heightMap.value = target.texture;
-            // Wir stellen sicher, dass die Textur-Filterung auf Linear steht
             if (target.texture.magFilter !== THREE.LinearFilter) {
                 target.texture.magFilter = THREE.LinearFilter;
                 target.texture.minFilter = THREE.LinearFilter;
@@ -965,16 +963,10 @@
             }
         }
         
-        // WICHTIG: worldOffset ist das GPGPU-Zentrum (gesnappt)
-        // meshOffset ist die aktuelle Spielerposition (flüssig)
-        // fineOffset ist der Versatz innerhalb des Snap-Gitters
+        // worldOffset und meshOffset sind jetzt identisch (Gitter-Synchronisation)
         terrainUniforms.worldOffset.value.set(sx, sz);
-        terrainUniforms.meshOffset.value.set(px, pz);
-        terrainUniforms.fineOffset.value.set(fx, fz);
+        terrainUniforms.meshOffset.value.set(sx, sz); 
         terrainUniforms.playerPos.value.set(px, pz);
-
-        // Dekorationen deaktiviert (Radikaler Reset)
-        // updateClipmapDecorations(px, pz, mainScene);
     }
 
     function updateGPGPU(px, pz, renderer) {
@@ -994,14 +986,17 @@
         
         const renderTarget = gpuCompute.getCurrentRenderTarget(smoothVariable);
         if (renderTarget) {
-            // WICHTIG: Sofort lesen, wenn wir eine stabile Position wollen!
-            // Das "Hüpfen" kommt oft durch verzögerte CPU-Daten.
-            renderer.readRenderTargetPixels(renderTarget, 0, 0, GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, GPGPU_Container.heightData);
+            // OPTIMIERUNG: Wir lesen nur einen kleinen 16x16 Bereich aus der Mitte.
+            // Das reduziert die CPU-GPU-Bandbreite drastisch (von 16MB auf 1KB pro Frame).
+            // Dies behebt den "WackelPudding"-Effekt durch Framedrops.
+            const size = GPGPU_Container.physicsSize;
+            const offset = (GPU_TERRAIN_SIZE / 2) - (size / 2);
+            renderer.readRenderTargetPixels(renderTarget, offset, offset, size, size, GPGPU_Container.physicsData);
         }
     }
     
     function getGPUHeight(x, z, noFallback = false) {
-        if (!gpuCompute || !GPGPU_Container.heightData || GPGPU_Container.heightData.length === 0) {
+        if (!gpuCompute || !GPGPU_Container.physicsData || GPGPU_Container.physicsData.length === 0) {
             return noFallback ? null : getCPUHeight(x, z);
         }
         
@@ -1026,23 +1021,22 @@
      * 0 = Mesh, 1 = Grass, 2 = Water
      */
     function getGPULayer(x, z) {
-        if (!gpuCompute || !GPGPU_Container || !GPGPU_Container.heightData || GPGPU_Container.lastUpdate === 0) return 0;
+        if (!gpuCompute || !GPGPU_Container || !GPGPU_Container.physicsData || GPGPU_Container.lastUpdate === 0) return 0;
         
-        const worldSize = GPU_WORLD_SIZE;
-        const u = (x - GPGPU_Container.centerPos.x) / worldSize + 0.5;
-        const v = (z - GPGPU_Container.centerPos.y) / worldSize + 0.5;
-        
+        const { u, v } = GPGPU_Container.getUV(x, z);
         if (u < 0 || u > 1 || v < 0 || v > 1) return 0;
-        
-        const size = GPU_TERRAIN_SIZE;
-        const px = Math.floor(u * (size - 1));
-        const py = Math.floor(v * (size - 1));
-        const index = (py * size + px) * 4;
-        
-        if (index >= GPGPU_Container.heightData.length) return 0;
+
+        const localU = (u - 0.5) * (GPU_TERRAIN_SIZE / GPGPU_Container.physicsSize) + 0.5;
+        const localV = (v - 0.5) * (GPU_TERRAIN_SIZE / GPGPU_Container.physicsSize) + 0.5;
+
+        if (localU < 0 || localU >= 1 || localV < 0 || localV >= 1) return 0;
+
+        const px = Math.floor(localU * (GPGPU_Container.physicsSize - 1));
+        const py = Math.floor(localV * (GPGPU_Container.physicsSize - 1));
+        const index = (py * GPGPU_Container.physicsSize + px) * 4;
         
         // G-Kanal = LayerID
-        return Math.round(GPGPU_Container.heightData[index + 1]);
+        return Math.round(GPGPU_Container.physicsData[index + 1]);
     }
     
     // Basis-Pfad für Assets (Lokal vs. GitHub flexibel)
