@@ -17,10 +17,10 @@
     const GRASS_PNG_PATH = 'https://raw.githubusercontent.com/noverato/System/main/animation/baeume/Grass_large.png';
     const CLIPMAP_SEGMENTS = 512; // Erhöht für bessere Detaildichte und Texel-Alignment
     
-    const DECORATION_CELL_SIZE = 512; 
-    const DECORATION_RANGE = 8;       
-    const GRASS_CELL_SIZE = 128;      
-    const GRASS_RANGE = 32;           
+    const DECORATION_CELL_SIZE = 128; 
+    const DECORATION_RANGE = 12;       
+    const GRASS_CELL_SIZE = 64;      
+    const GRASS_RANGE = 24;           
 
     // Globale Uniforms für das Culling-System (Bubble-Prinzip / Glocke)
     const worldCullingUniforms = {
@@ -2589,10 +2589,14 @@
         const biome = getBiomeData(midX, midZ, midH);
 
         // Biome-abhängige Dichte (Dichte-Regelung für Performance)
-        let densityMult = 0.6;
+        let densityMult = 0.5; // Reduziert wegen kleinerer Zellen
         let treeCount = 0;
-        if (biome.name === 'jungle') treeCount = (10 + Math.floor(rng() * 8)) * densityMult;
-        else if (biome.name === 'plains') treeCount = (2 + Math.floor(rng() * 3)) * densityMult;
+        
+        // KRITISCH: Fallback für unbekannte Biome oder Startbereich (Plains)
+        if (!biome || !biome.name || biome.name === 'none') {
+            treeCount = (4 + Math.floor(rng() * 4)) * densityMult;
+        } else if (biome.name === 'jungle') treeCount = (10 + Math.floor(rng() * 8)) * densityMult;
+        else if (biome.name === 'plains') treeCount = (6 + Math.floor(rng() * 6)) * densityMult;
         else if (biome.name === 'swamp') treeCount = (8 + Math.floor(rng() * 6)) * densityMult;
         else if (biome.name === 'snow') treeCount = (3 + Math.floor(rng() * 3)) * densityMult;
         else if (biome.name === 'desert') treeCount = (1 + Math.floor(rng() * 2)) * densityMult;
@@ -2611,17 +2615,17 @@
             const gpuH = getGPUHeight(x, z);
             
             // Debug-Log für Wasserlevel-Check
-            if (i === 0) console.log(`[FPGraphics] Spawning Check: x=${x.toFixed(1)}, z=${z.toFixed(1)}, gpuH=${gpuH.toFixed(2)}, biome=${biome.name}`);
+            if (i === 0) console.log(`[FPGraphics] Spawning Check: x=${x.toFixed(1)}, z=${z.toFixed(1)}, gpuH=${gpuH.toFixed(2)}, biome=${biome ? biome.name : 'null'}`);
 
             // Nur spawnen wenn über Wasserlevel (außer Swamp)
             const waterLevel = 2.0; 
-            if (gpuH < waterLevel + 0.1 && biome.name !== 'swamp') continue;
-            if (biome.name === 'swamp' && gpuH < -3.0) continue;
+            if (gpuH < waterLevel - 0.5 && (!biome || biome.name !== 'swamp')) continue;
+            if (biome && biome.name === 'swamp' && gpuH < -3.0) continue;
 
             const th = getRaycastHeight(x, z, gpuH);
             
             // Validierung der Raycast-Höhe
-            if (th < -10.0 || th > 2000.0) {
+            if (th < -15.0 || th > 2000.0) {
                 console.warn("[FPGraphics] Ungültige Raycast-Höhe für Baum:", th, "bei", x, z);
                 continue;
             }
@@ -2630,19 +2634,20 @@
             let plantScale = 1.0;
 
             // Biome-Logik für Baum-Assets
-            if (biome.name === 'jungle') {
+            const bName = biome ? biome.name : 'plains';
+            if (bName === 'jungle') {
                 assetPath = AssetsLibrary.encode('Nature/glTF/PalmTree_1.gltf');
                 plantScale = 8 + rng() * 10;
-            } else if (biome.name === 'desert') {
+            } else if (bName === 'desert') {
                 if (rng() > 0.4) {
                     assetPath = AssetsLibrary.encode('Nature/glTF/Cactus_1.gltf');
                     plantScale = 5 + rng() * 6;
                 }
-            } else if (biome.name === 'snow') {
+            } else if (bName === 'snow') {
                 const pineList = ['Pine_1.gltf', 'Pine_2.gltf', 'Pine_3.gltf', 'Pine_4.gltf', 'Pine_5.gltf'];
                 assetPath = AssetsLibrary.encode('Nature/glTF/' + pineList[Math.floor(rng() * pineList.length)]);
                 plantScale = 6 + rng() * 8;
-            } else if (biome.name === 'swamp') {
+            } else if (bName === 'swamp') {
                 const twistedList = ['TwistedTree_1.gltf', 'TwistedTree_2.gltf', 'TwistedTree_3.gltf', 'TwistedTree_4.gltf', 'TwistedTree_5.gltf'];
                 assetPath = AssetsLibrary.encode('Nature/glTF/' + twistedList[Math.floor(rng() * twistedList.length)]);
                 plantScale = 7 + rng() * 7;
