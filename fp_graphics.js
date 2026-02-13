@@ -13,17 +13,16 @@
 
     const CLIPMAP_RADIUS = 4000; // Erhöht auf 4000 für User-Anforderung (4km Radius)
     const AOI_RADIUS = 15;      // Aktiver Simulationsradius (Bubble) - Auf 15m gesetzt
-    const DORMANT_RADIUS = 20;  // Radius, ab dem Assets komplett einfrieren
-    const GRASS_LOD_DIST = 40;  // Grenze zwischen 3D und 2D Gras (Erhöht für bessere Optik)
-    const GRASS_MAX_DIST = 4000; // Maximale Sichtweite für 2D Gras (Synchronisiert mit Clipmap)
-    const GRASS_PNG_PATH = 'https://raw.githubusercontent.com/noverato/System/main/animation/baeume/Grass_large.png';
-    const CLIPMAP_SEGMENTS = 512; // Erhöht für bessere Detaildichte und Texel-Alignment
+    const TREE_LOD_DIST = 15;   // RADIKAL: High-Poly Modelle NUR im 15m AOI-Radius
+    const GRASS_LOD_DIST = 10;  // 3D Gras nur ganz nah (10m)
+    const GRASS_MAX_DIST = 1500; // Reduziert für Speed
+    const GRASS_PNG_PATH = 'animation/gras_billboard.png'; 
+    const CLIPMAP_SEGMENTS = 512; 
     
     const DECORATION_CELL_SIZE = 128; 
-    const DECORATION_RANGE = 8;       // Reduziert von 12 auf 8 für besseren Initial-Load
-    const TREE_LOD_DIST = 500;        // Ab hier werden Bäume zu Billboards (Glocken-Prinzip)
+    const DECORATION_RANGE = 4;       // Leicht erhöht für Puffer (4 * 128m = 512m Radius)
     const GRASS_CELL_SIZE = 64;      
-    const GRASS_RANGE = 16;           // Reduziert von 24 auf 16
+    const GRASS_RANGE = 6;            // Leicht erhöht für Puffer (6 * 64m = 384m Radius)
 
     // Globale Uniforms für das Culling-System (Bubble-Prinzip / Glocke)
     const worldCullingUniforms = {
@@ -194,8 +193,10 @@
                     `
                     #include <dithering_fragment>
                     // Visueller Hinweis auf die AOI-Grenze (Dormant-Zone)
+                    // Gemäß "The Nest Core Logic": Nur innerhalb 15m (AOI) aktiv.
+                    // Assets außerhalb sind "Dormant" (0% CPU/Logik -> visualisiert durch Abdunkeln)
                     if (vDist > aoiRadius) {
-                        gl_FragColor.rgb *= 0.85; // Leicht abdunkeln
+                        gl_FragColor.rgb *= 0.65; // Deutlich abdunkeln im Dormant-Modus
                     }
                     `
                 );
@@ -2077,6 +2078,17 @@
     function updateDecorations(playerPos) {
         if (!mainScene) return;
         
+        // --- 1. QUEUE PRIORISIERUNG (Zentrum zuerst) ---
+        if (creationQueue.length > 1) {
+            creationQueue.sort((a, b) => {
+                const distA = Math.hypot(a.x * (a.type === 'decoration' ? DECORATION_CELL_SIZE : GRASS_CELL_SIZE) - playerPos.x, 
+                                         a.z * (a.type === 'decoration' ? DECORATION_CELL_SIZE : GRASS_CELL_SIZE) - playerPos.z);
+                const distB = Math.hypot(b.x * (b.type === 'decoration' ? DECORATION_CELL_SIZE : GRASS_CELL_SIZE) - playerPos.x, 
+                                         b.z * (b.type === 'decoration' ? DECORATION_CELL_SIZE : GRASS_CELL_SIZE) - playerPos.z);
+                return distA - distB;
+            });
+        }
+
         // Queue verarbeiten
         processCreationQueue();
         
@@ -2087,12 +2099,11 @@
         const cellX = Math.floor(playerPos.x / DECORATION_CELL_SIZE);
         const cellZ = Math.floor(playerPos.z / DECORATION_CELL_SIZE);
         
-        // 1. Dekorationen (Bäume/Felsen)
+        // 2. Dekorationen (Bäume/Felsen)
         for (let x = cellX - DECORATION_RANGE; x <= cellX + DECORATION_RANGE; x++) {
             for (let z = cellZ - DECORATION_RANGE; z <= cellZ + DECORATION_RANGE; z++) {
                 const key = `${x}_${z}`;
                 if (!decorationGrids.has(key)) {
-                    // Prüfen, ob bereits in Queue
                     if (!creationQueue.find(t => t.key === key && t.type === 'decoration')) {
                         creationQueue.push({ type: 'decoration', x, z, key, playerPos: playerPos.clone() });
                     }
@@ -2103,14 +2114,14 @@
         // Cleanup ferner Zellen
         decorationGrids.forEach((group, key) => {
             const [x, z] = key.split('_').map(Number);
-            if (Math.abs(x - cellX) > DECORATION_RANGE + 2 || Math.abs(z - cellZ) > DECORATION_RANGE + 2) {
+            if (Math.abs(x - cellX) > DECORATION_RANGE + 1 || Math.abs(z - cellZ) > DECORATION_RANGE + 1) {
                 mainScene.remove(group);
                 disposeGroup(group);
                 decorationGrids.delete(key);
             }
         });
 
-        // 2. Hybrides Gras-System (3D/2D)
+        // 3. Hybrides Gras-System (3D/2D)
         const gCellX = Math.floor(playerPos.x / GRASS_CELL_SIZE);
         const gCellZ = Math.floor(playerPos.z / GRASS_CELL_SIZE);
 
@@ -2189,7 +2200,8 @@
             const bName = biome ? biome.name : 'plains';
 
             // LOD Logik: In der Ferne nutzen wir Billboards
-            if (isFar) {
+            // Gemäß "The Nest Core Logic": High-Poly nur im 15m AOI Radius (TREE_LOD_DIST)
+            if (isFar || (Math.hypot(x - playerPos.x, z - playerPos.z) > TREE_LOD_DIST)) {
                 billboardInstances.push({
                     pos: [x, th - 0.05, z],
                     scale: 15 + rng() * 10,
@@ -2658,16 +2670,17 @@
         currentInterior: null,
         currentInteriorMesh: null,
         init: (renderer, scene) => {
-            syncWorldSeedFromFirebase(); // Firebase-Synchronisation starten
+            syncWorldSeedFromFirebase(); 
             initGPGPU(renderer);
             initClipmap(scene);
             initWater(scene);
             
-            // Initialer Render-Pass für die Heightmap
+            // SPEED-UP: Nur den nötigsten Render-Pass für die Heightmap
             gpuCompute.compute();
-            // WICHTIG: Von smoothVariable lesen, da dies die finalen geglätteten Werte sind
             renderer.readRenderTargetPixels(gpuCompute.getCurrentRenderTarget(smoothVariable), 0, 0, GPU_TERRAIN_SIZE, GPU_TERRAIN_SIZE, GPGPU_Container.heightData);
             GPGPU_Container.heightTexture = gpuCompute.getCurrentRenderTarget(smoothVariable).texture;
+            
+            console.log("⚡ FPGraphics Init: GPGPU & Clipmap bereit.");
         },
         update: (renderer, playerPos, time) => {
             if (!gpuCompute) return;
