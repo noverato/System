@@ -2698,6 +2698,7 @@
             worldCullingUniforms.playerPos.value.set(playerPos.x, playerPos.z);
             worldCullingUniforms.time.value = time;
         },
+        processCreationQueue,
         updateClipmap,
         updateRain,
         applyGrassShader,
