@@ -1486,6 +1486,13 @@
         return 130.0 * (m[0] * g[0] + m[1] * g[1] + m[2] * g[2]);
     }
 
+    /**
+     * Einfacher 2D Noise Wrapper für snoise
+     */
+    function simpleNoise(x, z) {
+        return snoise([x, z]);
+    }
+
     function fbm(p, octaves = 8) {
         let v = 0.0;
         let a = 0.5;
