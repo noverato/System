@@ -1358,15 +1358,14 @@
             targetPos.y += velocityY * delta;
             
             // --- GPU-FIRST PHYSIK ---
-            // Wir vertrauen primär der GPU, da diese das sichtbare Mesh generiert.
-            // CPU-Höhe dient nur als Fallback bei Initialisierung oder außerhalb des AOI.
+            // Wir nutzen die GPU-Höhe für das Snapping.
             const gpuH = FPGraphics.getGPUHeight(currentPos.x, currentPos.z, true);
             const cpuH = (typeof window.FPGraphics_getCPUHeight === 'function') 
                 ? window.FPGraphics_getCPUHeight(currentPos.x, currentPos.z) 
                 : (FPGraphics.getCPUHeight ? FPGraphics.getCPUHeight(currentPos.x, currentPos.z) : 0.0);
             
             if (gpuH !== null && !isNaN(gpuH)) {
-                currentLoopGroundH = gpuH; // Mesh-Sync hat Priorität
+                currentLoopGroundH = gpuH;
             } else {
                 currentLoopGroundH = cpuH;
             }
@@ -1383,7 +1382,6 @@
             isGrounded = true;
             currentLoopGroundH = 0.0; 
 
-            // INTERIOR-KOLLISION VALIDIERUNG
             if (collisionRaycaster && window.FPGraphics && FPGraphics.currentInteriorMesh) {
                 const rayOrigin = new THREE.Vector3(targetPos.x, targetPos.y + 50, targetPos.z);
                 const rayDir = new THREE.Vector3(0, -1, 0);
@@ -1396,23 +1394,17 @@
             }
         }
         
-        // --- GEMEINSAME BODEN-LOGIK (Snapping & Fall-Schutz) ---
+        // --- GEMEINSAME BODEN-LOGIK ---
         const finalGroundH = currentLoopGroundH;
 
-        // Wir prüfen, ob der Spieler im nächsten Frame unter den Boden sinken würde.
         if (targetPos.y <= finalGroundH) { 
-            // 1. Position fixieren: Der Avatar wird exakt auf das Mesh gesetzt.
             targetPos.y = finalGroundH;
-            
-            // 2. Geschwindigkeit resetten: Keine Akkumulation von Fallgeschwindigkeit im Boden
             velocityY = 0;
             isGrounded = true;
             
-            // 3. Sicherheits-Check für currentPos (Render-Sync)
-            // Wir ziehen den Avatar sofort auf die Mesh-Höhe, kein Millimeter tiefer.
-            if (currentPos.y < finalGroundH) {
+            // Sofortiges Snapping für currentPos, um "Hüpfen" durch Lerp-Lag zu vermeiden
+            if (Math.abs(currentPos.y - finalGroundH) < 0.5) {
                 currentPos.y = finalGroundH;
-                if (avatar) avatar.position.y = finalGroundH;
             }
         } else {
             isGrounded = false;
@@ -1426,8 +1418,6 @@
 
     // Bewegung verarbeiten
     let moved = false;
-    // Richtungsvektoren korrigiert (Standard Three.js Orientierung für diese Szene)
-    // H=0 ist Blickrichtung +Z (basierend auf applyCamera)
     const forwardVector = new THREE.Vector3(Math.sin(targetHeading), 0, Math.cos(targetHeading));
     const rightVector = new THREE.Vector3(Math.cos(targetHeading), 0, -Math.sin(targetHeading));
 
@@ -1435,7 +1425,6 @@
     let nextZ = targetPos.z;
 
     const speedMult = (keys['shift'] || keys['ShiftLeft']) ? 2.5 : ((keys['control'] || keys['controlleft'] || keys['c']) ? 0.5 : 1.0);
-    // Geschwindigkeit: MOVE_SPEED (0.22) * delta * speedMult (GRID entfernt für korrekte Skalierung)
     const speed = MOVE_SPEED * delta * speedMult;
     
     if (keys['w'] || keys['W']) { nextX += forwardVector.x * speed; nextZ += forwardVector.z * speed; moved = true; }
@@ -1443,58 +1432,45 @@
     if (keys['a'] || keys['A']) { nextX -= rightVector.x * speed; nextZ -= rightVector.z * speed; moved = true; }
     if (keys['d'] || keys['D']) { nextX += rightVector.x * speed; nextZ += rightVector.z * speed; moved = true; }
 
-    // --- DUCKEN-EFFEKT (Kamera-Höhe) ---
-    // Wir ändern nicht targetPos.y (den Boden-Punkt), sondern das Offset der Kamera
-    let cameraHeightOffset = 1.6; // Standard Augenhöhe
+    let cameraHeightOffset = 1.6;
     if (keys['control'] || keys['c']) {
-        cameraHeightOffset = 0.8; // Ducken senkt die Augenhöhe
+        cameraHeightOffset = 0.8;
     }
     window._cameraHeightOffset = cameraHeightOffset;
 
-            // --- EMERGENCY FIX: POINTER LOCK VALIDATION ---
-            // Wir stellen sicher, dass die Bewegung auch ohne Pointer Lock funktioniert, 
-            // falls das System den Fokus verliert, aber die Tasten gedrückt werden.
-            if (moved) {
-                // --- SLOPE-AWARE MOVEMENT ---
-                // Wir prüfen die Höhe am Zielpunkt, BEVOR wir uns bewegen.
-                // Wenn der Zielpunkt höher liegt, heben wir den Avatar sofort an (Bergauf gehen).
-                let nextGroundH = currentLoopGroundH;
-                if (window.FPGraphics) {
-                    const nextGpuH = FPGraphics.getGPUHeight(nextX, nextZ, true);
-                    const nextCpuH = (typeof window.FPGraphics_getCPUHeight === 'function') 
-                        ? window.FPGraphics_getCPUHeight(nextX, nextZ) 
-                        : (FPGraphics.getCPUHeight ? FPGraphics.getCPUHeight(nextX, nextZ) : 0.0);
-                    
-                    if (nextGpuH !== null && !isNaN(nextGpuH)) {
-                        nextGroundH = nextGpuH;
-                    } else {
-                        nextGroundH = nextCpuH;
-                    }
-                    
-                    // Layer-Check für das Ziel (Wasser-Schutz)
-                    const nextLayerID = (window.FPGraphics_getGPULayer) ? window.FPGraphics_getGPULayer(nextX, nextZ) : 0;
-                    if (nextLayerID === 2) nextGroundH = -500.0;
-                }
+    if (moved) {
+        let nextGroundH = currentLoopGroundH;
+        if (window.FPGraphics) {
+            const nextGpuH = FPGraphics.getGPUHeight(nextX, nextZ, true);
+            const nextCpuH = (typeof window.FPGraphics_getCPUHeight === 'function') 
+                ? window.FPGraphics_getCPUHeight(nextX, nextZ) 
+                : (FPGraphics.getCPUHeight ? FPGraphics.getCPUHeight(nextX, nextZ) : 0.0);
+            
+            nextGroundH = (nextGpuH !== null && !isNaN(nextGpuH)) ? nextGpuH : nextCpuH;
+            const nextLayerID = (window.FPGraphics_getGPULayer) ? window.FPGraphics_getGPULayer(nextX, nextZ) : 0;
+            if (nextLayerID === 2) nextGroundH = -500.0;
+        }
 
-                if (!checkCollision(nextX, nextZ)) { 
-                    targetPos.x = nextX;
-                    targetPos.z = nextZ;
-                    
-                    // Wenn wir bergauf gehen (nextGroundH > currentPos.y),
-                    // ziehen wir targetPos.y sofort mit hoch, um Clipping zu verhindern.
-                    if (nextGroundH > targetPos.y) {
-                        targetPos.y = nextGroundH;
-                        velocityY = 0; // Stoppe Fallgeschwindigkeit beim Bergaufgehen
-                    }
-
-                    if (Date.now() - lastStepAt > STEP_MS) {
-                        gridX = Math.round(targetPos.x / GRID);
-                        gridY = Math.round(targetPos.z / GRID);
-                        saveStep();
-                        lastStepAt = Date.now();
-                    }
-                }
+        if (!checkCollision(nextX, nextZ)) { 
+            targetPos.x = nextX;
+            targetPos.z = nextZ;
+            
+            // --- SMOOTH STEP UP (Gegen Hüpfen) ---
+            // Wir heben targetPos.y nur an, wenn der Unterschied signifikant ist (>2cm),
+            // um Mikro-Zittern der GPU-Daten zu ignorieren.
+            if (nextGroundH > targetPos.y + 0.02) {
+                targetPos.y = nextGroundH;
+                velocityY = 0;
             }
+            
+            if (Date.now() - lastStepAt > STEP_MS) {
+                gridX = Math.round(targetPos.x / GRID);
+                gridY = Math.round(targetPos.z / GRID);
+                saveStep();
+                lastStepAt = Date.now();
+            }
+        }
+    }
 
         // --- 4. KAMERA & AVATAR AKTUALISIEREN ---
         // Jetzt, wo das Terrain an der neuen currentPos ausgerichtet ist,
@@ -1620,16 +1596,22 @@
         currentPos.z += (targetPos.z - currentPos.z) * POS_LERP;
 
         // --- Y-POSITION SYNCHRONISATION (Jitter-Fix) ---
-        // Wir entfernen das Snapping in updatePlayerPos, da dies vor dem GPGPU-Update passiert.
-        // Die Höhen-Synchronisation erfolgt jetzt ausschließlich in applyCamera, 
-        // nachdem das Terrain (Clipmap) auf die neue Position aktualisiert wurde.
+        // Wir nutzen ein weiches Lerp für die Y-Position, um plötzliche Sprünge abzufangen.
         if (isNaN(currentPos.y)) currentPos.y = targetPos.y || 0;
-        currentPos.y += (targetPos.y - currentPos.y) * POS_LERP;
+        
+        // Bei großen Differenzen (z.B. Teleport) sofort snappen
+        if (Math.abs(targetPos.y - currentPos.y) > 5.0) {
+            currentPos.y = targetPos.y;
+        } else {
+            // Normales Lerping für sanfte Übergänge
+            currentPos.y += (targetPos.y - currentPos.y) * POS_LERP;
+        }
 
         if (heading > Math.PI) heading -= Math.PI * 2;
         if (heading < -Math.PI) heading += Math.PI * 2;
     }
 
+    let lastRenderY = 0;
     function applyCamera(delta = 1, groundH = 0) {
         if (!camera) return;
         
@@ -1638,7 +1620,6 @@
         const pz = currentPos.z;
 
         // --- DYNAMISCHE HÖHEN-SYNCHRONISATION ---
-        // Wir nutzen die GPU-Höhe als Referenz für den Boden.
         let currentGroundH = groundH;
         if (window.FPGraphics) {
             const gpuH = FPGraphics.getGPUHeight(px, pz, true);
@@ -1647,9 +1628,14 @@
             }
         }
         
-        // Der Avatar befindet sich an der interpolierten Physik-Position (py),
-        // darf aber NIEMALS unter den Boden sinken.
-        const renderY = Math.max(py, currentGroundH); 
+        // Der Avatar befindet sich an der Physik-Position (py),
+        // darf aber NIEMALS unter den Boden sinken (Visual Snap).
+        let renderY = Math.max(py, currentGroundH); 
+
+        // Glättung für renderY, um Mikro-Zittern der GPU-Daten für die Kamera zu dämpfen
+        if (lastRenderY === 0) lastRenderY = renderY;
+        renderY = lastRenderY + (renderY - lastRenderY) * Math.min(delta * 0.5, 1.0);
+        lastRenderY = renderY;
 
         if (avatar) {
             avatar.position.set(px, renderY, pz);

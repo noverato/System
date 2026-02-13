@@ -15,12 +15,12 @@
     const GRASS_LOD_DIST = 40;  // Grenze zwischen 3D und 2D Gras (Erhöht für bessere Optik)
     const GRASS_MAX_DIST = 4000; // Maximale Sichtweite für 2D Gras (Synchronisiert mit Clipmap)
     const GRASS_PNG_PATH = 'https://raw.githubusercontent.com/noverato/System/main/animation/baeume/Grass_large.png';
-    const CLIPMAP_SEGMENTS = 128; // Reduziert für Stabilität
+    const CLIPMAP_SEGMENTS = 512; // Erhöht für bessere Detaildichte und Texel-Alignment
     
-    const DECORATION_CELL_SIZE = 512; // Größere Zellen für 4km Radius Performance
-    const DECORATION_RANGE = 8;       // Erhöhter Range (8 * 512 = 4096m)
-    const GRASS_CELL_SIZE = 128;      // Größere Zellen für Gras-Chunks
-    const GRASS_RANGE = 32;           // Erhöhter Range (32 * 128 = 4096m)
+    const DECORATION_CELL_SIZE = 512; 
+    const DECORATION_RANGE = 8;       
+    const GRASS_CELL_SIZE = 128;      
+    const GRASS_RANGE = 32;           
 
     // Globale Uniforms für das Culling-System (Bubble-Prinzip / Glocke)
     const worldCullingUniforms = {
@@ -29,8 +29,8 @@
         time: { value: 0 }
     };
 
-    const GPU_WORLD_SIZE = 10000; // Erhöht auf 10km x 10km (100km²) für die 86km² Anforderung
-    const GPU_TERRAIN_SIZE = 1024; // Texturauflösung der Heightmap (1024x1024)
+    const GPU_WORLD_SIZE = 10240; // Geändert auf 10240 für glattes Texel-Alignment (10240 / 1024 = 10m)
+    const GPU_TERRAIN_SIZE = 1024; // 1024x1024 Textur
 
     // --- WORLD SEED LOGIC ---
     let WORLD_SEED = localStorage.getItem('nest_world_seed');
@@ -318,13 +318,11 @@
     // Zentraler GPGPU-Daten-Container (Kommunikations-Layer)
     const GPGPU_Container = {
         heightTexture: null,
-        // Wir lesen nur noch einen kleinen Bereich um den Spieler für die Physik (Performance-Boost)
-        physicsData: new Float32Array(16 * 16 * 4), 
-        physicsSize: 16,
+        physicsData: new Float32Array(32 * 32 * 4), 
+        physicsSize: 32,
         lastUpdate: 0,
-        centerPos: new THREE.Vector2(0, 0), // Das Welt-Zentrum der aktuellen Heightmap-Daten
+        centerPos: new THREE.Vector2(0, 0),
         
-        // Hilfsfunktion: Wandelt Weltkoordinaten in Texture-UV um
         getUV: function(x, z) {
             const u = (x - this.centerPos.x) / GPU_WORLD_SIZE + 0.5;
             const v = (z - this.centerPos.y) / GPU_WORLD_SIZE + 0.5;
@@ -335,16 +333,10 @@
             const { u, v } = this.getUV(x, z);
             if (u < 0 || u > 1 || v < 0 || v > 1) return 0;
 
-            // Da wir jetzt nur einen 16x16 Bereich um das Zentrum (0.5, 0.5) lesen,
-            // müssen wir prüfen, ob die angefragte Koordinate in diesem Bereich liegt.
-            // 16 Pixel bei 1024 Auflösung entsprechen (16/1024) * 10000m = 156m.
-            // Das reicht locker für Spieler-Physik und Kamera-Kollision.
-            
             const localU = (u - 0.5) * (GPU_TERRAIN_SIZE / this.physicsSize) + 0.5;
             const localV = (v - 0.5) * (GPU_TERRAIN_SIZE / this.physicsSize) + 0.5;
 
             if (localU < 0 || localU >= 1 || localV < 0 || localV >= 1) {
-                // Außerhalb des Physik-Buffers -> CPU Fallback
                 return getCPUHeight(x, z);
             }
 
@@ -594,7 +586,7 @@
         // Quadratisches Gitter für gleichmäßige Vertex-Verteilung (verhindert Stretching)
         // CLIPMAP_RADIUS * 2 für die Größe, Segmente für Detaildichte
         // Erhöht auf 512 Segmente für bessere Terrain-Definition bei 4km Radius
-        const geo = new THREE.PlaneGeometry(CLIPMAP_RADIUS * 2, CLIPMAP_RADIUS * 2, 512, 512);
+        const geo = new THREE.PlaneGeometry(CLIPMAP_RADIUS * 2, CLIPMAP_RADIUS * 2, CLIPMAP_SEGMENTS, CLIPMAP_SEGMENTS);
         
         // Texturen laden (Nutze AssetsLibrary für korrekte Pfade)
         const texLoader = new THREE.TextureLoader();
@@ -659,24 +651,23 @@
                 // ist snapOffset immer 0. Wir können direkt die lokalen Positionen nutzen.
                 
                 // hUV Berechnung: (Lokale Pos + halbe Größe) / Größe
-                // position.x/y sind die lokalen Koordinaten der Plane (-Radius bis +Radius)
-                // WICHTIG: Da die Plane um -PI/2 rotiert ist, entspricht localY direkt dem Welt-Z.
-                // Daher: worldX = meshOffset.x + position.x, worldZ = meshOffset.y + position.y
+                // WICHTIG: Da die Plane um -PI/2 rotiert ist, entspricht localY dem NEGATIVEN Welt-Z.
+                // Daher: worldX = meshOffset.x + position.x, worldZ = meshOffset.y - position.y
                 vec2 hUV;
                 hUV.x = (position.x + (gpuWorldSize * 0.5)) / gpuWorldSize;
-                hUV.y = (position.y + (gpuWorldSize * 0.5)) / gpuWorldSize; 
+                hUV.y = ((-position.y) + (gpuWorldSize * 0.5)) / gpuWorldSize; 
                 hUV = clamp(hUV, 0.0, 1.0);
                 
                 // Wir nutzen hardware-beschleunigte lineare Filterung für butterweiche Übergänge
                 float h = getSmoothHeight(hUV);
                 vHeight = h;
                 
-                // VERTEX DISPLACEMENT: Z-Achse ist bei PlaneGeometry die Höhe (nach Rotation)
+                // VERTEX DISPLACEMENT: Z-Achse ist bei PlaneGeometry die Höhe (vor Rotation)
                 transformed.z = h; 
                 
                 // vWorldPos für den Fragment-Shader (Texturierung & Biome)
-                // Diese Position ist absolut synchron mit dem Gitter (sx, sz).
-                vWorldPos = vec3(meshOffset.x + position.x, h, meshOffset.y + position.y);
+                // Diese Position ist absolut synchron mit dem Gitter.
+                vWorldPos = vec3(meshOffset.x + position.x, h, meshOffset.y - position.y);
                 vDist = length(vWorldPos.xz - playerPos);
                 `
             );
@@ -926,7 +917,7 @@
         // --- STABILISIERTE CLIPMAP-LOGIK (Jitter-Fix) ---
         // Das Mesh UND das GPGPU-Zentrum snappen auf die exakte Texel-Größe.
         // Das verhindert, dass Vertices über Texel "kriechen", was das Jittern verursacht.
-        const snapSize = GPU_WORLD_SIZE / GPU_TERRAIN_SIZE; // 9.765625m
+        const snapSize = GPU_WORLD_SIZE / GPU_TERRAIN_SIZE; // Exakt 10m bei 10240/1024
         const sx = Math.floor(px / snapSize) * snapSize;
         const sz = Math.floor(pz / snapSize) * snapSize;
         
