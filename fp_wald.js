@@ -941,9 +941,11 @@
         // Layer 0: Alles (Standard)
         // Layer 1: Wasser
         // Layer 2: Terrain-Assets (Wald)
+        // Layer 3: Grass & Decoration Target (Raycasting)
         camera.layers.enable(0);
         camera.layers.enable(1);
         camera.layers.enable(2);
+        camera.layers.enable(3);
 
         // Gelände & Innenräume
         if (!window.FPGraphics) {

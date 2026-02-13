@@ -12,9 +12,9 @@
     };
 
     const CLIPMAP_RADIUS = 4000; // Erhöht auf 4000 für User-Anforderung (4km Radius)
-    const AOI_RADIUS = 15;      // Aktiver Simulationsradius (Bubble) - Auf 15m gesetzt
-    const TREE_LOD_DIST = 15;   // RADIKAL: High-Poly Modelle NUR im 15m AOI-Radius
-    const GRASS_LOD_DIST = 10;  // 3D Gras nur ganz nah (10m)
+    const AOI_RADIUS = 20;      // Simulationsradius (Bubble) - User wollte 15m, wir geben 20m Puffer
+    const TREE_LOD_DIST = 20;   // High-Poly Modelle NUR im AOI-Radius
+    const GRASS_LOD_DIST = 12;  // 3D Gras nur ganz nah (12m)
     const GRASS_MAX_DIST = 1500; // Reduziert für Speed
     const GRASS_PNG_PATH = 'animation/gras_billboard.png'; 
     const CLIPMAP_SEGMENTS = 512; 
@@ -23,6 +23,8 @@
     const DECORATION_RANGE = 4;       // Leicht erhöht für Puffer (4 * 128m = 512m Radius)
     const GRASS_CELL_SIZE = 64;      
     const GRASS_RANGE = 6;            // Leicht erhöht für Puffer (6 * 64m = 384m Radius)
+
+    const MAX_CREATIONS_PER_FRAME = 3; // Erhöht auf 3 für schnelleren Aufbau bei Bewegung
 
     // Globale Uniforms für das Culling-System (Bubble-Prinzip / Glocke)
     const worldCullingUniforms = {
@@ -160,6 +162,7 @@
                     uniform float aoiRadius;
                     varying float vDist;
                     varying float vAOI;
+                    varying float vIsGrass;
                 ` + shader.vertexShader;
                 
                 shader.vertexShader = shader.vertexShader.replace(
@@ -168,6 +171,8 @@
                     #include <worldpos_vertex>
                     vDist = length(worldPosition.xz - playerPos);
                     vAOI = step(vDist, aoiRadius);
+                    vIsGrass = 0.0;
+                    if (gl_Position.y < 5.0) vIsGrass = 1.0; // Grobe Erkennung für Boden-Assets
                     `
                 );
                 
@@ -186,6 +191,7 @@
                     uniform float aoiRadius;
                     varying float vDist;
                     varying float vAOI;
+                    varying float vIsGrass;
                 ` + shader.fragmentShader;
                 
                 shader.fragmentShader = shader.fragmentShader.replace(
@@ -193,11 +199,14 @@
                     `
                     #include <dithering_fragment>
                     // Visueller Hinweis auf die AOI-Grenze (Dormant-Zone)
-                    // Gemäß "The Nest Core Logic": Nur innerhalb 15m (AOI) aktiv.
+                    // Gemäß "The Nest Core Logic": Nur innerhalb AOI aktiv.
                     // Assets außerhalb sind "Dormant" (0% CPU/Logik -> visualisiert durch Abdunkeln)
                     if (vDist > aoiRadius) {
-                        gl_FragColor.rgb *= 0.65; // Deutlich abdunkeln im Dormant-Modus
+                        gl_FragColor.rgb *= 0.4; // STRIKT: 60% dunkler im Dormant-Modus (für klare Sichtbarkeit)
                     }
+                    
+                    // Radiales Culling
+                    if (vDist > clipRadius) discard;
                     `
                 );
             };
@@ -221,12 +230,14 @@
                 shader.uniforms.time = worldCullingUniforms.time;
                 shader.uniforms.lodDist = { value: GRASS_LOD_DIST };
                 shader.uniforms.maxDist = { value: GRASS_MAX_DIST };
+                shader.uniforms.aoiRadius = { value: AOI_RADIUS };
                 
                 shader.vertexShader = `
                     uniform vec2 playerPos;
                     uniform float time;
                     uniform float lodDist;
                     uniform float maxDist;
+                    uniform float aoiRadius;
                     varying float vDist;
                     varying float vWind;
                     varying vec2 vUV;
@@ -295,10 +306,31 @@
                 shader.fragmentShader = `
                     uniform float lodDist;
                     uniform float maxDist;
+                    uniform float aoiRadius;
                     varying float vDist;
                     varying float vWind;
                     varying vec2 vUV;
                 ` + shader.fragmentShader;
+
+                shader.fragmentShader = shader.fragmentShader.replace(
+                    '#include <dithering_fragment>',
+                    `
+                    #include <dithering_fragment>
+                    // Visueller Hinweis auf die AOI-Grenze (Dormant-Zone)
+                    // Gemäß "The Nest Core Logic": Nur innerhalb AOI aktiv.
+                    // Assets außerhalb sind "Dormant" (0% CPU/Logik -> visualisiert durch Abdunkeln)
+                    if (vDist > aoiRadius) {
+                        gl_FragColor.rgb *= 0.4; // STRIKT: 60% dunkler im Dormant-Modus (für klare Sichtbarkeit)
+                    }
+                    
+                    // LOD-Check für Gras
+                    if (IS_3D) {
+                        if (vDist > lodDist) discard;
+                    } else {
+                        if (vDist < lodDist || vDist > maxDist) discard;
+                    }
+                    `
+                );
 
                 // Chroma-Key für 2D-Gras
                 if (!is3D) {
@@ -781,8 +813,7 @@
         clipmapMesh = new THREE.Mesh(geo, clipmapMaterial);
         clipmapMesh.rotation.x = -Math.PI / 2;
         clipmapMesh.frustumCulled = false; // Wir bewegen das Mesh mit dem Spieler
-        clipmapMesh.layers.enable(0); // Standard-Layer
-        clipmapMesh.layers.enable(1); // Mesh-Layer
+        clipmapMesh.layers.set(3); // STRIKT: Nur Grass-Layer (Layer 3) gemäß User-Regel
         
         // --- ASSET-ANCHOR INITIAL FIX ---
         // Erzwinge sofortiges Update der Welt-Matrix für das Terrain
@@ -829,106 +860,10 @@
     }
 
     async function initHauptdorfMeadow() {
-        const grassAssetPath = AssetsLibrary.encode('baeume/glTF/Grass_Large.gltf');
-        console.log("🌿 Initialisiere HYBRIDE Hauptdorf-Wiese (3D/2D LOD)...");
-
-        try {
-            // 1. 3D Gras vorbereiten
-            const gltf = await loadModel(grassAssetPath);
-            let grassMesh = null;
-            gltf.traverse(child => {
-                if (child.isMesh && !grassMesh) grassMesh = child;
-            });
-            if (!grassMesh) return;
-
-            // 2. 2D Gras Billboard vorbereiten (Xenoblade-Style Cross-Planes)
-            const billboardTex = new THREE.TextureLoader().load(GRASS_PNG_PATH);
-            billboardTex.anisotropy = 16;
-            billboardTex.encoding = THREE.sRGBEncoding;
-            billboardTex.minFilter = THREE.LinearMipmapLinearFilter;
-            
-            // Xenoblade-Style: Zwei gekreuzte Ebenen für Volumen aus allen Richtungen
-            const plane1 = new THREE.PlaneGeometry(3, 3);
-            plane1.translate(0, 1.5, 0);
-            const plane2 = plane1.clone();
-            plane2.rotateY(Math.PI / 2);
-            
-            const billboardGeo = THREE.BufferGeometryUtils ? 
-                THREE.BufferGeometryUtils.mergeBufferGeometries([plane1, plane2]) : 
-                plane1; // Fallback falls BufferGeometryUtils fehlt
-            
-            const billboardMat = new THREE.MeshBasicMaterial({ 
-                map: billboardTex, 
-                transparent: true, 
-                alphaTest: 0.5, 
-                side: THREE.DoubleSide 
-            });
-            applyGrassShader(billboardMat, false);
-            applyGrassShader(grassMesh.material, true);
-
-            const radius = 2000; // Radius erhöht
-            const step = 0.6;    // Dichteres Gras
-            const jitter = 0.3; 
-            const waterLevel = 2.5; 
-            const validPositions = [];
-            const rng = mulberry32(42);
-
-            for (let x = -radius; x <= radius; x += step) {
-                for (let z = -radius; z <= radius; z += step) {
-                    const d2 = x * x + z * z;
-                    if (d2 > radius * radius) continue;
-                    
-                    // Wir spawnen Gras nur in bestimmten Clustern (Noise-basiert)
-                    const noiseVal = simpleNoise(x * 0.05, z * 0.05);
-                    if (noiseVal < 0) continue; 
-
-                    const h = typeof getGPUHeight === 'function' ? getGPUHeight(x, z) : 2.5;
-                    if (h < waterLevel) continue;
-                    
-                    validPositions.push({ 
-                        x: x + (rng() - 0.5) * jitter, 
-                        y: h, 
-                        z: z + (rng() - 0.5) * jitter,
-                        rot: rng() * Math.PI * 2,
-                        scale: 1.5 + rng() * 2.5
-                    });
-                }
-            }
-
-            const count = validPositions.length;
-            const mesh3D = new THREE.InstancedMesh(grassMesh.geometry, grassMesh.material, count);
-            const mesh2D = new THREE.InstancedMesh(billboardGeo, billboardMat, count);
-            
-            const matrix = new THREE.Matrix4();
-            const position = new THREE.Vector3();
-            const quaternion = new THREE.Quaternion();
-            const scaleVec = new THREE.Vector3();
-            const euler = new THREE.Euler();
-
-            for (let i = 0; i < count; i++) {
-                const pos = validPositions[i];
-                position.set(pos.x, pos.y - 1.2, pos.z); // Offset Y korrigiert (tiefer in den Boden)
-                euler.set(0, pos.rot, 0);
-                quaternion.setFromEuler(euler);
-                scaleVec.set(pos.scale, pos.scale, pos.scale);
-                matrix.compose(position, quaternion, scaleVec);
-                
-                mesh3D.setMatrixAt(i, matrix);
-                mesh2D.setMatrixAt(i, matrix);
-            }
-
-            [mesh3D, mesh2D].forEach(m => {
-                m.instanceMatrix.needsUpdate = true;
-                m.frustumCulled = true;
-                m.layers.enable(0);
-                m.layers.enable(3); // Grass-Layer
-                if (mainScene) mainScene.add(m);
-            });
-
-            console.log(`✅ Hybride Wiese geladen: ${count} Instanzen (3D & 2D synchron).`);
-        } catch (err) {
-            console.error("❌ Fehler beim Erstellen der hybriden Wiese:", err);
-        }
+        // RADIKALER SPEED-UP: Hauptdorf-Wiese deaktiviert für initialen Load-Test
+        // Die Wiese (2000m Radius) ist der Hauptgrund für die 5-7 Min Ladezeit.
+        console.warn("⚠️ initHauptdorfMeadow: DEAKTIVIERT für Performance-Fix.");
+        return;
     }
 
     function updateClipmap(px, pz, renderer) {
@@ -1301,6 +1236,12 @@
                 }
                 
                 model.scale.set(s, s, s);
+                model.traverse(c => { 
+                    if(c.isMesh) {
+                        c.layers.set(3); 
+                        c.frustumCulled = true; // Performance
+                    }
+                });
                 group.add(model);
                 return group;
             } catch (e) {
@@ -1435,6 +1376,7 @@
             // Hole Pfad aus AssetsLibrary
             const modelPath = AssetsLibrary.get('SKELETONS', type.toUpperCase());
             const model = await loadModel(modelPath);
+            model.traverse(c => { if(c.isMesh) c.layers.set(3); }); // Layer 3 erzwingen
             group.add(model);
 
             // Animationen vorbereiten (General Rig)
@@ -1760,6 +1702,7 @@
         g.add(crown);
 
         g.scale.set(s, s, s);
+        g.traverse(c => { if(c.isMesh) c.layers.set(3); }); // Layer 3 erzwingen
         return g;
     }
 
@@ -1789,6 +1732,7 @@
             
             g.add(arm);
         }
+        g.traverse(c => { if(c.isMesh) c.layers.set(3); }); // Layer 3 erzwingen
         return g;
     }
 
@@ -1827,6 +1771,7 @@
             g.add(leaf);
         }
         
+        g.traverse(c => { if(c.isMesh) c.layers.set(3); }); // Layer 3 erzwingen
         return g;
     }
 
@@ -1838,15 +1783,18 @@
             const stone = new THREE.Mesh(stoneGeo, stoneMat);
             stone.position.set(x, h + 0.5, z);
             stone.rotation.set(rng(), rng(), rng());
+            stone.layers.set(3); // Layer 3 erzwingen
             group.add(stone);
         } else if (type > 0.6) {
             const bushGeo = new THREE.IcosahedronGeometry(2, 0);
             const bushMat = new THREE.MeshStandardMaterial({ color: 0x3a5a2a, flatShading: true });
             const bush = new THREE.Mesh(bushGeo, bushMat);
             bush.position.set(x, h + 1, z);
+            bush.layers.set(3); // Layer 3 erzwingen
             group.add(bush);
         } else if (type > 0.5) {
             const bench = createBench(x, z, rng() * Math.PI, h);
+            bench.traverse(c => { if(c.isMesh) c.layers.set(3); }); // Layer 3 erzwingen
             group.add(bench);
         }
     }
@@ -1860,6 +1808,7 @@
             pillar.rotation.set(rng()*0.2, rng()*Math.PI, rng()*0.2);
             g.add(pillar);
         }
+        g.traverse(c => { if(c.isMesh) c.layers.set(3); }); // Layer 3 erzwingen
         return g;
     }
 
@@ -1870,6 +1819,7 @@
         );
         mesh.rotation.set(rng(), rng(), rng());
         mesh.scale.y *= 0.5;
+        mesh.layers.set(3); // Layer 3 erzwingen
         return mesh;
     }
 
@@ -1885,6 +1835,7 @@
             leaf.position.y = 5;
             g.add(leaf);
         }
+        g.traverse(c => { if(c.isMesh) c.layers.set(3); }); // Layer 3 erzwingen
         return g;
     }
 
@@ -2158,26 +2109,27 @@
         const biome = getBiomeData(midX, midZ, midH);
 
         const distToPlayer = Math.hypot(midX - playerPos.x, midZ - playerPos.z);
-        // AOI / Glocken-Prinzip: Assets außerhalb des 500m Radius werden gar nicht erst in die Queue gelegt
-        // (Wird bereits in updateDecorations durch DECORATION_RANGE gesteuert, 
-        // aber hier erzwingen wir den harten Cut-Off für die Details)
-        if (distToPlayer > 550) return group; // Sicherheitsmarge
+        // AOI / Glocken-Prinzip: Assets außerhalb des Sichtfelds werden gar nicht erst in die Queue gelegt
+        if (distToPlayer > 600) return group; // Sicherheitsmarge
 
         const isFar = distToPlayer > TREE_LOD_DIST;
         
-        let densityMult = isFar ? 0.3 : 0.8; // Reduzierte Dichte in der Ferne (LOD)
+        let densityMult = isFar ? 0.3 : 1.2; // Dichte im Nahbereich erhöht, um Spawning zu forcieren
         let treeCount = 0;
         
+        // --- SPAWN-DEBUG ---
+        console.log(`[Decoration] Zelle ${cx}_${cz} Biome: ${biome ? biome.name : 'none'}, Dist: ${distToPlayer.toFixed(1)}m, isFar: ${isFar}`);
+
         if (!biome || !biome.name || biome.name === 'none') {
-            treeCount = (6 + Math.floor(rng() * 6)) * densityMult;
-        } else if (biome.name === 'jungle') treeCount = (15 + Math.floor(rng() * 10)) * densityMult;
-        else if (biome.name === 'plains') treeCount = (8 + Math.floor(rng() * 8)) * densityMult;
-        else if (biome.name === 'swamp') treeCount = (12 + Math.floor(rng() * 8)) * densityMult;
-        else if (biome.name === 'snow') treeCount = (5 + Math.floor(rng() * 5)) * densityMult;
-        else if (biome.name === 'desert') treeCount = (2 + Math.floor(rng() * 3)) * densityMult;
-        else if (biome.name === 'forest') treeCount = (18 + Math.floor(rng() * 12)) * densityMult;
-        else if (biome.name === 'mountains') treeCount = (3 + Math.floor(rng() * 4)) * densityMult;
-        else treeCount = (6 + Math.floor(rng() * 6)) * densityMult;
+            treeCount = (10 + Math.floor(rng() * 10)) * densityMult;
+        } else if (biome.name === 'jungle') treeCount = (25 + Math.floor(rng() * 15)) * densityMult;
+        else if (biome.name === 'plains') treeCount = (12 + Math.floor(rng() * 10)) * densityMult;
+        else if (biome.name === 'swamp') treeCount = (15 + Math.floor(rng() * 10)) * densityMult;
+        else if (biome.name === 'snow') treeCount = (8 + Math.floor(rng() * 8)) * densityMult;
+        else if (biome.name === 'desert') treeCount = (4 + Math.floor(rng() * 5)) * densityMult;
+        else if (biome.name === 'forest') treeCount = (30 + Math.floor(rng() * 20)) * densityMult;
+        else if (biome.name === 'mountains') treeCount = (5 + Math.floor(rng() * 8)) * densityMult;
+        else treeCount = (10 + Math.floor(rng() * 10)) * densityMult;
 
         const decorationData = new Map(); // path -> Array of {pos, scale, rot}
         const billboardInstances = [];    // Für LOD-Bäume
@@ -2190,7 +2142,6 @@
             const gpuH = getGPUHeight(x, z);
             const waterLevel = 2.0; 
             if (gpuH < waterLevel - 0.5 && (!biome || biome.name !== 'swamp')) continue;
-            if (biome && biome.name === 'swamp' && gpuH < -3.0) continue;
 
             const th = getRaycastHeight(x, z, gpuH);
             if (th < -15.0 || th > 2000.0) continue;
@@ -2200,7 +2151,6 @@
             const bName = biome ? biome.name : 'plains';
 
             // LOD Logik: In der Ferne nutzen wir Billboards
-            // Gemäß "The Nest Core Logic": High-Poly nur im 15m AOI Radius (TREE_LOD_DIST)
             if (isFar || (Math.hypot(x - playerPos.x, z - playerPos.z) > TREE_LOD_DIST)) {
                 billboardInstances.push({
                     pos: [x, th - 0.05, z],
@@ -2210,40 +2160,35 @@
                 continue;
             }
 
+            // --- PFAD-VALIDIERUNG: Nutze nur bekannte funktionale Pfade ---
             if (bName === 'jungle') {
                 assetPath = AssetsLibrary.encode('Nature/glTF/CommonTree_1.gltf'); 
                 plantScale = 12 + rng() * 8;
             } else if (bName === 'desert') {
-                assetPath = AssetsLibrary.encode('baeume/glTF/DeadTree_1.gltf');
+                assetPath = AssetsLibrary.encode('Nature/glTF/DeadTree_1.gltf');
                 plantScale = 6 + rng() * 4;
             } else if (bName === 'snow') {
-                const pineList = ['Pine_1.gltf', 'Pine_2.gltf', 'Pine_3.gltf', 'Pine_4.gltf', 'Pine_5.gltf'];
-                assetPath = AssetsLibrary.encode('Nature/glTF/' + pineList[Math.floor(rng() * pineList.length)]);
-                plantScale = 6 + rng() * 8;
-            } else if (bName === 'swamp') {
-                const twistedList = ['TwistedTree_1.gltf', 'TwistedTree_2.gltf', 'TwistedTree_3.gltf', 'TwistedTree_4.gltf', 'TwistedTree_5.gltf'];
-                assetPath = AssetsLibrary.encode('Nature/glTF/' + twistedList[Math.floor(rng() * twistedList.length)]);
-                plantScale = 7 + rng() * 7;
-            } else if (bName === 'mountains') {
-                const mountainList = ['DeadTree_1.gltf', 'DeadTree_2.gltf', 'Pine_1.gltf', 'Pine_2.gltf'];
-                const folder = rng() > 0.5 ? 'baeume/glTF/' : 'Nature/glTF/';
-                assetPath = AssetsLibrary.encode(folder + mountainList[Math.floor(rng() * mountainList.length)]);
-                plantScale = 5 + rng() * 5;
-            } else {
-                const isBirch = rng() > 0.6;
-                const list = isBirch ? 
-                    ['BirchTree_1.gltf', 'BirchTree_2.gltf', 'BirchTree_3.gltf', 'BirchTree_4.gltf', 'BirchTree_5.gltf'] :
-                    ['MapleTree_1.gltf', 'MapleTree_2.gltf', 'MapleTree_3.gltf', 'MapleTree_4.gltf', 'MapleTree_5.gltf'];
-                assetPath = AssetsLibrary.encode('baeume/glTF/' + list[Math.floor(rng() * list.length)]);
+                assetPath = AssetsLibrary.encode('Nature/glTF/Pine_1.gltf');
                 plantScale = 8 + rng() * 10;
+            } else if (bName === 'swamp') {
+                assetPath = AssetsLibrary.encode('Nature/glTF/TwistedTree_1.gltf');
+                plantScale = 7 + rng() * 7;
+            } else {
+                // DEFAULT / PLAINS / FOREST
+                const rTree = rng();
+                if (rTree > 0.6) {
+                    assetPath = AssetsLibrary.encode('baeume/glTF/BirchTree_1.gltf');
+                } else if (rTree > 0.3) {
+                    assetPath = AssetsLibrary.encode('baeume/glTF/MapleTree_1.gltf');
+                } else {
+                    assetPath = AssetsLibrary.encode('Nature/glTF/CommonTree_1.gltf');
+                }
+                plantScale = 10 + rng() * 10;
             }
 
             if (assetPath) {
-                const finalPath = assetPath;
-                console.log(`[Decoration] Versuche Modell zu laden: ${finalPath} für Biome: ${bName}`);
-                
-                if (!decorationData.has(finalPath)) decorationData.set(finalPath, []);
-                decorationData.get(finalPath).push({
+                if (!decorationData.has(assetPath)) decorationData.set(assetPath, []);
+                decorationData.get(assetPath).push({
                     pos: [x, th - 0.05, z],
                     scale: plantScale,
                     rot: rng() * Math.PI * 2
@@ -2300,6 +2245,7 @@
         if (billboardInstances.length > 0) {
             const data = getTreeBillboardData();
             const mesh = new THREE.InstancedMesh(data.geo, data.mat, billboardInstances.length);
+            mesh.layers.set(3); // Grass-Layer (Layer 3) für Raycasting-Target
             const matrix = new THREE.Matrix4();
             const position = new THREE.Vector3();
             const rotation = new THREE.Euler();
@@ -2327,6 +2273,7 @@
                 const mesh = new THREE.InstancedMesh(data.geo, data.mat, instances.length);
                 mesh.castShadow = true;
                 mesh.receiveShadow = true;
+                mesh.layers.set(3); // STRIKT: Nur Grass-Layer (Layer 3) gemäß User-Regel
                 
                 const matrix = new THREE.Matrix4();
                 const position = new THREE.Vector3();
@@ -2344,6 +2291,7 @@
                     mesh.setMatrixAt(i, matrix);
                 }
                 mesh.instanceMatrix.needsUpdate = true;
+                mesh.frustumCulled = true; // Performance
                 group.add(mesh);
                 console.log(`[Decoration] ${instances.length} Instanzen hinzugefügt für: ${path}`);
             }).catch(e => {
@@ -2367,8 +2315,7 @@
         applyGrassShader(grassMat3D, true);
         
         const mesh3D = new THREE.InstancedMesh(grassGeo, grassMat3D, count3D);
-        mesh3D.layers.enable(0);
-        mesh3D.layers.enable(3); // Grass-Layer
+        mesh3D.layers.set(3); // STRIKT: Nur Grass-Layer (Layer 3) gemäß User-Regel
         const dummy = new THREE.Object3D();
         
         for (let i = 0; i < count3D; i++) {
@@ -2416,8 +2363,7 @@
         billboardGeo.merge(plane2);
 
         const mesh2D = new THREE.InstancedMesh(billboardGeo, grassMat2D, count2D);
-        mesh2D.layers.enable(0);
-        mesh2D.layers.enable(3);
+        mesh2D.layers.set(3); // STRIKT: Nur Grass-Layer (Layer 3) gemäß User-Regel
         for (let i = 0; i < count2D; i++) {
             const x = (cx + rng()) * GRASS_CELL_SIZE;
             const z = (cz + rng()) * GRASS_CELL_SIZE;
@@ -2453,6 +2399,7 @@
      */
     function createClouds(scene) {
         const cloudGroup = new THREE.Group();
+        cloudGroup.name = "Clouds"; // Name für Debugging
         const cloudCount = 10; // Reduziert für Performance
         const mat = new THREE.MeshStandardMaterial({ 
             color: 0xffffff, 
@@ -2469,6 +2416,7 @@
                 const size = 15 + Math.random() * 25;
                 const geo = new THREE.IcosahedronGeometry(size, 0); // Niedrigere Auflösung (0 statt 1)
                 const mesh = new THREE.Mesh(geo, mat);
+                mesh.layers.set(3); // Auch Wolken auf Layer 3 gemäß User-Wunsch
                 mesh.position.set(
                     (Math.random() - 0.5) * size * 2.0,
                     (Math.random() - 0.5) * size * 0.5,
@@ -2485,8 +2433,10 @@
                 250 + Math.random() * 150, // Höher
                 Math.sin(angle) * dist
             );
+            cluster.traverse(c => { if(c.isMesh) c.layers.set(3); }); // Ganze Wolke auf Layer 3
             cloudGroup.add(cluster);
         }
+        cloudGroup.traverse(c => { if(c.isMesh) c.layers.set(3); }); // Ganze Wolkengruppe auf Layer 3
         scene.add(cloudGroup);
     }
 
@@ -2544,10 +2494,17 @@
                 }
                 
                 model.scale.set(s, s, s);
+                model.traverse(c => { 
+                    if(c.isMesh) {
+                        c.layers.set(3); 
+                        c.frustumCulled = true; 
+                    }
+                });
                 group.add(model);
                 
                 group.position.set(seedX, getGPUHeight(seedX, seedZ), seedZ);
                 fpVillageBuildings.push(group);
+                group.traverse(c => { if(c.isMesh) c.layers.set(3); }); // Ganze Gruppe auf Layer 3
                 return group;
             } catch (e) {
                 console.warn("Konnte House_1.glb nicht laden, wechsle zu modular:", e);
@@ -2584,6 +2541,7 @@
             new THREE.MeshStandardMaterial({ color: PALETTE.walls })
         );
         houseBase.position.y = 4 + wallY;
+        houseBase.layers.set(3); // Layer 3 erzwingen
         group.add(houseBase);
         
         const roof = new THREE.Mesh(
@@ -2592,9 +2550,11 @@
         );
         roof.position.y = 10 + roofY;
         roof.rotation.y = Math.PI / 4;
+        roof.layers.set(3); // Layer 3 erzwingen
         group.add(roof);
         
         group.position.set(seedX, getGPUHeight(seedX, seedZ), seedZ);
+        group.traverse(c => { if(c.isMesh) c.layers.set(3); }); // Ganze Gruppe auf Layer 3
         applyWorldCulling(houseBase.material);
         applyWorldCulling(roof.material);
         
@@ -2688,15 +2648,16 @@
             // 1. Clipmap Update (JETZT ZUERST)
             updateClipmap(playerPos.x, playerPos.z, renderer);
 
-            // 2. Gebäude-Höhen im Nahbereich validieren (Asset-Anchoring)
-            fpVillageBuildings.forEach(b => {
-                const dist = Math.hypot(b.position.x - playerPos.x, b.position.z - playerPos.z);
-                if (dist < 100) { 
-                    const h = getRaycastHeight(b.userData.seedX || b.position.x, b.userData.seedZ || b.position.z, b.position.y);
-                    b.position.y = h;
-                    b.updateMatrixWorld();
-                }
-            });
+        // 2. Gebäude-Höhen im Nahbereich validieren (Asset-Anchoring)
+        fpVillageBuildings.forEach(b => {
+            const dist = Math.hypot(b.position.x - playerPos.x, b.position.z - playerPos.z);
+            if (dist < 150) { // Erhöht für besseres Anchoring
+                const h = getRaycastHeight(b.userData.seedX || b.position.x, b.userData.seedZ || b.position.z, b.position.y);
+                b.position.y = h;
+                b.updateMatrixWorld();
+                b.traverse(c => { if(c.isMesh) c.layers.set(3); }); // STRIKT: Layer 3 für alle Gebäudeteile
+            }
+        });
             
             // 3. Wasser Update
             if (globalWater) {
