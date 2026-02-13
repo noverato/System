@@ -945,10 +945,18 @@
         camera.layers.enable(1);
         camera.layers.enable(2);
 
-        // Wolken hinzufügen
-        if (window.FPGraphics) FPGraphics.createClouds(scene);
-        
         // Gelände & Innenräume
+        if (!window.FPGraphics) {
+            console.warn("[FPWald] FPGraphics nicht sofort gefunden, warte...");
+            for (let i = 0; i < 50; i++) {
+                if (window.FPGraphics) break;
+                await new Promise(r => setTimeout(r, 100));
+            }
+        }
+
+        // Wolken hinzufügen (JETZT NACH DEM WAIT)
+        if (window.FPGraphics) FPGraphics.createClouds(scene);
+
         if (window.FPGraphics) {
             FPGraphics.initInteriors(scene);
         }
@@ -1368,10 +1376,10 @@
             
             // --- GPU-FIRST PHYSIK ---
             // Wir nutzen die GPU-Höhe für das Snapping.
-            const gpuH = FPGraphics.getGPUHeight(currentPos.x, currentPos.z, true);
+            const gpuH = window.FPGraphics ? FPGraphics.getGPUHeight(currentPos.x, currentPos.z, true) : null;
             const cpuH = (typeof window.FPGraphics_getCPUHeight === 'function') 
                 ? window.FPGraphics_getCPUHeight(currentPos.x, currentPos.z) 
-                : (FPGraphics.getCPUHeight ? FPGraphics.getCPUHeight(currentPos.x, currentPos.z) : 0.0);
+                : (window.FPGraphics && FPGraphics.getCPUHeight ? FPGraphics.getCPUHeight(currentPos.x, currentPos.z) : 0.0);
             
             if (gpuH !== null && !isNaN(gpuH)) {
                 currentLoopGroundH = gpuH;
@@ -1382,7 +1390,7 @@
             const layerID = (window.FPGraphics_getGPULayer) ? window.FPGraphics_getGPULayer(currentPos.x, currentPos.z) : 0;
             if (layerID === 2) currentLoopGroundH = -500.0; // Wasser-Schutz
             
-            if (typeof FPGraphics.getRaycastHeight === 'function') {
+            if (window.FPGraphics && typeof FPGraphics.getRaycastHeight === 'function') {
                 currentLoopGroundH = FPGraphics.getRaycastHeight(currentPos.x, currentPos.z, currentLoopGroundH);
             }
         } else {

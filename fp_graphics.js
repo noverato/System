@@ -1,4 +1,6 @@
 (() => {
+    try {
+        console.log("🚀 FPGraphics IIFE start...");
     const PALETTE = {
         walls: 0xfdf5e6,
         wood: 0x4a3728,
@@ -805,6 +807,25 @@
     /**
      * Erstellt eine dichte Wiese für das Hauptdorf-Biom mittels InstancedMesh.
      */
+    /**
+     * Haupt-Initialisierung der 3D-Welt.
+     * Wird von fp_wald.js aufgerufen.
+     */
+    async function initWorld(scene, environmentManager, onBuildingInteraction, renderer) {
+        console.log("🌍 FPGraphics: Initialisiere Welt-Systeme...");
+        mainScene = scene;
+        
+        // Core-Grafik-Init
+        if (window.FPGraphics && typeof window.FPGraphics.init === 'function') {
+            window.FPGraphics.init(renderer, scene);
+        }
+        
+        // Dorf-Wiese laden
+        await initHauptdorfMeadow();
+        
+        console.log("✨ FPGraphics: Welt-Systeme vollständig bereit.");
+    }
+
     async function initHauptdorfMeadow() {
         const grassAssetPath = AssetsLibrary.encode('baeume/glTF/Grass_Large.gltf');
         console.log("🌿 Initialisiere HYBRIDE Hauptdorf-Wiese (3D/2D LOD)...");
@@ -2582,6 +2603,7 @@
         createNameTag,
         getGPUHeight,
         getRaycastHeight,
+        getCPUHeight,
         createModularHouse,
         createClouds,
         initInteriors,
@@ -2601,4 +2623,9 @@
             }
         }
     };
+    console.log("✅ FPGraphics IIFE end, window.FPGraphics defined.");
+    } catch (e) {
+        console.error("❌ FPGraphics IIFE CRITICAL ERROR:", e);
+    }
 })();
+console.log("✅ FPGraphics Script-Parsing abgeschlossen.");
