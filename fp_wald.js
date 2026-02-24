@@ -899,11 +899,11 @@
         }
         
         scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x91abbd); // Sanfteres Graublau
+        scene.background = new THREE.Color(0x87ceeb); // Helleres Himmelblau
         console.log("[FPWald] Scene initialisiert.");
         const quality = getQuality();
         const fogD = quality === 1 ? 0.005 : (quality === 2 ? 0.003 : 0.001);
-        scene.fog = new THREE.FogExp2(0x91abbd, fogD); 
+        scene.fog = new THREE.FogExp2(0x87ceeb, fogD); 
         fogEnabled = true;
         const w = host.clientWidth || window.innerWidth || 900;
         const h = host.clientHeight || window.innerHeight || 600;
@@ -965,7 +965,7 @@
 
         // Nebel für Atmosphäre
         const RANGE = (window.FPGraphics ? FPGraphics.CLIPMAP_RADIUS * 0.9 : 800);
-        scene.fog = new THREE.Fog(0x87ceeb, 100, RANGE); 
+        scene.fog = new THREE.Fog(0x87ceeb, 50, RANGE); 
         
         if (window.FPGraphics) {
             console.log("[FPWald] Initialisiere FPGraphics Welt...");
@@ -1019,7 +1019,7 @@
             avatar = new THREE.Group();
             window.avatar = avatar;
             avatar.add(sprite);
-            avatar.position.y = -100; // Unter die Erde, bis Validierung erfolgt
+            avatar.position.y = 0; // Sofort auf 0 setzen
             scene.add(avatar);
             
             // Lokales Namensschild
@@ -1029,12 +1029,13 @@
 
             updateAvatarWeapons(); // Waffen initialisieren
             initAdminUI(); // Admin-UI initialisieren
-        } catch {
+        } catch (err) {
+            console.error("Fehler beim Erstellen des Avatars:", err);
             const avatarGeo = new THREE.BoxGeometry(6, 10, 6);
             const avatarMat = new THREE.MeshLambertMaterial({ color: 0xbfd5ff });
             avatar = new THREE.Mesh(avatarGeo, avatarMat);
             window.avatar = avatar;
-            avatar.position.y = -100;
+            avatar.position.y = 0;
             scene.add(avatar);
 
             // Lokales Namensschild (Fallback)
@@ -1058,18 +1059,18 @@
         }
 
         // --- INITIALER SPAWN-STATE ---
-        // Wir setzen den Avatar initial weit unter die Erde und unsichtbar.
-        // Die echte Positionierung erfolgt erst in der Loop, sobald der Boden (Mesh) validiert wurde.
+        // Wir setzen den Avatar initial sichtbar und auf eine Standardhöhe.
+        // Die echte Positionierung erfolgt in der Loop, sobald das Terrain bereit ist.
         if (avatar) {
-            avatar.visible = false;
-            avatar.position.y = -500;
+            avatar.visible = true;
+            avatar.position.y = 10;
         }
-        currentPos.y = targetPos.y = -500;
-        groundValidated = false; 
+        currentPos.y = targetPos.y = 10;
+        groundValidated = true; 
         velocityY = 0;
-        isGrounded = false;
+        isGrounded = true;
 
-        console.log("🚀 Initialisierung: Warte auf Mesh-Validierung...");
+        console.log("🚀 Initialisierung: Avatar auf Start-Höhe gesetzt.");
         
         // Anti-Stuck Check: Wenn wir in einem Gebäude spawnen -> Dorfplatz
         if (checkCollision(currentPos.x, currentPos.z)) {
@@ -1342,28 +1343,19 @@
 
         // --- 3. AOI & SPAWN VALIDATION ---
         if (!groundValidated) {
-            console.log("[FPWald] Boden noch nicht validiert. Prüfe Ground...");
+            console.log("[FPWald] Boden-Validierung...");
             if (window.FPGraphics) {
-                // SOFORT-VALIDIERUNG: Da Clipmap oben aktualisiert wurde, haben wir jetzt Daten
                 const testH = FPGraphics.getGPUHeight(currentPos.x, currentPos.z);
                 if (testH !== null && !isNaN(testH)) {
-                    console.log("[FPWald] Boden-Höhe erkannt:", testH, "Setze groundValidated = true");
                     groundValidated = true;
-                    targetPos.y = currentPos.y = testH + 10.0; 
-                    isGrounded = false;
-                    velocityY = 0;
+                    targetPos.y = currentPos.y = testH + 2.0; 
+                    isGrounded = true;
                     if (avatar) {
                         avatar.visible = true;
                         avatar.position.y = currentPos.y;
                     }
                 }
             }
-            updateMonsters();
-            applyCamera(delta);
-            if (renderer && scene && camera) {
-                renderer.render(scene, camera);
-            }
-            return;
         }
 
         // --- 3. PHYSIK & HÖHEN-BERECHNUNG ---
@@ -1628,7 +1620,7 @@
         if (isNaN(currentPos.y)) currentPos.y = targetPos.y || 0;
         
         // Bei großen Differenzen (z.B. Teleport) sofort snappen
-        if (Math.abs(targetPos.y - currentPos.y) > 5.0) {
+        if (Math.abs(targetPos.y - currentPos.y) > 5.0 || isNaN(currentPos.y)) {
             currentPos.y = targetPos.y;
         } else {
             // Normales Lerping für sanfte Übergänge
@@ -1668,7 +1660,7 @@
         }
         // Glättung für renderY, um Mikro-Zittern der GPU-Daten für die Kamera zu dämpfen
         // Wir erhöhen den Faktor auf 0.8 für schnellere Reaktion bei Bewegung.
-        if (lastRenderY === 0) lastRenderY = renderY;
+        if (lastRenderY === 0 || isNaN(lastRenderY)) lastRenderY = renderY;
         renderY = lastRenderY + (renderY - lastRenderY) * Math.min(delta * 0.8, 1.0);
         lastRenderY = renderY;
 
