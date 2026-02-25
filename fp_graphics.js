@@ -1964,11 +1964,17 @@
             const model = await loadModel(path);
             let mesh = null;
             model.traverse(obj => {
-                if (obj.isMesh && !mesh) mesh = obj;
+                if (obj.isMesh && !mesh) {
+                    mesh = obj;
+                    // Textur-Fix: Falls Normal Maps fehlen oder falsch referenziert sind
+                    if (mesh.material && mesh.material.normalMap) {
+                        mesh.material.normalMap = null; // Deaktivieren, wenn Dateien fehlen
+                    }
+                }
             });
 
             if (mesh) {
-                console.log(`[InstanceCache] Mesh gefunden für: ${path}`);
+                // console.log(`[InstanceCache] Mesh gefunden für: ${path}`);
                 const isTerrain = path.includes('/Terrain/') || path.includes('Terrain_Grass') || path.includes('ocean.glb');
                 const isGrass = path.toLowerCase().includes('grass');
 
