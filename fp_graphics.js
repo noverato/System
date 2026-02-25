@@ -13,7 +13,7 @@
 
     const CLIPMAP_RADIUS = 4000; // Erhöht auf 4000 für User-Anforderung (4km Radius)
     const AOI_RADIUS = 20;      // Simulationsradius (Bubble) - User wollte 15m, wir geben 20m Puffer
-    const TREE_LOD_DIST = 100;   // Reduziert auf 100m, um früher 3D Modelle zu laden
+    const TREE_LOD_DIST = 400;   // Deutlich erhöht, damit Assets in weitem Umkreis geladen werden
     const GRASS_LOD_DIST = 12;  // 3D Gras nur ganz nah (12m)
     const GRASS_MAX_DIST = 1500; // Reduziert für Speed
     const GRASS_PNG_PATH = 'animation/gras_billboard.png'; 
@@ -1949,32 +1949,11 @@
     let globalBillboardGeo = null;
 
     function getTreeBillboardData() {
-        if (!globalBillboardGeo) {
-            // Wir erstellen ein 3D-Billboard (Kegel für Nadelbäume, Kugel für Laubbäume)
-            // statt nur einer flachen Plane, um die "grünen Rechtecke" zu vermeiden
-            const group = new THREE.Group();
-            
-            // Stamm
-            const trunkGeo = new THREE.CylinderGeometry(0.2, 0.2, 2, 5);
-            trunkGeo.translate(0, 1, 0);
-            const trunk = new THREE.Mesh(trunkGeo);
-            
-            // Krone (Kegel als LOD-Ersatz)
-            const topGeo = new THREE.ConeGeometry(1.5, 4, 5);
-            topGeo.translate(0, 3, 0);
-            const top = new THREE.Mesh(topGeo);
-            
-            // Zusammenführen (Workaround ohne BufferGeometryUtils)
-            // Wir nutzen hier eine einfache Geometrie als Basis
-            globalBillboardGeo = topGeo; 
-            
-            globalBillboardMat = new THREE.MeshStandardMaterial({
-                color: 0x2d5a27,
-                flatShading: true
-            });
-            applyWorldCulling(globalBillboardMat);
-        }
-        return { geo: globalBillboardGeo, mat: globalBillboardMat };
+        // Diese Funktion wird nicht mehr für "grüne Dreiecke" genutzt.
+        // Stattdessen laden wir jetzt auch für die Ferne echte Assets als InstancedMesh,
+        // aber mit einer niedrigeren Dichte oder wir deaktivieren Billboards komplett
+        // und nutzen nur noch echte GLTF-Modelle, um die User-Anforderung zu erfüllen.
+        return null;
     }
 
     async function getModelInstanceData(path) {
@@ -2210,16 +2189,8 @@
 
             if (!assetPath) continue;
 
-            // LOD Logik: In der Ferne nutzen wir Billboards
-            if (isFar || (Math.hypot(x - playerPos.x, z - playerPos.z) > TREE_LOD_DIST)) {
-                billboardInstances.push({
-                    pos: [x, th - 0.05, z],
-                    scale: plantScale * 1.5,
-                    rot: rng() * Math.PI * 2
-                });
-                continue;
-            }
-
+            // LOD Logik: Assets werden immer als echte GLTF-Modelle geladen
+            // Billboard-System deaktiviert gemäß User-Wunsch
             if (assetPath) {
                 if (!decorationData.has(assetPath)) decorationData.set(assetPath, []);
                 decorationData.get(assetPath).push({
@@ -2283,32 +2254,7 @@
 
         // 3. INSTANZEN ERSTELLEN
         
-        // 3a. Billboards für LOD (Schneller Load)
-        if (billboardInstances.length > 0) {
-            const data = getTreeBillboardData();
-            const mesh = new THREE.InstancedMesh(data.geo, data.mat, billboardInstances.length);
-            mesh.layers.set(3); // Grass-Layer (Layer 3) für Raycasting-Target
-            const matrix = new THREE.Matrix4();
-            const position = new THREE.Vector3();
-            const rotation = new THREE.Euler();
-            const quaternion = new THREE.Quaternion();
-            const scaleVec = new THREE.Vector3();
-
-            for (let i = 0; i < billboardInstances.length; i++) {
-                const inst = billboardInstances[i];
-                position.set(inst.pos[0], inst.pos[1], inst.pos[2]);
-                rotation.set(0, inst.rot, 0);
-                quaternion.setFromEuler(rotation);
-                scaleVec.set(inst.scale, inst.scale, inst.scale);
-                matrix.compose(position, quaternion, scaleVec);
-                mesh.setMatrixAt(i, matrix);
-            }
-            mesh.instanceMatrix.needsUpdate = true;
-            group.add(mesh);
-            console.log(`[LOD] ${billboardInstances.length} Billboards erstellt (Far-LOD > ${TREE_LOD_DIST}m)`);
-        }
-
-        // 3b. GLTF Modelle für Nahbereich (Async Load)
+        // 3a. GLTF Modelle (Async Load) - Billboards deaktiviert
         for (const [path, instances] of decorationData.entries()) {
             getModelInstanceData(path).then(data => {
                 if (!data) return;
