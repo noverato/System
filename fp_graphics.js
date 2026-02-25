@@ -317,6 +317,7 @@
                     varying float vDist;
                     varying float vWind;
                     varying vec2 vUV;
+                    #define IS_3D ${is3D ? 'true' : 'false'}
                 ` + shader.fragmentShader;
 
                 shader.fragmentShader = shader.fragmentShader.replace(
