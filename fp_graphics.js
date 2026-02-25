@@ -1996,7 +1996,6 @@
     const grassGrids = new Map();       // Map<string, Group>
     let lastUpdatePos = new THREE.Vector2(Infinity, Infinity);
     const creationQueue = [];           // Warteschlange für das verzögerte Laden von Zellen
-    const MAX_CREATIONS_PER_FRAME = 1;  // Nur eine Zelle pro Frame erstellen (verhindert Browser-Freeze)
 
     function getRaycastHeight(x, z, fallbackHeight = 0) {
         const gpuH = getGPUHeight(x, z);

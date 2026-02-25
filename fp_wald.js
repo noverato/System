@@ -964,8 +964,10 @@
         }
 
         // Nebel für Atmosphäre
+        const skyColor = (window.EnvironmentManager ? new THREE.Color(EnvironmentManager.getSkyColor()) : new THREE.Color(0x87ceeb));
+        scene.background = skyColor;
         const RANGE = (window.FPGraphics ? FPGraphics.CLIPMAP_RADIUS * 0.9 : 800);
-        scene.fog = new THREE.Fog(0x87ceeb, 50, RANGE); 
+        scene.fog = new THREE.Fog(skyColor, 50, RANGE); 
         
         if (window.FPGraphics) {
             console.log("[FPWald] Initialisiere FPGraphics Welt...");
