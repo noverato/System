@@ -26,6 +26,13 @@
 
     const MAX_CREATIONS_PER_FRAME = 3; // Erhöht auf 3 für schnelleren Aufbau bei Bewegung
 
+    // Cache für Gras-Assets (Performance-Fix)
+    let cachedGrassTex2D = null;
+    let cachedGrassMat2D = null;
+    let cachedGrassGeo2D = null;
+    let cachedGrassMat3D = null;
+    let cachedGrassGeo3D = null;
+
     // Globale Uniforms für das Culling-System (Bubble-Prinzip / Glocke)
     const worldCullingUniforms = {
         playerPos: { value: new THREE.Vector2(0, 0) },
@@ -1997,6 +2004,7 @@
     const grassGrids = new Map();       // Map<string, Group>
     let lastUpdatePos = new THREE.Vector2(Infinity, Infinity);
     const creationQueue = [];           // Warteschlange für das verzögerte Laden von Zellen
+    const creationQueueKeys = new Set(); // Set für schnellen Key-Lookup (Performance)
 
     function getRaycastHeight(x, z, fallbackHeight = 0) {
         const gpuH = getGPUHeight(x, z);
@@ -2010,6 +2018,8 @@
         // Verarbeite nur eine begrenzte Anzahl pro Frame
         for (let i = 0; i < MAX_CREATIONS_PER_FRAME && creationQueue.length > 0; i++) {
             const task = creationQueue.shift();
+            creationQueueKeys.delete(task.key + "_" + task.type); // Key entfernen
+
             if (task.type === 'decoration') {
                 if (!decorationGrids.has(task.key)) {
                     const group = createDecorationCell(task.x, task.z, task.playerPos);
@@ -2029,7 +2039,15 @@
     function updateDecorations(playerPos) {
         if (!mainScene) return;
         
-        // --- 1. QUEUE PRIORISIERUNG (Zentrum zuerst) ---
+        // Queue verarbeiten
+        processCreationQueue();
+        
+        // Optimierung: Nur neue Aufgaben in die Queue legen, wenn Spieler sich bewegt hat
+        if (lastUpdatePos.distanceTo(new THREE.Vector2(playerPos.x, playerPos.z)) < 5) return;
+        lastUpdatePos.set(playerPos.x, playerPos.z);
+        
+        // --- QUEUE PRIORISIERUNG (Zentrum zuerst) ---
+        // Nur sortieren, wenn sich die Position signifikant geändert hat
         if (creationQueue.length > 1) {
             creationQueue.sort((a, b) => {
                 const distA = Math.hypot(a.x * (a.type === 'decoration' ? DECORATION_CELL_SIZE : GRASS_CELL_SIZE) - playerPos.x, 
@@ -2039,16 +2057,8 @@
                 return distA - distB;
             });
         }
-
-        // Queue verarbeiten
-        processCreationQueue();
-        
-        // Optimierung: Nur neue Aufgaben in die Queue legen, wenn Spieler sich bewegt hat
-        if (lastUpdatePos.distanceTo(new THREE.Vector2(playerPos.x, playerPos.z)) < 5) return;
-        lastUpdatePos.set(playerPos.x, playerPos.z);
         
         // Sicherstellen, dass playerPos ein THREE.Vector3 ist (wegen .clone())
-        // Falls THREE nicht definiert ist (extrem unwahrscheinlich hier), nutzen wir Fallback
         const pPos = (playerPos.clone ? playerPos : (window.THREE ? new THREE.Vector3(playerPos.x, playerPos.y, playerPos.z) : playerPos));
         
         const cellX = Math.floor(pPos.x / DECORATION_CELL_SIZE);
@@ -2058,11 +2068,11 @@
         for (let x = cellX - DECORATION_RANGE; x <= cellX + DECORATION_RANGE; x++) {
             for (let z = cellZ - DECORATION_RANGE; z <= cellZ + DECORATION_RANGE; z++) {
                 const key = `${x}_${z}`;
-                if (!decorationGrids.has(key)) {
-                    if (!creationQueue.find(t => t.key === key && t.type === 'decoration')) {
-                        const posToPush = (pPos.clone ? pPos.clone() : {x: pPos.x, y: pPos.y, z: pPos.z});
-                        creationQueue.push({ type: 'decoration', x, z, key, playerPos: posToPush });
-                    }
+                const fullKey = key + "_decoration";
+                if (!decorationGrids.has(key) && !creationQueueKeys.has(fullKey)) {
+                    const posToPush = (pPos.clone ? pPos.clone() : {x: pPos.x, y: pPos.y, z: pPos.z});
+                    creationQueue.push({ type: 'decoration', x, z, key, playerPos: posToPush });
+                    creationQueueKeys.add(fullKey);
                 }
             }
         }
@@ -2084,11 +2094,11 @@
         for (let x = gCellX - GRASS_RANGE; x <= gCellX + GRASS_RANGE; x++) {
             for (let z = gCellZ - GRASS_RANGE; z <= gCellZ + GRASS_RANGE; z++) {
                 const key = `${x}_${z}`;
-                if (!grassGrids.has(key)) {
-                    if (!creationQueue.find(t => t.key === key && t.type === 'grass')) {
-                        const posToPush = (pPos.clone ? pPos.clone() : {x: pPos.x, y: pPos.y, z: pPos.z});
-                        creationQueue.push({ type: 'grass', x, z, key, playerPos: posToPush });
-                    }
+                const fullKey = key + "_grass";
+                if (!grassGrids.has(key) && !creationQueueKeys.has(fullKey)) {
+                    const posToPush = (pPos.clone ? pPos.clone() : {x: pPos.x, y: pPos.y, z: pPos.z});
+                    creationQueue.push({ type: 'grass', x, z, key, playerPos: posToPush });
+                    creationQueueKeys.add(fullKey);
                 }
             }
         }
@@ -2123,8 +2133,8 @@
         let densityMult = isFar ? 0.3 : 1.2; // Dichte im Nahbereich erhöht, um Spawning zu forcieren
         let treeCount = 0;
         
-        // --- SPAWN-DEBUG ---
-        console.log(`[Decoration] Zelle ${cx}_${cz} Biome: ${biome ? biome.name : 'none'}, Dist: ${distToPlayer.toFixed(1)}m, isFar: ${isFar}`);
+        // --- SPAWN-DEBUG (DEAKTIVIERT) ---
+        // console.log(`[Decoration] Zelle ${cx}_${cz} Biome: ${biome ? biome.name : 'none'}, Dist: ${distToPlayer.toFixed(1)}m, isFar: ${isFar}`);
 
         if (!biome || !biome.name || biome.name === 'none') {
             treeCount = (10 + Math.floor(rng() * 10)) * densityMult;
@@ -2316,7 +2326,7 @@
                 mesh.instanceMatrix.needsUpdate = true;
                 mesh.frustumCulled = true; // Performance
                 group.add(mesh);
-                console.log(`[Decoration] ${instances.length} Instanzen hinzugefügt für: ${path}`);
+                // console.log(`[Decoration] ${instances.length} Instanzen hinzugefügt für: ${path}`);
             }).catch(e => {
                 console.error(`[Decoration] Fehler beim Erstellen der Instanzen für: ${path}`, e);
             });
@@ -2332,12 +2342,18 @@
         
         // 1. 3D GRAS (Nahbereich)
         const count3D = 60; // Erhöht für bessere Dichte bei größeren Zellen
-        const grassGeo = new THREE.PlaneGeometry(1, 1);
-        grassGeo.translate(0, 0.5, 0); // Ursprung an die Basis setzen
-        const grassMat3D = new THREE.MeshBasicMaterial({ color: 0x44aa44, side: THREE.DoubleSide, alphaTest: 0.5 });
-        applyGrassShader(grassMat3D, true);
         
-        const mesh3D = new THREE.InstancedMesh(grassGeo, grassMat3D, count3D);
+        if (!cachedGrassGeo3D) {
+            cachedGrassGeo3D = new THREE.PlaneGeometry(1, 1);
+            cachedGrassGeo3D.translate(0, 0.5, 0); // Ursprung an die Basis setzen
+        }
+        
+        if (!cachedGrassMat3D) {
+            cachedGrassMat3D = new THREE.MeshBasicMaterial({ color: 0x44aa44, side: THREE.DoubleSide, alphaTest: 0.5 });
+            applyGrassShader(cachedGrassMat3D, true);
+        }
+        
+        const mesh3D = new THREE.InstancedMesh(cachedGrassGeo3D, cachedGrassMat3D, count3D);
         mesh3D.layers.set(3); // STRIKT: Nur Grass-Layer (Layer 3) gemäß User-Regel
         const dummy = new THREE.Object3D();
         
@@ -2359,33 +2375,38 @@
             dummy.rotation.y = rng() * Math.PI;
             dummy.scale.set(2, 2, 2);
             dummy.updateMatrix();
-            mesh3D.setMatrix(i, dummy.matrix);
+            mesh3D.setMatrixAt(i, dummy.matrix);
         }
         group.add(mesh3D);
         
         // 2. 2D GRAS (Fernbereich - Xenoblade Style Cross-Planes)
         const count2D = 40; 
-        const grassTex2D = new THREE.TextureLoader().load(GRASS_PNG_PATH);
-        const grassMat2D = new THREE.MeshBasicMaterial({ 
-            map: grassTex2D, 
-            transparent: true, 
-            alphaTest: 0.1, // Deutlich niedriger für bessere Sichtbarkeit
-            side: THREE.DoubleSide,
-            color: 0x88ff88 // Leichtes Aufhellen
-        });
-        applyGrassShader(grassMat2D, false);
         
-        // Xenoblade-Logik: Erstelle gekreuzte Planes für 2D Gras
-        const plane1 = new THREE.PlaneGeometry(3, 3);
-        plane1.translate(0, 1.5, 0); 
-        const plane2 = plane1.clone();
-        plane2.rotateY(Math.PI / 2);
+        // Performance-Cache nutzen
+        if (!cachedGrassTex2D) {
+            cachedGrassTex2D = new THREE.TextureLoader().load(GRASS_PNG_PATH);
+            cachedGrassTex2D.encoding = THREE.sRGBEncoding;
+        }
         
-        // Geometrien zusammenführen
-        const billboardGeo = plane1;
-        billboardGeo.merge(plane2);
+        if (!cachedGrassMat2D) {
+            cachedGrassMat2D = new THREE.MeshBasicMaterial({ 
+                map: cachedGrassTex2D, 
+                transparent: true, 
+                alphaTest: 0.1, 
+                side: THREE.DoubleSide,
+                color: 0x88ff88
+            });
+            applyGrassShader(cachedGrassMat2D, false);
+        }
 
-        const mesh2D = new THREE.InstancedMesh(billboardGeo, grassMat2D, count2D);
+        if (!cachedGrassGeo2D) {
+            const p1 = new THREE.PlaneGeometry(3, 3);
+            p1.translate(0, 1.5, 0); 
+            cachedGrassGeo2D = p1;
+            // Wir nutzen zwei Instanzen pro Pflanze statt merge(), da merge() in r147 Probleme macht
+        }
+
+        const mesh2D = new THREE.InstancedMesh(cachedGrassGeo2D, cachedGrassMat2D, count2D * 2);
         mesh2D.layers.set(3); // STRIKT: Nur Grass-Layer (Layer 3) gemäß User-Regel
         for (let i = 0; i < count2D; i++) {
             const x = (cx + rng()) * GRASS_CELL_SIZE;
@@ -2403,8 +2424,15 @@
             dummy.position.set(x, h, z);
             dummy.rotation.y = rng() * Math.PI;
             dummy.scale.set(1.0 + rng(), 1.0 + rng(), 1.0 + rng());
+            
+            // Plane 1
             dummy.updateMatrix();
-            mesh2D.setMatrix(i, dummy.matrix);
+            mesh2D.setMatrixAt(i * 2, dummy.matrix);
+            
+            // Plane 2 (Gekreuzt)
+            dummy.rotation.y += Math.PI / 2;
+            dummy.updateMatrix();
+            mesh2D.setMatrixAt(i * 2 + 1, dummy.matrix);
         }
         group.add(mesh2D);
         
