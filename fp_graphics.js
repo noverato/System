@@ -2047,8 +2047,11 @@
         if (lastUpdatePos.distanceTo(new THREE.Vector2(playerPos.x, playerPos.z)) < 5) return;
         lastUpdatePos.set(playerPos.x, playerPos.z);
         
-        const cellX = Math.floor(playerPos.x / DECORATION_CELL_SIZE);
-        const cellZ = Math.floor(playerPos.z / DECORATION_CELL_SIZE);
+        // Sicherstellen, dass playerPos ein THREE.Vector3 ist (wegen .clone())
+        const pPos = (playerPos.clone ? playerPos : new THREE.Vector3(playerPos.x, playerPos.y, playerPos.z));
+        
+        const cellX = Math.floor(pPos.x / DECORATION_CELL_SIZE);
+        const cellZ = Math.floor(pPos.z / DECORATION_CELL_SIZE);
         
         // 2. Dekorationen (Bäume/Felsen)
         for (let x = cellX - DECORATION_RANGE; x <= cellX + DECORATION_RANGE; x++) {
@@ -2056,7 +2059,7 @@
                 const key = `${x}_${z}`;
                 if (!decorationGrids.has(key)) {
                     if (!creationQueue.find(t => t.key === key && t.type === 'decoration')) {
-                        creationQueue.push({ type: 'decoration', x, z, key, playerPos: playerPos.clone() });
+                        creationQueue.push({ type: 'decoration', x, z, key, playerPos: pPos.clone() });
                     }
                 }
             }
@@ -2073,15 +2076,15 @@
         });
 
         // 3. Hybrides Gras-System (3D/2D)
-        const gCellX = Math.floor(playerPos.x / GRASS_CELL_SIZE);
-        const gCellZ = Math.floor(playerPos.z / GRASS_CELL_SIZE);
+        const gCellX = Math.floor(pPos.x / GRASS_CELL_SIZE);
+        const gCellZ = Math.floor(pPos.z / GRASS_CELL_SIZE);
 
         for (let x = gCellX - GRASS_RANGE; x <= gCellX + GRASS_RANGE; x++) {
             for (let z = gCellZ - GRASS_RANGE; z <= gCellZ + GRASS_RANGE; z++) {
                 const key = `${x}_${z}`;
                 if (!grassGrids.has(key)) {
                     if (!creationQueue.find(t => t.key === key && t.type === 'grass')) {
-                        creationQueue.push({ type: 'grass', x, z, key, playerPos: playerPos.clone() });
+                        creationQueue.push({ type: 'grass', x, z, key, playerPos: pPos.clone() });
                     }
                 }
             }
