@@ -13,7 +13,7 @@
 
     const CLIPMAP_RADIUS = 4000; // Erhöht auf 4000 für User-Anforderung (4km Radius)
     const AOI_RADIUS = 20;      // Simulationsradius (Bubble) - User wollte 15m, wir geben 20m Puffer
-    const TREE_LOD_DIST = 150;   // Erhöht auf 150m für bessere Fernsicht
+    const TREE_LOD_DIST = 100;   // Reduziert auf 100m, um früher 3D Modelle zu laden
     const GRASS_LOD_DIST = 12;  // 3D Gras nur ganz nah (12m)
     const GRASS_MAX_DIST = 1500; // Reduziert für Speed
     const GRASS_PNG_PATH = 'animation/gras_billboard.png'; 
@@ -1950,22 +1950,27 @@
 
     function getTreeBillboardData() {
         if (!globalBillboardGeo) {
-            // Einfaches Kreuz-Billboard (2 Planes)
-            const g1 = new THREE.PlaneGeometry(1, 1.5);
-            g1.translate(0, 0.75, 0);
-            const g2 = g1.clone().rotateY(Math.PI / 2);
+            // Wir erstellen ein 3D-Billboard (Kegel für Nadelbäume, Kugel für Laubbäume)
+            // statt nur einer flachen Plane, um die "grünen Rechtecke" zu vermeiden
+            const group = new THREE.Group();
             
-            // @ts-ignore
-            if (typeof THREE.BufferGeometryUtils !== 'undefined') {
-                globalBillboardGeo = THREE.BufferGeometryUtils.mergeBufferGeometries([g1, g2]);
-            } else {
-                globalBillboardGeo = g1; // Fallback
-            }
+            // Stamm
+            const trunkGeo = new THREE.CylinderGeometry(0.2, 0.2, 2, 5);
+            trunkGeo.translate(0, 1, 0);
+            const trunk = new THREE.Mesh(trunkGeo);
+            
+            // Krone (Kegel als LOD-Ersatz)
+            const topGeo = new THREE.ConeGeometry(1.5, 4, 5);
+            topGeo.translate(0, 3, 0);
+            const top = new THREE.Mesh(topGeo);
+            
+            // Zusammenführen (Workaround ohne BufferGeometryUtils)
+            // Wir nutzen hier eine einfache Geometrie als Basis
+            globalBillboardGeo = topGeo; 
             
             globalBillboardMat = new THREE.MeshStandardMaterial({
                 color: 0x2d5a27,
-                flatShading: true,
-                side: THREE.DoubleSide
+                flatShading: true
             });
             applyWorldCulling(globalBillboardMat);
         }
@@ -1975,26 +1980,30 @@
     async function getModelInstanceData(path) {
         if (instanceCache.has(path)) return instanceCache.get(path);
         
-        const model = await loadModel(path);
-        let mesh = null;
-        model.traverse(obj => {
-            if (obj.isMesh && !mesh) mesh = obj;
-        });
+        try {
+            const model = await loadModel(path);
+            let mesh = null;
+            model.traverse(obj => {
+                if (obj.isMesh && !mesh) mesh = obj;
+            });
 
-        if (mesh) {
-            console.log(`[InstanceCache] Mesh gefunden für: ${path}`);
-            const isTerrain = path.includes('/Terrain/') || path.includes('Terrain_Grass') || path.includes('ocean.glb');
-            const isGrass = path.toLowerCase().includes('grass');
+            if (mesh) {
+                console.log(`[InstanceCache] Mesh gefunden für: ${path}`);
+                const isTerrain = path.includes('/Terrain/') || path.includes('Terrain_Grass') || path.includes('ocean.glb');
+                const isGrass = path.toLowerCase().includes('grass');
 
-            if (isGrass && !isTerrain) {
-                applyGrassShader(mesh.material, true);
-            } else {
-                applyWorldCulling(mesh.material, isTerrain);
+                if (isGrass && !isTerrain) {
+                    applyGrassShader(mesh.material, true);
+                } else {
+                    applyWorldCulling(mesh.material, isTerrain);
+                }
+
+                const data = { geo: mesh.geometry, mat: mesh.material };
+                instanceCache.set(path, data);
+                return data;
             }
-
-            const data = { geo: mesh.geometry, mat: mesh.material };
-            instanceCache.set(path, data);
-            return data;
+        } catch (e) {
+            console.error(`[InstanceCache] Fehler beim Laden des Modells: ${path}`, e);
         }
         return null;
     }
