@@ -2048,7 +2048,8 @@
         lastUpdatePos.set(playerPos.x, playerPos.z);
         
         // Sicherstellen, dass playerPos ein THREE.Vector3 ist (wegen .clone())
-        const pPos = (playerPos.clone ? playerPos : new THREE.Vector3(playerPos.x, playerPos.y, playerPos.z));
+        // Falls THREE nicht definiert ist (extrem unwahrscheinlich hier), nutzen wir Fallback
+        const pPos = (playerPos.clone ? playerPos : (window.THREE ? new THREE.Vector3(playerPos.x, playerPos.y, playerPos.z) : playerPos));
         
         const cellX = Math.floor(pPos.x / DECORATION_CELL_SIZE);
         const cellZ = Math.floor(pPos.z / DECORATION_CELL_SIZE);
@@ -2059,7 +2060,8 @@
                 const key = `${x}_${z}`;
                 if (!decorationGrids.has(key)) {
                     if (!creationQueue.find(t => t.key === key && t.type === 'decoration')) {
-                        creationQueue.push({ type: 'decoration', x, z, key, playerPos: pPos.clone() });
+                        const posToPush = (pPos.clone ? pPos.clone() : {x: pPos.x, y: pPos.y, z: pPos.z});
+                        creationQueue.push({ type: 'decoration', x, z, key, playerPos: posToPush });
                     }
                 }
             }
@@ -2084,7 +2086,8 @@
                 const key = `${x}_${z}`;
                 if (!grassGrids.has(key)) {
                     if (!creationQueue.find(t => t.key === key && t.type === 'grass')) {
-                        creationQueue.push({ type: 'grass', x, z, key, playerPos: pPos.clone() });
+                        const posToPush = (pPos.clone ? pPos.clone() : {x: pPos.x, y: pPos.y, z: pPos.z});
+                        creationQueue.push({ type: 'grass', x, z, key, playerPos: posToPush });
                     }
                 }
             }

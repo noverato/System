@@ -151,8 +151,8 @@
     let keys = {};
     let mouseX = 0;
     let targetHeading = 0;
-    let targetPos = { x: 0, y: 0, z: 0 };
-    let currentPos = { x: 0, y: 0, z: 0 };
+    let targetPos = new THREE.Vector3(0, 0, 0);
+    let currentPos = new THREE.Vector3(0, 0, 0);
     const MOVE_SPEED = 0.22; // Schnellere, flüssigere Bewegung
     const ROT_SPEED = 0.003; // Maus-Sensitivität
     const LERP_FACTOR = 0.1; // Für Smoothening (Snapback-Fix)
