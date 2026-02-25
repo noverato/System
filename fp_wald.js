@@ -1337,7 +1337,11 @@
         // --- 2. TERRAIN & SHADER SYNC ---
         // Jetzt synchronisieren wir das Terrain-Mesh und die GPGPU auf die NEUE Position.
         if (window.FPGraphics) {
-            FPGraphics.updateClipmap(currentPos.x, currentPos.z, renderer);
+            if (FPGraphics.update) {
+                FPGraphics.update(renderer, currentPos, now * 0.001);
+            } else {
+                FPGraphics.updateClipmap(currentPos.x, currentPos.z, renderer);
+            }
             FPGraphics.updateRain(avatar);
             FPGraphics.updateRiver();
             FPGraphics.updateFire(delta, now);

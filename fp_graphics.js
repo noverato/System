@@ -13,7 +13,7 @@
 
     const CLIPMAP_RADIUS = 4000; // Erhöht auf 4000 für User-Anforderung (4km Radius)
     const AOI_RADIUS = 20;      // Simulationsradius (Bubble) - User wollte 15m, wir geben 20m Puffer
-    const TREE_LOD_DIST = 20;   // High-Poly Modelle NUR im AOI-Radius
+    const TREE_LOD_DIST = 150;   // Erhöht auf 150m für bessere Fernsicht
     const GRASS_LOD_DIST = 12;  // 3D Gras nur ganz nah (12m)
     const GRASS_MAX_DIST = 1500; // Reduziert für Speed
     const GRASS_PNG_PATH = 'animation/gras_billboard.png'; 
@@ -355,6 +355,7 @@
     const GPGPU_Container = {
         heightTexture: null,
         physicsData: new Float32Array(32 * 32 * 4), 
+        heightData: new Float32Array(1024 * 1024 * 4), // Hinzugefügt für CPU-Abfragen
         physicsSize: 32,
         lastUpdate: 0,
         centerPos: new THREE.Vector2(0, 0),
@@ -513,7 +514,7 @@
             // Reduziert auf 400m Radius für schnellere Varianz-Sichtbarkeit
             if (distToStart < 400.0) {
                 float f = smoothstep(100.0, 400.0, distToStart);
-                h = mix(1.0, h, f);
+                h = mix(5.0, h, f); // Erhöht auf 5.0m damit Bäume spawnen können (Dry Ground)
             }
             
             // Hard Clamping für Performance & Gameplay
@@ -1517,7 +1518,7 @@
         // --- STARTBEREICH SCHUTZ ---
         if (distToStart < 400.0) {
             const f = smoothstep(100.0, 400.0, distToStart);
-            h = 1.0 * (1.0 - f) + h * f;
+            h = 5.0 * (1.0 - f) + h * f;
         }
         
         return Math.min(2500.0, Math.max(-300.0, h));
@@ -2122,7 +2123,7 @@
         if (!biome || !biome.name || biome.name === 'none') {
             treeCount = (10 + Math.floor(rng() * 10)) * densityMult;
         } else if (biome.name === 'jungle') treeCount = (25 + Math.floor(rng() * 15)) * densityMult;
-        else if (biome.name === 'plains') treeCount = (12 + Math.floor(rng() * 10)) * densityMult;
+        else if (biome.name === 'plains') treeCount = (20 + Math.floor(rng() * 10)) * densityMult; // Erhöht auf 20-30 für besseres Feedback
         else if (biome.name === 'swamp') treeCount = (15 + Math.floor(rng() * 10)) * densityMult;
         else if (biome.name === 'snow') treeCount = (8 + Math.floor(rng() * 8)) * densityMult;
         else if (biome.name === 'desert') treeCount = (4 + Math.floor(rng() * 5)) * densityMult;
@@ -2139,8 +2140,8 @@
             const z = (cz + rng()) * DECORATION_CELL_SIZE;
             
             const gpuH = getGPUHeight(x, z);
-            const waterLevel = 2.0; 
-            if (gpuH < waterLevel - 0.5 && (!biome || biome.name !== 'swamp')) continue;
+            const waterLevel = 3.5; // Wasserlevel für Biome-Check
+            if (gpuH < waterLevel && (!biome || biome.name !== 'swamp')) continue;
 
             const th = getRaycastHeight(x, z, gpuH);
             if (th < -15.0 || th > 2000.0) continue;
@@ -2149,24 +2150,16 @@
             let plantScale = 1.0;
             const bName = biome ? biome.name : 'plains';
 
-            // LOD Logik: In der Ferne nutzen wir Billboards
-            if (isFar || (Math.hypot(x - playerPos.x, z - playerPos.z) > TREE_LOD_DIST)) {
-                billboardInstances.push({
-                    pos: [x, th - 0.05, z],
-                    scale: 15 + rng() * 10,
-                    rot: rng() * Math.PI * 2
-                });
-                continue;
-            }
-
             // --- PFAD-VALIDIERUNG: Nutze nur bekannte funktionale Pfade ---
             const rTree = rng();
             if (bName === 'jungle') {
                 assetPath = AssetsLibrary.encode(`Nature/glTF/CommonTree_${1 + Math.floor(rng() * 5)}.gltf`); 
                 plantScale = 12 + rng() * 8;
             } else if (bName === 'desert') {
-                // Logisch keine Bäume in der Wüste
-                assetPath = null;
+                if (rTree > 0.8) {
+                    assetPath = AssetsLibrary.encode(`Nature/glTF/DeadTree_${1 + Math.floor(rng() * 5)}.gltf`);
+                    plantScale = 6 + rng() * 4;
+                }
             } else if (bName === 'snow') {
                 assetPath = AssetsLibrary.encode(`Nature/glTF/Pine_${1 + Math.floor(rng() * 5)}.gltf`);
                 plantScale = 8 + rng() * 10;
@@ -2180,13 +2173,26 @@
                 else assetPath = AssetsLibrary.encode(`Nature/glTF/CommonTree_${1 + Math.floor(rng() * 5)}.gltf`);
                 plantScale = 10 + rng() * 10;
             } else if (bName === 'plains') {
-                if (rTree > 0.95) assetPath = AssetsLibrary.encode(`baeume/glTF/BirchTree_${1 + Math.floor(rng() * 5)}.gltf`);
-                else if (rTree > 0.9) assetPath = AssetsLibrary.encode(`baeume/glTF/MapleTree_${1 + Math.floor(rng() * 5)}.gltf`);
+                // In den Ebenen deutlich mehr Bäume erlauben für besseres Feedback
+                if (rTree > 0.8) assetPath = AssetsLibrary.encode(`baeume/glTF/BirchTree_${1 + Math.floor(rng() * 5)}.gltf`);
+                else if (rTree > 0.6) assetPath = AssetsLibrary.encode(`baeume/glTF/MapleTree_${1 + Math.floor(rng() * 5)}.gltf`);
                 plantScale = 8 + rng() * 6;
             } else if (bName === 'mountains') {
                 if (rTree > 0.85) assetPath = AssetsLibrary.encode(`Nature/glTF/Pine_${1 + Math.floor(rng() * 5)}.gltf`);
                 else if (rTree > 0.8) assetPath = AssetsLibrary.encode(`Nature/glTF/DeadTree_${1 + Math.floor(rng() * 5)}.gltf`);
                 plantScale = 6 + rng() * 6;
+            }
+
+            if (!assetPath) continue;
+
+            // LOD Logik: In der Ferne nutzen wir Billboards
+            if (isFar || (Math.hypot(x - playerPos.x, z - playerPos.z) > TREE_LOD_DIST)) {
+                billboardInstances.push({
+                    pos: [x, th - 0.05, z],
+                    scale: plantScale * 1.5,
+                    rot: rng() * Math.PI * 2
+                });
+                continue;
             }
 
             if (assetPath) {
