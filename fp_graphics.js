@@ -2160,29 +2160,33 @@
             }
 
             // --- PFAD-VALIDIERUNG: Nutze nur bekannte funktionale Pfade ---
+            const rTree = rng();
             if (bName === 'jungle') {
-                assetPath = AssetsLibrary.encode('Nature/glTF/CommonTree_1.gltf'); 
+                assetPath = AssetsLibrary.encode(`Nature/glTF/CommonTree_${1 + Math.floor(rng() * 5)}.gltf`); 
                 plantScale = 12 + rng() * 8;
             } else if (bName === 'desert') {
-                assetPath = AssetsLibrary.encode('Nature/glTF/DeadTree_1.gltf');
-                plantScale = 6 + rng() * 4;
+                // Logisch keine Bäume in der Wüste
+                assetPath = null;
             } else if (bName === 'snow') {
-                assetPath = AssetsLibrary.encode('Nature/glTF/Pine_1.gltf');
+                assetPath = AssetsLibrary.encode(`Nature/glTF/Pine_${1 + Math.floor(rng() * 5)}.gltf`);
                 plantScale = 8 + rng() * 10;
             } else if (bName === 'swamp') {
-                assetPath = AssetsLibrary.encode('Nature/glTF/TwistedTree_1.gltf');
+                if (rTree > 0.5) assetPath = AssetsLibrary.encode(`Nature/glTF/TwistedTree_${1 + Math.floor(rng() * 5)}.gltf`);
+                else assetPath = AssetsLibrary.encode(`Nature/glTF/DeadTree_${1 + Math.floor(rng() * 5)}.gltf`);
                 plantScale = 7 + rng() * 7;
-            } else {
-                // DEFAULT / PLAINS / FOREST
-                const rTree = rng();
-                if (rTree > 0.6) {
-                    assetPath = AssetsLibrary.encode('baeume/glTF/BirchTree_1.gltf');
-                } else if (rTree > 0.3) {
-                    assetPath = AssetsLibrary.encode('baeume/glTF/MapleTree_1.gltf');
-                } else {
-                    assetPath = AssetsLibrary.encode('Nature/glTF/CommonTree_1.gltf');
-                }
+            } else if (bName === 'forest') {
+                if (rTree > 0.7) assetPath = AssetsLibrary.encode(`baeume/glTF/BirchTree_${1 + Math.floor(rng() * 5)}.gltf`);
+                else if (rTree > 0.4) assetPath = AssetsLibrary.encode(`baeume/glTF/MapleTree_${1 + Math.floor(rng() * 5)}.gltf`);
+                else assetPath = AssetsLibrary.encode(`Nature/glTF/CommonTree_${1 + Math.floor(rng() * 5)}.gltf`);
                 plantScale = 10 + rng() * 10;
+            } else if (bName === 'plains') {
+                if (rTree > 0.95) assetPath = AssetsLibrary.encode(`baeume/glTF/BirchTree_${1 + Math.floor(rng() * 5)}.gltf`);
+                else if (rTree > 0.9) assetPath = AssetsLibrary.encode(`baeume/glTF/MapleTree_${1 + Math.floor(rng() * 5)}.gltf`);
+                plantScale = 8 + rng() * 6;
+            } else if (bName === 'mountains') {
+                if (rTree > 0.85) assetPath = AssetsLibrary.encode(`Nature/glTF/Pine_${1 + Math.floor(rng() * 5)}.gltf`);
+                else if (rTree > 0.8) assetPath = AssetsLibrary.encode(`Nature/glTF/DeadTree_${1 + Math.floor(rng() * 5)}.gltf`);
+                plantScale = 6 + rng() * 6;
             }
 
             if (assetPath) {
@@ -2209,20 +2213,28 @@
                 let assetPath = null;
                 let scale = 1.0;
 
-                if (r > 0.8) { // Steine
+                if (r > 0.85) { // Steine
                     const rockList = AssetsLibrary.get('NATURE', 'ROCKS');
                     if (rockList && rockList.length > 0) {
                         assetPath = AssetsLibrary.encode('Nature/glTF/' + rockList[Math.floor(rng() * rockList.length)]);
                         scale = 0.5 + rng() * 2.0;
                     }
-                } else if (r > 0.2) { // Farne / Gras-Assets
-                    let list = [];
-                    if (biome && biome.name === 'jungle') list = AssetsLibrary.get('NATURE', 'FERNS') || [];
-                    else list = AssetsLibrary.get('NATURE', 'GRASS') || [];
-                    
-                    if (list.length > 0) {
-                        assetPath = AssetsLibrary.encode('Nature/glTF/' + list[Math.floor(rng() * list.length)]);
+                } else if (r > 0.4) { // Büsche & Farne
+                    const bName = biome ? biome.name : 'plains';
+                    if (bName === 'jungle' || bName === 'forest' || bName === 'swamp') {
+                        const bushList = ['Bush.gltf', 'Bush_Large.gltf', 'Bush_Small.gltf', 'Bush_Flowers.gltf'];
+                        assetPath = AssetsLibrary.encode('baeume/glTF/' + bushList[Math.floor(rng() * bushList.length)]);
                         scale = 1.0 + rng() * 1.5;
+                    } else if (bName === 'plains') {
+                        assetPath = AssetsLibrary.encode('baeume/glTF/Bush_Small.gltf');
+                        scale = 0.8 + rng() * 0.5;
+                    }
+                } else if (r > 0.1) { // Blumen (Nur in fruchtbaren Biomen)
+                    const bName = biome ? biome.name : 'plains';
+                    if (bName === 'plains' || bName === 'forest') {
+                        const flowerList = ['Flower_1_Clump.gltf', 'Flower_2_Clump.gltf', 'Flower_3_Clump.gltf'];
+                        assetPath = AssetsLibrary.encode('baeume/glTF/' + flowerList[Math.floor(rng() * flowerList.length)]);
+                        scale = 1.5 + rng() * 1.0;
                     }
                 }
 
